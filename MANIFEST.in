@@ -5,7 +5,7 @@ include \
   CHANGELOG.md \
   CODE_OF_CONDUCT.md \
   CONTRIBUTING.md \
-  LICENSE \
+  LICENSE.md \
   MANIFEST.in \
   Pipfile \
   Pipfile.lock \

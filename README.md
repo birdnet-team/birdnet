@@ -2,7 +2,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/birdnet.svg)](https://pypi.python.org/pypi/birdnet)
 ![PyPI](https://img.shields.io/pypi/pyversions/birdnet.svg)
-[![MIT](https://img.shields.io/github/license/birdnet-team/birdnet.svg)](https://github.com/birdnet-team/birdnet/blob/master/LICENSE)
+[![MIT](https://img.shields.io/github/license/birdnet-team/birdnet.svg)](https://github.com/birdnet-team/birdnet/blob/master/LICENSE.md)
 
 A powerful Python library for identifying bird species by their sounds.
 
