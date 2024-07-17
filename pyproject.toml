@@ -7,9 +7,7 @@ requires-python = ">=3.8, <3.12"
 license = { text = "MIT" }
 authors = [{ name = "Stefan Taubert", email = "pypi@stefantaubert.com" }]
 maintainers = [{ name = "Stefan Taubert", email = "pypi@stefantaubert.com" }]
-keywords = [
-  "birds",
-]
+keywords = ["birds"]
 classifiers = [
   "Development Status :: 2 - Pre-Alpha",
   "Operating System :: OS Independent",
@@ -28,6 +26,12 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
 ]
 dependencies = [
+  "librosa==0.9.2",
+  "tensorflow==2.15.0",
+  "tflite_runtime",
+  "resampy",
+  "soundfile",
+  "scipy",
 ]
 
 [project.urls]
@@ -43,14 +47,8 @@ packages = ["birdnet"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = [
-  "birdnet",
-  "birdnet.*",
-]
-exclude = [
-  "birdnet_tests",
-  "birdnet_tests.*",
-]
+include = ["birdnet", "birdnet.*"]
+exclude = ["birdnet_tests", "birdnet_tests.*"]
 namespaces = true
 
 [tool.pytest.ini_options]
@@ -67,8 +65,7 @@ max_line_length = 100
 line_length = 100
 indent = 2
 known_first_party = ["birdnet"]
-known_third_party = [
-]
+known_third_party = []
 
 [tool.tox]
 legacy_tox_ini = """
