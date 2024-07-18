@@ -25,6 +25,7 @@ tflite_runtime = "*"
 resampy = "*"
 soundfile = "*"
 scipy = "*"
+ordered-set = "*"
 
 [requires]
 python_version = "3.11"
