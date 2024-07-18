@@ -1,6 +1,7 @@
-import datetime
+﻿import datetime
 import operator
 import os
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, OrderedDict
@@ -37,12 +38,12 @@ class AnalysisResultV2p4(AnalysisResultBase):
   sample_rate: int
   model_fmin: int
   model_fmax: int
-  
-import zipfile
+
 
 AVAILABLE_LANGUAGES = {
-"sv", "da", "hu", "th", "pt", "fr", "cs", "af", "en_uk", "uk", "it", "ja", "sl", "pl", "ko", "es", "de", "tr", "ru", "en_us", "no", "sk", "ar", "fi", "ro", "nl", "zh"
+    "sv", "da", "hu", "th", "pt", "fr", "cs", "af", "en_uk", "uk", "it", "ja", "sl", "pl", "ko", "es", "de", "tr", "ru", "en_us", "no", "sk", "ar", "fi", "ro", "nl", "zh"
 }
+
 
 class Downloader():
   def __init__(self) -> None:
@@ -51,18 +52,22 @@ class Downloader():
     self._audio_model_path = self._version_path / "audio-model.tflite"
     self._meta_model_path = self._version_path / "meta-model.tflite"
     self._lang_path = self._version_path / "labels"
-  
+
+  @property
+  def version_path(self) -> Path:
+    return self._version_path
+
   @property
   def audio_model_path(self) -> Path:
-    return self._audio_model_path  
-  
+    return self._audio_model_path
+
   @property
   def meta_model_path(self) -> Path:
     return self._meta_model_path
-  
+
   def get_language_path(self, language: str) -> Path:
     return self._lang_path / f"{language}.txt"
-  
+
   def _check_model_files_exist(self) -> bool:
     model_is_downloaded = True
     model_is_downloaded &= self._audio_model_path.is_file()
@@ -71,13 +76,13 @@ class Downloader():
     for lang in AVAILABLE_LANGUAGES:
       model_is_downloaded &= self.get_language_path(lang).is_file()
     return model_is_downloaded
-  
+
   def _download_model_files(self):
     dl_path = "https://tuc.cloud/index.php/s/45KmTcpHH8iDDA2/download/BirdNET_v2.4.zip"
     self._version_path.mkdir(parents=True, exist_ok=True)
-    
+
     zip_download_path = self._version_path / "download.zip"
-    
+
     print("Downloading model ...")
     download_file_tqdm(dl_path, zip_download_path)
 
@@ -85,23 +90,22 @@ class Downloader():
     with zipfile.ZipFile(zip_download_path, 'r') as zip_ref:
       zip_ref.extractall(self._version_path)
     print("Done.")
-    
+
     os.remove(zip_download_path)
-    
-    
-  
+
   def ensure_model_is_available(self) -> None:
     if not self._check_model_files_exist():
       self._download_model_files()
       assert self._check_model_files_exist()
-    
+
 
 class ModelV2p4(ModelBase):
-  def __init__(self, tflite_threads: int = 1, language: str="en_us") -> None:
+  def __init__(self, tflite_threads: int = 1, language: str = "en_us") -> None:
     super().__init__()
     if language not in AVAILABLE_LANGUAGES:
-      raise ValueError(f"Language '{language}' is not available! Choose from: {','.join(sorted(AVAILABLE_LANGUAGES))}")
-    
+      raise ValueError(
+        f"Language '{language}' is not available! Choose from: {','.join(sorted(AVAILABLE_LANGUAGES))}")
+
     self.language = language
     downloader = Downloader()
     downloader.ensure_model_is_available()
@@ -110,12 +114,14 @@ class ModelV2p4(ModelBase):
     self.sig_fmin: int = 0
     self.sig_fmax: int = 15_000
     self.sample_rate = 48_000
-    
-    self._species_list = SpeciesList(downloader.get_language_path(language).read_text("utf8").splitlines())
+
+    self._species_list = SpeciesList(
+      downloader.get_language_path(language).read_text("utf8").splitlines())
     # [line.split(",")[1] for line in labels]
 
     # Load TFLite model and allocate tensors.
-    self.audio_interpreter = tflite.Interpreter(str(downloader.audio_model_path.absolute()), num_threads=tflite_threads)
+    self.audio_interpreter = tflite.Interpreter(
+      str(downloader.audio_model_path.absolute()), num_threads=tflite_threads)
     # Get input tensor index
     input_details = self.audio_interpreter.get_input_details()
     self.audio_input_layer_index = input_details[0]["index"]
@@ -123,9 +129,10 @@ class ModelV2p4(ModelBase):
     output_details = self.audio_interpreter.get_output_details()
     self.audio_output_layer_index = output_details[0]["index"]
     self.audio_interpreter.allocate_tensors()
-    
+
     # Load TFLite model and allocate tensors.
-    self.meta_interpreter = tflite.Interpreter(str(downloader.meta_model_path.absolute()), num_threads=tflite_threads)
+    self.meta_interpreter = tflite.Interpreter(
+      str(downloader.meta_model_path.absolute()), num_threads=tflite_threads)
     # Get input tensor index
     input_details = self.meta_interpreter.get_input_details()
     self.meta_input_layer_index = input_details[0]["index"]

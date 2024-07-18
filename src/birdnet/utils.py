@@ -1,8 +1,11 @@
+import os
 from pathlib import Path
 from typing import List
 
 import numpy as np
+import requests
 from scipy.signal import butter, lfilter
+from tqdm import tqdm
 
 from birdnet.types import SpeciesList
 
@@ -85,10 +88,6 @@ def split_signal(sig, rate: int, seconds: float, overlap: float, minlen: float) 
 def flat_sigmoid(x, sensitivity: int):
   return 1 / (1.0 + np.exp(sensitivity * np.clip(x, -15, 15)))
 
-import os
-
-import requests
-
 
 def get_app_data_path() -> Path:
   """Returns the appropriate application data path based on the operating system."""
@@ -101,17 +100,20 @@ def get_app_data_path() -> Path:
       app_data_path = os.path.expanduser('~/.local/share')
   else:
     raise OSError('Unsupported operating system')
-  
-  return Path(app_data_path)
+
+  result = Path(app_data_path)
+  return result
+
 
 def get_birdnet_app_data_folder() -> Path:
   app_data = get_app_data_path()
   result = app_data / "birdnet"
-  return  result
+  return result
+
 
 def download_file(url: str, file_path: Path):
   assert file_path.parent.is_dir()
-  
+
   response = requests.get(url, timeout=30)
   if response.status_code == 200:
     with open(file_path, 'wb') as file:
@@ -119,13 +121,10 @@ def download_file(url: str, file_path: Path):
   else:
     raise ValueError(f"Failed to download the file. Status code: {response.status_code}")
 
-import requests
-from tqdm import tqdm
-
 
 def download_file_tqdm(url: str, file_path: Path) -> None:
   assert file_path.parent.is_dir()
-  
+
   response = requests.get(url, stream=True, timeout=30)
   total_size = int(response.headers.get('content-length', 0))
   block_size = 1024
@@ -137,4 +136,3 @@ def download_file_tqdm(url: str, file_path: Path) -> None:
 
   if response.status_code != 200 or (total_size not in (0, tqdm_bar.n)):
     raise ValueError(f"Failed to download the file. Status code: {response.status_code}")
-  

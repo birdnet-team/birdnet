@@ -27,6 +27,7 @@ soundfile = "*"
 scipy = "*"
 ordered-set = "*"
 tqdm = "*"
+numpy = "*"
 
 [requires]
 python_version = "3.11"
