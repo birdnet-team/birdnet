@@ -26,6 +26,7 @@ resampy = "*"
 soundfile = "*"
 scipy = "*"
 ordered-set = "*"
+tqdm = "*"
 
 [requires]
 python_version = "3.11"

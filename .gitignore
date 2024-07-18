@@ -1,6 +1,8 @@
 # Custom
 example/soundscape.BirdNET.selection.table.txt
-src/birdnet/checkpoints
+src/birdnet_legacy
+deploy-PyPI.sh
+
 
 # VSCode
 .vscode
