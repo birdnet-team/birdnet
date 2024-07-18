@@ -10,17 +10,14 @@ import numpy as np
 import soundfile as sf
 from scipy.signal import butter, firwin, kaiserord, lfilter
 
-from birdnet.models.v2_4 import SIG_FMAX, SIG_FMIN, Model_v2_4
+from birdnet.models.v2_4 import SIG_FMAX, SIG_FMIN, ModelV2p4
 
 # Supported file types
-ALLOWED_FILETYPES: Set[str] = {"wav", "flac", "mp3", "ogg", "m4a", "wma", "aiff", "aif"}
+# ALLOWED_FILETYPES: Set[str] = {"wav", "flac", "mp3", "ogg", "m4a", "wma", "aiff", "aif"}
 
 SAMPLE_RATE = 48_000
-
-
-def getAudioFileLength(path: Path) -> int:
-  # Open file with librosa (uses ffmpeg or libav)
-  return round(librosa.get_duration(filename=path, sr=SAMPLE_RATE))
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 
 def analyze_file(
@@ -37,7 +34,7 @@ def analyze_file(
     bandpass: bool = True,
     bandpass_fmin: int = 0,
     bandpass_fmax: int = 15000,
-    cpu_threads: int = 8,    
+    # cpu_threads: int = 8,
     apply_sigmoid: bool = True,
     sigmoid_sensitivity: float = 1.0,
     min_confidence: float = 0.1,
@@ -61,9 +58,9 @@ def analyze_file(
   if not 0.0 <= sig_overlap < sig_length:
     raise ValueError("sig_overlap")
 
-  assert os.cpu_count() is not None
-  if not 1 <= cpu_threads <= os.cpu_count():
-    raise ValueError("cpu_threads")
+  # assert os.cpu_count() is not None
+  # if not 1 <= cpu_threads <= os.cpu_count():
+  #   raise ValueError("cpu_threads")
 
   # TODO species list prediction
   custom_species = None
@@ -76,13 +73,13 @@ def analyze_file(
 
   fileLengthSeconds = librosa.get_duration(filename=str(file_path.absolute()), sr=SAMPLE_RATE)
 
-  model = Model_v2_4()
+  model = ModelV2p4()
   results = {}
 
   # Process each chunk
   while offset < fileLengthSeconds:
     # will resample to SAMPLE_RATE
-    sig, _ = librosa.load(
+    audio_signal, _ = librosa.load(
       file_path,
       sr=SAMPLE_RATE,
       offset=offset,
@@ -93,22 +90,19 @@ def analyze_file(
 
     # Bandpass filter
     if bandpass:
-      sig = bandpass_signal(sig, SAMPLE_RATE, bandpass_fmin, bandpass_fmax, SIG_FMIN, SIG_FMAX)
+      audio_signal = bandpass_signal(audio_signal, SAMPLE_RATE,
+                                     bandpass_fmin, bandpass_fmax, SIG_FMIN, SIG_FMAX)
       # sig = bandpassKaiserFIR(sig, rate, fmin, fmax)
 
     samples = []
     timestamps = []
 
-    chunks = splitSignal(sig, SAMPLE_RATE, sig_length, sig_overlap, sig_minlen)
+    chunks = split_signal(audio_signal, SAMPLE_RATE, sig_length, sig_overlap, sig_minlen)
 
     for chunk_index, chunk in enumerate(chunks):
       # Add to batch
       samples.append(chunk)
       timestamps.append([start, end])
-
-      # Advance start and end
-      start += sig_length - sig_overlap
-      end = start + sig_length
 
       # Check if batch is full or last chunk
       if len(samples) < batch_size and chunk_index < len(chunks) - 1:
@@ -122,7 +116,8 @@ def analyze_file(
       # Logits or sigmoid activations?
       if apply_sigmoid:
         prediction = flat_sigmoid(
-          np.array(prediction), sensitivity=-sigmoid_sensitivity
+          prediction,
+          sensitivity=-sigmoid_sensitivity,
         )
 
       # Add to results
@@ -145,6 +140,11 @@ def analyze_file(
       # Clear batch
       samples = []
       timestamps = []
+
+      # Advance start and end
+      start += sig_length - sig_overlap
+      end = start + sig_length
+
     offset = offset + file_splitting_duration
 
   return results
@@ -177,7 +177,7 @@ def bandpass_signal(sig, rate: int, fmin: int, fmax: int, new_fmin: int, new_fma
   return sig_f32
 
 
-def splitSignal(sig, rate, seconds, overlap, minlen) -> List:
+def split_signal(sig, rate: int, seconds: float, overlap: float, minlen: float) -> List:
   """Split signal with overlap.
 
   Args:
@@ -220,5 +220,5 @@ def splitSignal(sig, rate, seconds, overlap, minlen) -> List:
   return sig_splits
 
 
-def flat_sigmoid(x, sensitivity=-1):
+def flat_sigmoid(x, sensitivity: int):
   return 1 / (1.0 + np.exp(sensitivity * np.clip(x, -15, 15)))
