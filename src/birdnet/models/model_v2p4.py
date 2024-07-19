@@ -13,7 +13,6 @@ from birdnet.utils import (bandpass_signal, chunk_signal, download_file_tqdm, fl
                            get_birdnet_app_data_folder, get_species_from_file, itertools_batched,
                            load_audio_file_in_parts)
 
-
 AVAILABLE_LANGUAGES: Set[Language] = {
     "sv", "da", "hu", "th", "pt", "fr", "cs", "af", "en_uk", "uk", "it", "ja", "sl", "pl", "ko", "es", "de", "tr", "ru", "en_us", "no", "sk", "ar", "fi", "ro", "nl", "zh"
 }
@@ -79,46 +78,46 @@ class ModelV2p4():
       raise ValueError(
         f"Language '{language}' is not available! Choose from: {','.join(sorted(AVAILABLE_LANGUAGES))}")
 
-    self.language = language
+    self._language = language
 
     birdnet_app_data = get_birdnet_app_data_folder()
     downloader = Downloader(birdnet_app_data)
     downloader.ensure_model_is_available()
 
-    self.sig_fmin: int = 0
-    self.sig_fmax: int = 15_000
-    self.sample_rate = 48_000
-    self.chunk_size_s: float = 3.0
-    self.chunk_overlap_s: float = 0.0
-    self.min_chunk_size_s: float = 1.0
+    self._sig_fmin: int = 0
+    self._sig_fmax: int = 15_000
+    self._sample_rate = 48_000
+    self._chunk_size_s: float = 3.0
+    self._chunk_overlap_s: float = 0.0
+    self._min_chunk_size_s: float = 1.0
 
     self._species_list = get_species_from_file(
-      downloader.get_language_path(language), 
+      downloader.get_language_path(language),
       encoding="utf8"
     )
     # [line.split(",")[1] for line in labels]
 
     # Load TFLite model and allocate tensors.
-    self.audio_interpreter = tflite.Interpreter(
+    self._audio_interpreter = tflite.Interpreter(
       str(downloader.audio_model_path.absolute()), num_threads=tflite_threads)
     # Get input tensor index
-    input_details = self.audio_interpreter.get_input_details()
-    self.audio_input_layer_index = input_details[0]["index"]
+    input_details = self._audio_interpreter.get_input_details()
+    self._audio_input_layer_index = input_details[0]["index"]
     # Get classification output
-    output_details = self.audio_interpreter.get_output_details()
-    self.audio_output_layer_index = output_details[0]["index"]
-    self.audio_interpreter.allocate_tensors()
+    output_details = self._audio_interpreter.get_output_details()
+    self._audio_output_layer_index = output_details[0]["index"]
+    self._audio_interpreter.allocate_tensors()
 
     # Load TFLite model and allocate tensors.
-    self.meta_interpreter = tflite.Interpreter(
+    self._meta_interpreter = tflite.Interpreter(
       str(downloader.meta_model_path.absolute()), num_threads=tflite_threads)
     # Get input tensor index
-    input_details = self.meta_interpreter.get_input_details()
-    self.meta_input_layer_index = input_details[0]["index"]
+    input_details = self._meta_interpreter.get_input_details()
+    self._meta_input_layer_index = input_details[0]["index"]
     # Get classification output
-    output_details = self.meta_interpreter.get_output_details()
-    self.meta_output_layer_index = output_details[0]["index"]
-    self.meta_interpreter.allocate_tensors()
+    output_details = self._meta_interpreter.get_output_details()
+    self._meta_output_layer_index = output_details[0]["index"]
+    self._meta_interpreter.allocate_tensors()
     del downloader
 
   @property
@@ -129,14 +128,14 @@ class ModelV2p4():
     assert batch.dtype == np.float32
     # Same method as embeddings
 
-    self.audio_interpreter.resize_tensor_input(self.audio_input_layer_index, batch.shape)
-    self.audio_interpreter.allocate_tensors()
+    self._audio_interpreter.resize_tensor_input(self._audio_input_layer_index, batch.shape)
+    self._audio_interpreter.allocate_tensors()
 
     # Make a prediction (Audio only for now)
-    self.audio_interpreter.set_tensor(self.audio_input_layer_index, batch)
-    self.audio_interpreter.invoke()
-    prediction: npt.NDArray[np.float32] = self.audio_interpreter.get_tensor(
-      self.audio_output_layer_index)
+    self._audio_interpreter.set_tensor(self._audio_input_layer_index, batch)
+    self._audio_interpreter.invoke()
+    prediction: npt.NDArray[np.float32] = self._audio_interpreter.get_tensor(
+      self._audio_output_layer_index)
 
     return prediction
 
@@ -148,11 +147,11 @@ class ModelV2p4():
     sample = np.expand_dims(np.array([latitude, longitude, week], dtype=np.float32), 0)
 
     # Run inference
-    self.meta_interpreter.set_tensor(self.meta_input_layer_index, sample)
-    self.meta_interpreter.invoke()
+    self._meta_interpreter.set_tensor(self._meta_input_layer_index, sample)
+    self._meta_interpreter.invoke()
 
-    prediction: npt.NDArray[np.float32] = self.meta_interpreter.get_tensor(self.meta_output_layer_index)[
-        0]
+    prediction: npt.NDArray[np.float32] = self._meta_interpreter.get_tensor(
+      self._meta_output_layer_index)[0]
     return prediction
 
   def predict_species_at_location_and_time(self, latitude: float, longitude: float, *, week: int = -1, min_confidence: float = 0.03) -> SpeciesPrediction:
@@ -241,7 +240,7 @@ class ModelV2p4():
     predictions = OrderedDict()
 
     for audio_signal_part in load_audio_file_in_parts(
-      audio_file, self.sample_rate, file_splitting_duration_s
+      audio_file, self._sample_rate, file_splitting_duration_s
     ):
       if use_bandpass:
         if bandpass_fmin is None:
@@ -249,11 +248,17 @@ class ModelV2p4():
         if bandpass_fmax is None:
           raise ValueError("bandpass_fmax")
 
-        audio_signal_part = bandpass_signal(audio_signal_part, self.sample_rate,
-                                            bandpass_fmin, bandpass_fmax, self.sig_fmin, self.sig_fmax)
+        if bandpass_fmin <= 0:
+          raise ValueError("bandpass_fmin")
+
+        if not bandpass_fmin < bandpass_fmax:
+          raise ValueError("bandpass_fmax")
+
+        audio_signal_part = bandpass_signal(audio_signal_part, self._sample_rate,
+                                            bandpass_fmin, bandpass_fmax, self._sig_fmin, self._sig_fmax)
 
       chunked_signal = chunk_signal(
-        audio_signal_part, self.sample_rate, self.chunk_size_s, self.chunk_overlap_s, self.min_chunk_size_s
+        audio_signal_part, self._sample_rate, self._chunk_size_s, self._chunk_overlap_s, self._min_chunk_size_s
       )
 
       for batch_of_chunks in itertools_batched(chunked_signal, batch_size):
