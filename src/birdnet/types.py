@@ -1,4 +1,9 @@
-from ordered_set import OrderedSet
+from typing import OrderedDict as ODType
+from typing import Tuple
 
 Species = str
-SpeciesList = OrderedSet[Species]
+Language = str
+Confidence = float
+TimeInterval = Tuple[float, float]
+SpeciesPrediction = ODType[Species, Confidence]
+SpeciesPredictions = ODType[TimeInterval, SpeciesPrediction]

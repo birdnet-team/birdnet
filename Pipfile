@@ -17,6 +17,7 @@ build = "*"
 mypy = "*"
 pandas-stubs = "*"
 types-tqdm = "*"
+types-requests = "*"
 
 [packages]
 librosa = "==0.9.2"

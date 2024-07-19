@@ -1,6 +1,8 @@
 # Custom
 example/soundscape.BirdNET.selection.table.txt
+example/soundscape.birdnet_legacy.selection.table.txt
 src/birdnet_legacy
+src/birdnet_debug
 deploy-PyPI.sh
 
 

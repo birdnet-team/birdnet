@@ -1,54 +1,27 @@
-﻿import datetime
-import operator
-import os
+﻿import os
 import zipfile
-from dataclasses import dataclass
+from operator import itemgetter
 from pathlib import Path
-from typing import Optional, OrderedDict
+from typing import Optional, OrderedDict, Set
 
-import librosa
 import numpy as np
 import numpy.typing as npt
 import tflite_runtime.interpreter as tflite
 
-from birdnet.models.model_base import AnalysisResultBase, ModelBase
-from birdnet.types import SpeciesList
-from birdnet.utils import (bandpass_signal, download_file_tqdm, flat_sigmoid,
-                           get_birdnet_app_data_folder, split_signal)
-
-# os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-# os.environ["CUDA_VISIBLE_DEVICES"] = ""
-
-MODEL_VERSION = "v2.4"
+from birdnet.types import Language, Species, SpeciesPrediction, SpeciesPredictions
+from birdnet.utils import (bandpass_signal, chunk_signal, download_file_tqdm, flat_sigmoid,
+                           get_birdnet_app_data_folder, get_species_from_file, itertools_batched,
+                           load_audio_file_in_parts)
 
 
-@dataclass()
-class AnalysisResultV2p4(AnalysisResultBase):
-  sig_length: float
-  sig_overlap: float
-  sig_minlen: float
-  file_splitting_duration: int
-  use_bandpass: bool
-  bandpass_fmin: Optional[int]
-  bandpass_fmax: Optional[int]
-  applied_sigmoid: bool
-  sigmoid_sensitivity: Optional[float]
-  min_confidence: float
-  batch_size: int
-  sample_rate: int
-  model_fmin: int
-  model_fmax: int
-
-
-AVAILABLE_LANGUAGES = {
+AVAILABLE_LANGUAGES: Set[Language] = {
     "sv", "da", "hu", "th", "pt", "fr", "cs", "af", "en_uk", "uk", "it", "ja", "sl", "pl", "ko", "es", "de", "tr", "ru", "en_us", "no", "sk", "ar", "fi", "ro", "nl", "zh"
 }
 
 
 class Downloader():
-  def __init__(self) -> None:
-    birdnet_app_data = get_birdnet_app_data_folder()
-    self._version_path = birdnet_app_data / "models" / MODEL_VERSION
+  def __init__(self, app_storage: Path) -> None:
+    self._version_path = app_storage / "models" / "v2.4"
     self._audio_model_path = self._version_path / "audio-model.tflite"
     self._meta_model_path = self._version_path / "meta-model.tflite"
     self._lang_path = self._version_path / "labels"
@@ -65,7 +38,7 @@ class Downloader():
   def meta_model_path(self) -> Path:
     return self._meta_model_path
 
-  def get_language_path(self, language: str) -> Path:
+  def get_language_path(self, language: Language) -> Path:
     return self._lang_path / f"{language}.txt"
 
   def _check_model_files_exist(self) -> bool:
@@ -99,24 +72,30 @@ class Downloader():
       assert self._check_model_files_exist()
 
 
-class ModelV2p4(ModelBase):
-  def __init__(self, tflite_threads: int = 1, language: str = "en_us") -> None:
+class ModelV2p4():
+  def __init__(self, tflite_threads: int = 1, language: Language = "en_us") -> None:
     super().__init__()
     if language not in AVAILABLE_LANGUAGES:
       raise ValueError(
         f"Language '{language}' is not available! Choose from: {','.join(sorted(AVAILABLE_LANGUAGES))}")
 
     self.language = language
-    downloader = Downloader()
+
+    birdnet_app_data = get_birdnet_app_data_folder()
+    downloader = Downloader(birdnet_app_data)
     downloader.ensure_model_is_available()
 
-    # Frequency range. This is model specific and should not be changed.
     self.sig_fmin: int = 0
     self.sig_fmax: int = 15_000
     self.sample_rate = 48_000
+    self.chunk_size_s: float = 3.0
+    self.chunk_overlap_s: float = 0.0
+    self.min_chunk_size_s: float = 1.0
 
-    self._species_list = SpeciesList(
-      downloader.get_language_path(language).read_text("utf8").splitlines())
+    self._species_list = get_species_from_file(
+      downloader.get_language_path(language), 
+      encoding="utf8"
+    )
     # [line.split(",")[1] for line in labels]
 
     # Load TFLite model and allocate tensors.
@@ -140,120 +119,119 @@ class ModelV2p4(ModelBase):
     output_details = self.meta_interpreter.get_output_details()
     self.meta_output_layer_index = output_details[0]["index"]
     self.meta_interpreter.allocate_tensors()
+    del downloader
 
   @property
   def species(self):
     return self._species_list
 
-  def __predict_audio(self, sample: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
-    assert sample.dtype == np.float32
+  def _predict_species(self, batch: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
+    assert batch.dtype == np.float32
     # Same method as embeddings
 
-    self.audio_interpreter.resize_tensor_input(self.audio_input_layer_index, sample.shape)
+    self.audio_interpreter.resize_tensor_input(self.audio_input_layer_index, batch.shape)
     self.audio_interpreter.allocate_tensors()
 
     # Make a prediction (Audio only for now)
-    self.audio_interpreter.set_tensor(self.audio_input_layer_index, sample)
+    self.audio_interpreter.set_tensor(self.audio_input_layer_index, batch)
     self.audio_interpreter.invoke()
-    prediction = self.audio_interpreter.get_tensor(self.audio_output_layer_index)
+    prediction: npt.NDArray[np.float32] = self.audio_interpreter.get_tensor(
+      self.audio_output_layer_index)
 
     return prediction
 
-  def __predict_meta(self, lat, lon, week):
-    # Prepare mdata as sample
-    sample = np.expand_dims(np.array([lat, lon, week], dtype="float32"), 0)
+  def _predict_species_from_location(self, latitude: float, longitude: float, week: int) -> npt.NDArray[np.float32]:
+    assert -90 <= latitude <= 90
+    assert -180 <= longitude <= 180
+    assert 1 <= week <= 48 or week == -1
+
+    sample = np.expand_dims(np.array([latitude, longitude, week], dtype=np.float32), 0)
 
     # Run inference
     self.meta_interpreter.set_tensor(self.meta_input_layer_index, sample)
     self.meta_interpreter.invoke()
 
-    prediction = self.meta_interpreter.get_tensor(self.meta_output_layer_index)[0]
+    prediction: npt.NDArray[np.float32] = self.meta_interpreter.get_tensor(self.meta_output_layer_index)[
+        0]
     return prediction
 
-  def get_species_from_location(self, latitude: float, longitude: float, week: int, *, location_filter_threshold: float = 0.03) -> SpeciesList:
-    """Predict a species list.
+  def predict_species_at_location_and_time(self, latitude: float, longitude: float, *, week: int = -1, min_confidence: float = 0.03) -> SpeciesPrediction:
+    """Predict a species set.
 
     Uses the model to predict the species list for the given coordinates and filters by threshold.
 
     Args:
-        lat: The latitude.
-        lon: The longitude.
         week: The week of the year [1-48]. Use -1 for year-round.
         threshold: Only values above or equal to threshold will be shown.
-        sort: If the species list should be sorted.
 
     Returns:
-        A list of all eligible species.
+        A set of all eligible species including their scores.
     """
-    if not 0.01 <= location_filter_threshold <= 0.99:
-      raise ValueError("location_filter_threshold")
+
+    if not -90 <= latitude <= 90:
+      raise ValueError("latitude")
+
+    if not -180 <= longitude <= 180:
+      raise ValueError("longitude")
+
+    if not 0 <= min_confidence < 1.0:
+      raise ValueError("min_confidence")
+
+    if not (1 <= week <= 48 or week == -1):
+      raise ValueError("week")
 
     # Extract species from model
-    l_filter = self.__predict_meta(latitude, longitude, week)
+    l_filter = self._predict_species_from_location(latitude, longitude, week)
 
-    # Apply threshold
-    l_filter = np.where(l_filter >= location_filter_threshold, l_filter, 0)
-
-    # Zip with labels
-    l_filter = list(zip(l_filter, self._species_list))
-
-    # Sort by filter value
-    l_filter = sorted(l_filter, key=lambda x: x[0], reverse=True)
-
-    # Make species list
-    species = SpeciesList(
-      p[1]
-      for p in l_filter
-      if p[0] >= location_filter_threshold
+    prediction = (
+      (species, score)
+      for species, score in zip(self._species_list, l_filter)
+      if score >= min_confidence
     )
 
-    return species
+    # Sort by filter value
+    sorted_prediction = OrderedDict(
+      sorted(prediction, key=itemgetter(1), reverse=True)
+    )
 
-  def analyze_file(
+    return sorted_prediction
+
+  def predict_species_in_audio_file(
       self,
-      file_path: Path,
+      audio_file: Path,
       *,
-      sig_length: float = 3.0,
-      sig_overlap: float = 0.0,
-      sig_minlen: float = 1.0,
-      file_splitting_duration: int = 600,
-      use_bandpass: bool = True,
-      bandpass_fmin: Optional[int] = 0,
-      bandpass_fmax: Optional[int] = 15000,
-      # cpu_threads: int = 8,
-      apply_sigmoid: bool = True,
-      sigmoid_sensitivity: Optional[float] = 1.0,
       min_confidence: float = 0.1,
       batch_size: int = 1,
-      filter_species: Optional[SpeciesList] = None,
-    ) -> AnalysisResultV2p4:
+      use_bandpass: bool = True,
+      bandpass_fmin: Optional[int] = 0,
+      bandpass_fmax: Optional[int] = 15_000,
+      apply_sigmoid: bool = True,
+      sigmoid_sensitivity: Optional[float] = 1.0,
+      filter_species: Optional[Set[Species]] = None,
+      file_splitting_duration_s: float = 600,
+    ) -> SpeciesPredictions:
     """
     sig_minlen: Define minimum length of audio chunk for prediction; chunks shorter than 3 seconds will be padded with zeros
     """
 
-    if not 0.01 <= min_confidence <= 0.99:
+    if batch_size < 1:
+      raise ValueError("batch_size")
+
+    if file_splitting_duration_s <= 0:
+      raise ValueError("file_splitting_duration_s")
+
+    if not 0 <= min_confidence < 1.0:
       raise ValueError("min_confidence")
 
-    # TODO check if correct
-    if not 0.5 <= sigmoid_sensitivity <= 1.5:
-      raise ValueError("sigmoid_sensitivity")
-
-    if not 0.0 <= sig_overlap < sig_length:
-      raise ValueError("sig_overlap")
-
-    # assert os.cpu_count() is not None
-    # if not 1 <= cpu_threads <= os.cpu_count():
-    #   raise ValueError("cpu_threads")
-
-    start_time = datetime.datetime.now()
-    offset = 0
-    start, end = 0, sig_length
-
-    file_duration_seconds = librosa.get_duration(
-      filename=str(file_path.absolute()), sr=self.sample_rate)
+    if apply_sigmoid:
+      if sigmoid_sensitivity is None:
+        raise ValueError("sigmoid_sensitivity")
+      if not 0.5 <= sigmoid_sensitivity <= 1.5:
+        raise ValueError("sigmoid_sensitivity")
 
     use_species_filter = filter_species is not None
     if use_species_filter:
+      assert filter_species is not None  # added for mypy
       species_filter_contains_unknown_species = not filter_species.issubset(self._species_list)
       if species_filter_contains_unknown_species:
         raise ValueError("filter_species")
@@ -262,122 +240,56 @@ class ModelV2p4(ModelBase):
 
     predictions = OrderedDict()
 
-    # Process each chunk
-    while offset < file_duration_seconds:
-      # will resample to self.sample_rate
-      audio_signal, _ = librosa.load(
-        file_path,
-        sr=self.sample_rate,
-        offset=offset,
-        duration=file_splitting_duration,
-        mono=True,
-        res_type="kaiser_fast",
-      )
-
-      # Bandpass filter
+    for audio_signal_part in load_audio_file_in_parts(
+      audio_file, self.sample_rate, file_splitting_duration_s
+    ):
       if use_bandpass:
         if bandpass_fmin is None:
           raise ValueError("bandpass_fmin")
         if bandpass_fmax is None:
           raise ValueError("bandpass_fmax")
 
-        audio_signal = bandpass_signal(audio_signal, self.sample_rate,
-                                       bandpass_fmin, bandpass_fmax, self.sig_fmin, self.sig_fmax)
+        audio_signal_part = bandpass_signal(audio_signal_part, self.sample_rate,
+                                            bandpass_fmin, bandpass_fmax, self.sig_fmin, self.sig_fmax)
 
-      samples = []
-      timestamps = []
+      chunked_signal = chunk_signal(
+        audio_signal_part, self.sample_rate, self.chunk_size_s, self.chunk_overlap_s, self.min_chunk_size_s
+      )
 
-      chunks = split_signal(audio_signal, self.sample_rate, sig_length, sig_overlap, sig_minlen)
-
-      for chunk_index, chunk in enumerate(chunks):
-        # Add to batch
-        samples.append(chunk)
-        timestamps.append([start, end])
-
-        # Check if batch is full or last chunk
-        if len(samples) < batch_size and chunk_index < len(chunks) - 1:
-          continue
-
-        # Predict
-        # Prepare sample and pass through birdnet.model
-        data = np.array(samples, dtype="float32")
-        prediction = self.__predict_audio(data)
+      for batch_of_chunks in itertools_batched(chunked_signal, batch_size):
+        batch = np.array(list(map(itemgetter(2), batch_of_chunks)), np.float32)
+        predicted_species = self._predict_species(batch)
 
         # Logits or sigmoid activations?
         if apply_sigmoid:
-          prediction = flat_sigmoid(
-            prediction,
+          assert sigmoid_sensitivity is not None
+          predicted_species = flat_sigmoid(
+            predicted_species,
             sensitivity=-sigmoid_sensitivity,
           )
 
-        # Add to results
-        for i in range(len(samples)):
-          # Get timestamp
-          s_start, s_end = timestamps[i]
+        for i, (chunk_start, chunk_end, _) in enumerate(batch_of_chunks):
+          prediction = predicted_species[i]
 
-          # Get prediction
-          pred = prediction[i]
-
-          # Assign scores to labels
-          p_labels = zip(self._species_list, pred)
+          labeled_prediction = (
+            (species, score)
+            for species, score in zip(self._species_list, prediction)
+            if score >= min_confidence
+          )
 
           if use_species_filter:
-            p_labels = (
+            assert filter_species is not None  # added for mypy
+            labeled_prediction = (
               (species, score)
-              for species, score in p_labels
+              for species, score in labeled_prediction
               if species in filter_species
             )
 
           # Sort by score
-          preds = OrderedDict(sorted(p_labels, key=operator.itemgetter(1), reverse=True))
+          sorted_prediction = OrderedDict(
+            sorted(labeled_prediction, key=itemgetter(1), reverse=True)
+          )
+          assert (chunk_start, chunk_end) not in predictions
+          predictions[(chunk_start, chunk_end)] = sorted_prediction
 
-          assert (s_start, s_end) not in predictions
-          predictions[(s_start, s_end)] = preds
-
-        # Clear batch
-        samples = []
-        timestamps = []
-
-        # Advance start and end
-        start += sig_length - sig_overlap
-        end = start + sig_length
-
-      offset = offset + file_splitting_duration
-
-    end_time = datetime.datetime.now()
-
-    result = AnalysisResultV2p4(
-      file_path=file_path,
-      model_version=MODEL_VERSION,
-      file_duration_seconds=file_duration_seconds,
-      use_bandpass=use_bandpass,
-      bandpass_fmax=None,
-      bandpass_fmin=None,
-      applied_sigmoid=apply_sigmoid,
-      sigmoid_sensitivity=None,
-      available_species=self._species_list,
-      filtered_species=filter_species,
-      language=self.language,
-      batch_size=batch_size,
-      file_splitting_duration=file_splitting_duration,
-      min_confidence=min_confidence,
-      sig_length=sig_length,
-      sig_minlen=sig_minlen,
-      sig_overlap=sig_overlap,
-      start_time=start_time,
-      end_time=end_time,
-      duration_seconds=(end_time - start_time).total_seconds(),
-      sample_rate=self.sample_rate,
-      model_fmin=self.sig_fmin,
-      model_fmax=self.sig_fmax,
-      predictions=predictions,
-    )
-
-    if use_bandpass:
-      result.bandpass_fmax = bandpass_fmax
-      result.bandpass_fmin = bandpass_fmin
-
-    if apply_sigmoid:
-      result.sigmoid_sensitivity = sigmoid_sensitivity
-
-    return result
+    return predictions

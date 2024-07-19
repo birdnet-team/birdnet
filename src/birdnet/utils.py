@@ -1,21 +1,25 @@
 import os
+from itertools import islice
 from pathlib import Path
-from typing import List
+from typing import Any, Generator, Iterable, Tuple, cast
 
+import librosa
 import numpy as np
+import numpy.typing as npt
 import requests
+from ordered_set import OrderedSet
 from scipy.signal import butter, lfilter
 from tqdm import tqdm
 
-from birdnet.types import SpeciesList
+from birdnet.types import Species
 
 
-def get_species_from_file(file_path: Path, *, encoding: str = "utf8") -> SpeciesList:
-  species = SpeciesList(file_path.read_text(encoding).splitlines())
+def get_species_from_file(species_file: Path, *, encoding: str = "utf8") -> OrderedSet[Species]:
+  species = OrderedSet(species_file.read_text(encoding).splitlines())
   return species
 
 
-def bandpass_signal(sig, rate: int, fmin: int, fmax: int, new_fmin: int, new_fmax: int):
+def bandpass_signal(audio_signal: npt.NDArray[np.float32], rate: int, fmin: int, fmax: int, new_fmin: int, new_fmax: int) -> npt.NDArray[np.float32]:
   nth_order = 5
   nyquist = 0.5 * rate
 
@@ -23,26 +27,26 @@ def bandpass_signal(sig, rate: int, fmin: int, fmax: int, new_fmin: int, new_fma
   if fmin > new_fmin and fmax == new_fmax:
     low = fmin / nyquist
     b, a = butter(nth_order, low, btype="high")
-    sig = lfilter(b, a, sig)
+    audio_signal = lfilter(b, a, audio_signal)
 
   # Lowpass
   elif fmin == new_fmin and fmax < new_fmax:
     high = fmax / nyquist
     b, a = butter(nth_order, high, btype="low")
-    sig = lfilter(b, a, sig)
+    audio_signal = lfilter(b, a, audio_signal)
 
   # Bandpass
   elif fmin > new_fmin and fmax < new_fmax:
     low = fmin / nyquist
     high = fmax / nyquist
     b, a = butter(nth_order, [low, high], btype="band")
-    sig = lfilter(b, a, sig)
+    audio_signal = lfilter(b, a, audio_signal)
 
-  sig_f32 = sig.astype("float32")
+  sig_f32 = audio_signal.astype(np.float32)
   return sig_f32
 
 
-def split_signal(sig, rate: int, seconds: float, overlap: float, minlen: float) -> List:
+def chunk_signal(audio_signal: npt.NDArray[np.float32], rate: int, chunk_size: float, chunk_overlap: float, min_chunk_size: float) -> Generator[Tuple[float, float, npt.NDArray[np.float32]], None, None]:
   """Split signal with overlap.
 
   Args:
@@ -55,37 +59,43 @@ def split_signal(sig, rate: int, seconds: float, overlap: float, minlen: float) 
   Returns:
       A list of splits.
   """
-  assert overlap < seconds
+  assert chunk_overlap < chunk_size
 
   # Number of frames per chunk, per step and per minimum signal
-  chunksize = round(rate * seconds)
-  stepsize = round(rate * (seconds - overlap))
-  minsize = round(rate * minlen)
+  chunk_frame_count = round(rate * chunk_size)
+  chunk_step_frame_count = round(rate * (chunk_size - chunk_overlap))
+  min_chunk_frame_count = round(rate * min_chunk_size)
 
   # Start of last chunk
-  lastchunkpos = round((sig.size - chunksize + stepsize - 1) / stepsize) * stepsize
+  last_chunk_position = round((audio_signal.size - chunk_frame_count +
+                              chunk_step_frame_count - 1) / chunk_step_frame_count) * chunk_step_frame_count
   # Make sure at least one chunk is returned
-  if lastchunkpos < 0:
-    lastchunkpos = 0
+  if last_chunk_position < 0:
+    last_chunk_position = 0
   # Omit last chunk if minimum signal duration is underrun
-  elif sig.size - lastchunkpos < minsize:
-    lastchunkpos = lastchunkpos - stepsize
+  elif audio_signal.size - last_chunk_position < min_chunk_frame_count:
+    last_chunk_position = last_chunk_position - chunk_step_frame_count
 
   # Append empty signal of chunk duration, so all splits have desired length
-  noise = np.zeros(shape=chunksize, dtype=sig.dtype)
+  noise = np.zeros(shape=chunk_frame_count, dtype=audio_signal.dtype)
   # TODO maybe add noise
 
-  data = np.concatenate((sig, noise))
+  data = np.concatenate((audio_signal, noise))
+  start: float = 0.0
+  end: float = chunk_size
 
   # Split signal with overlap
-  sig_splits = []
-  for i in range(0, 1 + lastchunkpos, stepsize):
-    sig_splits.append(data[i:i + chunksize])
+  for i in range(0, 1 + last_chunk_position, chunk_step_frame_count):
+    chunk = data[i:i + chunk_frame_count]
 
-  return sig_splits
+    yield start, end, chunk
+
+    # Advance start and end
+    start += chunk_size - chunk_overlap
+    end = start + chunk_size
 
 
-def flat_sigmoid(x, sensitivity: int):
+def flat_sigmoid(x, sensitivity: float):
   return 1 / (1.0 + np.exp(sensitivity * np.clip(x, -15, 15)))
 
 
@@ -93,6 +103,7 @@ def get_app_data_path() -> Path:
   """Returns the appropriate application data path based on the operating system."""
   if os.name == 'nt':  # Windows
     app_data_path = os.getenv('APPDATA')
+    assert app_data_path is not None
   elif os.name == 'posix':
     if os.uname().sysname == 'Darwin':  # Mac OS X
       app_data_path = os.path.expanduser('~/Library/Application Support')
@@ -136,3 +147,34 @@ def download_file_tqdm(url: str, file_path: Path) -> None:
 
   if response.status_code != 200 or (total_size not in (0, tqdm_bar.n)):
     raise ValueError(f"Failed to download the file. Status code: {response.status_code}")
+
+
+def itertools_batched(iterable: Iterable, n: int) -> Generator[Any, None, None]:
+  # https://docs.python.org/3.12/library/itertools.html#itertools.batched
+  # batched('ABCDEFG', 3) → ABC DEF G
+  if n < 1:
+    raise ValueError('n must be at least one')
+  iterator = iter(iterable)
+  while batch := tuple(islice(iterator, n)):
+    yield batch
+
+
+def load_audio_file_in_parts(audio_file: Path, sample_rate: int, file_splitting_duration: float) -> Generator[npt.NDArray[np.float32], None, None]:
+  offset = 0.0
+  file_duration_seconds = cast(float, librosa.get_duration(
+      filename=str(audio_file.absolute()), sr=sample_rate))
+
+  while offset < file_duration_seconds:
+    # will resample to sample_rate
+    audio_signal, _ = librosa.load(
+        audio_file,
+        sr=sample_rate,
+        offset=offset,
+        duration=file_splitting_duration,
+        mono=True,
+        res_type="kaiser_fast",
+    )
+    audio_signal = cast(npt.NDArray[np.float32], audio_signal)
+    yield audio_signal
+    del audio_signal
+    offset += file_splitting_duration
