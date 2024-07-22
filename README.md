@@ -55,6 +55,28 @@ print(f"predicted '{first_prediction}' with a confidence of {confidence}")
 # predicted 'Cyanocitta cristata_Blue Jay' with a confidence of 0.9276198744773865
 ```
 
+## License
+
+### Source Code
+
+The source code for this project is licensed under the [MIT License](https://opensource.org/licenses/MIT). This means you are free to use, modify, and distribute the code, provided that you comply with the following conditions:
+
+- The code can be used for both commercial and non-commercial purposes.
+- The code can be modified and redistributed.
+- The code is provided "as is", without any warranties or guarantees.
+
+You can find the full text of the MIT License in the [`LICENSE.md`](./LICENSE.md) file located in the root directory of the project.
+
+### Models
+
+The models used in this project are licensed under the [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License (CC BY-NC-SA 4.0)](https://creativecommons.org/licenses/by-nc-sa/4.0/). The key points of this license are:
+
+- **Attribution (BY)**: You must give appropriate credit, provide a link to the license, and indicate if changes were made.
+- **NonCommercial (NC)**: You may not use the models for commercial purposes.
+- **ShareAlike (SA)**: If you remix, transform, or build upon the models, you must distribute your contributions under the same license as the original.
+
+Please ensure you review and adhere to the specific license terms provided with each model. Additional details can be found in the corresponding license files or documentation included with the models. 
+
 ## Citation
 
 ```bibtex
