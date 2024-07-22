@@ -71,12 +71,21 @@ class Downloader():
       assert self._check_model_files_exist()
 
 
-class ModelV2p4():
-  def __init__(self, tflite_threads: int = 1, language: Language = "en_us") -> None:
+class ModelV2M4():
+  """
+  Model version 2.4
+  """
+
+  def __init__(self, tflite_num_threads: Optional[int] = 1, language: Language = "en_us") -> None:
     super().__init__()
+
+    if tflite_num_threads is not None and tflite_num_threads < 1:
+      raise ValueError(
+        "Value for 'tflite_num_threads' is invalid! It needs to be None or larger than zero.")
+
     if language not in AVAILABLE_LANGUAGES:
       raise ValueError(
-        f"Language '{language}' is not available! Choose from: {','.join(sorted(AVAILABLE_LANGUAGES))}")
+        f"Language '{language}' is not available! Choose from: {','.join(sorted(AVAILABLE_LANGUAGES))}.")
 
     self._language = language
 
@@ -95,11 +104,10 @@ class ModelV2p4():
       downloader.get_language_path(language),
       encoding="utf8"
     )
-    # [line.split(",")[1] for line in labels]
 
     # Load TFLite model and allocate tensors.
     self._audio_interpreter = tflite.Interpreter(
-      str(downloader.audio_model_path.absolute()), num_threads=tflite_threads)
+      str(downloader.audio_model_path.absolute()), num_threads=tflite_num_threads)
     # Get input tensor index
     input_details = self._audio_interpreter.get_input_details()
     self._audio_input_layer_index = input_details[0]["index"]
@@ -110,7 +118,7 @@ class ModelV2p4():
 
     # Load TFLite model and allocate tensors.
     self._meta_interpreter = tflite.Interpreter(
-      str(downloader.meta_model_path.absolute()), num_threads=tflite_threads)
+      str(downloader.meta_model_path.absolute()), num_threads=tflite_num_threads)
     # Get input tensor index
     input_details = self._meta_interpreter.get_input_details()
     self._meta_input_layer_index = input_details[0]["index"]
@@ -139,10 +147,14 @@ class ModelV2p4():
 
     return prediction
 
-  def _predict_species_from_location(self, latitude: float, longitude: float, week: int) -> npt.NDArray[np.float32]:
+  def _predict_species_from_location(self, latitude: float, longitude: float, week: Optional[int]) -> npt.NDArray[np.float32]:
     assert -90 <= latitude <= 90
     assert -180 <= longitude <= 180
-    assert 1 <= week <= 48 or week == -1
+    assert week is None or (1 <= week <= 48)
+
+    if week is None:
+      week = -1
+    assert week is not None
 
     sample = np.expand_dims(np.array([latitude, longitude, week], dtype=np.float32), 0)
 
@@ -154,7 +166,7 @@ class ModelV2p4():
       self._meta_output_layer_index)[0]
     return prediction
 
-  def predict_species_at_location_and_time(self, latitude: float, longitude: float, *, week: int = -1, min_confidence: float = 0.03) -> SpeciesPrediction:
+  def predict_species_at_location_and_time(self, latitude: float, longitude: float, *, week: Optional[int] = None, min_confidence: float = 0.03) -> SpeciesPrediction:
     """Predict a species set.
 
     Uses the model to predict the species list for the given coordinates and filters by threshold.
@@ -168,16 +180,20 @@ class ModelV2p4():
     """
 
     if not -90 <= latitude <= 90:
-      raise ValueError("latitude")
+      raise ValueError(
+        "Value for 'latitude' is invalid! It needs to be in interval [-90.0, 90.0].")
 
     if not -180 <= longitude <= 180:
-      raise ValueError("longitude")
+      raise ValueError(
+        "Value for 'longitude' is invalid! It needs to be in interval [-180.0, 180.0].")
 
     if not 0 <= min_confidence < 1.0:
-      raise ValueError("min_confidence")
+      raise ValueError(
+        "Value for 'min_confidence' is invalid! It needs to be in interval [0, 1.0).")
 
-    if not (1 <= week <= 48 or week == -1):
-      raise ValueError("week")
+    if week is not None and not (1 <= week <= 48):
+      raise ValueError(
+        "Value for 'week' is invalid! It needs to be either None or in interval [1, 48].")
 
     # Extract species from model
     l_filter = self._predict_species_from_location(latitude, longitude, week)
@@ -195,7 +211,7 @@ class ModelV2p4():
 
     return sorted_prediction
 
-  def predict_species_in_audio_file(
+  def predict_species_within_audio_file(
       self,
       audio_file: Path,
       *,
@@ -213,29 +229,36 @@ class ModelV2p4():
     sig_minlen: Define minimum length of audio chunk for prediction; chunks shorter than 3 seconds will be padded with zeros
     """
 
-    if batch_size < 1:
-      raise ValueError("batch_size")
+    if not audio_file.is_file():
+      raise ValueError(
+        "Value for 'audio_file' is invalid! It needs to be a path to an existing audio file.")
 
-    if file_splitting_duration_s <= 0:
-      raise ValueError("file_splitting_duration_s")
+    if batch_size < 1:
+      raise ValueError(
+        "Value for 'batch_size' is invalid! It needs to be larger than zero.")
+
+    if file_splitting_duration_s < self._chunk_size_s:
+      raise ValueError(
+        f"Value for 'file_splitting_duration_s' is invalid! It needs to be larger than or equal to {self._chunk_size_s}.")
 
     if not 0 <= min_confidence < 1.0:
-      raise ValueError("min_confidence")
+      raise ValueError(
+        "Value for 'min_confidence' is invalid! It needs to be in interval [0, 1.0).")
 
     if apply_sigmoid:
       if sigmoid_sensitivity is None:
-        raise ValueError("sigmoid_sensitivity")
+        raise ValueError("Value for 'sigmoid_sensitivity' is required if 'apply_sigmoid==True'!")
       if not 0.5 <= sigmoid_sensitivity <= 1.5:
-        raise ValueError("sigmoid_sensitivity")
+        raise ValueError(
+          "Value for 'sigmoid_sensitivity' is invalid! It needs to be in interval [0.5, 1.5].")
 
-    use_species_filter = filter_species is not None
+    use_species_filter = filter_species is not None and len(filter_species) > 0
     if use_species_filter:
       assert filter_species is not None  # added for mypy
       species_filter_contains_unknown_species = not filter_species.issubset(self._species_list)
       if species_filter_contains_unknown_species:
-        raise ValueError("filter_species")
-      if len(filter_species) == 0:
-        raise ValueError("filter_species")
+        raise ValueError(
+          f"At least one species defined in 'filter_species' is invalid! They need to be known species, e.g., {', '.join(self._species_list[:3])}")
 
     predictions = OrderedDict()
 
@@ -244,15 +267,16 @@ class ModelV2p4():
     ):
       if use_bandpass:
         if bandpass_fmin is None:
-          raise ValueError("bandpass_fmin")
+          raise ValueError("Value for 'bandpass_fmin' is required if 'use_bandpass==True'!")
         if bandpass_fmax is None:
-          raise ValueError("bandpass_fmax")
+          raise ValueError("Value for 'bandpass_fmax' is required if 'use_bandpass==True'!")
 
-        if bandpass_fmin <= 0:
-          raise ValueError("bandpass_fmin")
+        if bandpass_fmin < 0:
+          raise ValueError("Value for 'bandpass_fmin' is invalid! It needs to be larger than zero.")
 
-        if not bandpass_fmin < bandpass_fmax:
-          raise ValueError("bandpass_fmax")
+        if bandpass_fmax <= bandpass_fmin:
+          raise ValueError(
+            "Value for 'bandpass_fmax' is invalid! It needs to be larger than 'bandpass_fmin'.")
 
         audio_signal_part = bandpass_signal(audio_signal_part, self._sample_rate,
                                             bandpass_fmin, bandpass_fmax, self._sig_fmin, self._sig_fmax)
@@ -265,7 +289,6 @@ class ModelV2p4():
         batch = np.array(list(map(itemgetter(2), batch_of_chunks)), np.float32)
         predicted_species = self._predict_species(batch)
 
-        # Logits or sigmoid activations?
         if apply_sigmoid:
           assert sigmoid_sensitivity is not None
           predicted_species = flat_sigmoid(

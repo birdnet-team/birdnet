@@ -20,6 +20,12 @@ def get_species_from_file(species_file: Path, *, encoding: str = "utf8") -> Orde
 
 
 def bandpass_signal(audio_signal: npt.NDArray[np.float32], rate: int, fmin: int, fmax: int, new_fmin: int, new_fmax: int) -> npt.NDArray[np.float32]:
+  assert rate > 0
+  assert fmin >= 0
+  assert fmin < fmax
+  assert new_fmin >= 0
+  assert new_fmin < new_fmax
+
   nth_order = 5
   nyquist = 0.5 * rate
 
@@ -59,6 +65,9 @@ def chunk_signal(audio_signal: npt.NDArray[np.float32], rate: int, chunk_size: f
   Returns:
       A list of splits.
   """
+  assert rate > 0
+  assert min_chunk_size > 0
+  assert chunk_overlap >= 0
   assert chunk_overlap < chunk_size
 
   # Number of frames per chunk, per step and per minimum signal
@@ -95,8 +104,9 @@ def chunk_signal(audio_signal: npt.NDArray[np.float32], rate: int, chunk_size: f
     end = start + chunk_size
 
 
-def flat_sigmoid(x, sensitivity: float):
-  return 1 / (1.0 + np.exp(sensitivity * np.clip(x, -15, 15)))
+def flat_sigmoid(x: npt.NDArray[np.float32], sensitivity: float) -> npt.NDArray[np.float32]:
+  result = 1 / (1.0 + np.exp(sensitivity * np.clip(x, -15, 15)))
+  return result
 
 
 def get_app_data_path() -> Path:

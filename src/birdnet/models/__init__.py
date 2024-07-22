@@ -1,1 +1,1 @@
-from birdnet.models.model_v2p4 import ModelV2p4
+from birdnet.models.model_v2m4 import ModelV2M4

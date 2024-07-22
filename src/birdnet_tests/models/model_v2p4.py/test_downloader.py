@@ -1,10 +1,7 @@
 import tempfile
 from pathlib import Path
 
-import numpy.testing as npt
-import pytest
-
-from birdnet.models.model_v2p4 import Downloader, ModelV2p4
+from birdnet.models.model_v2m4 import Downloader
 
 
 def test_download_creates_all_files():

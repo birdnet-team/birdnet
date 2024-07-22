@@ -1,18 +1,16 @@
-import tempfile
 from pathlib import Path
 
 import numpy.testing as npt
-import pytest
 
-from birdnet.models.model_v2p4 import Downloader, ModelV2p4
+from birdnet.models.model_v2m4 import ModelV2M4
 
 
 def test_soundscape_predictions_are_correct():
   test_files_dir = Path("src/birdnet_tests/test_files")
   path = test_files_dir / "soundscape.wav"
-  model = ModelV2p4()
+  model = ModelV2M4()
 
-  res = model.predict_species_in_audio_file(path, min_confidence=0)
+  res = model.predict_species_within_audio_file(path, min_confidence=0)
 
   npt.assert_almost_equal(
     res[(0, 3)]['Poecile atricapillus_Black-capped Chickadee'],
