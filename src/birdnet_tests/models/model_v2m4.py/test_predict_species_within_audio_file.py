@@ -30,6 +30,30 @@ def test_soundscape_predictions_are_correct(model: ModelV2M4):
   assert list(res[(66, 69)].keys())[0] == 'Engine_Engine'
 
 
+def test_identical_predictions_return_same_result(model: ModelV2M4):
+  res1 = model.predict_species_within_audio_file(TEST_FILE_WAV, min_confidence=0)
+
+  res2 = model.predict_species_within_audio_file(TEST_FILE_WAV, min_confidence=0)
+
+  npt.assert_almost_equal(
+    res1[(0, 3)]['Poecile atricapillus_Black-capped Chickadee'],
+    0.8140557, decimal=7)
+
+  npt.assert_almost_equal(res1[(66, 69)]['Engine_Engine'],
+                          0.08610276, decimal=8)
+  assert list(res1[(0, 3)].keys())[0] == 'Poecile atricapillus_Black-capped Chickadee'
+  assert list(res1[(66, 69)].keys())[0] == 'Engine_Engine'
+
+  npt.assert_almost_equal(
+    res2[(0, 3)]['Poecile atricapillus_Black-capped Chickadee'],
+    0.8140557, decimal=7)
+
+  npt.assert_almost_equal(res2[(66, 69)]['Engine_Engine'],
+                          0.08610276, decimal=8)
+  assert list(res2[(0, 3)].keys())[0] == 'Poecile atricapillus_Black-capped Chickadee'
+  assert list(res2[(66, 69)].keys())[0] == 'Engine_Engine'
+
+
 def test_invalid_audio_file_path_raises_value_error(model: ModelV2M4):
   # Test für ungültigen Audio-Dateipfad
   with pytest.raises(ValueError, match=r"Value for 'audio_file' is invalid! It needs to be a path to an existing audio file."):

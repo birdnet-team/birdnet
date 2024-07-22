@@ -4,7 +4,7 @@
 ![PyPI](https://img.shields.io/pypi/pyversions/birdnet.svg)
 [![MIT](https://img.shields.io/github/license/birdnet-team/birdnet.svg)](https://github.com/birdnet-team/birdnet/blob/main/LICENSE.md)
 
-A powerful Python library for identifying bird species by their sounds.
+A Python library for identifying bird species by their sounds.
 
 ## Installation
 
@@ -12,10 +12,47 @@ A powerful Python library for identifying bird species by their sounds.
 pip install birdnet --user
 ```
 
-## Usage
+## Example usage
+
+### Identify species within an audio file
 
 ```py
-import birdnet
+from pathlib import Path
+
+from birdnet.models import ModelV2M4
+
+# create model instance for v2.4
+model = ModelV2M4()
+
+# predict species within the whole audio file
+audio_path = Path("example/soundscape.wav")
+predictions = model.predict_species_within_audio_file(audio_path)
+
+# get most probable prediction at time interval 0s-3s
+prediction, confidence = list(predictions[(0.0, 3.0)].items())[0]
+print(f"predicted '{prediction}' with a confidence of {confidence}")
+# Output:
+# predicted 'Poecile atricapillus_Black-capped Chickadee' with a confidence of 0.8140556812286377
+```
+
+For a more detailled prediction you can take a look at [example/minimal_example.py](./example/minimal_example.py).
+
+### Predict species for a given location and time
+
+```py
+from birdnet.models import ModelV2M4
+
+# create model instance for v2.4
+model = ModelV2M4()
+
+# predict species
+predictions = model.predict_species_at_location_and_time(42.5, -76.45, week=4)
+
+# get most probable prediction
+first_prediction, confidence = list(predictions.items())[0]
+print(f"predicted '{first_prediction}' with a confidence of {confidence}")
+# Output:
+# predicted 'Cyanocitta cristata_Blue Jay' with a confidence of 0.9276198744773865
 ```
 
 ## Citation

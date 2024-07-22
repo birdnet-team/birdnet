@@ -38,6 +38,22 @@ def test_using_no_threshold_returns_all_species(model: ModelV2M4):
   npt.assert_almost_equal(species['Larus marinus_Great Black-backed Gull'], 0.035001162, decimal=8)
 
 
+def test_identical_predictions_return_same_result(model: ModelV2M4):
+  species1 = model.predict_species_at_location_and_time(
+    42.5, -76.45, week=4, min_confidence=0)
+
+  species2 = model.predict_species_at_location_and_time(
+    42.5, -76.45, week=4, min_confidence=0)
+
+  assert len(species1) == 6522
+  npt.assert_almost_equal(species1['Cyanocitta cristata_Blue Jay'], 0.9276199, decimal=7)
+  npt.assert_almost_equal(species1['Larus marinus_Great Black-backed Gull'], 0.035001162, decimal=8)
+
+  assert len(species2) == 6522
+  npt.assert_almost_equal(species2['Cyanocitta cristata_Blue Jay'], 0.9276199, decimal=7)
+  npt.assert_almost_equal(species2['Larus marinus_Great Black-backed Gull'], 0.035001162, decimal=8)
+
+
 def test_invalid_latitude_raises_value_error(model: ModelV2M4):
   with pytest.raises(ValueError, match=r"Value for 'latitude' is invalid! It needs to be in interval \[-90.0, 90.0\]."):
     model.predict_species_at_location_and_time(latitude=91.0, longitude=0)
