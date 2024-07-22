@@ -1,21 +1,18 @@
-
 import numpy.testing as npt
 import pytest
 
 from birdnet.models.model_v2m4 import ModelV2M4
 
 
-def test_raises_error_on_week_zero():
-  model = ModelV2M4()
-  with pytest.raises(ValueError):
-    model.predict_species_at_location_and_time(
-        42.5, -76.45, week=0)
+@pytest.fixture()
+def model():
+  model = ModelV2M4(language="en_us")
+  return model
 
 
-def test_no_week():
-  model = ModelV2M4()
+def test_no_week(model: ModelV2M4):
   species = model.predict_species_at_location_and_time(
-    42.5, -76.45, week=-1, min_confidence=0.03)
+    42.5, -76.45, min_confidence=0.03)
   assert len(species) == 255
 
   assert list(species.keys())[0] == 'Cyanocitta cristata_Blue Jay'
@@ -23,8 +20,7 @@ def test_no_week():
   npt.assert_almost_equal(species['Larus marinus_Great Black-backed Gull'], 0.06815465, decimal=7)
 
 
-def test_using_threshold():
-  model = ModelV2M4()
+def test_using_threshold(model: ModelV2M4):
   species = model.predict_species_at_location_and_time(
     42.5, -76.45, week=4, min_confidence=0.03)
   assert len(species) == 64
@@ -34,10 +30,41 @@ def test_using_threshold():
   assert list(species.keys())[-1] == 'Larus marinus_Great Black-backed Gull'
 
 
-def test_using_no_threshold():
-  model = ModelV2M4()
+def test_using_no_threshold_returns_all_species(model: ModelV2M4):
   species = model.predict_species_at_location_and_time(
     42.5, -76.45, week=4, min_confidence=0)
   assert len(species) == 6522
   npt.assert_almost_equal(species['Cyanocitta cristata_Blue Jay'], 0.9276199, decimal=7)
   npt.assert_almost_equal(species['Larus marinus_Great Black-backed Gull'], 0.035001162, decimal=8)
+
+
+def test_invalid_latitude_raises_value_error(model: ModelV2M4):
+  with pytest.raises(ValueError, match=r"Value for 'latitude' is invalid! It needs to be in interval \[-90.0, 90.0\]."):
+    model.predict_species_at_location_and_time(latitude=91.0, longitude=0)
+
+  with pytest.raises(ValueError, match=r"Value for 'latitude' is invalid! It needs to be in interval \[-90.0, 90.0\]."):
+    model.predict_species_at_location_and_time(latitude=-91.0, longitude=0)
+
+
+def test_invalid_longitude_raises_value_error(model: ModelV2M4):
+  with pytest.raises(ValueError, match=r"Value for 'longitude' is invalid! It needs to be in interval \[-180.0, 180.0\]."):
+    model.predict_species_at_location_and_time(latitude=0, longitude=181.0)
+
+  with pytest.raises(ValueError, match=r"Value for 'longitude' is invalid! It needs to be in interval \[-180.0, 180.0\]."):
+    model.predict_species_at_location_and_time(latitude=0, longitude=-181.0)
+
+
+def test_invalid_min_confidence_raises_value_error(model: ModelV2M4):
+  with pytest.raises(ValueError, match=r"Value for 'min_confidence' is invalid! It needs to be in interval \[0, 1.0\)."):
+    model.predict_species_at_location_and_time(latitude=0, longitude=0, min_confidence=-0.1)
+
+  with pytest.raises(ValueError, match=r"Value for 'min_confidence' is invalid! It needs to be in interval \[0, 1.0\)."):
+    model.predict_species_at_location_and_time(latitude=0, longitude=0, min_confidence=1.1)
+
+
+def test_invalid_week_raises_value_error(model: ModelV2M4):
+  with pytest.raises(ValueError, match=r"Value for 'week' is invalid! It needs to be either None or in interval \[1, 48\]."):
+    model.predict_species_at_location_and_time(latitude=0, longitude=0, week=0)
+
+  with pytest.raises(ValueError, match=r"Value for 'week' is invalid! It needs to be either None or in interval \[1, 48\]."):
+    model.predict_species_at_location_and_time(latitude=0, longitude=0, week=49)

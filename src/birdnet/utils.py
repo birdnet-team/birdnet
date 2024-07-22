@@ -1,7 +1,7 @@
 import os
 from itertools import islice
 from pathlib import Path
-from typing import Any, Generator, Iterable, Tuple, cast
+from typing import Any, Generator, Iterable, Optional, Tuple, cast
 
 import librosa
 import numpy as np
@@ -105,7 +105,7 @@ def chunk_signal(audio_signal: npt.NDArray[np.float32], rate: int, chunk_size: f
 
 
 def flat_sigmoid(x: npt.NDArray[np.float32], sensitivity: float) -> npt.NDArray[np.float32]:
-  result = 1 / (1.0 + np.exp(sensitivity * np.clip(x, -15, 15)))
+  result: npt.NDArray[np.float32] = 1 / (1.0 + np.exp(sensitivity * np.clip(x, -15, 15)))
   return result
 
 
@@ -143,13 +143,16 @@ def download_file(url: str, file_path: Path):
     raise ValueError(f"Failed to download the file. Status code: {response.status_code}")
 
 
-def download_file_tqdm(url: str, file_path: Path) -> None:
+def download_file_tqdm(url: str, file_path: Path, *, download_size: Optional[int] = None, description: Optional[str] = None) -> None:
   assert file_path.parent.is_dir()
 
   response = requests.get(url, stream=True, timeout=30)
   total_size = int(response.headers.get('content-length', 0))
+  if download_size is not None:
+    total_size = download_size
+
   block_size = 1024
-  with tqdm(total=total_size, unit='iB', unit_scale=True) as tqdm_bar:
+  with tqdm(total=total_size, unit='iB', unit_scale=True, desc=description) as tqdm_bar:
     with open(file_path, 'wb') as file:
       for data in response.iter_content(block_size):
         tqdm_bar.update(len(data))
@@ -172,7 +175,7 @@ def itertools_batched(iterable: Iterable, n: int) -> Generator[Any, None, None]:
 def load_audio_file_in_parts(audio_file: Path, sample_rate: int, file_splitting_duration: float) -> Generator[npt.NDArray[np.float32], None, None]:
   offset = 0.0
   file_duration_seconds = cast(float, librosa.get_duration(
-      filename=str(audio_file.absolute()), sr=sample_rate))
+      path=str(audio_file.absolute()), sr=sample_rate))
 
   while offset < file_duration_seconds:
     # will resample to sample_rate

@@ -51,17 +51,15 @@ class Downloader():
 
   def _download_model_files(self):
     dl_path = "https://tuc.cloud/index.php/s/45KmTcpHH8iDDA2/download/BirdNET_v2.4.zip"
+    dl_size = 63092251
     self._version_path.mkdir(parents=True, exist_ok=True)
 
     zip_download_path = self._version_path / "download.zip"
+    download_file_tqdm(dl_path, zip_download_path, download_size=dl_size,
+                       description="Downloading model")
 
-    print("Downloading model ...")
-    download_file_tqdm(dl_path, zip_download_path)
-
-    print("Extracting model ...")
     with zipfile.ZipFile(zip_download_path, 'r') as zip_ref:
       zip_ref.extractall(self._version_path)
-    print("Done.")
 
     os.remove(zip_download_path)
 
@@ -74,9 +72,28 @@ class Downloader():
 class ModelV2M4():
   """
   Model version 2.4
+
+  This class represents version 2.4 of the model.
   """
 
   def __init__(self, tflite_num_threads: Optional[int] = 1, language: Language = "en_us") -> None:
+    """
+    Initializes the ModelV2M4 instance.
+
+    Parameters:
+    -----------
+    tflite_num_threads : Optional[int], optional, default=1
+        The number of threads to use for TensorFlow Lite operations. If None, the default threading behavior will be used.
+        Must be a positive integer if specified.
+    language : Language, optional, default="en_us"
+        The language to use for the model's text processing. Must be one of the following available languages:
+        "en_us", "en_uk", "sv", "da", "hu", "th", "pt", "fr", "cs", "af", "uk", "it", "ja", "sl", "pl", "ko", "es", "de", "tr", "ru", "no", "sk", "ar", "fi", "ro", "nl", "zh".
+
+    Raises:
+    -------
+    ValueError
+        If any of the input parameters are invalid.
+    """
     super().__init__()
 
     if tflite_num_threads is not None and tflite_num_threads < 1:
@@ -85,7 +102,7 @@ class ModelV2M4():
 
     if language not in AVAILABLE_LANGUAGES:
       raise ValueError(
-        f"Language '{language}' is not available! Choose from: {','.join(sorted(AVAILABLE_LANGUAGES))}.")
+        f"Language '{language}' is not available! Choose from: {', '.join(sorted(AVAILABLE_LANGUAGES))}.")
 
     self._language = language
 
@@ -167,16 +184,33 @@ class ModelV2M4():
     return prediction
 
   def predict_species_at_location_and_time(self, latitude: float, longitude: float, *, week: Optional[int] = None, min_confidence: float = 0.03) -> SpeciesPrediction:
-    """Predict a species set.
+    """
+    Predicts species at a specific geographic location and optionally during a specific week of the year.
 
-    Uses the model to predict the species list for the given coordinates and filters by threshold.
-
-    Args:
-        week: The week of the year [1-48]. Use -1 for year-round.
-        threshold: Only values above or equal to threshold will be shown.
+    Parameters:
+    -----------
+    latitude : float
+        The latitude of the location for species prediction. Must be in the interval [-90.0, 90.0].
+    longitude : float
+        The longitude of the location for species prediction. Must be in the interval [-180.0, 180.0].
+    week : Optional[int], optional, default=None
+        The week of the year for which to predict species. Must be in the interval [1, 48] if specified.
+        If None, predictions are not limited to a specific week.
+    min_confidence : float, optional, default=0.03
+        Minimum confidence threshold for predictions to be considered valid. Must be in the interval [0, 1.0).
 
     Returns:
-        A set of all eligible species including their scores.
+    --------
+    SpeciesPrediction
+        An ordered dictionary where:
+        - The keys are species names (strings).
+        - The values are confidence scores (floats) representing the likelihood of the species being present at the specified location and time.
+        - The dictionary is sorted in descending order of confidence scores.
+
+    Raises:
+    -------
+    ValueError
+        If any of the input parameters are invalid.
     """
 
     if not -90 <= latitude <= 90:
@@ -226,7 +260,44 @@ class ModelV2M4():
       file_splitting_duration_s: float = 600,
     ) -> SpeciesPredictions:
     """
-    sig_minlen: Define minimum length of audio chunk for prediction; chunks shorter than 3 seconds will be padded with zeros
+    Predicts species within an audio file.
+
+    Parameters:
+    -----------
+    audio_file : Path
+        The path to the audio file for species prediction.
+    min_confidence : float, optional, default=0.1
+        Minimum confidence threshold for predictions to be considered valid.
+    batch_size : int, optional, default=1
+        Number of audio samples to process in a batch.
+    use_bandpass : bool, optional, default=True
+        Whether to apply a bandpass filter to the audio.
+    bandpass_fmin : Optional[int], optional, default=0
+        Minimum frequency for the bandpass filter (in Hz). Ignored if `use_bandpass` is False.
+    bandpass_fmax : Optional[int], optional, default=15_000
+        Maximum frequency for the bandpass filter (in Hz). Ignored if `use_bandpass` is False.
+    apply_sigmoid : bool, optional, default=True
+        Whether to apply a sigmoid function to the model outputs.
+    sigmoid_sensitivity : Optional[float], optional, default=1.0
+        Sensitivity parameter for the sigmoid function. Must be in the interval [0.5, 1.5]. Ignored if `apply_sigmoid` is False.
+    filter_species : Optional[Set[Species]], optional
+        A set of species to filter the predictions. If None, no filtering is applied.
+    file_splitting_duration_s : float, optional, default=600
+        Duration in seconds for splitting the audio file into smaller segments for processing.
+
+    Returns:
+    --------
+    SpeciesPredictions
+        The predictions of species within the audio file. This is an ordered dictionary where:
+        - The keys are time intervals (tuples of start and end times in seconds) representing segments of the audio file.
+        - The values are ordered dictionaries where:
+            - The keys are species names (strings).
+            - The values are confidence scores (floats) representing the likelihood of the presence of the species in the given time interval.
+
+    Raises:
+    -------
+    ValueError
+        If any of the input parameters are invalid.
     """
 
     if not audio_file.is_file():
