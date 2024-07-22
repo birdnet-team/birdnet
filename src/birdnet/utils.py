@@ -132,7 +132,7 @@ def get_birdnet_app_data_folder() -> Path:
   return result
 
 
-def download_file(url: str, file_path: Path):
+def download_file(url: str, file_path: Path) -> None:
   assert file_path.parent.is_dir()
 
   response = requests.get(url, timeout=30)

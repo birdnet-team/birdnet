@@ -7,6 +7,7 @@ from typing import Optional, OrderedDict, Set
 import numpy as np
 import numpy.typing as npt
 import tflite_runtime.interpreter as tflite
+from ordered_set import OrderedSet
 
 from birdnet.types import Language, Species, SpeciesPrediction, SpeciesPredictions
 from birdnet.utils import (bandpass_signal, chunk_signal, download_file_tqdm, flat_sigmoid,
@@ -49,7 +50,7 @@ class Downloader():
       model_is_downloaded &= self.get_language_path(lang).is_file()
     return model_is_downloaded
 
-  def _download_model_files(self):
+  def _download_model_files(self) -> None:
     dl_path = "https://tuc.cloud/index.php/s/45KmTcpHH8iDDA2/download/BirdNET_v2.4.zip"
     dl_size = 63092251
     self._version_path.mkdir(parents=True, exist_ok=True)
@@ -146,7 +147,7 @@ class ModelV2M4():
     del downloader
 
   @property
-  def species(self):
+  def species(self) -> OrderedSet[Species]:
     return self._species_list
 
   def _predict_species(self, batch: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
