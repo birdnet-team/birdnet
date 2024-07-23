@@ -31,7 +31,7 @@ predictions = model.predict_species_within_audio_file(audio_path)
 # get most probable prediction at time interval 0s-3s
 prediction, confidence = list(predictions[(0.0, 3.0)].items())[0]
 print(f"predicted '{prediction}' with a confidence of {confidence:.6f}")
-# Output:
+# output:
 # predicted 'Poecile atricapillus_Black-capped Chickadee' with a confidence of 0.814056
 ```
 
@@ -51,7 +51,7 @@ predictions = model.predict_species_at_location_and_time(42.5, -76.45, week=4)
 # get most probable prediction
 first_prediction, confidence = list(predictions.items())[0]
 print(f"predicted '{first_prediction}' with a confidence of {confidence:.6f}")
-# Output:
+# output:
 # predicted 'Cyanocitta cristata_Blue Jay' with a confidence of 0.927620
 ```
 
@@ -77,7 +77,7 @@ predictions = model.predict_species_within_audio_file(
 # get most probable prediction at time interval 0s-3s
 prediction, confidence = list(predictions[(0.0, 3.0)].items())[0]
 print(f"predicted '{prediction}' with a confidence of {confidence:.6f}")
-# Output:
+# output:
 # predicted 'Poecile atricapillus_Black-capped Chickadee' with a confidence of 0.814056
 ```
 
