@@ -77,7 +77,7 @@ class ModelV2M4():
   This class represents version 2.4 of the model.
   """
 
-  def __init__(self, tflite_num_threads: Optional[int] = 1, language: Language = "en_us") -> None:
+  def __init__(self, /, *, tflite_num_threads: Optional[int] = 1, language: Language = "en_us") -> None:
     """
     Initializes the ModelV2M4 instance.
 
