@@ -14,7 +14,7 @@ from tqdm import tqdm
 from birdnet.types import Species
 
 
-def get_species_from_file(species_file: Path, *, encoding: str = "utf8") -> OrderedSet[Species]:
+def get_species_from_file(species_file: Path, /, *, encoding: str = "utf8") -> OrderedSet[Species]:
   species = OrderedSet(species_file.read_text(encoding).splitlines())
   return species
 

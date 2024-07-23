@@ -2,12 +2,12 @@
 import zipfile
 from operator import itemgetter
 from pathlib import Path
-from typing import Optional, OrderedDict, Set
+from typing import Optional, OrderedDict, Set, Union
 
 import numpy as np
 import numpy.typing as npt
-import tflite_runtime.interpreter as tflite
 from ordered_set import OrderedSet
+from tensorflow.lite.python.interpreter import Interpreter
 
 from birdnet.types import Language, Species, SpeciesPrediction, SpeciesPredictions
 from birdnet.utils import (bandpass_signal, chunk_signal, download_file_tqdm, flat_sigmoid,
@@ -124,7 +124,7 @@ class ModelV2M4():
     )
 
     # Load TFLite model and allocate tensors.
-    self._audio_interpreter = tflite.Interpreter(
+    self._audio_interpreter = Interpreter(
       str(downloader.audio_model_path.absolute()), num_threads=tflite_num_threads)
     # Get input tensor index
     input_details = self._audio_interpreter.get_input_details()
@@ -135,7 +135,7 @@ class ModelV2M4():
     self._audio_interpreter.allocate_tensors()
 
     # Load TFLite model and allocate tensors.
-    self._meta_interpreter = tflite.Interpreter(
+    self._meta_interpreter = Interpreter(
       str(downloader.meta_model_path.absolute()), num_threads=tflite_num_threads)
     # Get input tensor index
     input_details = self._meta_interpreter.get_input_details()
@@ -184,7 +184,15 @@ class ModelV2M4():
       self._meta_output_layer_index)[0]
     return prediction
 
-  def predict_species_at_location_and_time(self, latitude: float, longitude: float, *, week: Optional[int] = None, min_confidence: float = 0.03) -> SpeciesPrediction:
+  def predict_species_at_location_and_time(
+      self,
+      latitude: float,
+      longitude: float,
+      /,
+      *,
+      week: Optional[int] = None,
+      min_confidence: float = 0.03
+    ) -> SpeciesPrediction:
     """
     Predicts species at a specific geographic location and optionally during a specific week of the year.
 
@@ -249,6 +257,7 @@ class ModelV2M4():
   def predict_species_within_audio_file(
       self,
       audio_file: Path,
+      /,
       *,
       min_confidence: float = 0.1,
       batch_size: int = 1,
@@ -257,7 +266,7 @@ class ModelV2M4():
       bandpass_fmax: Optional[int] = 15_000,
       apply_sigmoid: bool = True,
       sigmoid_sensitivity: Optional[float] = 1.0,
-      filter_species: Optional[Set[Species]] = None,
+      filter_species: Optional[Union[Set[Species], OrderedSet[Species]]] = None,
       file_splitting_duration_s: float = 600,
     ) -> SpeciesPredictions:
     """

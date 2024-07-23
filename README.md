@@ -30,9 +30,9 @@ predictions = model.predict_species_within_audio_file(audio_path)
 
 # get most probable prediction at time interval 0s-3s
 prediction, confidence = list(predictions[(0.0, 3.0)].items())[0]
-print(f"predicted '{prediction}' with a confidence of {confidence}")
+print(f"predicted '{prediction}' with a confidence of {confidence:.6f}")
 # Output:
-# predicted 'Poecile atricapillus_Black-capped Chickadee' with a confidence of 0.8140556812286377
+# predicted 'Poecile atricapillus_Black-capped Chickadee' with a confidence of 0.814056
 ```
 
 For a more detailled prediction you can take a look at [example/example.py](./example/example.py).
@@ -50,9 +50,9 @@ predictions = model.predict_species_at_location_and_time(42.5, -76.45, week=4)
 
 # get most probable prediction
 first_prediction, confidence = list(predictions.items())[0]
-print(f"predicted '{first_prediction}' with a confidence of {confidence}")
+print(f"predicted '{first_prediction}' with a confidence of {confidence:.6f}")
 # Output:
-# predicted 'Cyanocitta cristata_Blue Jay' with a confidence of 0.9276198744773865
+# predicted 'Cyanocitta cristata_Blue Jay' with a confidence of 0.927620
 ```
 
 ### Predict species within an audio file for a given location and time
@@ -76,9 +76,9 @@ predictions = model.predict_species_within_audio_file(
 
 # get most probable prediction at time interval 0s-3s
 prediction, confidence = list(predictions[(0.0, 3.0)].items())[0]
-print(f"predicted '{prediction}' with a confidence of {confidence}")
+print(f"predicted '{prediction}' with a confidence of {confidence:.6f}")
 # Output:
-# predicted 'Poecile atricapillus_Black-capped Chickadee' with a confidence of 0.8140556812286377
+# predicted 'Poecile atricapillus_Black-capped Chickadee' with a confidence of 0.814056
 ```
 
 ## License
@@ -86,7 +86,7 @@ print(f"predicted '{prediction}' with a confidence of {confidence}")
 - **Source Code**: The source code for this project is licensed under the [MIT License](https://opensource.org/licenses/MIT).
 - **Models**: The models used in this project are licensed under the [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License (CC BY-NC-SA 4.0)](https://creativecommons.org/licenses/by-nc-sa/4.0/).
 
-Please ensure you review and adhere to the specific license terms provided with each model. Note that usage for educational and teaching purposes is free of charge.
+Please ensure you review and adhere to the specific license terms provided with each model. Note that educational and research purposes are considered non-commercial use cases.
 
 ## Citation
 
