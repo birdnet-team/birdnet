@@ -27,7 +27,7 @@ python3.8 -m pipenv install --dev
 ```sh
 # first install the tool like in "Development setup"
 # then, navigate into the directory of the repo (if not already done)
-cd en-tts
+cd birdnet
 # activate environment
 python3.8 -m pipenv shell
 # run tests

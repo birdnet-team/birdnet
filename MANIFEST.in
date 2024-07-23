@@ -13,6 +13,7 @@ include \
   pyproject.toml \
   setup.cfg \
   example/soundscape.wav \
+  example/example.py \
   example/species_list.txt
 
 global-exclude \

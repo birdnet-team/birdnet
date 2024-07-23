@@ -35,7 +35,7 @@ print(f"predicted '{prediction}' with a confidence of {confidence:.6f}")
 # predicted 'Poecile atricapillus_Black-capped Chickadee' with a confidence of 0.814056
 ```
 
-For a more detailled prediction you can take a look at [example/example.py](./example/example.py).
+For a more detailed prediction you can take a look at [example/example.py](./example/example.py).
 
 ### Predict species for a given location and time
 
