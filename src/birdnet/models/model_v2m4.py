@@ -342,6 +342,7 @@ class ModelV2M4():
           f"At least one species defined in 'filter_species' is invalid! They need to be known species, e.g., {', '.join(self._species_list[:3])}")
 
     predictions = OrderedDict()
+    audio_signal_part_start = 0
 
     for audio_signal_part in load_audio_file_in_parts(
       audio_file, self._sample_rate, file_splitting_duration_s
@@ -398,7 +399,10 @@ class ModelV2M4():
           sorted_prediction = OrderedDict(
             sorted(labeled_prediction, key=itemgetter(1), reverse=True)
           )
-          assert (chunk_start, chunk_end) not in predictions
-          predictions[(chunk_start, chunk_end)] = sorted_prediction
-
+          chunk_file_start = audio_signal_part_start + chunk_start
+          chunk_file_end = audio_signal_part_start + chunk_end
+          key = (chunk_file_start, chunk_file_end)
+          assert key not in predictions
+          predictions[key] = sorted_prediction
+      audio_signal_part_start += file_splitting_duration_s
     return predictions

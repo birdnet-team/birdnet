@@ -54,6 +54,20 @@ def test_identical_predictions_return_same_result(model: ModelV2M4):
   assert list(res2[(66, 69)].keys())[0] == 'Engine_Engine'
 
 
+def test_file_loading_small_chunks_works(model: ModelV2M4):
+  res = model.predict_species_within_audio_file(
+    TEST_FILE_WAV, min_confidence=0, file_splitting_duration_s=9)
+
+  npt.assert_almost_equal(
+    res[(0, 3)]['Poecile atricapillus_Black-capped Chickadee'],
+    0.8140561, decimal=6)
+
+  npt.assert_almost_equal(res[(66, 69)]['Engine_Engine'],
+                          0.0861028, decimal=6)
+  assert list(res[(0, 3)].keys())[0] == 'Poecile atricapillus_Black-capped Chickadee'
+  assert list(res[(66, 69)].keys())[0] == 'Engine_Engine'
+
+
 def test_invalid_audio_file_path_raises_value_error(model: ModelV2M4):
   with pytest.raises(ValueError, match=r"Value for 'audio_file' is invalid! It needs to be a path to an existing audio file."):
     model.predict_species_within_audio_file(
