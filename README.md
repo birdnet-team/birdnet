@@ -35,6 +35,36 @@ print(f"predicted '{prediction}' with a confidence of {confidence:.6f}")
 # predicted 'Poecile atricapillus_Black-capped Chickadee' with a confidence of 0.814056
 ```
 
+The resulting `predictions` look like this (excerpt):
+
+```py
+predictions = OrderedDict([
+  ((0.0, 3.0), OrderedDict([
+    ('Poecile atricapillus_Black-capped Chickadee', 0.8140561)
+  ])),
+  ((3.0, 6.0), OrderedDict([
+    ('Poecile atricapillus_Black-capped Chickadee', 0.3082859)
+  ])),
+  ((6.0, 9.0), OrderedDict([
+    ('Baeolophus bicolor_Tufted Titmouse', 0.1864328)
+  ])),
+  ((9.0, 12.0), OrderedDict([
+    ('Haemorhous mexicanus_House Finch', 0.639378)
+  ])),
+  ((12.0, 15.0), OrderedDict()),
+  ((15.0, 18.0), OrderedDict()),
+  ((18.0, 21.0), OrderedDict([
+    ('Cyanocitta cristata_Blue Jay', 0.4352715),
+    ('Clamator coromandus_Chestnut-winged Cuckoo', 0.32258758)
+  ])),
+  ((21.0, 24.0), OrderedDict([
+    ('Cyanocitta cristata_Blue Jay', 0.32908556),
+    ('Haemorhous mexicanus_House Finch', 0.18672176)
+  ])),
+  ...
+])
+```
+
 For a more detailed prediction you can take a look at [example/example.py](./example/example.py).
 
 ### Predict species for a given location and time
