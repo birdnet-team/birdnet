@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
+### Added
+
+- Add parameter 'chunk_overlap_s' to define overlapping between chunks
+
+### Removed
 
 - Remove parameter 'file_splitting_duration_s', instead load files in 3s chunks
 
