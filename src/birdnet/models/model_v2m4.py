@@ -1,5 +1,4 @@
-﻿import itertools
-import os
+﻿import os
 import zipfile
 from operator import itemgetter
 from pathlib import Path
@@ -11,9 +10,9 @@ from ordered_set import OrderedSet
 from tensorflow.lite.python.interpreter import Interpreter
 
 from birdnet.types import Language, Species, SpeciesPrediction, SpeciesPredictions
-from birdnet.utils import (bandpass_signal, chunk_signal, download_file_tqdm, flat_sigmoid,
+from birdnet.utils import (bandpass_signal, download_file_tqdm, fillup_with_silence, flat_sigmoid,
                            get_birdnet_app_data_folder, get_species_from_file, itertools_batched,
-                           load_audio_file_in_parts)
+                           load_audio_in_chunks_with_overlap)
 
 AVAILABLE_LANGUAGES: Set[Language] = {
     "sv", "da", "hu", "th", "pt", "fr", "cs", "af", "en_uk", "uk", "it", "ja", "sl", "pl", "ko", "es", "de", "tr", "ru", "en_us", "no", "sk", "ar", "fi", "ro", "nl", "zh"
@@ -268,7 +267,6 @@ class ModelV2M4():
       apply_sigmoid: bool = True,
       sigmoid_sensitivity: Optional[float] = 1.0,
       filter_species: Optional[Union[Set[Species], OrderedSet[Species]]] = None,
-      file_splitting_duration_s: float = 600,
     ) -> SpeciesPredictions:
     """
     Predicts species within an audio file.
@@ -293,8 +291,6 @@ class ModelV2M4():
         Sensitivity parameter for the sigmoid function. Must be in the interval [0.5, 1.5]. Ignored if `apply_sigmoid` is False.
     filter_species : Optional[Set[Species]], optional
         A set of species to filter the predictions. If None, no filtering is applied.
-    file_splitting_duration_s : float, optional, default=600
-        Duration in seconds for splitting the audio file into smaller segments for processing.
 
     Returns:
     --------
@@ -319,10 +315,6 @@ class ModelV2M4():
       raise ValueError(
         "Value for 'batch_size' is invalid! It needs to be larger than zero.")
 
-    if file_splitting_duration_s < self._chunk_size_s:
-      raise ValueError(
-        f"Value for 'file_splitting_duration_s' is invalid! It needs to be larger than or equal to {self._chunk_size_s}.")
-
     if not 0 <= min_confidence < 1.0:
       raise ValueError(
         "Value for 'min_confidence' is invalid! It needs to be in interval [0, 1.0).")
@@ -334,10 +326,6 @@ class ModelV2M4():
         raise ValueError(
           "Value for 'sigmoid_sensitivity' is invalid! It needs to be in interval [0.5, 1.5].")
 
-    if file_splitting_duration_s % self._chunk_size_s != 0:
-      raise ValueError(
-        f"Value for 'file_splitting_duration_s' is invalid! It needs to be dividable by {self._chunk_size_s}.")
-
     use_species_filter = filter_species is not None and len(filter_species) > 0
     if use_species_filter:
       assert filter_species is not None  # added for mypy
@@ -348,67 +336,72 @@ class ModelV2M4():
 
     predictions = OrderedDict()
 
-    for audio_signal_part_start, audio_signal_part in zip(
-      itertools.count(0, file_splitting_duration_s),
-      load_audio_file_in_parts(
-        audio_file, self._sample_rate, file_splitting_duration_s
+    chunked_audio = load_audio_in_chunks_with_overlap(audio_file,
+                                                      chunk_duration_s=self._chunk_size_s, overlap_duration_s=self._chunk_overlap_s, target_sample_rate=self._sample_rate)
+
+    # fill last chunk with silence up to chunksize if it is smaller than 3s
+    chunk_sample_size = round(self._sample_rate * self._chunk_size_s)
+    chunked_audio = (
+      (start, end, fillup_with_silence(chunk, chunk_sample_size))
+      for start, end, chunk in chunked_audio
+    )
+
+    if use_bandpass:
+      if bandpass_fmin is None:
+        raise ValueError("Value for 'bandpass_fmin' is required if 'use_bandpass==True'!")
+      if bandpass_fmax is None:
+        raise ValueError("Value for 'bandpass_fmax' is required if 'use_bandpass==True'!")
+
+      if bandpass_fmin < 0:
+        raise ValueError("Value for 'bandpass_fmin' is invalid! It needs to be larger than zero.")
+
+      if bandpass_fmax <= bandpass_fmin:
+        raise ValueError(
+          "Value for 'bandpass_fmax' is invalid! It needs to be larger than 'bandpass_fmin'.")
+
+      chunked_audio_bandpassed = (
+        (start, end, bandpass_signal(chunk, self._sample_rate, bandpass_fmin,
+                                     bandpass_fmax, self._sig_fmin, self._sig_fmax))
+        for start, end, chunk in chunked_audio
       )
-    ):
-      if use_bandpass:
-        if bandpass_fmin is None:
-          raise ValueError("Value for 'bandpass_fmin' is required if 'use_bandpass==True'!")
-        if bandpass_fmax is None:
-          raise ValueError("Value for 'bandpass_fmax' is required if 'use_bandpass==True'!")
+      chunked_audio = chunked_audio_bandpassed
 
-        if bandpass_fmin < 0:
-          raise ValueError("Value for 'bandpass_fmin' is invalid! It needs to be larger than zero.")
+    batches = itertools_batched(chunked_audio, batch_size)
 
-        if bandpass_fmax <= bandpass_fmin:
-          raise ValueError(
-            "Value for 'bandpass_fmax' is invalid! It needs to be larger than 'bandpass_fmin'.")
+    for batch_of_chunks in batches:
+      batch = np.array(list(map(itemgetter(2), batch_of_chunks)), np.float32)
+      predicted_species = self._predict_species(batch)
 
-        audio_signal_part = bandpass_signal(audio_signal_part, self._sample_rate,
-                                            bandpass_fmin, bandpass_fmax, self._sig_fmin, self._sig_fmax)
+      if apply_sigmoid:
+        assert sigmoid_sensitivity is not None
+        predicted_species = flat_sigmoid(
+          predicted_species,
+          sensitivity=-sigmoid_sensitivity,
+        )
 
-      chunked_signal = chunk_signal(
-        audio_signal_part, self._sample_rate, self._chunk_size_s, self._chunk_overlap_s, self._min_chunk_size_s
-      )
+      for i, (chunk_start, chunk_end, _) in enumerate(batch_of_chunks):
+        prediction = predicted_species[i]
 
-      for batch_of_chunks in itertools_batched(chunked_signal, batch_size):
-        batch = np.array(list(map(itemgetter(2), batch_of_chunks)), np.float32)
-        predicted_species = self._predict_species(batch)
+        labeled_prediction = (
+          (species, score)
+          for species, score in zip(self._species_list, prediction)
+          if score >= min_confidence
+        )
 
-        if apply_sigmoid:
-          assert sigmoid_sensitivity is not None
-          predicted_species = flat_sigmoid(
-            predicted_species,
-            sensitivity=-sigmoid_sensitivity,
-          )
-
-        for i, (chunk_start, chunk_end, _) in enumerate(batch_of_chunks):
-          prediction = predicted_species[i]
-
+        if use_species_filter:
+          assert filter_species is not None  # added for mypy
           labeled_prediction = (
             (species, score)
-            for species, score in zip(self._species_list, prediction)
-            if score >= min_confidence
+            for species, score in labeled_prediction
+            if species in filter_species
           )
 
-          if use_species_filter:
-            assert filter_species is not None  # added for mypy
-            labeled_prediction = (
-              (species, score)
-              for species, score in labeled_prediction
-              if species in filter_species
-            )
+        # Sort by score
+        sorted_prediction = OrderedDict(
+          sorted(labeled_prediction, key=itemgetter(1), reverse=True)
+        )
+        key = (chunk_start, chunk_end)
+        assert key not in predictions
+        predictions[key] = sorted_prediction
 
-          # Sort by score
-          sorted_prediction = OrderedDict(
-            sorted(labeled_prediction, key=itemgetter(1), reverse=True)
-          )
-          chunk_file_start = audio_signal_part_start + chunk_start
-          chunk_file_end = audio_signal_part_start + chunk_end
-          key = (chunk_file_start, chunk_file_end)
-          assert key not in predictions
-          predictions[key] = sorted_prediction
     return predictions

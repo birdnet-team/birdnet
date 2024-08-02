@@ -20,7 +20,22 @@ def get_model():
 
 def test_soundscape_predictions_are_correct(model: ModelV2M4):
   res = model.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0, file_splitting_duration_s=600)
+    TEST_FILE_WAV, min_confidence=0)
+
+  assert list(res[(0, 3)].keys())[0] == 'Poecile atricapillus_Black-capped Chickadee'
+  npt.assert_almost_equal(
+    res[(0, 3)]['Poecile atricapillus_Black-capped Chickadee'],
+    0.8140561, decimal=6)
+
+  assert list(res[(66, 69)].keys())[0] == 'Engine_Engine'
+  npt.assert_almost_equal(res[(66, 69)]['Engine_Engine'],
+                          0.0861028, decimal=6)
+  assert len(res) == 120 / 3 == 40
+
+
+def test_soundscape_predictions_batch_size_4_are_correct(model: ModelV2M4):
+  res = model.predict_species_within_audio_file(
+    TEST_FILE_WAV, min_confidence=0, batch_size=4)
 
   assert list(res[(0, 3)].keys())[0] == 'Poecile atricapillus_Black-capped Chickadee'
   npt.assert_almost_equal(
@@ -35,10 +50,10 @@ def test_soundscape_predictions_are_correct(model: ModelV2M4):
 
 def test_identical_predictions_return_same_result(model: ModelV2M4):
   res1 = model.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0, file_splitting_duration_s=600)
+    TEST_FILE_WAV, min_confidence=0)
 
   res2 = model.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0, file_splitting_duration_s=600)
+    TEST_FILE_WAV, min_confidence=0)
 
   npt.assert_almost_equal(
     res1[(0, 3)]['Poecile atricapillus_Black-capped Chickadee'],
@@ -59,61 +74,6 @@ def test_identical_predictions_return_same_result(model: ModelV2M4):
   assert list(res2[(66, 69)].keys())[0] == 'Engine_Engine'
 
 
-def test_file_loading_with_nine_second_splits_works(model: ModelV2M4):
-  res = model.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0, file_splitting_duration_s=9)
-
-  assert list(res[(0, 3)].keys())[0] == 'Poecile atricapillus_Black-capped Chickadee'
-  npt.assert_almost_equal(
-    res[(0, 3)]['Poecile atricapillus_Black-capped Chickadee'],
-    0.8140561, decimal=6)
-
-  assert list(res[(66, 69)].keys())[0] == 'Engine_Engine'
-  npt.assert_almost_equal(res[(66, 69)]['Engine_Engine'],
-                          0.0861028, decimal=6)
-  assert len(res) == 120 / 3 == 40
-
-
-def test_file_loading_with_not_open_up_seconds_in_file_splits_works(model: ModelV2M4):
-  # 42 is dividable by 3 (chunksize)
-  # 120 is not dividable by 42
-  res = model.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0, file_splitting_duration_s=42)
-
-  assert list(res[(0, 3)].keys())[0] == 'Poecile atricapillus_Black-capped Chickadee'
-  npt.assert_almost_equal(
-    res[(0, 3)]['Poecile atricapillus_Black-capped Chickadee'],
-    0.8140561, decimal=6)
-
-  assert list(res[(66, 69)].keys())[0] == 'Engine_Engine'
-  npt.assert_almost_equal(res[(66, 69)]['Engine_Engine'],
-                          0.0861028, decimal=6)
-  assert len(res) == 120 / 3 == 40
-
-
-def test_file_loading_with_no_splits_works(model: ModelV2M4):
-  res = model.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0, file_splitting_duration_s=120)
-
-  assert list(res[(0, 3)].keys())[0] == 'Poecile atricapillus_Black-capped Chickadee'
-  npt.assert_almost_equal(
-    res[(0, 3)]['Poecile atricapillus_Black-capped Chickadee'],
-    0.8140561, decimal=6)
-
-  assert list(res[(66, 69)].keys())[0] == 'Engine_Engine'
-  npt.assert_almost_equal(res[(66, 69)]['Engine_Engine'],
-                          0.0861028, decimal=6)
-  assert len(res) == 120 / 3 == 40
-
-
-def test_invalid_file_split_raises_value_error(model: ModelV2M4):
-  with pytest.raises(ValueError, match="Value for 'file_splitting_duration_s' is invalid! It needs to be dividable by 3.0."):
-    model.predict_species_within_audio_file(
-        TEST_FILE_WAV,
-        file_splitting_duration_s=40,
-    )
-
-
 def test_invalid_audio_file_path_raises_value_error(model: ModelV2M4):
   with pytest.raises(ValueError, match=r"Value for 'audio_file' is invalid! It needs to be a path to an existing audio file."):
     model.predict_species_within_audio_file(
@@ -126,14 +86,6 @@ def test_invalid_batch_size_raises_value_error(model: ModelV2M4):
     model.predict_species_within_audio_file(
         TEST_FILE_WAV,
         batch_size=0
-    )
-
-
-def test_invalid_file_splitting_duration_raises_value_error(model: ModelV2M4):
-  with pytest.raises(ValueError, match=r"Value for 'file_splitting_duration_s' is invalid! It needs to be larger than or equal to 3.0."):
-    model.predict_species_within_audio_file(
-        TEST_FILE_WAV,
-        file_splitting_duration_s=2
     )
 
 
