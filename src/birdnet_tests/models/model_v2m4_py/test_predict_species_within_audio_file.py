@@ -8,6 +8,7 @@ from birdnet.models.model_v2m4 import ModelV2M4
 from birdnet.types import Species
 
 TEST_FILES_DIR = Path("src/birdnet_tests/test_files")
+# Duration: 120s
 TEST_FILE_WAV = TEST_FILES_DIR / "soundscape.wav"
 
 
@@ -18,22 +19,26 @@ def get_model():
 
 
 def test_soundscape_predictions_are_correct(model: ModelV2M4):
-  res = model.predict_species_within_audio_file(TEST_FILE_WAV, min_confidence=0)
+  res = model.predict_species_within_audio_file(
+    TEST_FILE_WAV, min_confidence=0, file_splitting_duration_s=121)
 
+  assert list(res[(0, 3)].keys())[0] == 'Poecile atricapillus_Black-capped Chickadee'
   npt.assert_almost_equal(
     res[(0, 3)]['Poecile atricapillus_Black-capped Chickadee'],
     0.8140561, decimal=6)
 
+  assert list(res[(66, 69)].keys())[0] == 'Engine_Engine'
   npt.assert_almost_equal(res[(66, 69)]['Engine_Engine'],
                           0.0861028, decimal=6)
-  assert list(res[(0, 3)].keys())[0] == 'Poecile atricapillus_Black-capped Chickadee'
-  assert list(res[(66, 69)].keys())[0] == 'Engine_Engine'
+  assert len(res) == 120 / 3 == 40
 
 
 def test_identical_predictions_return_same_result(model: ModelV2M4):
-  res1 = model.predict_species_within_audio_file(TEST_FILE_WAV, min_confidence=0)
+  res1 = model.predict_species_within_audio_file(
+    TEST_FILE_WAV, min_confidence=0, file_splitting_duration_s=121)
 
-  res2 = model.predict_species_within_audio_file(TEST_FILE_WAV, min_confidence=0)
+  res2 = model.predict_species_within_audio_file(
+    TEST_FILE_WAV, min_confidence=0, file_splitting_duration_s=121)
 
   npt.assert_almost_equal(
     res1[(0, 3)]['Poecile atricapillus_Black-capped Chickadee'],
@@ -54,18 +59,34 @@ def test_identical_predictions_return_same_result(model: ModelV2M4):
   assert list(res2[(66, 69)].keys())[0] == 'Engine_Engine'
 
 
-def test_file_loading_small_chunks_works(model: ModelV2M4):
+def test_file_loading_with_nine_second_splits_works(model: ModelV2M4):
   res = model.predict_species_within_audio_file(
     TEST_FILE_WAV, min_confidence=0, file_splitting_duration_s=9)
 
+  assert list(res[(0, 3)].keys())[0] == 'Poecile atricapillus_Black-capped Chickadee'
   npt.assert_almost_equal(
     res[(0, 3)]['Poecile atricapillus_Black-capped Chickadee'],
     0.8140561, decimal=6)
 
+  assert list(res[(66, 69)].keys())[0] == 'Engine_Engine'
   npt.assert_almost_equal(res[(66, 69)]['Engine_Engine'],
                           0.0861028, decimal=6)
+  assert len(res) == 120 / 3 == 40
+
+
+def test_file_loading_with_no_splits_works(model: ModelV2M4):
+  res = model.predict_species_within_audio_file(
+    TEST_FILE_WAV, min_confidence=0, file_splitting_duration_s=120)
+
   assert list(res[(0, 3)].keys())[0] == 'Poecile atricapillus_Black-capped Chickadee'
+  npt.assert_almost_equal(
+    res[(0, 3)]['Poecile atricapillus_Black-capped Chickadee'],
+    0.8140561, decimal=6)
+
   assert list(res[(66, 69)].keys())[0] == 'Engine_Engine'
+  npt.assert_almost_equal(res[(66, 69)]['Engine_Engine'],
+                          0.0861028, decimal=6)
+  assert len(res) == 120 / 3 == 40
 
 
 def test_invalid_audio_file_path_raises_value_error(model: ModelV2M4):

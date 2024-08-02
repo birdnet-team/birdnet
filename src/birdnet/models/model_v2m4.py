@@ -1,4 +1,5 @@
-﻿import os
+﻿import itertools
+import os
 import zipfile
 from operator import itemgetter
 from pathlib import Path
@@ -342,10 +343,12 @@ class ModelV2M4():
           f"At least one species defined in 'filter_species' is invalid! They need to be known species, e.g., {', '.join(self._species_list[:3])}")
 
     predictions = OrderedDict()
-    audio_signal_part_start = 0
 
-    for audio_signal_part in load_audio_file_in_parts(
-      audio_file, self._sample_rate, file_splitting_duration_s
+    for audio_signal_part_start, audio_signal_part in zip(
+      itertools.count(0, file_splitting_duration_s),
+      load_audio_file_in_parts(
+        audio_file, self._sample_rate, file_splitting_duration_s
+      )
     ):
       if use_bandpass:
         if bandpass_fmin is None:
@@ -404,5 +407,4 @@ class ModelV2M4():
           key = (chunk_file_start, chunk_file_end)
           assert key not in predictions
           predictions[key] = sorted_prediction
-      audio_signal_part_start += file_splitting_duration_s
     return predictions

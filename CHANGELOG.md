@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Audio file longer than value in argument 'file_splitting_duration_s' causes error (#2).
+
 ## [0.1.0] - 2024-07-23
 
 - Initial release
