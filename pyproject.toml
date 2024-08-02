@@ -25,7 +25,6 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
 ]
 dependencies = [
-  "librosa>=0.10.0, <1.0.0",
   "tensorflow==2.15.1",
   "resampy>=0.4.3, <1.0.0",
   "soundfile>=0.12.1, <1.0.0",

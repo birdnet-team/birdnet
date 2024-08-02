@@ -1,9 +1,8 @@
 import os
 from itertools import count, islice
 from pathlib import Path
-from typing import Any, Generator, Iterable, Optional, Tuple, cast
+from typing import Any, Generator, Iterable, Optional, Tuple
 
-import librosa
 import numpy as np
 import numpy.typing as npt
 import requests
@@ -185,27 +184,6 @@ def itertools_batched(iterable: Iterable, n: int) -> Generator[Any, None, None]:
   iterator = iter(iterable)
   while batch := tuple(islice(iterator, n)):
     yield batch
-
-
-def load_audio_file_in_parts(audio_file: Path, sample_rate: int, file_splitting_duration: float) -> Generator[npt.NDArray[np.float32], None, None]:
-  offset = 0.0
-  file_duration_seconds = cast(float, librosa.get_duration(
-      path=str(audio_file.absolute()), sr=sample_rate))
-
-  while offset < file_duration_seconds:
-    # will resample to sample_rate
-    audio_signal, _ = librosa.load(
-        audio_file,
-        sr=sample_rate,
-        offset=offset,
-        duration=file_splitting_duration,
-        mono=True,
-        res_type="kaiser_fast",
-    )
-    audio_signal = cast(npt.NDArray[np.float32], audio_signal)
-    yield audio_signal
-    del audio_signal
-    offset += file_splitting_duration
 
 
 def get_chunks_with_overlap(total_duration_s: float, chunk_duration_s: float, overlap_duration_s: float) -> Generator[Tuple[float, float], None, None]:

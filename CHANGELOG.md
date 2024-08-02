@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - Remove parameter 'file_splitting_duration_s', instead load files in 3s chunks
+- Remove 'librosa' dependency
 
 ## [0.1.0] - 2024-07-23
 
