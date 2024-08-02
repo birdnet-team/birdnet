@@ -209,7 +209,7 @@ def resample_array(x: npt.NDArray, sample_rate: int, target_sample_rate: int) ->
   if sample_rate == target_sample_rate:
     return x
 
-  target_sample_count = int(len(x) / sample_rate * target_sample_rate)
+  target_sample_count = round(len(x) / sample_rate * target_sample_rate)
   x_resampled: npt.NDArray = resample(x, target_sample_count)
   return x_resampled
 
