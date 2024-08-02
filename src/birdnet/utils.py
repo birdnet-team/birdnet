@@ -85,9 +85,9 @@ def chunk_signal(audio_signal: npt.NDArray[np.float32], rate: int, chunk_size: f
   elif audio_signal.size - last_chunk_position < min_chunk_frame_count:
     last_chunk_position = last_chunk_position - chunk_step_frame_count
 
-  # Append empty signal of chunk duration, so all splits have desired length
+  # Append empty signal of chunk duration, so the last split has the desired length in any case
+  # TODO maybe add noise instead of empty signal
   noise = np.zeros(shape=chunk_frame_count, dtype=audio_signal.dtype)
-  # TODO maybe add noise
 
   data = np.concatenate((audio_signal, noise))
   start: float = 0.0

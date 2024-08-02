@@ -334,6 +334,10 @@ class ModelV2M4():
         raise ValueError(
           "Value for 'sigmoid_sensitivity' is invalid! It needs to be in interval [0.5, 1.5].")
 
+    if file_splitting_duration_s % self._chunk_size_s != 0:
+      raise ValueError(
+        f"Value for 'file_splitting_duration_s' is invalid! It needs to be dividable by {self._chunk_size_s}.")
+
     use_species_filter = filter_species is not None and len(filter_species) > 0
     if use_species_filter:
       assert filter_species is not None  # added for mypy
