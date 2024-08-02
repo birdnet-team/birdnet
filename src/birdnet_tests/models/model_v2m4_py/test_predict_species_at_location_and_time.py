@@ -71,10 +71,10 @@ def test_invalid_longitude_raises_value_error(model: ModelV2M4):
 
 
 def test_invalid_min_confidence_raises_value_error(model: ModelV2M4):
-  with pytest.raises(ValueError, match=r"Value for 'min_confidence' is invalid! It needs to be in interval \[0, 1.0\)."):
+  with pytest.raises(ValueError, match=r"Value for 'min_confidence' is invalid! It needs to be in interval \[0.0, 1.0\)."):
     model.predict_species_at_location_and_time(0, 0, min_confidence=-0.1)
 
-  with pytest.raises(ValueError, match=r"Value for 'min_confidence' is invalid! It needs to be in interval \[0, 1.0\)."):
+  with pytest.raises(ValueError, match=r"Value for 'min_confidence' is invalid! It needs to be in interval \[0.0, 1.0\)."):
     model.predict_species_at_location_and_time(0, 0, min_confidence=1.1)
 
 
