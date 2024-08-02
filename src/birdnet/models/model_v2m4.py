@@ -115,8 +115,6 @@ class ModelV2M4():
     self._sig_fmax: int = 15_000
     self._sample_rate = 48_000
     self._chunk_size_s: float = 3.0
-    self._chunk_overlap_s: float = 0.0
-    self._min_chunk_size_s: float = 1.0
 
     self._species_list = get_species_from_file(
       downloader.get_language_path(language),
@@ -232,7 +230,7 @@ class ModelV2M4():
 
     if not 0 <= min_confidence < 1.0:
       raise ValueError(
-        "Value for 'min_confidence' is invalid! It needs to be in interval [0, 1.0).")
+        "Value for 'min_confidence' is invalid! It needs to be in interval [0.0, 1.0).")
 
     if week is not None and not (1 <= week <= 48):
       raise ValueError(
@@ -261,6 +259,7 @@ class ModelV2M4():
       *,
       min_confidence: float = 0.1,
       batch_size: int = 1,
+      chunk_overlap_s: float = 0.0,
       use_bandpass: bool = True,
       bandpass_fmin: Optional[int] = 0,
       bandpass_fmax: Optional[int] = 15_000,
@@ -279,6 +278,8 @@ class ModelV2M4():
         Minimum confidence threshold for predictions to be considered valid.
     batch_size : int, optional, default=1
         Number of audio samples to process in a batch.
+    chunk_overlap_s : float, optional, default=0.0
+        Overlapping of chunks in seconds. Must be in the interval [0.0, 3.0).
     use_bandpass : bool, optional, default=True
         Whether to apply a bandpass filter to the audio.
     bandpass_fmin : Optional[int], optional, default=0
@@ -317,7 +318,11 @@ class ModelV2M4():
 
     if not 0 <= min_confidence < 1.0:
       raise ValueError(
-        "Value for 'min_confidence' is invalid! It needs to be in interval [0, 1.0).")
+        "Value for 'min_confidence' is invalid! It needs to be in interval [0.0, 1.0).")
+
+    if not 0 <= chunk_overlap_s < 3:
+      raise ValueError(
+        "Value for 'chunk_overlap_s' is invalid! It needs to be in interval [0.0, 3.0).")
 
     if apply_sigmoid:
       if sigmoid_sensitivity is None:
@@ -337,7 +342,7 @@ class ModelV2M4():
     predictions = OrderedDict()
 
     chunked_audio = load_audio_in_chunks_with_overlap(audio_file,
-                                                      chunk_duration_s=self._chunk_size_s, overlap_duration_s=self._chunk_overlap_s, target_sample_rate=self._sample_rate)
+                                                      chunk_duration_s=self._chunk_size_s, overlap_duration_s=chunk_overlap_s, target_sample_rate=self._sample_rate)
 
     # fill last chunk with silence up to chunksize if it is smaller than 3s
     chunk_sample_size = round(self._sample_rate * self._chunk_size_s)

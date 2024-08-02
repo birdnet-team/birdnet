@@ -90,16 +90,30 @@ def test_invalid_batch_size_raises_value_error(model: ModelV2M4):
 
 
 def test_invalid_min_confidence_raises_value_error(model: ModelV2M4):
-  with pytest.raises(ValueError, match=r"Value for 'min_confidence' is invalid! It needs to be in interval \[0, 1.0\)."):
+  with pytest.raises(ValueError, match=r"Value for 'min_confidence' is invalid! It needs to be in interval \[0.0, 1.0\)."):
     model.predict_species_within_audio_file(
         TEST_FILE_WAV,
         min_confidence=-0.1
     )
 
-  with pytest.raises(ValueError, match=r"Value for 'min_confidence' is invalid! It needs to be in interval \[0, 1.0\)."):
+  with pytest.raises(ValueError, match=r"Value for 'min_confidence' is invalid! It needs to be in interval \[0.0, 1.0\)."):
     model.predict_species_within_audio_file(
         TEST_FILE_WAV,
         min_confidence=1.1
+    )
+
+
+def test_invalid_chunk_overlap_s_raises_value_error(model: ModelV2M4):
+  with pytest.raises(ValueError, match=r"Value for 'chunk_overlap_s' is invalid! It needs to be in interval \[0.0, 3.0\)"):
+    model.predict_species_within_audio_file(
+        TEST_FILE_WAV,
+        chunk_overlap_s=-1,
+    )
+
+  with pytest.raises(ValueError, match=r"Value for 'chunk_overlap_s' is invalid! It needs to be in interval \[0.0, 3.0\)"):
+    model.predict_species_within_audio_file(
+        TEST_FILE_WAV,
+        chunk_overlap_s=4.0,
     )
 
 
