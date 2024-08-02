@@ -9,11 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add parameter 'chunk_overlap_s' to define overlapping between chunks
+- Add parameter 'chunk_overlap_s' to define overlapping between chunks (#3)
 
 ### Removed
 
-- Remove parameter 'file_splitting_duration_s', instead load files in 3s chunks
+- Remove parameter 'file_splitting_duration_s' instead load files in 3s chunks (#2)
 - Remove 'librosa' dependency
 
 ## [0.1.0] - 2024-07-23
