@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add GPU support by introducing the Protobuf model of v2.4
+
+### Changed
+
+- Rename class 'ModelV2M4' to 'ModelV2M4TFLite'
+- 'ModelV2M4' defaults to Protobuf model now
+
 ## [0.1.1] - 2024-08-02
 
 ### Added
