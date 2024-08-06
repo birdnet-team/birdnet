@@ -1,20 +1,14 @@
-import os
-import zipfile
 from operator import itemgetter
 from pathlib import Path
 from typing import Optional, OrderedDict, Set, Union
 
 import numpy as np
 import numpy.typing as npt
-import tensorflow as tf
 from ordered_set import OrderedSet
-# from tensorflow import keras
-from tensorflow import Tensor, keras
-from tensorflow.lite.python.interpreter import Interpreter
 
 from birdnet.types import Language, Species, SpeciesPrediction, SpeciesPredictions
-from birdnet.utils import (bandpass_signal, download_file_tqdm, fillup_with_silence, flat_sigmoid,
-                           get_birdnet_app_data_folder, get_species_from_file, itertools_batched,
+from birdnet.utils import (bandpass_signal, fillup_with_silence, flat_sigmoid,
+                           get_birdnet_app_data_folder, itertools_batched,
                            load_audio_in_chunks_with_overlap)
 
 AVAILABLE_LANGUAGES: Set[Language] = {
@@ -22,69 +16,7 @@ AVAILABLE_LANGUAGES: Set[Language] = {
 }
 
 
-def check_protobuf_model_files_exist(folder: Path) -> bool:
-  exists = True
-  exists &= (folder / "saved_model.pb").is_file()
-  exists &= (folder / "variables").is_dir()
-  exists &= (folder / "variables" / "variables.data-00000-of-00001").is_file()
-  exists &= (folder / "variables" / "variables.index").is_file()
-  return exists
-
-
-class Downloader():
-  def __init__(self, parent_folder: Path) -> None:
-    self._version_path = parent_folder
-    self._audio_model_path = self._version_path / "audio-model"
-    self._meta_model_path = self._version_path / "meta-model"
-    self._lang_path = self._version_path / "labels"
-
-  @property
-  def version_path(self) -> Path:
-    return self._version_path
-
-  @property
-  def audio_model_path(self) -> Path:
-    return self._audio_model_path
-
-  @property
-  def meta_model_path(self) -> Path:
-    return self._meta_model_path
-
-  def get_language_path(self, language: Language) -> Path:
-    return self._lang_path / f"{language}.txt"
-
-  def _check_model_files_exist(self) -> bool:
-    model_is_downloaded = True
-    model_is_downloaded &= self._audio_model_path.is_dir()
-    model_is_downloaded &= self._meta_model_path.is_dir()
-    model_is_downloaded &= self._lang_path.is_dir()
-    for lang in AVAILABLE_LANGUAGES:
-      model_is_downloaded &= self.get_language_path(lang).is_file()
-    model_is_downloaded &= check_protobuf_model_files_exist(self.audio_model_path)
-    model_is_downloaded &= check_protobuf_model_files_exist(self._meta_model_path)
-    return model_is_downloaded
-
-  def _download_model_files(self) -> None:
-    dl_path = "https://tuc.cloud/index.php/s/ko6DA29EMwLBe3c/download/BirdNET_v2.4_protobuf.zip"
-    dl_size = None
-    self._version_path.mkdir(parents=True, exist_ok=True)
-
-    zip_download_path = self._version_path / "download.zip"
-    download_file_tqdm(dl_path, zip_download_path, download_size=dl_size,
-                       description="Downloading model")
-
-    with zipfile.ZipFile(zip_download_path, 'r') as zip_ref:
-      zip_ref.extractall(self._version_path)
-
-    os.remove(zip_download_path)
-
-  def ensure_model_is_available(self) -> None:
-    if not self._check_model_files_exist():
-      self._download_model_files()
-      assert self._check_model_files_exist()
-
-
-class ModelV2M4GPU():
+class ModelV2M4Base():
   """
   Model version 2.4
 
@@ -114,39 +46,25 @@ class ModelV2M4GPU():
 
     self._language = language
 
-    birdnet_app_data = get_birdnet_app_data_folder()
-    model_folder = birdnet_app_data / "models" / "v2.4-Protobuf"
-    model_folder = Path("/home/mi/code/birdnet/src/birdnet_debug/BirdNET_v2.4_gpu")
-    downloader = Downloader(model_folder)
-    # downloader.ensure_model_is_available()
-
     self._sig_fmin: int = 0
     self._sig_fmax: int = 15_000
     self._sample_rate = 48_000
     self._chunk_size_s: float = 3.0
 
-    self._species_list = get_species_from_file(
-      downloader.get_language_path(language),
-      encoding="utf8"
-    )
+    self._species_list: OrderedSet[Species]
 
-    self._audio_model = tf.saved_model.load(downloader.audio_model_path.absolute())
-    # self._audio_model = keras.models.load_model(
-    #   downloader.audio_model_path.absolute(), compile=False)
-    self._meta_model = tf.saved_model.load(downloader.meta_model_path.absolute())
-    # del downloader
+    birdnet_app_data = get_birdnet_app_data_folder()
+    self._model_version_folder = birdnet_app_data / "models" / "v2.4"
 
   @property
   def species(self) -> OrderedSet[Species]:
     return self._species_list
 
   def _predict_species(self, batch: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
-    assert batch.dtype == np.float32
+    raise NotImplementedError()
 
-    prediction: Tensor = self._audio_model.basic(batch)["scores"]
-    prediction_np: npt.NDArray[np.float32] = prediction.numpy()
-
-    return prediction_np
+  def _predict_species_location(self, sample: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
+    raise NotImplementedError()
 
   def _predict_species_from_location(self, latitude: float, longitude: float, week: Optional[int]) -> npt.NDArray[np.float32]:
     assert -90 <= latitude <= 90
@@ -159,11 +77,9 @@ class ModelV2M4GPU():
 
     sample = np.expand_dims(np.array([latitude, longitude, week], dtype=np.float32), 0)
 
-    prediction: Tensor = self._meta_model(sample)
-    prediction = tf.squeeze(prediction)
-    prediction_np: npt.NDArray[np.float32] = prediction.numpy()
+    prediction = self._predict_species_location(sample)
 
-    return prediction_np
+    return prediction
 
   def predict_species_at_location_and_time(
       self,

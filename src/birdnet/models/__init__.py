@@ -1,1 +1,1 @@
-from birdnet.models.model_v2m4 import ModelV2M4
+from birdnet.models.model_v2m4_tflite import ModelV2M4TFLite
