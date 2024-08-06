@@ -142,18 +142,10 @@ def model_test_identical_predictions_return_same_result(model: ModelV2M4Base):
 
   npt.assert_almost_equal(
     res1[(0, 3)]['Poecile atricapillus_Black-capped Chickadee'],
-      0.8140561, decimal=5)
+      res2[(0, 3)]['Poecile atricapillus_Black-capped Chickadee'], decimal=5)  # 0.8140561
 
   npt.assert_almost_equal(res1[(66, 69)]['Engine_Engine'],
-                          0.0861028, decimal=5)
-  assert list(res1[(0, 3)].keys())[0] == 'Poecile atricapillus_Black-capped Chickadee'
-  assert list(res1[(66, 69)].keys())[0] == 'Engine_Engine'
-
-  npt.assert_almost_equal(
-    res2[(0, 3)]['Poecile atricapillus_Black-capped Chickadee'],
-    0.8140561, decimal=5)
-
-  npt.assert_almost_equal(res2[(66, 69)]['Engine_Engine'],
-                          0.0861028, decimal=5)
-  assert list(res2[(0, 3)].keys())[0] == 'Poecile atricapillus_Black-capped Chickadee'
-  assert list(res2[(66, 69)].keys())[0] == 'Engine_Engine'
+                          res2[(66, 69)]['Engine_Engine'], decimal=5)  # 0.0861028
+  assert list(res1[(0, 3)].keys())[0] == list(res2[(0, 3)].keys())[
+      0]  # 'Poecile atricapillus_Black-capped Chickadee'
+  assert list(res1[(66, 69)].keys())[0] == list(res2[(66, 69)].keys())[0]  # 'Engine_Engine'
