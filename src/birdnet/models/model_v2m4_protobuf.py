@@ -2,7 +2,7 @@ import os
 import zipfile
 from logging import getLogger
 from pathlib import Path
-from typing import List, Optional, cast
+from typing import List, Optional
 
 import numpy as np
 import numpy.typing as npt
