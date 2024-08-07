@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Rename class 'ModelV2M4' to 'ModelV2M4TFLite'
 - 'ModelV2M4' defaults to Protobuf model now
+- Sorting of prediction scores is now: score (desc) & name (asc)
+
+### Fixed
+
+- Bugfix output interval durations are now always of type 'float'
 
 ## [0.1.1] - 2024-08-02
 

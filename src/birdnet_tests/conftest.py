@@ -4,7 +4,7 @@ import tensorflow as tf
 
 
 def pytest_configure():
-  loggers = {"numba"}
+  loggers = {"tensorflow", "absl", "urllib3"}
   for l in loggers:
     logger = logging.getLogger(l)
     logger.disabled = True

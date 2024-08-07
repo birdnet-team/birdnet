@@ -5,9 +5,9 @@ import pytest
 from birdnet.models.model_v2m4_protobuf import ModelV2M4Protobuf
 from birdnet.types import Species
 from birdnet_tests.models.test_predict_species_within_audio_file import (
-  TEST_FILE_WAV, model_test_identical_predictions_return_same_result,
-  model_test_soundscape_predictions_are_correct,
-  model_test_soundscape_predictions_batch_size_4_are_correct)
+  TEST_FILE_WAV, model_minimum_test_soundscape_predictions_are_correct,
+  model_test_identical_predictions_return_same_result,
+  model_test_soundscape_predictions_are_correct)
 
 
 @pytest.fixture(name="model")
@@ -17,11 +17,11 @@ def get_model():
 
 
 def test_soundscape_predictions_are_correct(model: ModelV2M4Protobuf):
-  model_test_soundscape_predictions_are_correct(model)
+  model_test_soundscape_predictions_are_correct(model, precision=7)
 
 
-def test_soundscape_predictions_batch_size_4_are_correct(model: ModelV2M4Protobuf):
-  model_test_soundscape_predictions_batch_size_4_are_correct(model)
+def test_minimum_test_soundscape_predictions_are_correct(model: ModelV2M4Protobuf):
+  model_minimum_test_soundscape_predictions_are_correct(model, precision=7)
 
 
 def test_identical_predictions_return_same_result(model: ModelV2M4Protobuf):

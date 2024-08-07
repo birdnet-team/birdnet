@@ -1,7 +1,7 @@
 import os
 from itertools import count, islice
 from pathlib import Path
-from typing import Any, Generator, Iterable, Optional, Tuple
+from typing import Any, Generator, Iterable, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -11,7 +11,7 @@ from ordered_set import OrderedSet
 from scipy.signal import butter, lfilter, resample
 from tqdm import tqdm
 
-from birdnet.types import Species
+from birdnet.types import Species, SpeciesPredictions, TimeInterval
 
 
 def get_species_from_file(species_file: Path, /, *, encoding: str = "utf8") -> OrderedSet[Species]:
@@ -186,13 +186,20 @@ def itertools_batched(iterable: Iterable, n: int) -> Generator[Any, None, None]:
     yield batch
 
 
-def get_chunks_with_overlap(total_duration_s: float, chunk_duration_s: float, overlap_duration_s: float) -> Generator[Tuple[float, float], None, None]:
+def get_chunks_with_overlap(total_duration_s: Union[int, float], chunk_duration_s: Union[int, float], overlap_duration_s: Union[int, float]) -> Generator[Tuple[float, float], None, None]:
   assert total_duration_s > 0
   assert chunk_duration_s > 0
   assert 0 <= overlap_duration_s < chunk_duration_s
 
+  if not isinstance(overlap_duration_s, float):
+    overlap_duration_s = float(overlap_duration_s)
+  if not isinstance(chunk_duration_s, float):
+    chunk_duration_s = float(chunk_duration_s)
+  if not isinstance(total_duration_s, float):
+    total_duration_s = float(total_duration_s)
+
   step_duration = chunk_duration_s - overlap_duration_s
-  for start in count(0, step_duration):
+  for start in count(0.0, step_duration):
     assert start < total_duration_s
     if (end := start + chunk_duration_s) < total_duration_s:
       yield start, end

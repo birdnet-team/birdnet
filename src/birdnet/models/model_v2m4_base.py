@@ -38,8 +38,6 @@ class ModelV2M4Base():
     ValueError
         If any of the input parameters are invalid.
     """
-    super().__init__()
-
     if language not in AVAILABLE_LANGUAGES:
       raise ValueError(
         f"Language '{language}' is not available! Choose from: {', '.join(sorted(AVAILABLE_LANGUAGES))}.")
@@ -51,7 +49,7 @@ class ModelV2M4Base():
     self._sample_rate = 48_000
     self._chunk_size_s: float = 3.0
 
-    self._species_list: OrderedSet[Species]
+    self._species_list: OrderedSet[Species] = OrderedSet()
 
     birdnet_app_data = get_birdnet_app_data_folder()
     self._model_version_folder = birdnet_app_data / "models" / "v2.4"
@@ -300,9 +298,10 @@ class ModelV2M4Base():
             if species in filter_species
           )
 
-        # Sort by score
+        # Sort by score then by name
         sorted_prediction = OrderedDict(
-          sorted(labeled_prediction, key=itemgetter(1), reverse=True)
+          sorted(labeled_prediction, key=lambda species_score: (
+            species_score[1] * -1, species_score[0]), reverse=False)
         )
         key = (chunk_start, chunk_end)
         assert key not in predictions

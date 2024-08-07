@@ -2,6 +2,19 @@
 from birdnet.utils import get_chunks_with_overlap
 
 
+def test_4_2_0__returns_float():
+  result = list(get_chunks_with_overlap(4, 2, 0))
+  assert result == [
+    (0, 2),
+    (2, 4),
+  ]
+
+  assert isinstance(result[0][0], float)
+  assert isinstance(result[0][1], float)
+  assert isinstance(result[1][0], float)
+  assert isinstance(result[1][1], float)
+
+
 def test_1_2_0__returns_01():
   result = list(get_chunks_with_overlap(1, 2, 0))
   assert result == [
