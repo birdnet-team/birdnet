@@ -11,7 +11,7 @@ from ordered_set import OrderedSet
 from scipy.signal import butter, lfilter, resample
 from tqdm import tqdm
 
-from birdnet.types import Species, SpeciesPredictions, TimeInterval
+from birdnet.types import Species
 
 
 def get_species_from_file(species_file: Path, /, *, encoding: str = "utf8") -> OrderedSet[Species]:

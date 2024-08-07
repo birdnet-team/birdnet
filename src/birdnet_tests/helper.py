@@ -1,17 +1,10 @@
 
 import math
-import os
-from itertools import count, islice
-from pathlib import Path
-from typing import Any, Generator, Iterable, Optional, Tuple, Union
+from typing import Optional, Tuple
 
 import numpy as np
 import numpy.typing as npt
-import requests
-import soundfile as sf
 from ordered_set import OrderedSet
-from scipy.signal import butter, lfilter, resample
-from tqdm import tqdm
 
 from birdnet.types import Species, SpeciesPredictions, TimeInterval
 

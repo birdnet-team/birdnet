@@ -84,6 +84,6 @@ def model_test_identical_predictions_return_same_result(model: ModelV2M4Base):
 
   assert len(species1) == len(species2) == 6522
   npt.assert_almost_equal(species1['Cyanocitta cristata_Blue Jay'],
-                          species2['Cyanocitta cristata_Blue Jay'], decimal=6)  # 0.9276199
+                          species2['Cyanocitta cristata_Blue Jay'], decimal=7)  # 0.9276199
   npt.assert_almost_equal(species1['Larus marinus_Great Black-backed Gull'],
-                          species2['Larus marinus_Great Black-backed Gull'], decimal=6)  # 0.035001162
+                          species2['Larus marinus_Great Black-backed Gull'], decimal=7)  # 0.035001162
