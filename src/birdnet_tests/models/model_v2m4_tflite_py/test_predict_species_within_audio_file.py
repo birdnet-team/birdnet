@@ -57,5 +57,5 @@ def test_internal_predictions_are_correct(model: ModelV2M4TFLite):
 
 
 if __name__ == "__main__":
-  model = ModelV2M4TFLite(language="en_us")
-  create_ground_truth_test_file(model, TEST_PATH)
+  m = ModelV2M4TFLite(language="en_us")
+  create_ground_truth_test_file(m, TEST_PATH)

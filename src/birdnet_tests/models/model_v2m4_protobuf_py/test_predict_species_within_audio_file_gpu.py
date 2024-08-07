@@ -58,5 +58,5 @@ def test_internal_predictions_are_correct(model: Optional[ModelV2M4Protobuf]):
 
 
 if __name__ == "__main__":
-  model = ModelV2M4Protobuf(language="en_us", custom_device="/device:GPU:0")
-  create_ground_truth_test_file(model, TEST_PATH)
+  m = ModelV2M4Protobuf(language="en_us", custom_device="/device:GPU:0")
+  create_ground_truth_test_file(m, TEST_PATH)

@@ -376,5 +376,5 @@ def model_test_identical_predictions_return_same_result(model: ModelV2M4Base):
 
 if __name__ == "__main__":
   # global ground truth is created using protobuf CPU model
-  model = ModelV2M4Protobuf(language="en_us", custom_device="/device:CPU:0")
-  create_ground_truth_test_file(model, TEST_PATH)
+  m = ModelV2M4Protobuf(language="en_us", custom_device="/device:CPU:0")
+  create_ground_truth_test_file(m, TEST_PATH)
