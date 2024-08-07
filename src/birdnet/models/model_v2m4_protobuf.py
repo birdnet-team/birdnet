@@ -105,7 +105,7 @@ class ModelV2M4Protobuf(ModelV2M4Base):
         The language to use for the model's text processing. Must be one of the following available languages:
         "en_us", "en_uk", "sv", "da", "hu", "th", "pt", "fr", "cs", "af", "uk", "it", "ja", "sl", "pl", "ko", "es", "de", "tr", "ru", "no", "sk", "ar", "fi", "ro", "nl", "zh".
     custom_device : str, optional, default=None
-        This parameter allows specifying a custom device on which computations should be performed. If custom_device is not specified (i.e., it has the default value None), the program will attempt to use a GPU (e.g., /device:GPU:0) by default. If no GPU is available, it will fall back to using the CPU. By specifying a device string such as /device:GPU:0 or /device:CPU:0, the user can explicitly choose the device on which operations should be executed.
+        This parameter allows specifying a custom device on which computations should be performed. If custom_device is not specified (i.e., it has the default value None), the program will attempt to use a GPU (e.g., "/device:GPU:0") by default. If no GPU is available, it will fall back to using the CPU. By specifying a device string such as "/device:GPU:0" or "/device:CPU:0", the user can explicitly choose the device on which operations should be executed.
 
     Raises:
     -------
