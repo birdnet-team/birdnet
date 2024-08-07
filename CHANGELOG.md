@@ -7,9 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2024-07-08
+
 ### Added
 
-- Add GPU support by introducing the Protobuf model of v2.4
+- Add GPU support by introducing the Protobuf model (v2.4)
 
 ### Changed
 
@@ -20,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Bugfix output interval durations are now always of type 'float'
- 
+
 ## [0.1.1] - 2024-08-02
 
 ### Added
@@ -36,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release
 
-[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/birdnet-team/birdnet/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/birdnet-team/birdnet/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/birdnet-team/birdnet/releases/tag/v0.1.0
