@@ -1,12 +1,39 @@
 
 import math
+from pathlib import Path
 from typing import Optional, Tuple
 
 import numpy as np
 import numpy.typing as npt
 from ordered_set import OrderedSet
 
-from birdnet.types import Species, SpeciesPredictions, TimeInterval
+from birdnet.types import Species, SpeciesPrediction, SpeciesPredictions, TimeInterval
+
+TEST_FILES_DIR = Path("src/birdnet_tests/test_files")
+
+
+def species_prediction_is_equal(
+    actual: SpeciesPrediction,
+    desired: SpeciesPrediction,
+    precision: int
+) -> bool:
+  if actual.keys() != desired.keys():
+    return False
+
+  for species in actual:
+    actual_score = actual[species]
+    desired_score = desired[species]
+
+    if not math.isclose(actual_score, desired_score, abs_tol=10**-precision):
+      return False
+
+  ordering_is_correct = True
+  ordering_is_correct &= species_scores_are_descending_order(actual)
+  ordering_is_correct &= species_scores_are_descending_order(desired)
+  if not ordering_is_correct:
+    return False
+
+  return True
 
 
 def species_predictions_are_equal(
@@ -21,35 +48,22 @@ def species_predictions_are_equal(
     actual_interval_predictions = actual[interval]
     desired_interval_predictions = desired[interval]
 
-    if actual_interval_predictions.keys() != desired_interval_predictions.keys():
+    if not species_prediction_is_equal(actual_interval_predictions, desired_interval_predictions, precision):
       return False
-
-    for species in actual_interval_predictions:
-      actual_score = actual_interval_predictions[species]
-      desired_score = desired_interval_predictions[species]
-
-      if not math.isclose(actual_score, desired_score, abs_tol=10**-precision):
-        return False
 
   ordering_is_correct = True
   ordering_is_correct &= intervals_are_descending_order(actual)
   ordering_is_correct &= intervals_are_descending_order(desired)
-  ordering_is_correct &= scores_are_descending_order(actual)
-  ordering_is_correct &= scores_are_descending_order(desired)
   if not ordering_is_correct:
     return False
 
   return True
 
 
-def scores_are_descending_order(predictions: SpeciesPredictions) -> bool:
-  for _, interval_predictions in predictions.items():
-    actual_values = list(interval_predictions.values())
-    desired_values = sorted(actual_values, reverse=True)
-    if actual_values != desired_values:
-      return False
-
-  return True
+def species_scores_are_descending_order(predictions: SpeciesPrediction) -> bool:
+  actual_values = list(predictions.items())
+  desired_values = sorted(actual_values, key=lambda kv: (kv[1] * -1, kv[0]), reverse=False)
+  return actual_values == desired_values
 
 
 def intervals_are_descending_order(predictions: SpeciesPredictions) -> bool:

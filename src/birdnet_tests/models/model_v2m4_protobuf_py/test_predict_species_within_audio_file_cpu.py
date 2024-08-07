@@ -1,13 +1,27 @@
-from typing import Set
+import pickle
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Dict, List, Optional, Set, Tuple
 
+import numpy as np
+import numpy.testing as npt
+import numpy.typing as npty
 import pytest
+import tensorflow as tf
+from ordered_set import OrderedSet
+from tqdm import tqdm
 
+from birdnet.models.model_v2m4_base import ModelV2M4Base
 from birdnet.models.model_v2m4_protobuf import ModelV2M4Protobuf
-from birdnet.types import Species
+from birdnet.models.model_v2m4_tflite import ModelV2M4TFLite
+from birdnet.types import Language, Species, SpeciesPredictions
+from birdnet_tests.helper import (TEST_FILES_DIR, convert_predictions_to_numpy,
+                                  species_predictions_are_equal)
 from birdnet_tests.models.test_predict_species_within_audio_file import (
-  TEST_FILE_WAV, model_minimum_test_soundscape_predictions_are_correct,
+  TEST_FILE_WAV, AudioTestCase, create_ground_truth_test_file,
+  model_minimum_test_soundscape_predictions_are_correct,
   model_test_identical_predictions_return_same_result,
-  model_test_soundscape_predictions_are_correct)
+  model_test_soundscape_predictions_are_globally_correct, predict_species_within_audio_file)
 
 
 @pytest.fixture(name="model")
@@ -16,8 +30,8 @@ def get_model():
   return model
 
 
-def test_soundscape_predictions_are_correct(model: ModelV2M4Protobuf):
-  model_test_soundscape_predictions_are_correct(model, precision=7)
+def test_soundscape_predictions_are_globally_correct(model: ModelV2M4Protobuf):
+  model_test_soundscape_predictions_are_globally_correct(model, precision=7)
 
 
 def test_minimum_test_soundscape_predictions_are_correct(model: ModelV2M4Protobuf):
@@ -35,3 +49,22 @@ def test_invalid_species_filter_raises_value_error(model: ModelV2M4Protobuf):
         TEST_FILE_WAV,
         filter_species=invalid_filter_species
     )
+
+
+TEST_PATH = Path(f"{TEST_FILE_WAV}.protobuf-cpu.pkl")
+
+
+def test_internal_predictions_are_correct(model: ModelV2M4TFLite):
+  with TEST_PATH.open("rb") as f:
+    test_cases: List[Tuple[Dict, SpeciesPredictions]] = pickle.load(f)
+
+  for test_case_dict, gt in tqdm(test_cases):
+    test_case = AudioTestCase(**test_case_dict)
+    res = predict_species_within_audio_file(test_case,
+                                            model, TEST_FILE_WAV)
+    assert species_predictions_are_equal(res, gt, precision=7)
+
+
+if __name__ == "__main__":
+  model = ModelV2M4Protobuf(language="en_us", custom_device="/device:CPU:0")
+  create_ground_truth_test_file(model, TEST_PATH)

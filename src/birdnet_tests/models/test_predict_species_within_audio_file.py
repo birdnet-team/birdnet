@@ -13,11 +13,11 @@ from tqdm import tqdm
 from birdnet.models.model_v2m4_base import ModelV2M4Base
 from birdnet.models.model_v2m4_protobuf import ModelV2M4Protobuf
 from birdnet.types import Language, Species, SpeciesPredictions
-from birdnet_tests.helper import convert_predictions_to_numpy, species_predictions_are_equal
+from birdnet_tests.helper import TEST_FILES_DIR, convert_predictions_to_numpy, species_predictions_are_equal
 
-TEST_FILES_DIR = Path("src/birdnet_tests/test_files")
 # Duration: 120s
 TEST_FILE_WAV = TEST_FILES_DIR / "soundscape.wav"
+TEST_PATH = Path(f"{TEST_FILE_WAV}.global.pkl")
 
 
 @dataclass()
@@ -293,10 +293,7 @@ def test_apply_sigmoid_1p5(model: ModelV2M4Base):
   )
 
 
-def create_ground_truth_test_file():
-  # Ground truth is created using Protobuf CPU model
-  model = ModelV2M4Protobuf(language="en_us", custom_device="/device:CPU:0")
-
+def create_ground_truth_test_file(model: ModelV2M4Base, path: Path):
   test_cases = [
     AudioTestCase(),
     AudioTestCase(min_confidence=0.3),
@@ -324,12 +321,12 @@ def create_ground_truth_test_file():
     test_case_dict = asdict(test_case)
     results.append((test_case_dict, gt))
 
-  with Path(f"{TEST_FILE_WAV}.pkl").open("wb") as f:
+  with path.open("wb") as f:
     pickle.dump(results, f)
 
 
-def model_test_soundscape_predictions_are_correct(model: ModelV2M4Base, /, *, precision: int):
-  with Path(f"{TEST_FILE_WAV}.pkl").open("rb") as f:
+def model_test_soundscape_predictions_are_globally_correct(model: ModelV2M4Base, /, *, precision: int):
+  with TEST_PATH.open("rb") as f:
     test_cases: List[Tuple[Dict, SpeciesPredictions]] = pickle.load(f)
 
   for test_case_dict, gt in tqdm(test_cases):
@@ -377,9 +374,6 @@ def model_test_identical_predictions_return_same_result(model: ModelV2M4Base):
 
 
 if __name__ == "__main__":
-  print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-  print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-  print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-  print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-  print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-  create_ground_truth_test_file()
+  # global ground truth is created using protobuf CPU model
+  model = ModelV2M4Protobuf(language="en_us", custom_device="/device:CPU:0")
+  create_ground_truth_test_file(model, TEST_PATH)
