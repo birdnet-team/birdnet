@@ -7,7 +7,13 @@ requires-python = ">=3.9, <3.12"
 license = { text = "MIT" }
 authors = [{ name = "Stefan Taubert", email = "pypi@stefantaubert.com" }]
 maintainers = [{ name = "Stefan Taubert", email = "pypi@stefantaubert.com" }]
-keywords = ["birds"]
+keywords = [
+  "birds",
+  "deep-learning",
+  "birdsong",
+  "acoustic-monitoring",
+  "bioacoustics",
+]
 classifiers = [
   "Development Status :: 2 - Pre-Alpha",
   "Operating System :: OS Independent",

@@ -30,12 +30,12 @@ predictions = model.predict_species_within_audio_file(audio_path)
 
 # get most probable prediction at time interval 0s-3s
 prediction, confidence = list(predictions[(0.0, 3.0)].items())[0]
-print(f"predicted '{prediction}' with a confidence of {confidence:.6f}")
+print(f"predicted '{prediction}' with a confidence of {confidence:.2f}")
 # output:
-# predicted 'Poecile atricapillus_Black-capped Chickadee' with a confidence of 0.814056
+# predicted 'Poecile atricapillus_Black-capped Chickadee' with a confidence of 0.81
 ```
 
-The resulting `predictions` look like this (excerpt):
+The resulting `predictions` look like this (excerpt, scores may vary):
 
 ```py
 predictions = OrderedDict([
@@ -80,9 +80,9 @@ predictions = model.predict_species_at_location_and_time(42.5, -76.45, week=4)
 
 # get most probable prediction
 first_prediction, confidence = list(predictions.items())[0]
-print(f"predicted '{first_prediction}' with a confidence of {confidence:.6f}")
+print(f"predicted '{first_prediction}' with a confidence of {confidence:.2f}")
 # output:
-# predicted 'Cyanocitta cristata_Blue Jay' with a confidence of 0.927620
+# predicted 'Cyanocitta cristata_Blue Jay' with a confidence of 0.93
 ```
 
 ### Predict species within an audio file for a given location and time
@@ -106,10 +106,20 @@ predictions = model.predict_species_within_audio_file(
 
 # get most probable prediction at time interval 0s-3s
 prediction, confidence = list(predictions[(0.0, 3.0)].items())[0]
-print(f"predicted '{prediction}' with a confidence of {confidence:.6f}")
+print(f"predicted '{prediction}' with a confidence of {confidence:.2f}")
 # output:
-# predicted 'Poecile atricapillus_Black-capped Chickadee' with a confidence of 0.814056
+# predicted 'Poecile atricapillus_Black-capped Chickadee' with a confidence of 0.81
 ```
+
+### Model Formats and Execution Details
+
+This project provides two model formats: Protobuf and TFLite. Both models are designed to have identical precision up to 2 decimal places, with differences only appearing from the third decimal place onward.
+
+- **Protobuf Model**: Accessed via `ModelV2M4()`, this model can be executed on both GPU and CPU. By default, the Protobuf model is used, and the system will attempt to run it on the GPU if available.
+  
+- **TFLite Model**: Accessed via `ModelV2M4TFLite()`, this model is limited to CPU execution only.
+
+Ensure your environment is configured to utilize the appropriate model and available hardware optimally.
 
 ## License
 
