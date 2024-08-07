@@ -1,5 +1,4 @@
 import pickle
-from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -8,7 +7,6 @@ import tensorflow as tf
 from tqdm import tqdm
 
 from birdnet.models.model_v2m4_protobuf import ModelV2M4Protobuf
-from birdnet.models.model_v2m4_tflite import ModelV2M4TFLite
 from birdnet.types import SpeciesPrediction
 from birdnet_tests.helper import TEST_FILES_DIR, species_prediction_is_equal
 from birdnet_tests.models.test_predict_species_at_location_and_time import (

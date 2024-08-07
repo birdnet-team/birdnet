@@ -1,7 +1,6 @@
 import pickle
-from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import pytest
 from tqdm import tqdm

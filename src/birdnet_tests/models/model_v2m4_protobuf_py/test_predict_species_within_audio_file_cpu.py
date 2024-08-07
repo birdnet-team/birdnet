@@ -1,22 +1,14 @@
 import pickle
-from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Set, Tuple
 
-import numpy as np
-import numpy.testing as npt
-import numpy.typing as npty
 import pytest
-import tensorflow as tf
-from ordered_set import OrderedSet
 from tqdm import tqdm
 
-from birdnet.models.model_v2m4_base import ModelV2M4Base
 from birdnet.models.model_v2m4_protobuf import ModelV2M4Protobuf
 from birdnet.models.model_v2m4_tflite import ModelV2M4TFLite
-from birdnet.types import Language, Species, SpeciesPredictions
-from birdnet_tests.helper import (TEST_FILES_DIR, convert_predictions_to_numpy,
-                                  species_predictions_are_equal)
+from birdnet.types import Species, SpeciesPredictions
+from birdnet_tests.helper import species_predictions_are_equal
 from birdnet_tests.models.test_predict_species_within_audio_file import (
   TEST_FILE_WAV, AudioTestCase, create_ground_truth_test_file,
   model_minimum_test_soundscape_predictions_are_correct,

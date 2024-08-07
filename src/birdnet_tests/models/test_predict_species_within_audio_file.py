@@ -13,7 +13,8 @@ from tqdm import tqdm
 from birdnet.models.model_v2m4_base import ModelV2M4Base
 from birdnet.models.model_v2m4_protobuf import ModelV2M4Protobuf
 from birdnet.types import Language, Species, SpeciesPredictions
-from birdnet_tests.helper import TEST_FILES_DIR, convert_predictions_to_numpy, species_predictions_are_equal
+from birdnet_tests.helper import (TEST_FILES_DIR, convert_predictions_to_numpy,
+                                  species_predictions_are_equal)
 
 # Duration: 120s
 TEST_FILE_WAV = TEST_FILES_DIR / "soundscape.wav"
