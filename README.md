@@ -121,6 +121,29 @@ print(f"predicted '{prediction}' with a confidence of {confidence:.2f}")
 # predicted 'Poecile atricapillus_Black-capped Chickadee' with a confidence of 0.81
 ```
 
+### Identify species within an audio file using a custom classifier
+
+```py
+from pathlib import Path
+
+from birdnet.models import CustomModelV2M4TFLite
+
+# create model instance for v2.4
+# use a trained model from the BirdNET-Analyzer (tflite format)
+classifier_folder = Path("src/birdnet_tests/test_files/custom_model_v2m4_tflite")
+model = CustomModelV2M4TFLite(classifier_folder, "CustomClassifier")
+
+# predict species within the whole audio file
+audio_path = Path("example/soundscape.wav")
+predictions = model.predict_species_within_audio_file(audio_path)
+
+# get most probable prediction at time interval 0s-3s
+prediction, confidence = list(predictions[(0.0, 3.0)].items())[0]
+print(f"predicted '{prediction}' with a confidence of {confidence:.2f}")
+# output:
+# predicted 'Poecile atricapillus_Black-capped Chickadee' with a confidence of 0.76
+```
+
 ### Model Formats and Execution Details
 
 This project provides two model formats: Protobuf and TFLite. Both models are designed to have identical precision up to 2 decimal places, with differences only appearing from the third decimal place onward.

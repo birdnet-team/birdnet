@@ -1,2 +1,3 @@
 from birdnet.models.model_v2m4_protobuf import ModelV2M4Protobuf as ModelV2M4
 from birdnet.models.model_v2m4_tflite import ModelV2M4TFLite
+from birdnet.models.model_v2m4_tflite_custom import CustomModelV2M4TFLite

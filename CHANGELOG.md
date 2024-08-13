@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Support to load custom TFLite models using `CustomModelV2M4TFLite`
+
 ## [0.1.3] - 2024-08-13
 
 ### Changed
