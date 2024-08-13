@@ -6,10 +6,18 @@
 
 A Python library for identifying bird species by their sounds.
 
+The library is geared towards providing a robust workflow for ecological data analysis in bioacoustic projects. While it covers essential functionalities, it doesn’t include all the features found in BirdNET-Analyzer, which is available [here](https://github.com/kahst/BirdNET-Analyzer). Some features might only be available in the BirdNET Analyzer and not in this package.
+
+Please note that the project is under active development, so you might encounter changes that could affect your current workflow. We recommend checking for updates regularly.
+
 ## Installation
 
 ```sh
+# For CPU users
 pip install birdnet --user
+
+# For GPU users (NVIDIA GPU driver and CUDA need to be installed in advance)
+pip install birdnet[and-cuda] --user
 ```
 
 ## Example usage
@@ -129,6 +137,8 @@ Ensure your environment is configured to utilize the appropriate model and avail
 Please ensure you review and adhere to the specific license terms provided with each model. Note that educational and research purposes are considered non-commercial use cases.
 
 ## Citation
+
+Feel free to use birdnet for your acoustic analyses and research. If you do, please cite as:
 
 ```bibtex
 @article{kahl2021birdnet,

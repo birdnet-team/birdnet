@@ -31,7 +31,7 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
 ]
 dependencies = [
-  "tensorflow[and-cuda]==2.15.1",
+  "tensorflow==2.15.1",
   "resampy>=0.4.3, <1.0.0",
   "soundfile>=0.12.1, <1.0.0",
   "scipy>=1.9.3, <2.0.0",
@@ -39,6 +39,9 @@ dependencies = [
   "tqdm>=4.64.1, <5.0.0",
   "numpy>=1.23.5, <2.0.0",
 ]
+
+[project.optional-dependencies]
+and-cuda = ["tensorflow[and-cuda]==2.15.1"]
 
 [project.urls]
 Homepage = "https://github.com/birdnet-team/birdnet"

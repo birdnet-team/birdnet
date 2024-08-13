@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Make CUDA dependency optional, install with `birdnet[and-cuda]`
+
+### Fixed
+
+- Bugfix 'ERROR: Could not find a version that satisfies the requirement nvidia-cuda-nvcc-cu12 (Mac/Ubuntu/Windows)' (#4)
+
 ## [0.1.2] - 2024-07-08
 
 ### Added
