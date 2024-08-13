@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Support to load custom TFLite models using `CustomModelV2M4TFLite`
+- Support to load custom Raven (Protobuf) models using `CustomModelV2M4Raven`
 
 ## [0.1.3] - 2024-08-13
 
