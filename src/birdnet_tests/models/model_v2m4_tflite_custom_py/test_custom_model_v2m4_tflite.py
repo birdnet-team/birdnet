@@ -8,7 +8,6 @@ from birdnet_tests.helper import TEST_FILES_DIR
 
 # Duration: 120s
 TEST_FILE_WAV = TEST_FILES_DIR / "soundscape.wav"
-TEST_PATH = Path(f"{TEST_FILE_WAV}.global.pkl")
 
 
 def test_invalid_classifier_name_raises_value_error():
