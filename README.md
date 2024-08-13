@@ -10,6 +10,8 @@ The library is geared towards providing a robust workflow for ecological data an
 
 Please note that the project is under active development, so you might encounter changes that could affect your current workflow. We recommend checking for updates regularly.
 
+The package is also available as an R package at: [birdnetR](https://github.com/birdnet-team/birdnetR).
+
 ## Installation
 
 ```sh
