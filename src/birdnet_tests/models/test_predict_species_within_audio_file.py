@@ -70,7 +70,7 @@ class DummyModel(ModelV2M4Base):
 
   def _predict_species(self, batch: npty.NDArray[np.float32]) -> npty.NDArray[np.float32]:
     assert batch.dtype == np.float32
-    prediction_np = np.zeros((len(batch), len(self._species_list)))
+    prediction_np = np.zeros((len(batch), len(self._species_list)), dtype=np.float32)
     for i in range(len(batch)):
       prediction_np[i, 0] = 0.1
       prediction_np[i, 1] = 0.3
