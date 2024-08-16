@@ -23,10 +23,8 @@ def get_model():
   return model
 
 
-def xtest_predictions_are_globally_correct(model: ModelV2M4TFLite):
-  # to much deviation
-  # e.g. 0.67853034 vs 0.7912699
-  model_test_predictions_are_globally_correct(model, precision=2)
+def test_predictions_are_globally_correct(model: ModelV2M4TFLite):
+  model_test_predictions_are_globally_correct(model, precision=6)
 
 
 def test_no_week(model: ModelV2M4TFLite):

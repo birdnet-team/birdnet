@@ -11,7 +11,8 @@ def test_download_model_v2m4_to_tmp():
     download_file_tqdm(
       dl_path,
       output_path,
-      download_size=63092251,
+      download_size=76823623,
       description="Downloading model",
     )
     assert output_path.is_file()
+

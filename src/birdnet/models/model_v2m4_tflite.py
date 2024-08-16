@@ -40,7 +40,17 @@ class DownloaderTFLite():
   def _check_model_files_exist(self) -> bool:
     model_is_downloaded = True
     model_is_downloaded &= self._audio_model_path.is_file()
+    if self._audio_model_path.is_file():
+      file_stats = os.stat(self._audio_model_path)
+      audio_is_newest_version = file_stats.st_size == 51726412
+      model_is_downloaded &= audio_is_newest_version
+
     model_is_downloaded &= self._meta_model_path.is_file()
+    if self._meta_model_path.is_file():
+      file_stats = os.stat(self._meta_model_path)
+      meta_is_newest_version = file_stats.st_size == 29526096
+      model_is_downloaded &= meta_is_newest_version
+
     model_is_downloaded &= self._lang_path.is_dir()
     for lang in AVAILABLE_LANGUAGES:
       model_is_downloaded &= self.get_language_path(lang).is_file()
@@ -48,7 +58,7 @@ class DownloaderTFLite():
 
   def _download_model_files(self) -> None:
     dl_path = "https://tuc.cloud/index.php/s/45KmTcpHH8iDDA2/download/BirdNET_v2.4.zip"
-    dl_size = 63092251
+    dl_size = 76823623
     self._version_path.mkdir(parents=True, exist_ok=True)
 
     zip_download_path = self._version_path / "download.zip"

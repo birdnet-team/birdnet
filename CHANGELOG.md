@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Custom Raven model didn't return same results as custom TFLite model because of sigmoid layer, now both predict functions return the same results
+- Custom Raven audio model didn't return same results as custom TFLite model because of sigmoid layer
+- TFLite meta model was not returning correct results
 
 ### Changed
 
