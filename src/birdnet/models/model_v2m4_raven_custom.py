@@ -1,7 +1,8 @@
+import csv
 from logging import getLogger
 from operator import itemgetter
 from pathlib import Path
-from typing import List, Optional, OrderedDict, Set, Union
+from typing import Generator, List, Optional, OrderedDict, Set, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -12,9 +13,8 @@ from tensorflow import Tensor
 from birdnet.models.model_v2m4_protobuf import (check_protobuf_model_files_exist,
                                                 try_get_gpu_otherwise_return_cpu)
 from birdnet.types import Species, SpeciesPredictions
-from birdnet.utils import (bandpass_signal, fillup_with_silence, flat_sigmoid,
-                           get_species_from_file, itertools_batched,
-                           load_audio_in_chunks_with_overlap)
+from birdnet.utils import (bandpass_signal, fillup_with_silence, flat_sigmoid, itertools_batched,
+                           load_audio_in_chunks_with_overlap, sigmoid_inverse)
 
 
 class CustomRavenParser():
@@ -36,6 +36,17 @@ class CustomRavenParser():
     model_is_available &= self._label_path.is_file()
     model_is_available &= check_protobuf_model_files_exist(self.audio_model_path)
     return model_is_available
+
+
+def get_species_from_raven_csv(path: Path) -> Generator[Species, None, None]:
+  with path.open(newline='\n', encoding='utf-8', mode="r") as csvfile:
+    csvreader = csv.reader(csvfile)
+    for row in csvreader:
+      if len(row) != 2:
+        raise ValueError(
+          "Invalid input format detected! Expected species names in Raven model to be something like 'Card1,Cardinalis cardinalis_Northern Cardinal'.")
+      code, description = row
+      yield description
 
 
 class CustomModelV2M4Raven():
@@ -77,12 +88,22 @@ class CustomModelV2M4Raven():
     self._sample_rate = 48_000
     self._chunk_size_s: float = 3.0
 
-    self._species_list = get_species_from_file(
-      parser.language_path,
-      encoding="utf8"
-    )
+    self._species_list = OrderedSet(get_species_from_raven_csv(parser.language_path))
 
     self._audio_model = tf.saved_model.load(parser.audio_model_path.absolute())
+
+    # # Falls das geladene Modell nicht direkt ein Keras-Modell ist, es in ein Keras-Modell konvertieren:
+    # # Dies hängt davon ab, wie das Modell ursprünglich gespeichert wurde
+    # input_shape = _audio_model.signatures['basic'].inputs[0].shape.as_list()[1:]
+
+    # keras_model = tf.keras.Sequential([
+    #     tf.keras.layers.InputLayer(input_shape=input_shape),
+    #     _audio_model
+    # ])
+
+    # # Schritt 3: Das letzte Layer entfernen
+    # keras_model = tf.keras.Model(keras_model.input, keras_model.layers[-2].output)
+
     del parser
 
   @property
@@ -94,6 +115,10 @@ class CustomModelV2M4Raven():
     with tf.device(self._device):
       prediction: Tensor = self._audio_model.basic(batch)["scores"]
     prediction_np: npt.NDArray[np.float32] = prediction.numpy()
+
+    # raven models have an activation layer `keras.layers.Activation("sigmoid"))` which need to be reverted
+    prediction_np = sigmoid_inverse(prediction_np)
+
     return prediction_np
 
   def predict_species_within_audio_file(

@@ -119,8 +119,12 @@ def fillup_with_silence(audio_chunk: npt.NDArray[np.float32], target_length: int
 
 
 def flat_sigmoid(x: npt.NDArray[np.float32], sensitivity: float) -> npt.NDArray[np.float32]:
-  result: npt.NDArray[np.float32] = 1 / (1.0 + np.exp(sensitivity * np.clip(x, -15, 15)))
+  result: npt.NDArray[np.float32] = 1.0 / (1.0 + np.exp(sensitivity * np.clip(x, -15, 15)))
   return result
+
+
+def sigmoid_inverse(x: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
+  return np.log(x / (1 - x))
 
 
 def get_app_data_path() -> Path:

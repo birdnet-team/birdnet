@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Custom Raven model didn't return same results as custom TFLite model because of sigmoid layer, now both predict functions return the same results
+
 ## [0.1.4] - 2024-08-13
 
 ### Added
