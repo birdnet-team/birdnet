@@ -16,50 +16,18 @@ AVAILABLE_LANGUAGES: Set[Language] = {
 }
 
 
-class ModelV2M4Base():
-  """
-  Model version 2.4
-
-  This class represents version 2.4 of the model.
-  """
-
-  def __init__(self, /, *, language: Language = "en_us") -> None:
-    """
-    Initializes the ModelV2M4 instance.
-
-    Parameters:
-    -----------
-    language : Language, optional, default="en_us"
-        The language to use for the model's text processing. Must be one of the following available languages:
-        "en_us", "en_uk", "sv", "da", "hu", "th", "pt", "fr", "cs", "af", "uk", "it", "ja", "sl", "pl", "ko", "es", "de", "tr", "ru", "no", "sk", "ar", "fi", "ro", "nl", "zh".
-
-    Raises:
-    -------
-    ValueError
-        If any of the input parameters are invalid.
-    """
-    if language not in AVAILABLE_LANGUAGES:
-      raise ValueError(
-        f"Language '{language}' is not available! Choose from: {', '.join(sorted(AVAILABLE_LANGUAGES))}.")
-
-    self._language = language
-
-    self._sig_fmin: int = 0
-    self._sig_fmax: int = 15_000
-    self._sample_rate = 48_000
-    self._chunk_size_s: float = 3.0
-
-    self._species_list: OrderedSet[Species] = OrderedSet()
-
-    birdnet_app_data = get_birdnet_app_data_folder()
-    self._model_version_folder = birdnet_app_data / "models" / "v2.4"
+class ModelBaseV2M4():
+  def __init__(self, species_list: OrderedSet[Species]) -> None:
+    self._species_list = species_list
 
   @property
   def species(self) -> OrderedSet[Species]:
     return self._species_list
 
-  def _predict_species(self, batch: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
-    raise NotImplementedError()
+
+class MetaModelBaseV2M4(ModelBaseV2M4):
+  def __init__(self, species_list: OrderedSet[Species]) -> None:
+    super().__init__(species_list)
 
   def _predict_species_location(self, sample: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
     raise NotImplementedError()
@@ -148,6 +116,19 @@ class ModelV2M4Base():
     )
 
     return sorted_prediction
+
+
+class AudioModelBaseV2M4(ModelBaseV2M4):
+  def __init__(self, species_list: OrderedSet[Species]) -> None:
+    super().__init__(species_list)
+
+    self._sig_fmin: int = 0
+    self._sig_fmax: int = 15_000
+    self._sample_rate = 48_000
+    self._chunk_size_s: float = 3.0
+
+  def _predict_species(self, batch: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
+    raise NotImplementedError()
 
   def predict_species_within_audio_file(
       self,
@@ -308,3 +289,15 @@ class ModelV2M4Base():
         predictions[key] = sorted_prediction
 
     return predictions
+
+
+def validate_language(language: Language):
+  if language not in AVAILABLE_LANGUAGES:
+    raise ValueError(
+      f"Language '{language}' is not available! Choose from: {', '.join(sorted(AVAILABLE_LANGUAGES))}.")
+
+
+def get_internal_version_app_data_folder() -> Path:
+  birdnet_app_data = get_birdnet_app_data_folder()
+  model_version_folder = birdnet_app_data / "models" / "v2.4"
+  return model_version_folder

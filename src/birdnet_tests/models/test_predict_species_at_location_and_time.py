@@ -4,10 +4,11 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy.testing as npt
+from ordered_set import OrderedSet
 import pytest
 from tqdm import tqdm
 
-from birdnet.models.model_v2m4_base import ModelV2M4Base
+from birdnet.models.model_v2m4_base import MetaModelBaseV2M4
 from birdnet.models.model_v2m4_protobuf import ModelV2M4Protobuf
 from birdnet.types import SpeciesPrediction
 from birdnet_tests.helper import species_prediction_is_equal
@@ -17,13 +18,13 @@ TEST_FILES_DIR = Path("src/birdnet_tests/test_files")
 TEST_PATH = Path(TEST_FILES_DIR / "meta-model.global.pkl")
 
 
-class DummyModel(ModelV2M4Base):
+class DummyModel(MetaModelBaseV2M4):
   pass
 
 
 @pytest.fixture(name="model")
 def get_model():
-  model = DummyModel(language="en_us")
+  model = DummyModel(OrderedSet(("species1", "species2")))
   return model
 
 
@@ -59,7 +60,7 @@ def test_invalid_week_raises_value_error(model: DummyModel):
     model.predict_species_at_location_and_time(0, 0, week=49)
 
 
-def model_test_no_week(model: ModelV2M4Base):
+def model_test_no_week(model: MetaModelBaseV2M4):
   species = model.predict_species_at_location_and_time(
     42.5, -76.45, min_confidence=0.03)
   assert len(species) >= 252  # 255 on TFLite
@@ -69,7 +70,7 @@ def model_test_no_week(model: ModelV2M4Base):
   npt.assert_almost_equal(species['Larus marinus_Great Black-backed Gull'], 0.06815465, decimal=3)
 
 
-def model_test_using_threshold(model: ModelV2M4Base):
+def model_test_using_threshold(model: MetaModelBaseV2M4):
   species = model.predict_species_at_location_and_time(
     42.5, -76.45, week=4, min_confidence=0.03)
   assert len(species) == 64
@@ -80,13 +81,13 @@ def model_test_using_threshold(model: ModelV2M4Base):
   assert 'Larus marinus_Great Black-backed Gull' in list(species.keys())[-2:]
 
 
-def model_test_using_no_threshold_returns_all_species(model: ModelV2M4Base):
+def model_test_using_no_threshold_returns_all_species(model: MetaModelBaseV2M4):
   species = model.predict_species_at_location_and_time(
     42.5, -76.45, week=4, min_confidence=0)
   assert len(species) == len(model.species) == 6522
 
 
-def model_test_identical_predictions_return_same_result(model: ModelV2M4Base):
+def model_test_identical_predictions_return_same_result(model: MetaModelBaseV2M4):
   species1 = model.predict_species_at_location_and_time(
     42.5, -76.45, week=4, min_confidence=0)
 
@@ -103,14 +104,14 @@ class LocationTestCase():
   week: Optional[int] = None
 
 
-def predict_species(test_case: LocationTestCase, model: ModelV2M4Base) -> SpeciesPrediction:
+def predict_species(test_case: LocationTestCase, model: MetaModelBaseV2M4) -> SpeciesPrediction:
   # min_confidence=0 because otherwise the length is not always the same
   return model.predict_species_at_location_and_time(
     test_case.latitude, test_case.longitude, week=test_case.week, min_confidence=0,
   )
 
 
-def create_ground_truth_test_file(model: ModelV2M4Base, path: Path):
+def create_ground_truth_test_file(model: MetaModelBaseV2M4, path: Path):
   # Ground truth is created using Protobuf CPU model
 
   test_cases = [
@@ -136,7 +137,7 @@ def create_ground_truth_test_file(model: ModelV2M4Base, path: Path):
     pickle.dump(results, f)
 
 
-def model_test_predictions_are_globally_correct(model: ModelV2M4Base, /, *, precision: int):
+def model_test_predictions_are_globally_correct(model: MetaModelBaseV2M4, /, *, precision: int):
   with TEST_PATH.open("rb") as f:
     test_cases: List[Tuple[Dict, SpeciesPrediction]] = pickle.load(f)
 

@@ -35,7 +35,7 @@ def test_identical_predictions_return_same_result(model: ModelV2M4TFLite):
 
 def test_invalid_species_filter_raises_value_error(model: ModelV2M4TFLite):
   invalid_filter_species: Set[Species] = {"species"}
-  with pytest.raises(ValueError, match=rf"At least one species defined in 'filter_species' is invalid! They need to be known species, e.g., {', '.join(model._species_list[:3])}"):
+  with pytest.raises(ValueError, match=rf"At least one species defined in 'filter_species' is invalid! They need to be known species, e.g., {', '.join(model.species[:3])}"):
     model.predict_species_within_audio_file(
         TEST_FILE_WAV,
         filter_species=invalid_filter_species

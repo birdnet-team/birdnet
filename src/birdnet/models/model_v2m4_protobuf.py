@@ -2,15 +2,18 @@ import os
 import zipfile
 from logging import getLogger
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Set, Union
 
 import numpy as np
 import numpy.typing as npt
 import tensorflow as tf
+from ordered_set import OrderedSet
 from tensorflow import Tensor
 
-from birdnet.models.model_v2m4_base import AVAILABLE_LANGUAGES, ModelV2M4Base
-from birdnet.types import Language
+from birdnet.models.model_v2m4_base import (AVAILABLE_LANGUAGES, AudioModelBaseV2M4,
+                                            MetaModelBaseV2M4, get_internal_version_app_data_folder,
+                                            validate_language)
+from birdnet.types import Language, Species, SpeciesPrediction, SpeciesPredictions
 from birdnet.utils import download_file_tqdm, get_species_from_file
 
 
@@ -88,7 +91,54 @@ def try_get_gpu_otherwise_return_cpu() -> tf.config.LogicalDevice:
   return first_cpu
 
 
-class ModelV2M4Protobuf(ModelV2M4Base):
+def get_custom_device(device_name: str) -> tf.config.LogicalDevice:
+  matched_device: tf.config.LogicalDevice = None
+  available_devices: List[tf.config.LogicalDevice] = tf.config.list_logical_devices()
+
+  for logical_device in available_devices:
+    if logical_device.name == device_name:
+      matched_device = logical_device
+      break
+  if matched_device is None:
+    raise ValueError(
+      f"Device '{device_name}' doesn't exist. Please select one of the following existing device names: {', '.join(d.name for d in available_devices)}.")
+  return matched_device
+
+
+class MetaModelV2M4Protobuf(MetaModelBaseV2M4):
+  def __init__(self, model_path: Path, species_list: OrderedSet[str], device: tf.config.LogicalDevice) -> None:
+    super().__init__(species_list)
+    self._device = device
+    logger = getLogger(__name__)
+    logger.info(f"Using device: {self._device.name}")
+    self._meta_model = tf.saved_model.load(model_path.absolute())
+
+  def _predict_species_location(self, sample: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
+    assert sample.dtype == np.float32
+    with tf.device(self._device):
+      prediction: Tensor = self._meta_model(sample)
+    prediction = tf.squeeze(prediction)
+    prediction_np: npt.NDArray[np.float32] = prediction.numpy()
+    return prediction_np
+
+
+class AudioModelV2M4Protobuf(AudioModelBaseV2M4):
+  def __init__(self, model_path: Path, species_list: OrderedSet[str], device: tf.config.LogicalDevice) -> None:
+    super().__init__(species_list)
+    self._device = device
+    logger = getLogger(__name__)
+    logger.info(f"Using device: {self._device.name}")
+    self._audio_model = tf.saved_model.load(model_path.absolute())
+
+  def _predict_species(self, batch: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
+    assert batch.dtype == np.float32
+    with tf.device(self._device):
+      prediction: Tensor = self._audio_model.basic(batch)["scores"]
+    prediction_np: npt.NDArray[np.float32] = prediction.numpy()
+    return prediction_np
+
+
+class ModelV2M4Protobuf():
   """
   Model version 2.4
 
@@ -112,52 +162,139 @@ class ModelV2M4Protobuf(ModelV2M4Base):
     ValueError
         If any of the input parameters are invalid.
     """
-    super().__init__(language=language)
+
+    validate_language(language)
+
+    model_folder = get_internal_version_app_data_folder() / "Protobuf"
+    downloader = DownloaderProtobuf(model_folder)
+    downloader.ensure_model_is_available()
+
+    species_list = get_species_from_file(
+      downloader.get_language_path(language),
+      encoding="utf8"
+    )
 
     device: tf.config.LogicalDevice
     if custom_device is None:
       device = try_get_gpu_otherwise_return_cpu()
     else:
-      matched_device = None
-      available_devices: List[tf.config.LogicalDevice] = tf.config.list_logical_devices()
+      device = get_custom_device(custom_device)
 
-      for logical_device in available_devices:
-        if logical_device.name == custom_device:
-          matched_device = logical_device
-          break
-      if matched_device is None:
-        raise ValueError(
-          f"Device '{custom_device}' doesn't exist. Please select one of the following existing device names: {', '.join(d.name for d in available_devices)}.")
-      device = matched_device
-    self._device = device
+    self._meta_model = MetaModelV2M4Protobuf(downloader.meta_model_path, species_list, device)
+    self._audio_model = AudioModelV2M4Protobuf(downloader.audio_model_path, species_list, device)
 
-    logger = getLogger(__name__)
-    logger.info(f"Using device: {self._device.name}")
+  @property
+  def species(self) -> OrderedSet[Species]:
+    return self._audio_model.species
 
-    model_folder = self._model_version_folder / "Protobuf"
-    downloader = DownloaderProtobuf(model_folder)
-    downloader.ensure_model_is_available()
+  def predict_species_within_audio_file(
+      self,
+      audio_file: Path,
+      /,
+      *,
+      min_confidence: float = 0.1,
+      batch_size: int = 1,
+      chunk_overlap_s: float = 0.0,
+      use_bandpass: bool = True,
+      bandpass_fmin: Optional[int] = 0,
+      bandpass_fmax: Optional[int] = 15_000,
+      apply_sigmoid: bool = True,
+      sigmoid_sensitivity: Optional[float] = 1.0,
+      filter_species: Optional[Union[Set[Species], OrderedSet[Species]]] = None,
+    ) -> SpeciesPredictions:
+    """
+    Predicts species within an audio file.
 
-    self._species_list = get_species_from_file(
-      downloader.get_language_path(language),
-      encoding="utf8"
+    Parameters:
+    -----------
+    audio_file : Path
+        The path to the audio file for species prediction.
+    min_confidence : float, optional, default=0.1
+        Minimum confidence threshold for predictions to be considered valid.
+    batch_size : int, optional, default=1
+        Number of audio samples to process in a batch.
+    chunk_overlap_s : float, optional, default=0.0
+        Overlapping of chunks in seconds. Must be in the interval [0.0, 3.0).
+    use_bandpass : bool, optional, default=True
+        Whether to apply a bandpass filter to the audio.
+    bandpass_fmin : Optional[int], optional, default=0
+        Minimum frequency for the bandpass filter (in Hz). Ignored if `use_bandpass` is False.
+    bandpass_fmax : Optional[int], optional, default=15_000
+        Maximum frequency for the bandpass filter (in Hz). Ignored if `use_bandpass` is False.
+    apply_sigmoid : bool, optional, default=True
+        Whether to apply a sigmoid function to the model outputs.
+    sigmoid_sensitivity : Optional[float], optional, default=1.0
+        Sensitivity parameter for the sigmoid function. Must be in the interval [0.5, 1.5]. Ignored if `apply_sigmoid` is False.
+    filter_species : Optional[Set[Species]], optional
+        A set of species to filter the predictions. If None, no filtering is applied.
+
+    Returns:
+    --------
+    SpeciesPredictions
+        The predictions of species within the audio file. This is an ordered dictionary where:
+        - The keys are time intervals (tuples of start and end times in seconds) representing segments of the audio file.
+        - The values are ordered dictionaries where:
+            - The keys are species names (strings).
+            - The values are confidence scores (floats) representing the likelihood of the presence of the species in the given time interval.
+
+    Raises:
+    -------
+    ValueError
+        If any of the input parameters are invalid.
+    """
+    return self._audio_model.predict_species_within_audio_file(
+      audio_file,
+      min_confidence=min_confidence,
+      batch_size=batch_size,
+      chunk_overlap_s=chunk_overlap_s,
+      use_bandpass=use_bandpass,
+      bandpass_fmin=bandpass_fmin,
+      bandpass_fmax=bandpass_fmax,
+      apply_sigmoid=apply_sigmoid,
+      sigmoid_sensitivity=sigmoid_sensitivity,
+      filter_species=filter_species,
     )
 
-    self._audio_model = tf.saved_model.load(downloader.audio_model_path.absolute())
-    self._meta_model = tf.saved_model.load(downloader.meta_model_path.absolute())
-    del downloader
+  def predict_species_at_location_and_time(
+      self,
+      latitude: float,
+      longitude: float,
+      /,
+      *,
+      week: Optional[int] = None,
+      min_confidence: float = 0.03
+    ) -> SpeciesPrediction:
+    """
+    Predicts species at a specific geographic location and optionally during a specific week of the year.
 
-  def _predict_species(self, batch: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
-    assert batch.dtype == np.float32
-    with tf.device(self._device):
-      prediction: Tensor = self._audio_model.basic(batch)["scores"]
-    prediction_np: npt.NDArray[np.float32] = prediction.numpy()
-    return prediction_np
+    Parameters:
+    -----------
+    latitude : float
+        The latitude of the location for species prediction. Must be in the interval [-90.0, 90.0].
+    longitude : float
+        The longitude of the location for species prediction. Must be in the interval [-180.0, 180.0].
+    week : Optional[int], optional, default=None
+        The week of the year for which to predict species. Must be in the interval [1, 48] if specified.
+        If None, predictions are not limited to a specific week.
+    min_confidence : float, optional, default=0.03
+        Minimum confidence threshold for predictions to be considered valid. Must be in the interval [0, 1.0).
 
-  def _predict_species_location(self, sample: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
-    assert sample.dtype == np.float32
-    with tf.device(self._device):
-      prediction: Tensor = self._meta_model(sample)
-    prediction = tf.squeeze(prediction)
-    prediction_np: npt.NDArray[np.float32] = prediction.numpy()
-    return prediction_np
+    Returns:
+    --------
+    SpeciesPrediction
+        An ordered dictionary where:
+        - The keys are species names (strings).
+        - The values are confidence scores (floats) representing the likelihood of the species being present at the specified location and time.
+        - The dictionary is sorted in descending order of confidence scores.
+
+    Raises:
+    -------
+    ValueError
+        If any of the input parameters are invalid.
+    """
+    return self._meta_model.predict_species_at_location_and_time(
+      latitude,
+      longitude,
+      week=week,
+      min_confidence=min_confidence,
+    )

@@ -1,14 +1,17 @@
 ﻿import os
 import zipfile
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Set, Union
 
 import numpy as np
 import numpy.typing as npt
+from ordered_set import OrderedSet
 from tensorflow.lite.python.interpreter import Interpreter
 
-from birdnet.models.model_v2m4_base import AVAILABLE_LANGUAGES, ModelV2M4Base
-from birdnet.types import Language
+from birdnet.models.model_v2m4_base import (AVAILABLE_LANGUAGES, AudioModelBaseV2M4,
+                                            MetaModelBaseV2M4, get_internal_version_app_data_folder,
+                                            validate_language)
+from birdnet.types import Language, Species, SpeciesPrediction, SpeciesPredictions
 from birdnet.utils import download_file_tqdm, get_species_from_file
 
 
@@ -63,13 +66,62 @@ class DownloaderTFLite():
       assert self._check_model_files_exist()
 
 
-class ModelV2M4TFLite(ModelV2M4Base):
-  """
-  Model version 2.4
+class MetaModelV2M4TFLite(MetaModelBaseV2M4):
+  def __init__(self, model_path: Path, species_list: OrderedSet[str], tflite_num_threads: Optional[int]) -> None:
+    super().__init__(species_list)
+    assert tflite_num_threads is None or (tflite_num_threads >= 1)
 
-  This class represents version 2.4 of the model.
-  """
+    # Load TFLite model and allocate tensors.
+    self._meta_interpreter = Interpreter(
+      str(model_path.absolute()), num_threads=tflite_num_threads)
+    # Get input tensor index
+    input_details = self._meta_interpreter.get_input_details()
+    self._meta_input_layer_index = input_details[0]["index"]
+    # Get classification output
+    output_details = self._meta_interpreter.get_output_details()
+    self._meta_output_layer_index = output_details[0]["index"]
+    self._meta_interpreter.allocate_tensors()
 
+  def _predict_species_location(self, sample: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
+    assert sample.dtype == np.float32
+    self._meta_interpreter.set_tensor(self._meta_input_layer_index, sample)
+    self._meta_interpreter.invoke()
+    prediction: npt.NDArray[np.float32] = self._meta_interpreter.get_tensor(
+      self._meta_output_layer_index)[0]
+    return prediction
+
+
+class AudioModelV2M4TFLite(AudioModelBaseV2M4):
+  def __init__(self, model_path: Path, species_list: OrderedSet[str], tflite_num_threads: Optional[int]) -> None:
+    super().__init__(species_list)
+    assert tflite_num_threads is None or (tflite_num_threads >= 1)
+
+    # Load TFLite model and allocate tensors.
+    self._audio_interpreter = Interpreter(
+      str(model_path.absolute()), num_threads=tflite_num_threads)
+    # Get input tensor index
+    input_details = self._audio_interpreter.get_input_details()
+    self._audio_input_layer_index = input_details[0]["index"]
+    # Get classification output
+    output_details = self._audio_interpreter.get_output_details()
+    self._audio_output_layer_index = output_details[0]["index"]
+    self._audio_interpreter.allocate_tensors()
+
+  def _predict_species(self, batch: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
+    assert batch.dtype == np.float32
+
+    self._audio_interpreter.resize_tensor_input(self._audio_input_layer_index, batch.shape)
+    self._audio_interpreter.allocate_tensors()
+
+    self._audio_interpreter.set_tensor(self._audio_input_layer_index, batch)
+    self._audio_interpreter.invoke()
+    prediction: npt.NDArray[np.float32] = self._audio_interpreter.get_tensor(
+      self._audio_output_layer_index)
+
+    return prediction
+
+
+class ModelV2M4TFLite():
   def __init__(self, /, *, tflite_num_threads: Optional[int] = 1, language: Language = "en_us") -> None:
     """
     Initializes the ModelV2M4 instance.
@@ -88,61 +140,140 @@ class ModelV2M4TFLite(ModelV2M4Base):
     ValueError
         If any of the input parameters are invalid.
     """
-    super().__init__(language=language)
-
     if tflite_num_threads is not None and tflite_num_threads < 1:
       raise ValueError(
         "Value for 'tflite_num_threads' is invalid! It needs to be None or larger than zero.")
 
-    model_folder = self._model_version_folder / "TFLite"
+    validate_language(language)
+
+    model_folder = get_internal_version_app_data_folder() / "TFLite"
     downloader = DownloaderTFLite(model_folder)
     downloader.ensure_model_is_available()
 
-    self._species_list = get_species_from_file(
+    species_list = get_species_from_file(
       downloader.get_language_path(language),
       encoding="utf8"
     )
 
-    # Load TFLite model and allocate tensors.
-    self._audio_interpreter = Interpreter(
-      str(downloader.audio_model_path.absolute()), num_threads=tflite_num_threads)
-    # Get input tensor index
-    input_details = self._audio_interpreter.get_input_details()
-    self._audio_input_layer_index = input_details[0]["index"]
-    # Get classification output
-    output_details = self._audio_interpreter.get_output_details()
-    self._audio_output_layer_index = output_details[0]["index"]
-    self._audio_interpreter.allocate_tensors()
+    self._meta_model = MetaModelV2M4TFLite(
+      downloader.meta_model_path, species_list, tflite_num_threads)
+    self._audio_model = AudioModelV2M4TFLite(
+      downloader.audio_model_path, species_list, tflite_num_threads)
+    assert self._meta_model.species == self._audio_model.species
+    # self.predict_species_within_audio_file.__doc__ = self._audio_model.predict_species_within_audio_file.__doc__
 
-    # Load TFLite model and allocate tensors.
-    self._meta_interpreter = Interpreter(
-      str(downloader.meta_model_path.absolute()), num_threads=tflite_num_threads)
-    # Get input tensor index
-    input_details = self._meta_interpreter.get_input_details()
-    self._meta_input_layer_index = input_details[0]["index"]
-    # Get classification output
-    output_details = self._meta_interpreter.get_output_details()
-    self._meta_output_layer_index = output_details[0]["index"]
-    self._meta_interpreter.allocate_tensors()
-    del downloader
+  @property
+  def species(self) -> OrderedSet[Species]:
+    return self._audio_model.species
 
-  def _predict_species(self, batch: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
-    assert batch.dtype == np.float32
+  def predict_species_within_audio_file(
+      self,
+      audio_file: Path,
+      /,
+      *,
+      min_confidence: float = 0.1,
+      batch_size: int = 1,
+      chunk_overlap_s: float = 0.0,
+      use_bandpass: bool = True,
+      bandpass_fmin: Optional[int] = 0,
+      bandpass_fmax: Optional[int] = 15_000,
+      apply_sigmoid: bool = True,
+      sigmoid_sensitivity: Optional[float] = 1.0,
+      filter_species: Optional[Union[Set[Species], OrderedSet[Species]]] = None,
+    ) -> SpeciesPredictions:
+    """
+    Predicts species within an audio file.
 
-    self._audio_interpreter.resize_tensor_input(self._audio_input_layer_index, batch.shape)
-    self._audio_interpreter.allocate_tensors()
+    Parameters:
+    -----------
+    audio_file : Path
+        The path to the audio file for species prediction.
+    min_confidence : float, optional, default=0.1
+        Minimum confidence threshold for predictions to be considered valid.
+    batch_size : int, optional, default=1
+        Number of audio samples to process in a batch.
+    chunk_overlap_s : float, optional, default=0.0
+        Overlapping of chunks in seconds. Must be in the interval [0.0, 3.0).
+    use_bandpass : bool, optional, default=True
+        Whether to apply a bandpass filter to the audio.
+    bandpass_fmin : Optional[int], optional, default=0
+        Minimum frequency for the bandpass filter (in Hz). Ignored if `use_bandpass` is False.
+    bandpass_fmax : Optional[int], optional, default=15_000
+        Maximum frequency for the bandpass filter (in Hz). Ignored if `use_bandpass` is False.
+    apply_sigmoid : bool, optional, default=True
+        Whether to apply a sigmoid function to the model outputs.
+    sigmoid_sensitivity : Optional[float], optional, default=1.0
+        Sensitivity parameter for the sigmoid function. Must be in the interval [0.5, 1.5]. Ignored if `apply_sigmoid` is False.
+    filter_species : Optional[Set[Species]], optional
+        A set of species to filter the predictions. If None, no filtering is applied.
 
-    self._audio_interpreter.set_tensor(self._audio_input_layer_index, batch)
-    self._audio_interpreter.invoke()
-    prediction: npt.NDArray[np.float32] = self._audio_interpreter.get_tensor(
-      self._audio_output_layer_index)
+    Returns:
+    --------
+    SpeciesPredictions
+        The predictions of species within the audio file. This is an ordered dictionary where:
+        - The keys are time intervals (tuples of start and end times in seconds) representing segments of the audio file.
+        - The values are ordered dictionaries where:
+            - The keys are species names (strings).
+            - The values are confidence scores (floats) representing the likelihood of the presence of the species in the given time interval.
 
-    return prediction
+    Raises:
+    -------
+    ValueError
+        If any of the input parameters are invalid.
+    """
+    return self._audio_model.predict_species_within_audio_file(
+      audio_file,
+      min_confidence=min_confidence,
+      batch_size=batch_size,
+      chunk_overlap_s=chunk_overlap_s,
+      use_bandpass=use_bandpass,
+      bandpass_fmin=bandpass_fmin,
+      bandpass_fmax=bandpass_fmax,
+      apply_sigmoid=apply_sigmoid,
+      sigmoid_sensitivity=sigmoid_sensitivity,
+      filter_species=filter_species,
+    )
 
-  def _predict_species_location(self, sample: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
-    assert sample.dtype == np.float32
-    self._meta_interpreter.set_tensor(self._meta_input_layer_index, sample)
-    self._meta_interpreter.invoke()
-    prediction: npt.NDArray[np.float32] = self._meta_interpreter.get_tensor(
-      self._meta_output_layer_index)[0]
-    return prediction
+  def predict_species_at_location_and_time(
+      self,
+      latitude: float,
+      longitude: float,
+      /,
+      *,
+      week: Optional[int] = None,
+      min_confidence: float = 0.03
+    ) -> SpeciesPrediction:
+    """
+    Predicts species at a specific geographic location and optionally during a specific week of the year.
+
+    Parameters:
+    -----------
+    latitude : float
+        The latitude of the location for species prediction. Must be in the interval [-90.0, 90.0].
+    longitude : float
+        The longitude of the location for species prediction. Must be in the interval [-180.0, 180.0].
+    week : Optional[int], optional, default=None
+        The week of the year for which to predict species. Must be in the interval [1, 48] if specified.
+        If None, predictions are not limited to a specific week.
+    min_confidence : float, optional, default=0.03
+        Minimum confidence threshold for predictions to be considered valid. Must be in the interval [0, 1.0).
+
+    Returns:
+    --------
+    SpeciesPrediction
+        An ordered dictionary where:
+        - The keys are species names (strings).
+        - The values are confidence scores (floats) representing the likelihood of the species being present at the specified location and time.
+        - The dictionary is sorted in descending order of confidence scores.
+
+    Raises:
+    -------
+    ValueError
+        If any of the input parameters are invalid.
+    """
+    return self._meta_model.predict_species_at_location_and_time(
+      latitude,
+      longitude,
+      week=week,
+      min_confidence=min_confidence,
+    )
