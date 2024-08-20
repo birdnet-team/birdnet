@@ -11,7 +11,7 @@ from ordered_set import OrderedSet
 from scipy.signal import butter, lfilter, resample
 from tqdm import tqdm
 
-from birdnet.types import Species
+from birdnet.types import Species, TimeInterval
 
 
 def get_species_from_file(species_file: Path, /, *, encoding: str = "utf8") -> OrderedSet[Species]:
@@ -212,6 +212,24 @@ def get_chunks_with_overlap(total_duration_s: Union[int, float], chunk_duration_
       break
 
 
+def iter_chunks_with_overlap(chunk_duration_s: Union[int, float], overlap_duration_s: Union[int, float], /, *, start: Union[int, float] = 0.0) -> Generator[Tuple[float, float], None, None]:
+  assert chunk_duration_s > 0
+  assert 0 <= overlap_duration_s < chunk_duration_s
+
+  if not isinstance(overlap_duration_s, float):
+    overlap_duration_s = float(overlap_duration_s)
+  if not isinstance(chunk_duration_s, float):
+    chunk_duration_s = float(chunk_duration_s)
+  if not isinstance(start, float):
+    start = float(start)
+
+  step_duration = chunk_duration_s - overlap_duration_s
+
+  for s in count(start, step_duration):
+    end = s + chunk_duration_s
+    yield s, end
+
+
 def resample_array(x: npt.NDArray, sample_rate: int, target_sample_rate: int) -> npt.NDArray:
   assert len(x.shape) == 1
   assert 0 < sample_rate
@@ -222,6 +240,7 @@ def resample_array(x: npt.NDArray, sample_rate: int, target_sample_rate: int) ->
 
   target_sample_count = round(len(x) / sample_rate * target_sample_rate)
   x_resampled: npt.NDArray = resample(x, target_sample_count)
+  assert x_resampled.dtype == x.dtype
   return x_resampled
 
 
@@ -240,7 +259,33 @@ def load_audio_in_chunks_with_overlap(audio_path: Path, /, *, chunk_duration_s: 
   for start, end in timestamps:
     start_samples = round(start * sample_rate)
     end_samples = round(end * sample_rate)
-    audio, _ = sf.read(audio_path, start=start_samples, stop=end_samples)
+    audio, _ = sf.read(audio_path, start=start_samples, stop=end_samples, dtype=np.float32)
     audio = resample_array(audio, sample_rate, target_sample_rate)
-    audio = audio.astype(np.float32)
     yield start, end, audio
+
+
+def iter_audio_in_chunks_with_overlap(audio_path: Path, /, *, chunk_duration_s: float = 3, overlap_duration_s: float = 0, target_sample_rate: int = 48000) -> Generator[Tuple[TimeInterval, npt.NDArray[np.float32]], None, None]:
+  # same method as above
+  assert audio_path.is_file()
+
+  sf_info = sf.info(audio_path)
+  sample_rate = sf_info.samplerate
+  file_duration = float(sf_info.duration)
+
+  timestamps = iter_chunks_with_overlap(
+    float(chunk_duration_s),
+    float(overlap_duration_s),
+    start=0.0,
+  )
+
+  for start, end in timestamps:
+    assert start < file_duration
+    start_samples = round(start * sample_rate)
+    end = min(end, file_duration)
+    end_samples = round(end * sample_rate)
+    audio, _ = sf.read(audio_path, start=start_samples, stop=end_samples, dtype=np.float32)
+    audio = resample_array(audio, sample_rate, target_sample_rate)
+    yield (start, end), audio
+    was_last_chunk = end == file_duration
+    if was_last_chunk:
+      return

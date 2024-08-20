@@ -2,6 +2,7 @@ import numpy.testing as npt
 import pytest
 
 from birdnet.models.v2m4.model_v2m4_tflite_custom import CustomAudioModelV2M4TFLite
+from birdnet.types import SpeciesPredictions
 from birdnet_tests.helper import TEST_FILE_WAV, TEST_FILES_DIR
 
 CLASSIFIER_FOLDER = TEST_FILES_DIR / "v2m4" / "custom_model_tflite"
@@ -30,8 +31,8 @@ def test_load_custom_model():
 def test_minimum_test_soundscape_predictions_are_correct():
   model = CustomAudioModelV2M4TFLite(CLASSIFIER_FOLDER, "CustomClassifier")
 
-  res = model.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0)
+  res = SpeciesPredictions(model.predict_species_within_audio_file(
+    TEST_FILE_WAV, min_confidence=0))
 
   assert list(res[(0, 3)].keys())[0] == 'Poecile atricapillus_Black-capped Chickadee'
   npt.assert_almost_equal(
@@ -59,8 +60,8 @@ def test_minimum_test_soundscape_predictions_are_correct():
 def test_no_sigmoid_soundscape_predictions_are_correct():
   model = CustomAudioModelV2M4TFLite(CLASSIFIER_FOLDER, "CustomClassifier")
 
-  res = model.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=False)
+  res = SpeciesPredictions(model.predict_species_within_audio_file(
+    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=False))
 
   npt.assert_almost_equal(
     res[(0, 3)]['Poecile atricapillus_Black-capped Chickadee'],

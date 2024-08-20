@@ -11,8 +11,9 @@ from ordered_set import OrderedSet
 from tensorflow import Tensor
 
 from birdnet.models.v2m4.model_v2m4_base import (AVAILABLE_LANGUAGES, AudioModelBaseV2M4,
-                                            MetaModelBaseV2M4, get_internal_version_app_data_folder,
-                                            validate_language)
+                                                 MetaModelBaseV2M4,
+                                                 get_internal_version_app_data_folder,
+                                                 validate_language)
 from birdnet.types import Language
 from birdnet.utils import download_file_tqdm, get_species_from_file
 

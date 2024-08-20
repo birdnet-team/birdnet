@@ -1,12 +1,12 @@
 from operator import itemgetter
 from pathlib import Path
-from typing import Optional, OrderedDict, Set, Union
+from typing import Generator, Optional, OrderedDict, Set, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
 from ordered_set import OrderedSet
 
-from birdnet.types import Language, Species, SpeciesPrediction, SpeciesPredictions
+from birdnet.types import Language, Species, SpeciesPrediction, TimeInterval
 from birdnet.utils import (bandpass_signal, fillup_with_silence, flat_sigmoid,
                            get_birdnet_app_data_folder, itertools_batched,
                            load_audio_in_chunks_with_overlap)
@@ -144,7 +144,7 @@ class AudioModelBaseV2M4(ModelBaseV2M4):
       apply_sigmoid: bool = True,
       sigmoid_sensitivity: Optional[float] = 1.0,
       filter_species: Optional[Union[Set[Species], OrderedSet[Species]]] = None,
-    ) -> SpeciesPredictions:
+    ) -> Generator[Tuple[TimeInterval, SpeciesPrediction], None, None]:
     """
     Predicts species within an audio file.
 
@@ -170,15 +170,15 @@ class AudioModelBaseV2M4(ModelBaseV2M4):
         Sensitivity parameter for the sigmoid function. Must be in the interval [0.5, 1.5]. Ignored if `apply_sigmoid` is False.
     filter_species : Optional[Set[Species]], optional
         A set of species to filter the predictions. If None, no filtering is applied.
-
-    Returns:
-    --------
-    SpeciesPredictions
-        The predictions of species within the audio file. This is an ordered dictionary where:
-        - The keys are time intervals (tuples of start and end times in seconds) representing segments of the audio file.
-        - The values are ordered dictionaries where:
+    
+    Yields:
+    -------
+    Tuple[TimeInterval, SpeciesPrediction]
+        Each item yielded by the generator is a tuple, where:
+        - The first element is a time interval (a tuple of start and end times in seconds) representing a segment of the audio file.
+        - The second element is an ordered dictionary where:
             - The keys are species names (strings).
-            - The values are confidence scores (floats) representing the likelihood of the presence of the species in the given time interval.
+            - The values are confidence scores (floats) indicating the likelihood of the species being present within the corresponding time interval.
 
     Raises:
     -------
@@ -216,8 +216,6 @@ class AudioModelBaseV2M4(ModelBaseV2M4):
       if species_filter_contains_unknown_species:
         raise ValueError(
           f"At least one species defined in 'filter_species' is invalid! They need to be known species, e.g., {', '.join(self._species_list[:3])}")
-
-    predictions = OrderedDict()
 
     chunked_audio = load_audio_in_chunks_with_overlap(audio_file,
                                                       chunk_duration_s=self._chunk_size_s, overlap_duration_s=chunk_overlap_s, target_sample_rate=self._sample_rate)
@@ -284,11 +282,8 @@ class AudioModelBaseV2M4(ModelBaseV2M4):
           sorted(labeled_prediction, key=lambda species_score: (
             species_score[1] * -1, species_score[0]), reverse=False)
         )
-        key = (chunk_start, chunk_end)
-        assert key not in predictions
-        predictions[key] = sorted_prediction
-
-    return predictions
+        time_interval = (chunk_start, chunk_end)
+        yield time_interval, sorted_prediction
 
 
 def validate_language(language: Language):

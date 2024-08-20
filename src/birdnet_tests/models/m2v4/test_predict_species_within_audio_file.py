@@ -31,23 +31,9 @@ class AudioTestCase():
   sigmoid_sensitivity: Optional[float] = 1.0
   filter_species: Optional[Set[Species]] = None
 
-  # def predict_species_within_audio_file(self, model: AudioModelBaseV2M4, audio_file: Path) -> SpeciesPredictions:
-  #   return model.predict_species_within_audio_file(
-  #     audio_file,
-  #     min_confidence=self.min_confidence,
-  #     batch_size=self.batch_size,
-  #     chunk_overlap_s=self.chunk_overlap_s,
-  #     use_bandpass=self.use_bandpass,
-  #     bandpass_fmin=self.bandpass_fmin,
-  #     bandpass_fmax=self.bandpass_fmax,
-  #     apply_sigmoid=self.apply_sigmoid,
-  #     sigmoid_sensitivity=self.sigmoid_sensitivity,
-  #     filter_species=self.filter_species,
-  #   )
-
 
 def predict_species_within_audio_file(test_case: AudioTestCase, model: AudioModelBaseV2M4, audio_file: Path) -> SpeciesPredictions:
-  return model.predict_species_within_audio_file(
+  return SpeciesPredictions(model.predict_species_within_audio_file(
     audio_file,
     min_confidence=test_case.min_confidence,
     batch_size=test_case.batch_size,
@@ -58,7 +44,7 @@ def predict_species_within_audio_file(test_case: AudioTestCase, model: AudioMode
     apply_sigmoid=test_case.apply_sigmoid,
     sigmoid_sensitivity=test_case.sigmoid_sensitivity,
     filter_species=test_case.filter_species,
-  )
+  ))
 
 
 class DummyModel(AudioModelBaseV2M4):
@@ -84,90 +70,90 @@ def get_model():
 
 def test_invalid_audio_file_path_raises_value_error(model: AudioModelBaseV2M4):
   with pytest.raises(ValueError, match=r"Value for 'audio_file' is invalid! It needs to be a path to an existing audio file."):
-    model.predict_species_within_audio_file(
+    next(model.predict_species_within_audio_file(
         TEST_FILES_DIR / "dummy.wav"
-    )
+    ))
 
 
 def test_invalid_batch_size_raises_value_error(model: AudioModelBaseV2M4):
   with pytest.raises(ValueError, match=r"Value for 'batch_size' is invalid! It needs to be larger than zero."):
-    model.predict_species_within_audio_file(
+    next(model.predict_species_within_audio_file(
         TEST_FILE_WAV,
         batch_size=0
-    )
+    ))
 
 
 def test_invalid_min_confidence_raises_value_error(model: AudioModelBaseV2M4):
   with pytest.raises(ValueError, match=r"Value for 'min_confidence' is invalid! It needs to be in interval \[0.0, 1.0\)."):
-    model.predict_species_within_audio_file(
+    next(model.predict_species_within_audio_file(
         TEST_FILE_WAV,
         min_confidence=-0.1
-    )
+    ))
 
   with pytest.raises(ValueError, match=r"Value for 'min_confidence' is invalid! It needs to be in interval \[0.0, 1.0\)."):
-    model.predict_species_within_audio_file(
+    next(model.predict_species_within_audio_file(
         TEST_FILE_WAV,
         min_confidence=1.1
-    )
+    ))
 
 
 def test_invalid_chunk_overlap_s_raises_value_error(model: AudioModelBaseV2M4):
   with pytest.raises(ValueError, match=r"Value for 'chunk_overlap_s' is invalid! It needs to be in interval \[0.0, 3.0\)"):
-    model.predict_species_within_audio_file(
+    next(model.predict_species_within_audio_file(
         TEST_FILE_WAV,
         chunk_overlap_s=-1,
-    )
+    ))
 
   with pytest.raises(ValueError, match=r"Value for 'chunk_overlap_s' is invalid! It needs to be in interval \[0.0, 3.0\)"):
-    model.predict_species_within_audio_file(
+    next(model.predict_species_within_audio_file(
         TEST_FILE_WAV,
         chunk_overlap_s=4.0,
-    )
+    ))
 
 
 def test_invalid_bandpass_fmin_raises_value_error(model: AudioModelBaseV2M4):
   with pytest.raises(ValueError, match=r"Value for 'bandpass_fmin' is invalid! It needs to be larger than zero."):
-    model.predict_species_within_audio_file(
+    next(model.predict_species_within_audio_file(
         TEST_FILE_WAV,
         bandpass_fmin=-1
-    )
+    ))
 
 
 def test_invalid_bandpass_fmax_raises_value_error(model: AudioModelBaseV2M4):
   with pytest.raises(ValueError, match=r"Value for 'bandpass_fmax' is invalid! It needs to be larger than 'bandpass_fmin'."):
-    model.predict_species_within_audio_file(
+    next(model.predict_species_within_audio_file(
         TEST_FILE_WAV,
         bandpass_fmin=500,
         bandpass_fmax=400
-    )
+    ))
 
 
 def test_invalid_sigmoid_sensitivity_raises_value_error(model: AudioModelBaseV2M4):
   with pytest.raises(ValueError, match=r"Value for 'sigmoid_sensitivity' is required if 'apply_sigmoid==True'!"):
-    model.predict_species_within_audio_file(
+    next(model.predict_species_within_audio_file(
         TEST_FILE_WAV,
         apply_sigmoid=True,
         sigmoid_sensitivity=None
-    )
+    ))
 
   with pytest.raises(ValueError, match=r"Value for 'sigmoid_sensitivity' is invalid! It needs to be in interval \[0.5, 1.5\]."):
-    model.predict_species_within_audio_file(
+    next(model.predict_species_within_audio_file(
         TEST_FILE_WAV,
         apply_sigmoid=True,
         sigmoid_sensitivity=0.4
-    )
+    ))
 
   with pytest.raises(ValueError, match=r"Value for 'sigmoid_sensitivity' is invalid! It needs to be in interval \[0.5, 1.5\]."):
-    model.predict_species_within_audio_file(
+    next(model.predict_species_within_audio_file(
         TEST_FILE_WAV,
         apply_sigmoid=True,
         sigmoid_sensitivity=1.6
-    )
+    ))
 
 
 def test_example_interval_count_is_40_on_0_overlap(model: AudioModelBaseV2M4):
-  res = model.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=False, chunk_overlap_s=0)
+  res = SpeciesPredictions(model.predict_species_within_audio_file(
+    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=False, chunk_overlap_s=0))
   file_dur_s = 120
   chunk_size = 3
   assert len(res) == file_dur_s / chunk_size == 40
@@ -179,8 +165,8 @@ def test_example_interval_count_is_40_on_0_overlap(model: AudioModelBaseV2M4):
 
 
 def test_example_interval_count_is_60_on_1_overlap(model: AudioModelBaseV2M4):
-  res = model.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=False, chunk_overlap_s=1)
+  res = SpeciesPredictions(model.predict_species_within_audio_file(
+    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=False, chunk_overlap_s=1))
   assert len(res) == 60
   assert (0, 3) in res
   assert (2, 5) in res
@@ -193,8 +179,8 @@ def test_example_interval_count_is_60_on_1_overlap(model: AudioModelBaseV2M4):
 
 
 def test_example_interval_count_is_118_on_2_overlap(model: AudioModelBaseV2M4):
-  res = model.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=False, chunk_overlap_s=2)
+  res = SpeciesPredictions(model.predict_species_within_audio_file(
+    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=False, chunk_overlap_s=2))
   assert len(res) == 118
   assert (0, 3) in res
   assert (2, 5) in res
@@ -208,8 +194,8 @@ def test_example_interval_count_is_118_on_2_overlap(model: AudioModelBaseV2M4):
 
 
 def test_example_batch_size_4_does_not_change_results(model: AudioModelBaseV2M4):
-  res = model.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=False, chunk_overlap_s=0, batch_size=4)
+  res = SpeciesPredictions(model.predict_species_within_audio_file(
+    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=False, chunk_overlap_s=0, batch_size=4))
   assert len(res) == 40
 
   assert list(res[(0, 3)].keys()) == ['species2', 'species3', 'species0', 'species1']
@@ -223,8 +209,8 @@ def test_example_batch_size_4_does_not_change_results(model: AudioModelBaseV2M4)
 
 
 def test_predictions_are_sorted_correctly(model: AudioModelBaseV2M4):
-  res = model.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=False)
+  res = SpeciesPredictions(model.predict_species_within_audio_file(
+    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=False))
 
   # score: desc
   # name: asc
@@ -240,8 +226,8 @@ def test_predictions_are_sorted_correctly(model: AudioModelBaseV2M4):
 
 
 def test_intervals_are_float(model: AudioModelBaseV2M4):
-  res = model.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=False)
+  res = SpeciesPredictions(model.predict_species_within_audio_file(
+    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=False))
 
   actual_keys = list(res.keys())
   assert (0, 3) == actual_keys[0]
@@ -255,8 +241,8 @@ def test_intervals_are_float(model: AudioModelBaseV2M4):
 
 
 def test_filter_species_filters_species(model: AudioModelBaseV2M4):
-  res = model.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=False, filter_species={'species1', 'species2'})
+  res = SpeciesPredictions(model.predict_species_within_audio_file(
+    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=False, filter_species={'species1', 'species2'}))
 
   assert list(res[(0, 3)].keys()) == ['species2', 'species1']
   npt.assert_array_almost_equal(list(res[(0, 3)].values()), [0.3, 0.1])
@@ -269,8 +255,8 @@ def test_filter_species_filters_species(model: AudioModelBaseV2M4):
 
 
 def test_apply_sigmoid_0p5(model: AudioModelBaseV2M4):
-  res = model.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=True, sigmoid_sensitivity=0.5)
+  res = SpeciesPredictions(model.predict_species_within_audio_file(
+    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=True, sigmoid_sensitivity=0.5))
 
   npt.assert_almost_equal(
     list(res[(0, 3)].values()),
@@ -280,8 +266,8 @@ def test_apply_sigmoid_0p5(model: AudioModelBaseV2M4):
 
 
 def test_apply_sigmoid_1p5(model: AudioModelBaseV2M4):
-  res = model.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=True, sigmoid_sensitivity=1.5)
+  res = SpeciesPredictions(model.predict_species_within_audio_file(
+    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=True, sigmoid_sensitivity=1.5))
 
   assert list(res[(0, 3)].keys()) == ['species2', 'species3', 'species0', 'species1']
   npt.assert_almost_equal(
@@ -335,8 +321,8 @@ def model_test_soundscape_predictions_are_globally_correct(model: AudioModelBase
 
 
 def model_minimum_test_soundscape_predictions_are_correct(model: AudioModelBaseV2M4, /, *, precision: int):
-  res = model.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0)
+  res = SpeciesPredictions(model.predict_species_within_audio_file(
+    TEST_FILE_WAV, min_confidence=0))
 
   assert list(res[(0, 3)].keys())[0] == 'Poecile atricapillus_Black-capped Chickadee'
   npt.assert_almost_equal(
@@ -362,11 +348,11 @@ def model_minimum_test_soundscape_predictions_are_correct(model: AudioModelBaseV
 
 
 def model_test_identical_predictions_return_same_result(model: AudioModelBaseV2M4):
-  res1 = model.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0)
+  res1 = SpeciesPredictions(model.predict_species_within_audio_file(
+    TEST_FILE_WAV, min_confidence=0))
 
-  res2 = model.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0)
+  res2 = SpeciesPredictions(model.predict_species_within_audio_file(
+    TEST_FILE_WAV, min_confidence=0))
 
   assert species_predictions_are_equal(res1, res2, precision=7)
 

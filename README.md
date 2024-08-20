@@ -30,13 +30,14 @@ pip install birdnet[and-cuda] --user
 from pathlib import Path
 
 from birdnet.models.v2m4 import AudioModelV2M4
+from birdnet.types import SpeciesPredictions
 
 # create audio model instance for v2.4
 audio_model = AudioModelV2M4()
 
 # predict species within the whole audio file
 audio_path = Path("example/soundscape.wav")
-predictions = audio_model.predict_species_within_audio_file(audio_path)
+predictions = SpeciesPredictions(audio_model.predict_species_within_audio_file(audio_path))
 
 # get most probable prediction at time interval 0s-3s
 prediction, confidence = list(predictions[(0.0, 3.0)].items())[0]
@@ -86,11 +87,11 @@ from birdnet.models.v2m4 import MetaModelV2M4
 meta_model = MetaModelV2M4()
 
 # predict species
-predictions = meta_model.predict_species_at_location_and_time(42.5, -76.45, week=4)
+prediction = meta_model.predict_species_at_location_and_time(42.5, -76.45, week=4)
 
-# get most probable prediction
-first_prediction, confidence = list(predictions.items())[0]
-print(f"predicted '{first_prediction}' with a confidence of {confidence:.2f}")
+# get most probable species
+first_species, confidence = list(prediction.items())[0]
+print(f"predicted '{first_species}' with a confidence of {confidence:.2f}")
 # output:
 # predicted 'Cyanocitta cristata_Blue Jay' with a confidence of 0.93
 ```
@@ -101,6 +102,7 @@ print(f"predicted '{first_prediction}' with a confidence of {confidence:.2f}")
 from pathlib import Path
 
 from birdnet.models.v2m4 import AudioModelV2M4, MetaModelV2M4
+from birdnet.types import SpeciesPredictions
 
 # create model instances for v2.4
 audio_model = AudioModelV2M4()
@@ -111,10 +113,10 @@ species_in_area = meta_model.predict_species_at_location_and_time(42.5, -76.45, 
 
 # predict species within the whole audio file
 audio_path = Path("example/soundscape.wav")
-predictions = audio_model.predict_species_within_audio_file(
+predictions = SpeciesPredictions(audio_model.predict_species_within_audio_file(
   audio_path,
   filter_species=set(species_in_area.keys())
-)
+))
 
 # get most probable prediction at time interval 0s-3s
 prediction, confidence = list(predictions[(0.0, 3.0)].items())[0]
@@ -129,6 +131,7 @@ print(f"predicted '{prediction}' with a confidence of {confidence:.2f}")
 from pathlib import Path
 
 from birdnet.models.v2m4 import CustomAudioModelV2M4TFLite
+from birdnet.types import SpeciesPredictions
 
 # create audio model instance for v2.4
 classifier_folder = Path("src/birdnet_tests/test_files/v2m4/custom_model_tflite")
@@ -136,7 +139,7 @@ audio_model = CustomAudioModelV2M4TFLite(classifier_folder, "CustomClassifier")
 
 # predict species within the whole audio file
 audio_path = Path("example/soundscape.wav")
-predictions = audio_model.predict_species_within_audio_file(audio_path)
+predictions = SpeciesPredictions(audio_model.predict_species_within_audio_file(audio_path))
 
 # get most probable prediction at time interval 0s-3s
 prediction, confidence = list(predictions[(0.0, 3.0)].items())[0]
@@ -151,6 +154,7 @@ print(f"predicted '{prediction}' with a confidence of {confidence:.2f}")
 from pathlib import Path
 
 from birdnet.models.v2m4 import CustomAudioModelV2M4Raven
+from birdnet.types import SpeciesPredictions
 
 # create audio model instance for v2.4
 classifier_folder = Path("src/birdnet_tests/test_files/v2m4/custom_model_raven")
@@ -158,7 +162,7 @@ audio_model = CustomAudioModelV2M4Raven(classifier_folder, "CustomClassifier")
 
 # predict species within the whole audio file
 audio_path = Path("example/soundscape.wav")
-predictions = audio_model.predict_species_within_audio_file(audio_path)
+predictions = SpeciesPredictions(audio_model.predict_species_within_audio_file(audio_path))
 
 # get most probable prediction at time interval 0s-3s
 prediction, confidence = list(predictions[(0.0, 3.0)].items())[0]
