@@ -5,36 +5,41 @@ from typing import Dict, List, Set, Tuple
 import pytest
 from tqdm import tqdm
 
-from birdnet.models.model_v2m4_protobuf import ModelV2M4Protobuf
-from birdnet.models.model_v2m4_tflite import ModelV2M4TFLite
+from birdnet.models.model_v2m4_protobuf import AudioModelV2M4Protobuf
 from birdnet.types import Species, SpeciesPredictions
-from birdnet_tests.helper import species_predictions_are_equal
+from birdnet_tests.helper import TEST_RESULTS_DIR, species_predictions_are_equal
 from birdnet_tests.models.test_predict_species_within_audio_file import (
   TEST_FILE_WAV, AudioTestCase, create_ground_truth_test_file,
   model_minimum_test_soundscape_predictions_are_correct,
   model_test_identical_predictions_return_same_result,
   model_test_soundscape_predictions_are_globally_correct, predict_species_within_audio_file)
 
+TEST_PATH = Path(TEST_RESULTS_DIR / "v2m4" / "audio-model.protobuf-cpu.pkl")
+
 
 @pytest.fixture(name="model")
+def provide_model_to_tests():
+  return get_model()
+
+
 def get_model():
-  model = ModelV2M4Protobuf(language="en_us", custom_device="/device:CPU:0")
+  model = AudioModelV2M4Protobuf(language="en_us", custom_device="/device:CPU:0")
   return model
 
 
-def test_soundscape_predictions_are_globally_correct(model: ModelV2M4Protobuf):
+def test_soundscape_predictions_are_globally_correct(model: AudioModelV2M4Protobuf):
   model_test_soundscape_predictions_are_globally_correct(model, precision=7)
 
 
-def test_minimum_test_soundscape_predictions_are_correct(model: ModelV2M4Protobuf):
+def test_minimum_test_soundscape_predictions_are_correct(model: AudioModelV2M4Protobuf):
   model_minimum_test_soundscape_predictions_are_correct(model, precision=7)
 
 
-def test_identical_predictions_return_same_result(model: ModelV2M4Protobuf):
+def test_identical_predictions_return_same_result(model: AudioModelV2M4Protobuf):
   model_test_identical_predictions_return_same_result(model)
 
 
-def test_invalid_species_filter_raises_value_error(model: ModelV2M4Protobuf):
+def test_invalid_species_filter_raises_value_error(model: AudioModelV2M4Protobuf):
   invalid_filter_species: Set[Species] = {"species"}
   with pytest.raises(ValueError, match=rf"At least one species defined in 'filter_species' is invalid! They need to be known species, e.g., {', '.join(model.species[:3])}"):
     model.predict_species_within_audio_file(
@@ -43,10 +48,7 @@ def test_invalid_species_filter_raises_value_error(model: ModelV2M4Protobuf):
     )
 
 
-TEST_PATH = Path(f"{TEST_FILE_WAV}.protobuf-cpu.pkl")
-
-
-def test_internal_predictions_are_correct(model: ModelV2M4TFLite):
+def test_internal_predictions_are_correct(model: AudioModelV2M4Protobuf):
   with TEST_PATH.open("rb") as f:
     test_cases: List[Tuple[Dict, SpeciesPredictions]] = pickle.load(f)
 
@@ -58,5 +60,5 @@ def test_internal_predictions_are_correct(model: ModelV2M4TFLite):
 
 
 if __name__ == "__main__":
-  m = ModelV2M4Protobuf(language="en_us", custom_device="/device:CPU:0")
+  m = get_model()
   create_ground_truth_test_file(m, TEST_PATH)

@@ -9,6 +9,7 @@ from ordered_set import OrderedSet
 
 from birdnet.types import Species, SpeciesPrediction, SpeciesPredictions, TimeInterval
 
+TEST_RESULTS_DIR = Path("src/birdnet_tests/test_results")
 TEST_FILES_DIR = Path("src/birdnet_tests/test_files")
 # Duration: 120s
 TEST_FILE_WAV = TEST_FILES_DIR / "soundscape.wav"

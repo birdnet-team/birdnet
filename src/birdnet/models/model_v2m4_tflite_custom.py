@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Optional
 
-from birdnet.models.model_v2m4_tflite import AudioModelV2M4TFLite
+from birdnet.models.model_v2m4_tflite import AudioModelV2M4TFLiteBase
 from birdnet.utils import get_species_from_file
 
 
@@ -25,7 +25,7 @@ class CustomTFLiteParser():
     return model_is_available
 
 
-class CustomAudioModelV2M4TFLite(AudioModelV2M4TFLite):
+class CustomAudioModelV2M4TFLite(AudioModelV2M4TFLiteBase):
   def __init__(self, classifier_folder: Path, classifier_name: str, /, *, tflite_num_threads: Optional[int] = 1) -> None:
     parser = CustomTFLiteParser(classifier_folder, classifier_name)
     if not parser.check_model_files_exist():

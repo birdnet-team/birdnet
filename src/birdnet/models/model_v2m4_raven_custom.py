@@ -7,7 +7,7 @@ import numpy.typing as npt
 import tensorflow as tf
 from ordered_set import OrderedSet
 
-from birdnet.models.model_v2m4_protobuf import (AudioModelV2M4Protobuf,
+from birdnet.models.model_v2m4_protobuf import (AudioModelV2M4ProtobufBase,
                                                 check_protobuf_model_files_exist, get_custom_device,
                                                 try_get_gpu_otherwise_return_cpu)
 from birdnet.types import Species
@@ -46,7 +46,7 @@ def get_species_from_raven_csv(path: Path) -> Generator[Species, None, None]:
       yield description
 
 
-class CustomAudioModelV2M4Raven(AudioModelV2M4Protobuf):
+class CustomAudioModelV2M4Raven(AudioModelV2M4ProtobufBase):
   def __init__(self, classifier_folder: Path, classifier_name: str, /, *, custom_device: Optional[str] = None) -> None:
     parser = CustomRavenParser(classifier_folder, classifier_name)
     if not parser.check_model_files_exist():

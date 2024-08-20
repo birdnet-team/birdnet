@@ -1,18 +1,16 @@
-from pathlib import Path
-
 import numpy as np
 import numpy.testing as npt
 
 from birdnet.utils import load_audio_in_chunks_with_overlap
+from birdnet_tests.helper import TEST_FILE_WAV, TEST_FILES_DIR
 
 
 def test_wav():
-  test_files_dir = Path("src/birdnet_tests/test_files")
   result = list(load_audio_in_chunks_with_overlap(
-    test_files_dir / "soundscape.wav",
-      chunk_duration_s=3,
-      overlap_duration_s=0,
-      target_sample_rate=48000,
+    TEST_FILE_WAV,
+    chunk_duration_s=3,
+    overlap_duration_s=0,
+    target_sample_rate=48000,
   ))
   assert len(result) == 120 / 3
   first_result = result[0]
@@ -25,12 +23,11 @@ def test_wav():
 
 
 def test_flac():
-  test_files_dir = Path("src/birdnet_tests/test_files")
   result = list(load_audio_in_chunks_with_overlap(
-    test_files_dir / "soundscape.flac",
-      chunk_duration_s=3,
-      overlap_duration_s=0,
-      target_sample_rate=48000,
+    TEST_FILES_DIR / "soundscape.flac",
+    chunk_duration_s=3,
+    overlap_duration_s=0,
+    target_sample_rate=48000,
   ))
   assert len(result) == 120 / 3
   first_result = result[0]
@@ -43,12 +40,11 @@ def test_flac():
 
 
 def test_mp3():
-  test_files_dir = Path("src/birdnet_tests/test_files")
   result = list(load_audio_in_chunks_with_overlap(
-    test_files_dir / "soundscape.mp3",
-      chunk_duration_s=3,
-      overlap_duration_s=0,
-      target_sample_rate=48000,
+    TEST_FILES_DIR / "soundscape.mp3",
+    chunk_duration_s=3,
+    overlap_duration_s=0,
+    target_sample_rate=48000,
   ))
   assert len(result) == 120 / 3
   first_result = result[0]
@@ -63,12 +59,11 @@ def test_mp3():
 
 
 def test_overlap_0():
-  test_files_dir = Path("src/birdnet_tests/test_files")
   result = list(load_audio_in_chunks_with_overlap(
-    test_files_dir / "soundscape.wav",
-      chunk_duration_s=3,
-      overlap_duration_s=0,
-      target_sample_rate=48000,
+    TEST_FILE_WAV,
+    chunk_duration_s=3,
+    overlap_duration_s=0,
+    target_sample_rate=48000,
   ))
   assert len(result) == 40
   first_result = result[0]
@@ -86,12 +81,11 @@ def test_overlap_0():
 
 
 def test_overlap_1():
-  test_files_dir = Path("src/birdnet_tests/test_files")
   result = list(load_audio_in_chunks_with_overlap(
-    test_files_dir / "soundscape.wav",
-      chunk_duration_s=3,
-      overlap_duration_s=1,
-      target_sample_rate=48000,
+    TEST_FILE_WAV,
+    chunk_duration_s=3,
+    overlap_duration_s=1,
+    target_sample_rate=48000,
   ))
   assert len(result) == 60
   first_result = result[0]
@@ -109,12 +103,11 @@ def test_overlap_1():
 
 
 def test_overlap_2():
-  test_files_dir = Path("src/birdnet_tests/test_files")
   result = list(load_audio_in_chunks_with_overlap(
-    test_files_dir / "soundscape.wav",
-      chunk_duration_s=3,
-      overlap_duration_s=2,
-      target_sample_rate=48000,
+    TEST_FILE_WAV,
+    chunk_duration_s=3,
+    overlap_duration_s=2,
+    target_sample_rate=48000,
   ))
   assert len(result) == 118
   first_result = result[0]
@@ -132,12 +125,11 @@ def test_overlap_2():
 
 
 def test_overlap_1p5():
-  test_files_dir = Path("src/birdnet_tests/test_files")
   result = list(load_audio_in_chunks_with_overlap(
-    test_files_dir / "soundscape.wav",
-      chunk_duration_s=3,
-      overlap_duration_s=1.5,
-      target_sample_rate=48000,
+    TEST_FILE_WAV,
+    chunk_duration_s=3,
+    overlap_duration_s=1.5,
+    target_sample_rate=48000,
   ))
   assert len(result) == 79
   first_result = result[0]

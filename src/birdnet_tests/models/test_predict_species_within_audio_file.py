@@ -1,7 +1,7 @@
 import pickle
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import Dict, List, Optional, Set, Tuple
 
 import numpy as np
 import numpy.testing as npt
@@ -11,14 +11,12 @@ from ordered_set import OrderedSet
 from tqdm import tqdm
 
 from birdnet.models.model_v2m4_base import AudioModelBaseV2M4
-from birdnet.models.model_v2m4_protobuf import ModelV2M4Protobuf
-from birdnet.models.model_v2m4_tflite import ModelV2M4TFLite
+from birdnet.models.model_v2m4_protobuf import AudioModelV2M4Protobuf
 from birdnet.types import Species, SpeciesPredictions
-from birdnet_tests.helper import (TEST_FILE_WAV, TEST_FILES_DIR, convert_predictions_to_numpy,
-                                  species_predictions_are_equal)
+from birdnet_tests.helper import (TEST_FILE_WAV, TEST_FILES_DIR, TEST_RESULTS_DIR,
+                                  convert_predictions_to_numpy, species_predictions_are_equal)
 
-# Duration: 120s
-TEST_PATH = Path(f"{TEST_FILE_WAV}.global.pkl")
+TEST_PATH = Path(TEST_RESULTS_DIR / "v2m4" / "audio-model.pkl")
 
 
 @dataclass()
@@ -48,7 +46,7 @@ class AudioTestCase():
   #   )
 
 
-def predict_species_within_audio_file(test_case: AudioTestCase, model: Union[AudioModelBaseV2M4, ModelV2M4Protobuf, ModelV2M4TFLite], audio_file: Path) -> SpeciesPredictions:
+def predict_species_within_audio_file(test_case: AudioTestCase, model: AudioModelBaseV2M4, audio_file: Path) -> SpeciesPredictions:
   return model.predict_species_within_audio_file(
     audio_file,
     min_confidence=test_case.min_confidence,
@@ -293,7 +291,7 @@ def test_apply_sigmoid_1p5(model: AudioModelBaseV2M4):
   )
 
 
-def create_ground_truth_test_file(model: Union[AudioModelBaseV2M4, ModelV2M4Protobuf, ModelV2M4TFLite], path: Path):
+def create_ground_truth_test_file(model: AudioModelBaseV2M4, path: Path):
   test_cases = [
     AudioTestCase(),
     AudioTestCase(min_confidence=0.3),
@@ -325,7 +323,7 @@ def create_ground_truth_test_file(model: Union[AudioModelBaseV2M4, ModelV2M4Prot
     pickle.dump(results, f)
 
 
-def model_test_soundscape_predictions_are_globally_correct(model: Union[AudioModelBaseV2M4, ModelV2M4Protobuf, ModelV2M4TFLite], /, *, precision: int):
+def model_test_soundscape_predictions_are_globally_correct(model: AudioModelBaseV2M4, /, *, precision: int):
   with TEST_PATH.open("rb") as f:
     test_cases: List[Tuple[Dict, SpeciesPredictions]] = pickle.load(f)
 
@@ -336,7 +334,7 @@ def model_test_soundscape_predictions_are_globally_correct(model: Union[AudioMod
     assert species_predictions_are_equal(res, gt, precision=precision)
 
 
-def model_minimum_test_soundscape_predictions_are_correct(model: Union[AudioModelBaseV2M4, ModelV2M4Protobuf, ModelV2M4TFLite], /, *, precision: int):
+def model_minimum_test_soundscape_predictions_are_correct(model: AudioModelBaseV2M4, /, *, precision: int):
   res = model.predict_species_within_audio_file(
     TEST_FILE_WAV, min_confidence=0)
 
@@ -363,7 +361,7 @@ def model_minimum_test_soundscape_predictions_are_correct(model: Union[AudioMode
   assert len(res) == 40
 
 
-def model_test_identical_predictions_return_same_result(model: Union[AudioModelBaseV2M4, ModelV2M4Protobuf, ModelV2M4TFLite]):
+def model_test_identical_predictions_return_same_result(model: AudioModelBaseV2M4):
   res1 = model.predict_species_within_audio_file(
     TEST_FILE_WAV, min_confidence=0)
 
@@ -375,5 +373,5 @@ def model_test_identical_predictions_return_same_result(model: Union[AudioModelB
 
 if __name__ == "__main__":
   # global ground truth is created using protobuf CPU model
-  m = ModelV2M4Protobuf(language="en_us", custom_device="/device:CPU:0")
+  m = AudioModelV2M4Protobuf(language="en_us", custom_device="/device:CPU:0")
   create_ground_truth_test_file(m, TEST_PATH)

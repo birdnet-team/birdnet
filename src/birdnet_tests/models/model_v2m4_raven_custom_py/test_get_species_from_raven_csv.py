@@ -4,10 +4,13 @@ from pathlib import Path
 import pytest
 
 from birdnet.models.model_v2m4_raven_custom import get_species_from_raven_csv
+from birdnet_tests.helper import TEST_FILES_DIR
+
+CLASSIFIER_FOLDER = TEST_FILES_DIR / "v2m4" / "custom_model_raven"
 
 
 def test_raven_csv_is_loaded():
-  path = Path("src/birdnet_tests/test_files/custom_model_v2m4_raven/CustomClassifier/labels/label_names.csv")
+  path = CLASSIFIER_FOLDER / "CustomClassifier" / "labels" / "label_names.csv"
   species = list(get_species_from_raven_csv(path))
   assert species == [
     "Cardinalis cardinalis_Northern Cardinal",

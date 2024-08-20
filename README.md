@@ -29,14 +29,14 @@ pip install birdnet[and-cuda] --user
 ```py
 from pathlib import Path
 
-from birdnet.models import ModelV2M4
+from birdnet.models import AudioModelV2M4
 
-# create model instance for v2.4
-model = ModelV2M4()
+# create audio model instance for v2.4
+audio_model = AudioModelV2M4()
 
 # predict species within the whole audio file
 audio_path = Path("example/soundscape.wav")
-predictions = model.predict_species_within_audio_file(audio_path)
+predictions = audio_model.predict_species_within_audio_file(audio_path)
 
 # get most probable prediction at time interval 0s-3s
 prediction, confidence = list(predictions[(0.0, 3.0)].items())[0]
@@ -80,13 +80,13 @@ For a more detailed prediction you can take a look at [example/example.py](./exa
 ### Predict species for a given location and time
 
 ```py
-from birdnet.models import ModelV2M4
+from birdnet.models import MetaModelV2M4
 
-# create model instance for v2.4
-model = ModelV2M4()
+# create meta model instance for v2.4
+meta_model = MetaModelV2M4()
 
 # predict species
-predictions = model.predict_species_at_location_and_time(42.5, -76.45, week=4)
+predictions = meta_model.predict_species_at_location_and_time(42.5, -76.45, week=4)
 
 # get most probable prediction
 first_prediction, confidence = list(predictions.items())[0]
@@ -100,16 +100,18 @@ print(f"predicted '{first_prediction}' with a confidence of {confidence:.2f}")
 ```py
 from pathlib import Path
 
-from birdnet.models import ModelV2M4
+from birdnet.models import AudioModelV2M4, MetaModelV2M4
 
-# create model instance for v2.4
-model = ModelV2M4()
+# create model instances for v2.4
+audio_model = AudioModelV2M4()
+meta_model = MetaModelV2M4()
+
+# predict species at location
+species_in_area = meta_model.predict_species_at_location_and_time(42.5, -76.45, week=4)
 
 # predict species within the whole audio file
 audio_path = Path("example/soundscape.wav")
-
-species_in_area = model.predict_species_at_location_and_time(42.5, -76.45, week=4)
-predictions = model.predict_species_within_audio_file(
+predictions = audio_model.predict_species_within_audio_file(
   audio_path,
   filter_species=set(species_in_area.keys())
 )
@@ -126,22 +128,21 @@ print(f"predicted '{prediction}' with a confidence of {confidence:.2f}")
 ```py
 from pathlib import Path
 
-from birdnet.models import CustomModelV2M4TFLite
+from birdnet.models import CustomAudioModelV2M4TFLite
 
-# create model instance for v2.4
-# use a trained model from the BirdNET-Analyzer (TFLite format)
-classifier_folder = Path("src/birdnet_tests/test_files/custom_model_v2m4_tflite")
-model = CustomModelV2M4TFLite(classifier_folder, "CustomClassifier")
+# create audio model instance for v2.4
+classifier_folder = Path("src/birdnet_tests/test_files/v2m4/custom_model_tflite")
+audio_model = CustomAudioModelV2M4TFLite(classifier_folder, "CustomClassifier")
 
 # predict species within the whole audio file
 audio_path = Path("example/soundscape.wav")
-predictions = model.predict_species_within_audio_file(audio_path)
+predictions = audio_model.predict_species_within_audio_file(audio_path)
 
 # get most probable prediction at time interval 0s-3s
 prediction, confidence = list(predictions[(0.0, 3.0)].items())[0]
 print(f"predicted '{prediction}' with a confidence of {confidence:.2f}")
 # output:
-# predicted 'Poecile atricapillus_Black-capped Chickadee' with a confidence of 0.76
+# predicted 'Poecile atricapillus_Black-capped Chickadee' with a confidence of 0.83
 ```
 
 ### Identify species within an audio file using a custom classifier (Raven)
@@ -149,31 +150,33 @@ print(f"predicted '{prediction}' with a confidence of {confidence:.2f}")
 ```py
 from pathlib import Path
 
-from birdnet.models import CustomModelV2M4Raven
+from birdnet.models import CustomAudioModelV2M4Raven
 
-# create model instance for v2.4
-# use a trained model from the BirdNET-Analyzer (Raven format)
-classifier_folder = Path("src/birdnet_tests/test_files/custom_model_v2m4_raven")
-model = CustomModelV2M4Raven(classifier_folder, "CustomClassifier")
+# create audio model instance for v2.4
+classifier_folder = Path("src/birdnet_tests/test_files/v2m4/custom_model_raven")
+audio_model = CustomAudioModelV2M4Raven(classifier_folder, "CustomClassifier")
 
 # predict species within the whole audio file
 audio_path = Path("example/soundscape.wav")
-predictions = model.predict_species_within_audio_file(audio_path)
+predictions = audio_model.predict_species_within_audio_file(audio_path)
 
 # get most probable prediction at time interval 0s-3s
 prediction, confidence = list(predictions[(0.0, 3.0)].items())[0]
 print(f"predicted '{prediction}' with a confidence of {confidence:.2f}")
 # output:
-# predicted 'Poec4,Poecile atricapillus_Black-capped Chickadee' with a confidence of 0.66
+# predicted 'Poecile atricapillus_Black-capped Chickadee' with a confidence of 0.83
 ```
+
+### File formats
+
+The audio models support all formats compatible with the SoundFile library (see [here](https://python-soundfile.readthedocs.io/en/0.11.0/#read-write-functions)). This includes, but is not limited to, WAV, FLAC, OGG, and AIFF. The flexibility of supported formats ensures that the models can handle a wide variety of audio input types, making them adaptable to different use cases and environments.
 
 ### Model Formats and Execution Details
 
 This project provides two model formats: Protobuf and TFLite. Both models are designed to have identical precision up to 2 decimal places, with differences only appearing from the third decimal place onward.
 
-- **Protobuf Model**: Accessed via `ModelV2M4()`, this model can be executed on both GPU and CPU. By default, the Protobuf model is used, and the system will attempt to run it on the GPU if available.
-  
-- **TFLite Model**: Accessed via `ModelV2M4TFLite()`, this model is limited to CPU execution only.
+- **Protobuf Model**: Accessed via `AudioModelV2M4()`/`MetaModelV2M4()`/`CustomAudioModelV2M4Raven`, this model can be executed on both GPU and CPU. By default, the Protobuf model is used, and the system will attempt to run it on the GPU if available.
+- **TFLite Model**: Accessed via `AudioModelV2M4TFLite()`/`MetaModelV2M4TFLite()`/`CustomAudioModelV2M4TFLite`, this model is limited to CPU execution only.
 
 Ensure your environment is configured to utilize the appropriate model and available hardware optimally.
 

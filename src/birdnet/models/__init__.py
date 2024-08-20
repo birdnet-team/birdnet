@@ -1,4 +1,5 @@
-from birdnet.models.model_v2m4_protobuf import ModelV2M4Protobuf as ModelV2M4
+from birdnet.models.model_v2m4_protobuf import AudioModelV2M4Protobuf as AudioModelV2M4
+from birdnet.models.model_v2m4_protobuf import MetaModelV2M4Protobuf as MetaModelV2M4
 from birdnet.models.model_v2m4_raven_custom import CustomAudioModelV2M4Raven
-from birdnet.models.model_v2m4_tflite import ModelV2M4TFLite
+from birdnet.models.model_v2m4_tflite import AudioModelV2M4TFLite, MetaModelV2M4TFLite
 from birdnet.models.model_v2m4_tflite_custom import CustomAudioModelV2M4TFLite
