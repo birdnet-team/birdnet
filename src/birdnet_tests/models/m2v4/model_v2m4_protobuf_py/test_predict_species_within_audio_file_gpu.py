@@ -6,10 +6,10 @@ import pytest
 import tensorflow as tf
 from tqdm import tqdm
 
-from birdnet.models.model_v2m4_protobuf import AudioModelV2M4Protobuf
+from birdnet.models.v2m4.model_v2m4_protobuf import AudioModelV2M4Protobuf
 from birdnet.types import SpeciesPredictions
 from birdnet_tests.helper import TEST_RESULTS_DIR, species_predictions_are_equal
-from birdnet_tests.models.test_predict_species_within_audio_file import (
+from birdnet_tests.models.m2v4.test_predict_species_within_audio_file import (
   TEST_FILE_WAV, AudioTestCase, create_ground_truth_test_file,
   model_minimum_test_soundscape_predictions_are_correct,
   model_test_identical_predictions_return_same_result,

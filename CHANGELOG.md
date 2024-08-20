@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Separate `ModelV2M4TFLite` into `AudioModelV2M4TFLite` and `MetaModelV2M4TFLite`
 - Separate `ModelV2M4Protobuf` into `AudioModelV2M4Protobuf` and `MetaModelV2M4Protobuf`
 - Separate `ModelV2M4` into `AudioModelV2M4` and `MetaModelV2M4`
+- Move v2.4 models to `birdnet.models.v2m4`
 
 ## [0.1.5] - 2024-08-16
 

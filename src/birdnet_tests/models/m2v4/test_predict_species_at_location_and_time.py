@@ -8,8 +8,8 @@ import pytest
 from ordered_set import OrderedSet
 from tqdm import tqdm
 
-from birdnet.models.model_v2m4_base import MetaModelBaseV2M4
-from birdnet.models.model_v2m4_protobuf import MetaModelV2M4Protobuf
+from birdnet.models.v2m4.model_v2m4_base import MetaModelBaseV2M4
+from birdnet.models.v2m4.model_v2m4_protobuf import MetaModelV2M4Protobuf
 from birdnet.types import SpeciesPrediction
 from birdnet_tests.helper import TEST_RESULTS_DIR, species_prediction_is_equal
 

@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Optional
 
-from birdnet.models.model_v2m4_tflite import AudioModelV2M4TFLiteBase
+from birdnet.models.v2m4.model_v2m4_tflite import AudioModelV2M4TFLiteBase
 from birdnet.utils import get_species_from_file
 
 

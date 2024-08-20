@@ -10,8 +10,8 @@ import pytest
 from ordered_set import OrderedSet
 from tqdm import tqdm
 
-from birdnet.models.model_v2m4_base import AudioModelBaseV2M4
-from birdnet.models.model_v2m4_protobuf import AudioModelV2M4Protobuf
+from birdnet.models.v2m4.model_v2m4_base import AudioModelBaseV2M4
+from birdnet.models.v2m4.model_v2m4_protobuf import AudioModelV2M4Protobuf
 from birdnet.types import Species, SpeciesPredictions
 from birdnet_tests.helper import (TEST_FILE_WAV, TEST_FILES_DIR, TEST_RESULTS_DIR,
                                   convert_predictions_to_numpy, species_predictions_are_equal)

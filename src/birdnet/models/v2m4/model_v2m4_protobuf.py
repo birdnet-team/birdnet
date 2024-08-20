@@ -10,7 +10,7 @@ import tensorflow as tf
 from ordered_set import OrderedSet
 from tensorflow import Tensor
 
-from birdnet.models.model_v2m4_base import (AVAILABLE_LANGUAGES, AudioModelBaseV2M4,
+from birdnet.models.v2m4.model_v2m4_base import (AVAILABLE_LANGUAGES, AudioModelBaseV2M4,
                                             MetaModelBaseV2M4, get_internal_version_app_data_folder,
                                             validate_language)
 from birdnet.types import Language

@@ -7,7 +7,7 @@ import numpy.typing as npt
 import tensorflow as tf
 from ordered_set import OrderedSet
 
-from birdnet.models.model_v2m4_protobuf import (AudioModelV2M4ProtobufBase,
+from birdnet.models.v2m4.model_v2m4_protobuf import (AudioModelV2M4ProtobufBase,
                                                 check_protobuf_model_files_exist, get_custom_device,
                                                 try_get_gpu_otherwise_return_cpu)
 from birdnet.types import Species

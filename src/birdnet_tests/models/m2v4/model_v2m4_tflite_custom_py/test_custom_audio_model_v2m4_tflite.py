@@ -1,7 +1,7 @@
 import numpy.testing as npt
 import pytest
 
-from birdnet.models.model_v2m4_tflite_custom import CustomAudioModelV2M4TFLite
+from birdnet.models.v2m4.model_v2m4_tflite_custom import CustomAudioModelV2M4TFLite
 from birdnet_tests.helper import TEST_FILE_WAV, TEST_FILES_DIR
 
 CLASSIFIER_FOLDER = TEST_FILES_DIR / "v2m4" / "custom_model_tflite"

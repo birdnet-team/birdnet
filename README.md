@@ -29,7 +29,7 @@ pip install birdnet[and-cuda] --user
 ```py
 from pathlib import Path
 
-from birdnet.models import AudioModelV2M4
+from birdnet.models.v2m4 import AudioModelV2M4
 
 # create audio model instance for v2.4
 audio_model = AudioModelV2M4()
@@ -80,7 +80,7 @@ For a more detailed prediction you can take a look at [example/example.py](./exa
 ### Predict species for a given location and time
 
 ```py
-from birdnet.models import MetaModelV2M4
+from birdnet.models.v2m4 import MetaModelV2M4
 
 # create meta model instance for v2.4
 meta_model = MetaModelV2M4()
@@ -100,7 +100,7 @@ print(f"predicted '{first_prediction}' with a confidence of {confidence:.2f}")
 ```py
 from pathlib import Path
 
-from birdnet.models import AudioModelV2M4, MetaModelV2M4
+from birdnet.models.v2m4 import AudioModelV2M4, MetaModelV2M4
 
 # create model instances for v2.4
 audio_model = AudioModelV2M4()
@@ -128,7 +128,7 @@ print(f"predicted '{prediction}' with a confidence of {confidence:.2f}")
 ```py
 from pathlib import Path
 
-from birdnet.models import CustomAudioModelV2M4TFLite
+from birdnet.models.v2m4 import CustomAudioModelV2M4TFLite
 
 # create audio model instance for v2.4
 classifier_folder = Path("src/birdnet_tests/test_files/v2m4/custom_model_tflite")
@@ -150,7 +150,7 @@ print(f"predicted '{prediction}' with a confidence of {confidence:.2f}")
 ```py
 from pathlib import Path
 
-from birdnet.models import CustomAudioModelV2M4Raven
+from birdnet.models.v2m4 import CustomAudioModelV2M4Raven
 
 # create audio model instance for v2.4
 classifier_folder = Path("src/birdnet_tests/test_files/v2m4/custom_model_raven")

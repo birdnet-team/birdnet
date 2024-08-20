@@ -1,7 +1,7 @@
 import tempfile
 from pathlib import Path
 
-from birdnet.models.model_v2m4_protobuf import DownloaderProtobuf
+from birdnet.models.v2m4.model_v2m4_protobuf import DownloaderProtobuf
 
 
 def test_download_creates_all_files():

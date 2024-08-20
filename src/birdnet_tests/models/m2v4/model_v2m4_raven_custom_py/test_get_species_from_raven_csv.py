@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from birdnet.models.model_v2m4_raven_custom import get_species_from_raven_csv
+from birdnet.models.v2m4.model_v2m4_raven_custom import get_species_from_raven_csv
 from birdnet_tests.helper import TEST_FILES_DIR
 
 CLASSIFIER_FOLDER = TEST_FILES_DIR / "v2m4" / "custom_model_raven"
