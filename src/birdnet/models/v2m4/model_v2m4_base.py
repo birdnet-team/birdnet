@@ -1,6 +1,6 @@
 from operator import itemgetter
 from pathlib import Path
-from typing import Generator, Optional, OrderedDict, Set, Tuple, Union
+from typing import Generator, Optional, Set, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
