@@ -110,8 +110,7 @@ class MetaModelBaseV2M4(ModelBaseV2M4):
       if score >= min_confidence
     )
 
-    # Sort by filter value
-    sorted_prediction = OrderedDict(
+    sorted_prediction = SpeciesPrediction(
       sorted(prediction, key=itemgetter(1), reverse=True)
     )
 
@@ -170,7 +169,7 @@ class AudioModelBaseV2M4(ModelBaseV2M4):
         Sensitivity parameter for the sigmoid function. Must be in the interval [0.5, 1.5]. Ignored if `apply_sigmoid` is False.
     filter_species : Optional[Set[Species]], optional
         A set of species to filter the predictions. If None, no filtering is applied.
-    
+
     Yields:
     -------
     Tuple[TimeInterval, SpeciesPrediction]
@@ -278,11 +277,14 @@ class AudioModelBaseV2M4(ModelBaseV2M4):
           )
 
         # Sort by score then by name
-        sorted_prediction = OrderedDict(
-          sorted(labeled_prediction, key=lambda species_score: (
-            species_score[1] * -1, species_score[0]), reverse=False)
+        sorted_prediction = SpeciesPrediction(
+          sorted(
+            labeled_prediction,
+            key=lambda species_score: (species_score[1] * -1, species_score[0]),
+            reverse=False,
+          )
         )
-        time_interval = (chunk_start, chunk_end)
+        time_interval: TimeInterval = (chunk_start, chunk_end)
         yield time_interval, sorted_prediction
 
 

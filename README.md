@@ -30,7 +30,7 @@ pip install birdnet[and-cuda] --user
 from pathlib import Path
 
 from birdnet.models.v2m4 import AudioModelV2M4
-from birdnet.types import SpeciesPredictions
+from birdnet import SpeciesPredictions
 
 # create audio model instance for v2.4
 audio_model = AudioModelV2M4()
@@ -49,26 +49,28 @@ print(f"predicted '{prediction}' with a confidence of {confidence:.2f}")
 The resulting `predictions` look like this (excerpt, scores may vary):
 
 ```py
-predictions = OrderedDict([
-  ((0.0, 3.0), OrderedDict([
+from birdnet import SpeciesPredictions, SpeciesPrediction
+
+predictions = SpeciesPredictions([
+  ((0.0, 3.0), SpeciesPrediction([
     ('Poecile atricapillus_Black-capped Chickadee', 0.8140561)
   ])),
-  ((3.0, 6.0), OrderedDict([
+  ((3.0, 6.0), SpeciesPrediction([
     ('Poecile atricapillus_Black-capped Chickadee', 0.3082859)
   ])),
-  ((6.0, 9.0), OrderedDict([
+  ((6.0, 9.0), SpeciesPrediction([
     ('Baeolophus bicolor_Tufted Titmouse', 0.1864328)
   ])),
-  ((9.0, 12.0), OrderedDict([
+  ((9.0, 12.0), SpeciesPrediction([
     ('Haemorhous mexicanus_House Finch', 0.639378)
   ])),
-  ((12.0, 15.0), OrderedDict()),
-  ((15.0, 18.0), OrderedDict()),
-  ((18.0, 21.0), OrderedDict([
+  ((12.0, 15.0), SpeciesPrediction()),
+  ((15.0, 18.0), SpeciesPrediction()),
+  ((18.0, 21.0), SpeciesPrediction([
     ('Cyanocitta cristata_Blue Jay', 0.4352715),
     ('Clamator coromandus_Chestnut-winged Cuckoo', 0.32258758)
   ])),
-  ((21.0, 24.0), OrderedDict([
+  ((21.0, 24.0), SpeciesPrediction([
     ('Cyanocitta cristata_Blue Jay', 0.32908556),
     ('Haemorhous mexicanus_House Finch', 0.18672176)
   ])),
@@ -102,7 +104,7 @@ print(f"predicted '{first_species}' with a confidence of {confidence:.2f}")
 from pathlib import Path
 
 from birdnet.models.v2m4 import AudioModelV2M4, MetaModelV2M4
-from birdnet.types import SpeciesPredictions
+from birdnet import SpeciesPredictions
 
 # create model instances for v2.4
 audio_model = AudioModelV2M4()
@@ -131,7 +133,7 @@ print(f"predicted '{prediction}' with a confidence of {confidence:.2f}")
 from pathlib import Path
 
 from birdnet.models.v2m4 import CustomAudioModelV2M4TFLite
-from birdnet.types import SpeciesPredictions
+from birdnet import SpeciesPredictions
 
 # create audio model instance for v2.4
 classifier_folder = Path("src/birdnet_tests/test_files/v2m4/custom_model_tflite")
@@ -154,7 +156,7 @@ print(f"predicted '{prediction}' with a confidence of {confidence:.2f}")
 from pathlib import Path
 
 from birdnet.models.v2m4 import CustomAudioModelV2M4Raven
-from birdnet.types import SpeciesPredictions
+from birdnet import SpeciesPredictions
 
 # create audio model instance for v2.4
 classifier_folder = Path("src/birdnet_tests/test_files/v2m4/custom_model_raven")
