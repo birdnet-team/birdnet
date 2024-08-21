@@ -67,7 +67,7 @@ class DownloaderProtobuf():
 
     zip_download_path = self._version_path / "download.zip"
     download_file_tqdm(dl_path, zip_download_path, download_size=dl_size,
-                       description="Downloading model")
+                       description="Downloading models")
 
     with zipfile.ZipFile(zip_download_path, 'r') as zip_ref:
       zip_ref.extractall(self._version_path)
