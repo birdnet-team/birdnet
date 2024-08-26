@@ -85,6 +85,7 @@ class MetaModelV2M4TFLiteBase(MetaModelBaseV2M4):
     # Load TFLite model and allocate tensors.
     self._meta_interpreter = Interpreter(
       str(model_path.absolute()), num_threads=tflite_num_threads)
+    
     # Get input tensor index
     input_details = self._meta_interpreter.get_input_details()
     self._meta_input_layer_index = input_details[0]["index"]
