@@ -181,8 +181,8 @@ The audio models support all formats compatible with the SoundFile library (see 
 
 This project provides two model formats: Protobuf and TFLite. Both models are designed to have identical precision up to 2 decimal places, with differences only appearing from the third decimal place onward.
 
-- **Protobuf Model**: Accessed via `AudioModelV2M4()`/`MetaModelV2M4()`/`CustomAudioModelV2M4Raven`, this model can be executed on both GPU and CPU. By default, the Protobuf model is used, and the system will attempt to run it on the GPU if available.
-- **TFLite Model**: Accessed via `AudioModelV2M4TFLite()`/`MetaModelV2M4TFLite()`/`CustomAudioModelV2M4TFLite`, this model is limited to CPU execution only.
+- **Protobuf Model**: Accessed via `AudioModelV2M4()`/`MetaModelV2M4()`/`CustomAudioModelV2M4Raven()`, this model can be executed on both GPU and CPU. By default, the Protobuf model is used, and the system will attempt to run it on the GPU if available.
+- **TFLite Model**: Accessed via `AudioModelV2M4TFLite()`/`MetaModelV2M4TFLite()`/`CustomAudioModelV2M4TFLite()`, this model is limited to CPU execution only.
 
 Ensure your environment is configured to utilize the appropriate model and available hardware optimally.
 
