@@ -8,6 +8,7 @@ import pytest
 from ordered_set import OrderedSet
 from tqdm import tqdm
 
+from birdnet.location_based_prediction import predict_species_at_location_and_time
 from birdnet.models.v2m4.model_v2m4_base import MetaModelBaseV2M4
 from birdnet.models.v2m4.model_v2m4_protobuf import MetaModelV2M4Protobuf
 from birdnet.types import SpeciesPrediction
@@ -104,8 +105,8 @@ class LocationTestCase():
 
 def predict_species(test_case: LocationTestCase, model: MetaModelBaseV2M4) -> SpeciesPrediction:
   # min_confidence=0 because otherwise the length is not always the same
-  return model.predict_species_at_location_and_time(
-    test_case.latitude, test_case.longitude, week=test_case.week, min_confidence=0,
+  return predict_species_at_location_and_time(
+    test_case.latitude, test_case.longitude, week=test_case.week, min_confidence=0, custom_model=model
   )
 
 

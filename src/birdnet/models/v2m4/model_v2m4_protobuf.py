@@ -114,7 +114,7 @@ class MetaModelV2M4ProtobufBase(MetaModelBaseV2M4):
     logger.info(f"Using device: {self._device.name}")
     self._meta_model = tf.saved_model.load(model_path.absolute())
 
-  def _predict_species_location(self, sample: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
+  def predict_species(self, sample: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
     assert sample.dtype == np.float32
     with tf.device(self._device):
       prediction: Tensor = self._meta_model(sample)
@@ -131,7 +131,7 @@ class AudioModelV2M4ProtobufBase(AudioModelBaseV2M4):
     logger.info(f"Using device: {self._device.name}")
     self._audio_model = tf.saved_model.load(model_path.absolute())
 
-  def _predict_species(self, batch: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
+  def predict_species(self, batch: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
     assert batch.dtype == np.float32
     with tf.device(self._device):
       prediction: Tensor = self._audio_model.basic(batch)["scores"]

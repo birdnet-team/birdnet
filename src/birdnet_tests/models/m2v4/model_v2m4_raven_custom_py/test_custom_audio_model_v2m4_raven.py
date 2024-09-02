@@ -3,6 +3,7 @@
 import numpy.testing as npt
 import pytest
 
+from birdnet.audio_based_prediction import predict_species_within_audio_file
 from birdnet.models.v2m4.model_v2m4_raven_custom import CustomAudioModelV2M4Raven
 from birdnet.models.v2m4.model_v2m4_tflite_custom import CustomAudioModelV2M4TFLite
 from birdnet.types import SpeciesPredictions
@@ -37,8 +38,11 @@ def test_minimum_test_soundscape_predictions_are_correct():
   model = CustomAudioModelV2M4Raven(
     CLASSIFIER_FOLDER, "CustomClassifier", custom_device="/device:CPU:0")
 
-  res = SpeciesPredictions(model.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0))
+  res = SpeciesPredictions(predict_species_within_audio_file(
+    TEST_FILE_WAV,
+    min_confidence=0,
+    custom_model=model,
+  ))
 
   assert list(res[(0, 3)].keys())[0] == 'Poecile atricapillus_Black-capped Chickadee'
   npt.assert_almost_equal(
@@ -67,8 +71,12 @@ def test_no_sigmoid_soundscape_predictions_are_correct():
   model = CustomAudioModelV2M4Raven(
     CLASSIFIER_FOLDER, "CustomClassifier", custom_device="/device:CPU:0")
 
-  res = SpeciesPredictions(model.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=False))
+  res = SpeciesPredictions(predict_species_within_audio_file(
+    TEST_FILE_WAV,
+    min_confidence=0,
+    apply_sigmoid=False,
+    custom_model=model,
+  ))
 
   npt.assert_almost_equal(
     res[(0, 3)]['Poecile atricapillus_Black-capped Chickadee'],
@@ -83,14 +91,22 @@ def test_no_sigmoid_soundscape_predictions_are_same_with_custom_tflite():
   model_raven = CustomAudioModelV2M4Raven(
     CLASSIFIER_FOLDER, "CustomClassifier", custom_device="/device:CPU:0")
 
-  res_raven = SpeciesPredictions(model_raven.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=False))
+  res_raven = SpeciesPredictions(predict_species_within_audio_file(
+    TEST_FILE_WAV,
+    min_confidence=0,
+    apply_sigmoid=False,
+    custom_model=model_raven,
+  ))
   res_raven_np = convert_predictions_to_numpy(res_raven)
 
   model_tflite = CustomAudioModelV2M4TFLite(CLASSIFIER_FOLDER_TFLITE, "CustomClassifier")
 
-  res_tflite = SpeciesPredictions(model_tflite.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=False))
+  res_tflite = SpeciesPredictions(predict_species_within_audio_file(
+    TEST_FILE_WAV,
+    min_confidence=0,
+    apply_sigmoid=False,
+    custom_model=model_tflite,
+  ))
   res_tflite_np = convert_predictions_to_numpy(res_tflite)
 
   npt.assert_almost_equal(res_raven_np[0][2][0], 1.604514, decimal=6)
@@ -107,14 +123,22 @@ def test_sigmoid_soundscape_predictions_are_same_with_custom_tflite():
   model_raven = CustomAudioModelV2M4Raven(
     CLASSIFIER_FOLDER, "CustomClassifier", custom_device="/device:CPU:0")
 
-  res_raven = SpeciesPredictions(model_raven.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=True))
+  res_raven = SpeciesPredictions(predict_species_within_audio_file(
+    TEST_FILE_WAV,
+    min_confidence=0,
+    apply_sigmoid=True,
+    custom_model=model_raven,
+  ))
   res_raven_np = convert_predictions_to_numpy(res_raven)
 
   model_tflite = CustomAudioModelV2M4TFLite(CLASSIFIER_FOLDER_TFLITE, "CustomClassifier")
 
-  res_tflite = SpeciesPredictions(model_tflite.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=True))
+  res_tflite = SpeciesPredictions(predict_species_within_audio_file(
+    TEST_FILE_WAV,
+    min_confidence=0,
+    apply_sigmoid=True,
+    custom_model=model_tflite,
+  ))
   res_tflite_np = convert_predictions_to_numpy(res_tflite)
 
   npt.assert_almost_equal(res_raven_np[0][0][0], 0.03020441, decimal=6)

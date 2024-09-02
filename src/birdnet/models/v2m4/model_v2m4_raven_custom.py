@@ -65,8 +65,8 @@ class CustomAudioModelV2M4Raven(AudioModelV2M4ProtobufBase):
     super().__init__(parser.audio_model_path, species_list, device)
     del parser
 
-  def _predict_species(self, batch: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
-    prediction_np = super()._predict_species(batch)
+  def predict_species(self, batch: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
+    prediction_np = super().predict_species(batch)
     # Raven models have an activation layer `keras.layers.Activation("sigmoid"))` which need to be reverted
     prediction_np = sigmoid_inverse(prediction_np)
 

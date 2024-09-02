@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Separate `ModelV2M4` into `AudioModelV2M4` and `MetaModelV2M4`
 - Move v2.4 models to `birdnet.models.v2m4`
 - Yield results of `predict_species_within_audio_file` instead of returning an OrderedDict
+- Extracted method `predict_species_within_audio_file` and `predict_species_at_location_and_time` from their respective model
 
 ## [0.1.5] - 2024-08-16
 

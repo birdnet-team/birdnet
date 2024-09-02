@@ -1,20 +1,23 @@
 from pathlib import Path
 
-from birdnet import SpeciesPredictions, get_species_from_file
+from birdnet import SpeciesPredictions, get_species_from_file, predict_species_within_audio_file
 from birdnet.models.v2m4 import AudioModelV2M4
 
 audio_path = Path("example/soundscape.wav")
 species_path = Path("example/species_list.txt")
 
-# create model instance for v2.4
+# create model instance for v2.4 with language 'en_us'
 model = AudioModelV2M4(language="en_us")
 
 # predict only the species from this file
 custom_species = get_species_from_file(species_path)
 
 # predict species for the whole audio file
-predictions = SpeciesPredictions(model.predict_species_within_audio_file(
-    audio_path, filter_species=custom_species))
+predictions = SpeciesPredictions(predict_species_within_audio_file(
+  audio_path,
+  filter_species=custom_species,
+  custom_model=model
+))
 
 # get predictions at time interval 0s-3s
 first_chunk_predictions = list(predictions[(0.0, 3.0)].items())

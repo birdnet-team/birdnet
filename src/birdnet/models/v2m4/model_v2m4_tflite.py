@@ -85,7 +85,7 @@ class MetaModelV2M4TFLiteBase(MetaModelBaseV2M4):
     # Load TFLite model and allocate tensors.
     self._meta_interpreter = Interpreter(
       str(model_path.absolute()), num_threads=tflite_num_threads)
-    
+
     # Get input tensor index
     input_details = self._meta_interpreter.get_input_details()
     self._meta_input_layer_index = input_details[0]["index"]
@@ -94,7 +94,7 @@ class MetaModelV2M4TFLiteBase(MetaModelBaseV2M4):
     self._meta_output_layer_index = output_details[0]["index"]
     self._meta_interpreter.allocate_tensors()
 
-  def _predict_species_location(self, sample: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
+  def predict_species(self, sample: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
     assert sample.dtype == np.float32
     self._meta_interpreter.set_tensor(self._meta_input_layer_index, sample)
     self._meta_interpreter.invoke()
@@ -119,7 +119,7 @@ class AudioModelV2M4TFLiteBase(AudioModelBaseV2M4):
     self._audio_output_layer_index = output_details[0]["index"]
     self._audio_interpreter.allocate_tensors()
 
-  def _predict_species(self, batch: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
+  def predict_species(self, batch: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
     assert batch.dtype == np.float32
 
     self._audio_interpreter.resize_tensor_input(self._audio_input_layer_index, batch.shape)
