@@ -1,5 +1,7 @@
 
 
+import os
+
 import numpy.testing as npt
 import pytest
 
@@ -29,12 +31,14 @@ def test_invalid_classifier_path_raises_value_error():
 
 
 def test_load_custom_model():
+  os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
   model = CustomAudioModelV2M4Raven(
     CLASSIFIER_FOLDER, "CustomClassifier", custom_device="/device:CPU:0")
   assert len(model.species) == 4
 
 
 def test_minimum_test_soundscape_predictions_are_correct():
+  os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
   model = CustomAudioModelV2M4Raven(
     CLASSIFIER_FOLDER, "CustomClassifier", custom_device="/device:CPU:0")
 
@@ -68,6 +72,7 @@ def test_minimum_test_soundscape_predictions_are_correct():
 
 
 def test_no_sigmoid_soundscape_predictions_are_correct():
+  os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
   model = CustomAudioModelV2M4Raven(
     CLASSIFIER_FOLDER, "CustomClassifier", custom_device="/device:CPU:0")
 
@@ -88,6 +93,7 @@ def test_no_sigmoid_soundscape_predictions_are_correct():
 
 
 def test_no_sigmoid_soundscape_predictions_are_same_with_custom_tflite():
+  os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
   model_raven = CustomAudioModelV2M4Raven(
     CLASSIFIER_FOLDER, "CustomClassifier", custom_device="/device:CPU:0")
 
@@ -120,6 +126,7 @@ def test_no_sigmoid_soundscape_predictions_are_same_with_custom_tflite():
 
 
 def test_sigmoid_soundscape_predictions_are_same_with_custom_tflite():
+  os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
   model_raven = CustomAudioModelV2M4Raven(
     CLASSIFIER_FOLDER, "CustomClassifier", custom_device="/device:CPU:0")
 

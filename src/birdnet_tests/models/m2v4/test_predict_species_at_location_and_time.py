@@ -1,3 +1,4 @@
+import os
 import pickle
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -29,39 +30,39 @@ def get_model():
 
 def test_invalid_latitude_raises_value_error(model: DummyModel):
   with pytest.raises(ValueError, match=r"Value for 'latitude' is invalid! It needs to be in interval \[-90.0, 90.0\]."):
-    model.predict_species_at_location_and_time(91.0, 0)
+    predict_species_at_location_and_time(91.0, 0, custom_model=model)
 
   with pytest.raises(ValueError, match=r"Value for 'latitude' is invalid! It needs to be in interval \[-90.0, 90.0\]."):
-    model.predict_species_at_location_and_time(-91.0, 0)
+    predict_species_at_location_and_time(-91.0, 0, custom_model=model)
 
 
 def test_invalid_longitude_raises_value_error(model: DummyModel):
   with pytest.raises(ValueError, match=r"Value for 'longitude' is invalid! It needs to be in interval \[-180.0, 180.0\]."):
-    model.predict_species_at_location_and_time(0, 181.0)
+    predict_species_at_location_and_time(0, 181.0, custom_model=model)
 
   with pytest.raises(ValueError, match=r"Value for 'longitude' is invalid! It needs to be in interval \[-180.0, 180.0\]."):
-    model.predict_species_at_location_and_time(0, -181.0)
+    predict_species_at_location_and_time(0, -181.0, custom_model=model)
 
 
 def test_invalid_min_confidence_raises_value_error(model: DummyModel):
   with pytest.raises(ValueError, match=r"Value for 'min_confidence' is invalid! It needs to be in interval \[0.0, 1.0\)."):
-    model.predict_species_at_location_and_time(0, 0, min_confidence=-0.1)
+    predict_species_at_location_and_time(0, 0, min_confidence=-0.1, custom_model=model)
 
   with pytest.raises(ValueError, match=r"Value for 'min_confidence' is invalid! It needs to be in interval \[0.0, 1.0\)."):
-    model.predict_species_at_location_and_time(0, 0, min_confidence=1.1)
+    predict_species_at_location_and_time(0, 0, min_confidence=1.1, custom_model=model)
 
 
 def test_invalid_week_raises_value_error(model: DummyModel):
   with pytest.raises(ValueError, match=r"Value for 'week' is invalid! It needs to be either None or in interval \[1, 48\]."):
-    model.predict_species_at_location_and_time(0, 0, week=0)
+    predict_species_at_location_and_time(0, 0, week=0, custom_model=model)
 
   with pytest.raises(ValueError, match=r"Value for 'week' is invalid! It needs to be either None or in interval \[1, 48\]."):
-    model.predict_species_at_location_and_time(0, 0, week=49)
+    predict_species_at_location_and_time(0, 0, week=49, custom_model=model)
 
 
 def model_test_no_week(model: MetaModelBaseV2M4):
-  species = model.predict_species_at_location_and_time(
-    42.5, -76.45, min_confidence=0.03)
+  species = predict_species_at_location_and_time(
+    42.5, -76.45, min_confidence=0.03, custom_model=model)
   assert len(species) >= 252  # 255 on TFLite
 
   assert list(species.keys())[0] == 'Cyanocitta cristata_Blue Jay'
@@ -70,8 +71,8 @@ def model_test_no_week(model: MetaModelBaseV2M4):
 
 
 def model_test_using_threshold(model: MetaModelBaseV2M4):
-  species = model.predict_species_at_location_and_time(
-    42.5, -76.45, week=4, min_confidence=0.03)
+  species = predict_species_at_location_and_time(
+    42.5, -76.45, week=4, min_confidence=0.03, custom_model=model)
   assert len(species) == 64
   npt.assert_almost_equal(species['Cyanocitta cristata_Blue Jay'], 0.9276199, decimal=3)
   npt.assert_almost_equal(species['Larus marinus_Great Black-backed Gull'], 0.035001162, decimal=3)
@@ -81,17 +82,17 @@ def model_test_using_threshold(model: MetaModelBaseV2M4):
 
 
 def model_test_using_no_threshold_returns_all_species(model: MetaModelBaseV2M4):
-  species = model.predict_species_at_location_and_time(
-    42.5, -76.45, week=4, min_confidence=0)
+  species = predict_species_at_location_and_time(
+    42.5, -76.45, week=4, min_confidence=0, custom_model=model)
   assert len(species) == len(model.species) == 6522
 
 
 def model_test_identical_predictions_return_same_result(model: MetaModelBaseV2M4):
-  species1 = model.predict_species_at_location_and_time(
-    42.5, -76.45, week=4, min_confidence=0)
+  species1 = predict_species_at_location_and_time(
+    42.5, -76.45, week=4, min_confidence=0, custom_model=model)
 
-  species2 = model.predict_species_at_location_and_time(
-    42.5, -76.45, week=4, min_confidence=0)
+  species2 = predict_species_at_location_and_time(
+    42.5, -76.45, week=4, min_confidence=0, custom_model=model)
 
   assert species_prediction_is_equal(species1, species2, precision=7)
 
@@ -148,5 +149,6 @@ def model_test_predictions_are_globally_correct(model: MetaModelBaseV2M4, /, *, 
 
 if __name__ == "__main__":
   # global ground truth is created using protobuf CPU model
+  os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
   m = MetaModelV2M4Protobuf(language="en_us", custom_device="/device:CPU:0")
   create_ground_truth_test_file(m, TEST_PATH)

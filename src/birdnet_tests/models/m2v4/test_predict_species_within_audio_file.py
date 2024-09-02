@@ -1,3 +1,4 @@
+import os
 import pickle
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -44,7 +45,7 @@ def predict_species_within_audio_file_in_test_case(test_case: AudioTestCase, mod
     bandpass_fmax=test_case.bandpass_fmax,
     apply_sigmoid=test_case.apply_sigmoid,
     sigmoid_sensitivity=test_case.sigmoid_sensitivity,
-    filter_species=test_case.filter_species,
+    species_filter=test_case.filter_species,
     custom_model=model,
   ))
 
@@ -165,8 +166,8 @@ def test_invalid_sigmoid_sensitivity_raises_value_error(model: AudioModelBaseV2M
 
 
 def test_example_interval_count_is_40_on_0_overlap(model: AudioModelBaseV2M4):
-  res = SpeciesPredictions(model.predict_species_within_audio_file(
-    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=False, chunk_overlap_s=0))
+  res = SpeciesPredictions(predict_species_within_audio_file(
+    TEST_FILE_WAV, min_confidence=0, apply_sigmoid=False, chunk_overlap_s=0, custom_model=model))
   file_dur_s = 120
   chunk_size = 3
   assert len(res) == file_dur_s / chunk_size == 40
@@ -217,7 +218,7 @@ def test_example_interval_count_is_118_on_2_overlap(model: AudioModelBaseV2M4):
 
 
 def test_example_batch_size_4_does_not_change_results(model: AudioModelBaseV2M4):
-  res = SpeciesPredictions(model.predict_species_within_audio_file(
+  res = SpeciesPredictions(predict_species_within_audio_file(
     TEST_FILE_WAV,
     min_confidence=0,
     apply_sigmoid=False,
@@ -259,7 +260,7 @@ def test_predictions_are_sorted_correctly(model: AudioModelBaseV2M4):
 
 
 def test_intervals_are_float(model: AudioModelBaseV2M4):
-  res = SpeciesPredictions(model.predict_species_within_audio_file(
+  res = SpeciesPredictions(predict_species_within_audio_file(
     TEST_FILE_WAV,
     min_confidence=0,
     apply_sigmoid=False,
@@ -278,11 +279,11 @@ def test_intervals_are_float(model: AudioModelBaseV2M4):
 
 
 def test_filter_species_filters_species(model: AudioModelBaseV2M4):
-  res = SpeciesPredictions(model.predict_species_within_audio_file(
+  res = SpeciesPredictions(predict_species_within_audio_file(
     TEST_FILE_WAV,
     min_confidence=0,
     apply_sigmoid=False,
-    filter_species={'species1', 'species2'},
+    species_filter={'species1', 'species2'},
     custom_model=model,
   ))
 
@@ -419,5 +420,6 @@ def model_test_identical_predictions_return_same_result(model: AudioModelBaseV2M
 
 if __name__ == "__main__":
   # global ground truth is created using protobuf CPU model
+  os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
   m = AudioModelV2M4Protobuf(language="en_us", custom_device="/device:CPU:0")
   create_ground_truth_test_file(m, TEST_PATH)

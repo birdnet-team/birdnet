@@ -15,8 +15,9 @@ custom_species = get_species_from_file(species_path)
 # predict species for the whole audio file
 predictions = SpeciesPredictions(predict_species_within_audio_file(
   audio_path,
-  filter_species=custom_species,
-  custom_model=model
+  species_filter=custom_species,
+  custom_model=model,
+  chunk_overlap_s=2
 ))
 
 # get predictions at time interval 0s-3s

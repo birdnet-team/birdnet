@@ -1,3 +1,4 @@
+import os
 import pickle
 from pathlib import Path
 from typing import Dict, List, Set, Tuple
@@ -25,6 +26,7 @@ def provide_model_to_tests():
 
 
 def get_model():
+  os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
   model = AudioModelV2M4Protobuf(language="en_us", custom_device="/device:CPU:0")
   return model
 
@@ -46,7 +48,7 @@ def test_invalid_species_filter_raises_value_error(model: AudioModelV2M4Protobuf
   with pytest.raises(ValueError, match=rf"At least one species defined in 'filter_species' is invalid! They need to be known species, e.g., {', '.join(model.species[:3])}"):
     next(predict_species_within_audio_file(
         TEST_FILE_WAV,
-        filter_species=invalid_filter_species,
+        species_filter=invalid_filter_species,
         custom_model=model,
     ))
 

@@ -108,6 +108,7 @@ class AudioModelV2M4TFLiteBase(AudioModelBaseV2M4):
     super().__init__(species_list)
     assert tflite_num_threads is None or (tflite_num_threads >= 1)
 
+    self._tflite_num_threads = tflite_num_threads
     # Load TFLite model and allocate tensors.
     self._audio_interpreter = Interpreter(
       str(model_path.absolute()), num_threads=tflite_num_threads)
@@ -118,6 +119,10 @@ class AudioModelV2M4TFLiteBase(AudioModelBaseV2M4):
     output_details = self._audio_interpreter.get_output_details()
     self._audio_output_layer_index = output_details[0]["index"]
     self._audio_interpreter.allocate_tensors()
+
+  @property
+  def tflite_num_threads(self) -> Optional[int]:
+    return self._tflite_num_threads
 
   def predict_species(self, batch: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
     assert batch.dtype == np.float32

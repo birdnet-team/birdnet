@@ -1,3 +1,4 @@
+import os
 import pickle
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -17,12 +18,13 @@ from birdnet_tests.models.m2v4.test_predict_species_at_location_and_time import 
 TEST_PATH = Path(TEST_RESULTS_DIR / "v2m4" / "meta-model.protobuf-cpu.pkl")
 
 
-
 @pytest.fixture(name="model")
 def provide_model_to_tests():
   return get_model()
 
+
 def get_model():
+  os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
   model = MetaModelV2M4Protobuf(language="en_us", custom_device="/device:CPU:0")
   return model
 
