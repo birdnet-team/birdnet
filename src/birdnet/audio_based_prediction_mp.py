@@ -32,6 +32,52 @@ def predict_species_within_audio_files_mp(
     maxtasksperchild: Optional[int] = None,
     silent: bool = False,
   ) -> Generator[Tuple[Path, SpeciesPredictions], None, None]:
+  """
+  Predicts species within audio files using multiprocessing.
+
+  Parameters:
+  -----------
+  audio_files : List[Path]
+      A list of paths to the audio files for species prediction.
+  min_confidence : float, optional, default=0.1
+      Minimum confidence threshold for predictions to be considered valid.
+  chunk_overlap_s : float, optional, default=0.0
+      Overlapping of chunks in seconds. Must be in the interval [0.0, 3.0).
+  use_bandpass : bool, optional, default=True
+      Whether to apply a bandpass filter to the audio.
+  bandpass_fmin : Optional[int], optional, default=0
+      Minimum frequency for the bandpass filter (in Hz). Ignored if `use_bandpass` is False.
+  bandpass_fmax : Optional[int], optional, default=15_000
+      Maximum frequency for the bandpass filter (in Hz). Ignored if `use_bandpass` is False.
+  apply_sigmoid : bool, optional, default=True
+      Whether to apply a sigmoid function to the model outputs.
+  sigmoid_sensitivity : Optional[float], optional, default=1.0
+      Sensitivity parameter for the sigmoid function. Must be in the interval [0.5, 1.5]. Ignored if `apply_sigmoid` is False.
+  species_filter : Optional[Union[Set[Species], OrderedSet[Species]]], optional
+      A set or ordered set of species to filter the predictions. If None, no filtering is applied.
+  custom_n_jobs : Optional[int], optional
+      The number of jobs to run in parallel for multiprocessing. If None, it will use the number of CPUs available.
+  custom_model : Optional[AudioModelV2M4TFLiteBase], optional
+      Custom model to be used for species prediction. If None, the default TFLite model is used.
+  maxtasksperchild : Optional[int], optional
+      Maximum number of tasks per child process.
+  silent : bool, optional, default=False
+      Whether to disable the progress bar.
+
+  Yields:
+  -------
+  Tuple[Path, SpeciesPredictions]
+      Each item yielded by the generator is a tuple, where:
+      - The first element is the path to the audio file being processed.
+      - The second element is a `SpeciesPredictions` object containing:
+          - The predictions made for each segment of the audio file.
+          - Each prediction includes a time interval and a dictionary with species names as keys and their confidence scores as values.
+
+  Raises:
+  -------
+  ValueError
+      If any of the input parameters are invalid.
+  """
 
   if not 0 <= min_confidence < 1.0:
     raise ValueError(

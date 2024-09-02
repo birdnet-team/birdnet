@@ -56,7 +56,7 @@ def predict_species_within_audio_file(
   species_filter : Optional[Set[Species]], optional
       A set of species to filter the predictions. If None, no filtering is applied.
   silent : bool, default=False
-      Wheter to disable the progress bar.
+      Whether to disable the progress bar.
 
   Yields:
   -------
