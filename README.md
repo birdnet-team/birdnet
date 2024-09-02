@@ -91,6 +91,31 @@ print(f"predicted '{first_species}' with a confidence of {confidence:.2f}")
 # predicted 'Cyanocitta cristata_Blue Jay' with a confidence of 0.93
 ```
 
+### Identify species within audio files using multiprocessing
+
+```py
+from pathlib import Path
+
+from birdnet.audio_based_prediction_mp import predict_species_within_audio_files_mp
+
+files = (
+  Path("example/soundscape.wav"),
+  Path("example/soundscape.wav"),
+  Path("example/soundscape.wav"),
+  Path("example/soundscape.wav"),
+)
+
+file_predictions = list(predict_species_within_audio_files_mp(files))
+
+for file, predictions in file_predictions:
+  print(file.name, len(predictions), "predictions")
+# output:
+# soundscape.wav 40 predictions
+# soundscape.wav 40 predictions
+# soundscape.wav 40 predictions
+# soundscape.wav 40 predictions
+```
+
 ### File formats
 
 The audio models support all formats compatible with the SoundFile library (see [here](https://python-soundfile.readthedocs.io/en/0.11.0/#read-write-functions)). This includes, but is not limited to, WAV, FLAC, OGG, and AIFF. The flexibility of supported formats ensures that the models can handle a wide variety of audio input types, making them adaptable to different use cases and environments.
