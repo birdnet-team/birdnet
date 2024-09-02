@@ -96,7 +96,7 @@ print(f"predicted '{first_species}' with a confidence of {confidence:.2f}")
 ```py
 from pathlib import Path
 
-from birdnet.audio_based_prediction_mp import predict_species_within_audio_files_mp
+from birdnet import predict_species_within_audio_files_mp
 
 files = (
   Path("example/soundscape.wav"),
