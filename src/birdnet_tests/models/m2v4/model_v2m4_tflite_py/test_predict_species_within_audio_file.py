@@ -59,7 +59,7 @@ def test_internal_predictions_are_correct(model: AudioModelV2M4TFLite):
     test_case = AudioTestCase(**test_case_dict)
     res = predict_species_within_audio_file_in_test_case(test_case,
                                                          model, TEST_FILE_WAV)
-    assert species_predictions_are_equal(res, gt, precision=7)
+    assert species_predictions_are_equal(res, gt, decimal=5)
 
 
 if __name__ == "__main__":

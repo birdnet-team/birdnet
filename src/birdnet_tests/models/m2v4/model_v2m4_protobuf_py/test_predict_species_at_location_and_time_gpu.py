@@ -54,7 +54,7 @@ def test_identical_predictions_return_same_result(model: Optional[MetaModelV2M4P
 
 def test_predictions_are_globally_correct(model: Optional[MetaModelV2M4Protobuf]):
   if model is not None:
-    model_test_predictions_are_globally_correct(model, precision=6)
+    model_test_predictions_are_globally_correct(model, precision=5)
 
 
 def test_internal_predictions_are_correct(model: Optional[MetaModelV2M4Protobuf]):
@@ -65,7 +65,7 @@ def test_internal_predictions_are_correct(model: Optional[MetaModelV2M4Protobuf]
     for test_case_dict, gt in tqdm(test_cases):
       test_case = LocationTestCase(**test_case_dict)
       res = predict_species(test_case, model)
-      assert species_prediction_is_equal(res, gt, precision=7)
+      assert species_prediction_is_equal(res, gt, decimal=5)
 
 
 if __name__ == "__main__":

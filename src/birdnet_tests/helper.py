@@ -18,7 +18,7 @@ TEST_FILE_WAV = TEST_FILES_DIR / "soundscape.wav"
 def species_prediction_is_equal(
     actual: SpeciesPrediction,
     desired: SpeciesPrediction,
-    precision: int
+    decimal: int
 ) -> bool:
   if actual.keys() != desired.keys():
     return False
@@ -27,7 +27,7 @@ def species_prediction_is_equal(
     actual_score = actual[species]
     desired_score = desired[species]
 
-    if not math.isclose(actual_score, desired_score, abs_tol=10**-precision):
+    if not math.isclose(actual_score, desired_score, abs_tol=10**-decimal):
       return False
 
   ordering_is_correct = True
@@ -42,7 +42,7 @@ def species_prediction_is_equal(
 def species_predictions_are_equal(
     actual: SpeciesPredictions,
     desired: SpeciesPredictions,
-    precision: int
+    decimal: int
 ) -> bool:
   if actual.keys() != desired.keys():
     return False
@@ -51,7 +51,7 @@ def species_predictions_are_equal(
     actual_interval_predictions = actual[interval]
     desired_interval_predictions = desired[interval]
 
-    if not species_prediction_is_equal(actual_interval_predictions, desired_interval_predictions, precision):
+    if not species_prediction_is_equal(actual_interval_predictions, desired_interval_predictions, decimal):
       return False
 
   ordering_is_correct = True

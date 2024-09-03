@@ -20,6 +20,7 @@ def predict_species_within_audio_files_mp(
     /,
     *,
     min_confidence: float = 0.1,
+    batch_size: int = 100,
     chunk_overlap_s: float = 0.0,
     use_bandpass: bool = True,
     bandpass_fmin: Optional[int] = 0,
@@ -41,6 +42,8 @@ def predict_species_within_audio_files_mp(
       A list of paths to the audio files for species prediction.
   min_confidence : float, optional, default=0.1
       Minimum confidence threshold for predictions to be considered valid.
+  batch_size : int, optional, default=1
+      Number of audio samples to process in a batch.
   chunk_overlap_s : float, optional, default=0.0
       Overlapping of chunks in seconds. Must be in the interval [0.0, 3.0).
   use_bandpass : bool, optional, default=True
@@ -87,6 +90,10 @@ def predict_species_within_audio_files_mp(
     raise ValueError(
       "Value for 'chunk_overlap_s' is invalid! It needs to be in interval [0.0, 3.0).")
 
+  if batch_size < 1:
+    raise ValueError(
+      "Value for 'batch_size' is invalid! It needs to be larger than zero.")
+
   if apply_sigmoid:
     if sigmoid_sensitivity is None:
       raise ValueError("Value for 'sigmoid_sensitivity' is required if 'apply_sigmoid==True'!")
@@ -132,7 +139,7 @@ def predict_species_within_audio_files_mp(
 
   model: AudioModelV2M4TFLiteBase
   if custom_model is None:
-    model = AudioModelV2M4TFLite(tflite_num_threads=1)
+    model = AudioModelV2M4TFLite(language="en_us", tflite_num_threads=1)
   else:
     if not isinstance(custom_model, AudioModelV2M4TFLiteBase):
       raise ValueError(
@@ -153,7 +160,7 @@ def predict_species_within_audio_files_mp(
   prediction_method = partial(
     predict_species_within_audio_file_core,
     min_confidence=min_confidence,
-    batch_size=1,
+    batch_size=batch_size,
     chunk_overlap_s=chunk_overlap_s,
     use_bandpass=use_bandpass,
     bandpass_fmin=bandpass_fmin,

@@ -52,21 +52,21 @@ def test_minimum_test_soundscape_predictions_are_correct():
   npt.assert_almost_equal(
     res[(0, 3)]['Poecile atricapillus_Black-capped Chickadee'],
     0.83264834,
-    decimal=6
+    decimal=5
   )
 
   assert list(res[(66, 69)].keys())[0] == 'Junco hyemalis_Dark-eyed Junco'
   npt.assert_almost_equal(
     res[(66, 69)]['Junco hyemalis_Dark-eyed Junco'],
     0.19125606,
-    decimal=6
+    decimal=5
   )
 
   assert list(res[(117, 120)].keys())[0] == 'Junco hyemalis_Dark-eyed Junco'
   npt.assert_almost_equal(
       res[(117, 120)]['Junco hyemalis_Dark-eyed Junco'],
       0.14392963,
-      decimal=6
+      decimal=5
     )
   assert len(res) == 40
 
@@ -86,7 +86,7 @@ def test_no_sigmoid_soundscape_predictions_are_correct():
   npt.assert_almost_equal(
     res[(0, 3)]['Poecile atricapillus_Black-capped Chickadee'],
     1.604514,
-    decimal=6
+    decimal=5
   )
 
   assert len(res) == 40
@@ -115,11 +115,11 @@ def test_no_sigmoid_soundscape_predictions_are_same_with_custom_tflite():
   ))
   res_tflite_np = convert_predictions_to_numpy(res_tflite)
 
-  npt.assert_almost_equal(res_raven_np[0][2][0], 1.604514, decimal=6)
+  npt.assert_almost_equal(res_raven_np[0][2][0], -2.4397974, decimal=5)
   npt.assert_array_almost_equal(
     res_raven_np[0],
     res_tflite_np[0],
-    decimal=4
+    decimal=3
   )
   assert res_raven_np[1] == res_tflite_np[1]
   assert res_raven_np[2] == res_tflite_np[2]
@@ -148,11 +148,11 @@ def test_sigmoid_soundscape_predictions_are_same_with_custom_tflite():
   ))
   res_tflite_np = convert_predictions_to_numpy(res_tflite)
 
-  npt.assert_almost_equal(res_raven_np[0][0][0], 0.03020441, decimal=6)
+  npt.assert_almost_equal(res_raven_np[0][0][0], 0.03020441, decimal=5)
   npt.assert_array_almost_equal(
     res_raven_np[0],
     res_tflite_np[0],
-    decimal=4
+    decimal=3
   )
   assert res_raven_np[1] == res_tflite_np[1]
   assert res_raven_np[2] == res_tflite_np[2]

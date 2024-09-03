@@ -58,7 +58,7 @@ def test_internal_predictions_are_correct(model: Optional[AudioModelV2M4Protobuf
       res = predict_species_within_audio_file_in_test_case(test_case,
                                                            model, TEST_FILE_WAV)
       # has some variations
-      assert species_predictions_are_equal(res, gt, precision=4)
+      assert species_predictions_are_equal(res, gt, decimal=4)
 
 
 if __name__ == "__main__":

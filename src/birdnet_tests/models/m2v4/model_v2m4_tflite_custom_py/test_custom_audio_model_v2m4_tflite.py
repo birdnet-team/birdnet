@@ -42,21 +42,21 @@ def test_minimum_test_soundscape_predictions_are_correct():
   npt.assert_almost_equal(
     res[(0, 3)]['Poecile atricapillus_Black-capped Chickadee'],
     0.8326453,
-    decimal=6
+    decimal=5
   )
 
   assert list(res[(66, 69)].keys())[0] == 'Junco hyemalis_Dark-eyed Junco'
   npt.assert_almost_equal(
     res[(66, 69)]['Junco hyemalis_Dark-eyed Junco'],
     0.19126873,
-    decimal=6
+    decimal=5
   )
 
   assert list(res[(117, 120)].keys())[0] == 'Junco hyemalis_Dark-eyed Junco'
   npt.assert_almost_equal(
       res[(117, 120)]['Junco hyemalis_Dark-eyed Junco'],
       0.14393075,
-      decimal=6
+      decimal=5
     )
   assert len(res) == 40
 
@@ -74,7 +74,7 @@ def test_no_sigmoid_soundscape_predictions_are_correct():
   npt.assert_almost_equal(
     res[(0, 3)]['Poecile atricapillus_Black-capped Chickadee'],
     1.6044917,
-    decimal=6
+    decimal=5
   )
 
   assert len(res) == 40

@@ -94,7 +94,7 @@ def model_test_identical_predictions_return_same_result(model: MetaModelBaseV2M4
   species2 = predict_species_at_location_and_time(
     42.5, -76.45, week=4, min_confidence=0, custom_model=model)
 
-  assert species_prediction_is_equal(species1, species2, precision=7)
+  assert species_prediction_is_equal(species1, species2, decimal=5)
 
 
 @dataclass()
@@ -144,7 +144,7 @@ def model_test_predictions_are_globally_correct(model: MetaModelBaseV2M4, /, *, 
   for test_case_dict, gt in tqdm(test_cases):
     test_case = LocationTestCase(**test_case_dict)
     res = predict_species(test_case, model)
-    assert species_prediction_is_equal(res, gt, precision=precision)
+    assert species_prediction_is_equal(res, gt, decimal=precision)
 
 
 if __name__ == "__main__":

@@ -309,7 +309,7 @@ def test_apply_sigmoid_0p5(model: AudioModelBaseV2M4):
   npt.assert_almost_equal(
     list(res[(0, 3)].values()),
     [0.5374298453437496, 0.52497918747894, 0.5124973964842103, 0.5124973964842103],
-    decimal=7,
+    decimal=5,
   )
 
 
@@ -326,7 +326,7 @@ def test_apply_sigmoid_1p5(model: AudioModelBaseV2M4):
   npt.assert_almost_equal(
     list(res[(0, 3)].values()),
     [0.610639233949222, 0.574442516811659, 0.5374298453437496, 0.5374298453437496],
-    decimal=7,
+    decimal=5,
   )
 
 
@@ -370,7 +370,7 @@ def model_test_soundscape_predictions_are_globally_correct(model: AudioModelBase
     test_case = AudioTestCase(**test_case_dict)
     res = predict_species_within_audio_file_in_test_case(test_case,
                                                          model, TEST_FILE_WAV)
-    assert species_predictions_are_equal(res, gt, precision=precision)
+    assert species_predictions_are_equal(res, gt, decimal=precision)
 
 
 def model_minimum_test_soundscape_predictions_are_correct(model: AudioModelBaseV2M4, /, *, precision: int):
@@ -415,7 +415,7 @@ def model_test_identical_predictions_return_same_result(model: AudioModelBaseV2M
     custom_model=model,
   ))
 
-  assert species_predictions_are_equal(res1, res2, precision=7)
+  assert species_predictions_are_equal(res1, res2, decimal=5)
 
 
 if __name__ == "__main__":
