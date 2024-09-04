@@ -20,7 +20,7 @@ def predict_species_within_audio_files_mp(
     /,
     *,
     min_confidence: float = 0.1,
-    batch_size: int = 100,
+    batch_size: int = 1,
     chunk_overlap_s: float = 0.0,
     use_bandpass: bool = True,
     bandpass_fmin: Optional[int] = 0,
