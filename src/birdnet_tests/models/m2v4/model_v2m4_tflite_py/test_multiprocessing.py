@@ -1,23 +1,11 @@
-import pickle
-from logging import getLogger
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
 
 import numpy.testing as npt
 import pytest
-from tqdm import tqdm
 
-from birdnet.audio_based_prediction import predict_species_within_audio_file
 from birdnet.audio_based_prediction_mp import predict_species_within_audio_files_mp
 from birdnet.models.v2m4.model_v2m4_tflite import AudioModelV2M4TFLite
-from birdnet.types import Species, SpeciesPredictions
-from birdnet_tests.helper import TEST_RESULTS_DIR, species_predictions_are_equal
-from birdnet_tests.models.m2v4.test_predict_species_within_audio_file import (
-  TEST_FILE_WAV, AudioTestCase, create_ground_truth_test_file,
-  model_minimum_test_soundscape_predictions_are_correct,
-  model_test_identical_predictions_return_same_result,
-  model_test_soundscape_predictions_are_globally_correct,
-  predict_species_within_audio_file_in_test_case)
+from birdnet_tests.models.m2v4.test_predict_species_within_audio_file import TEST_FILE_WAV
 
 
 @pytest.fixture(name="model")

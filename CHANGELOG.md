@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.6] - 2024-09-04
+
 ### Added
 
 - Support for multiprocessing using `predict_species_within_audio_files_mp`
@@ -19,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Move v2.4 models to `birdnet.models.v2m4`
 - Yield results of `predict_species_within_audio_file` instead of returning an OrderedDict
 - Extracted method `predict_species_within_audio_file` and `predict_species_at_location_and_time` from their respective model
+- set default value for `batch_size` to 100
 
 ## [0.1.5] - 2024-08-16
 

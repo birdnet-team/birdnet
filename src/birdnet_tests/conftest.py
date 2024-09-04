@@ -1,7 +1,5 @@
 import logging
 
-import tensorflow as tf
-
 
 def pytest_configure():
   loggers = {"tensorflow", "absl", "urllib3"}
