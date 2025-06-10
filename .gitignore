@@ -6,6 +6,7 @@ src/birdnet_debug
 upload/
 scripts/
 .venv*/
+test-dataset/
 
 # VSCode
 .vscode
