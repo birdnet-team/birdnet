@@ -15,14 +15,19 @@ from birdnet.audio_based_prediction import predict_species_within_audio_file
 from birdnet.models.v2m4.model_v2m4_base import AudioModelBaseV2M4
 from birdnet.models.v2m4.model_v2m4_protobuf import AudioModelV2M4Protobuf
 from birdnet.types import Species, SpeciesPredictions
-from birdnet_tests.helper import (TEST_FILE_WAV, TEST_FILES_DIR, TEST_RESULTS_DIR,
-                                  convert_predictions_to_numpy, species_predictions_are_equal)
+from birdnet_tests.helper import (
+  TEST_FILE_WAV,
+  TEST_FILES_DIR,
+  TEST_RESULTS_DIR,
+  convert_predictions_to_numpy,
+  species_predictions_are_equal,
+)
 
 TEST_PATH = Path(TEST_RESULTS_DIR / "v2m4" / "audio-model.pkl")
 
 
 @dataclass()
-class AudioTestCase():
+class AudioTestCase:
   min_confidence: float = 0.1
   batch_size: int = 1
   chunk_overlap_s: float = 0.0
@@ -276,7 +281,7 @@ def test_intervals_are_float(model: AudioModelBaseV2M4):
   ))
 
   actual_keys = list(res.keys())
-  assert (0, 3) == actual_keys[0]
+  assert actual_keys[0] == (0, 3)
   assert isinstance(actual_keys[0][0], float)
   assert isinstance(actual_keys[0][1], float)
   assert isinstance(actual_keys[20][0], float)

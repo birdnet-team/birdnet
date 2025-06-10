@@ -1,6 +1,9 @@
 import pytest
 
-from birdnet.models.v2m4.model_v2m4_protobuf import AVAILABLE_LANGUAGES, MetaModelV2M4Protobuf
+from birdnet.models.v2m4.model_v2m4_protobuf import (
+  AVAILABLE_LANGUAGES,
+  MetaModelV2M4Protobuf,
+)
 
 
 def test_invalid_language_raises_value_error():

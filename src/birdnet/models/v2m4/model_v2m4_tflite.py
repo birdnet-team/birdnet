@@ -8,10 +8,13 @@ import numpy.typing as npt
 from ordered_set import OrderedSet
 from tensorflow.lite.python.interpreter import Interpreter
 
-from birdnet.models.v2m4.model_v2m4_base import (AVAILABLE_LANGUAGES, AudioModelBaseV2M4,
-                                                 MetaModelBaseV2M4,
-                                                 get_internal_version_app_data_folder,
-                                                 validate_language)
+from birdnet.models.v2m4.model_v2m4_base import (
+  AVAILABLE_LANGUAGES,
+  AudioModelBaseV2M4,
+  MetaModelBaseV2M4,
+  get_internal_version_app_data_folder,
+  validate_language,
+)
 from birdnet.types import Language
 from birdnet.utils import download_file_tqdm, get_species_from_file
 
@@ -19,7 +22,7 @@ DOWNLOAD_URL = "https://zenodo.org/records/15050749/files/BirdNET_v2.4_tflite.zi
 DOWNLOAD_SIZE = 76822925
 
 
-class DownloaderTFLite():
+class DownloaderTFLite:
   def __init__(self, parent_folder: Path) -> None:
     self._version_path = parent_folder
     self._audio_model_path = self._version_path / "audio-model.tflite"

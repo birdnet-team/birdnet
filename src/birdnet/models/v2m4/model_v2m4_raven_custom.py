@@ -1,21 +1,24 @@
 import csv
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator, Optional
+from typing import Optional
 
 import numpy as np
 import numpy.typing as npt
 import tensorflow as tf
 from ordered_set import OrderedSet
 
-from birdnet.models.v2m4.model_v2m4_protobuf import (AudioModelV2M4ProtobufBase,
-                                                     check_protobuf_model_files_exist,
-                                                     get_custom_device,
-                                                     try_get_gpu_otherwise_return_cpu)
+from birdnet.models.v2m4.model_v2m4_protobuf import (
+  AudioModelV2M4ProtobufBase,
+  check_protobuf_model_files_exist,
+  get_custom_device,
+  try_get_gpu_otherwise_return_cpu,
+)
 from birdnet.types import Species
 from birdnet.utils import sigmoid_inverse
 
 
-class CustomRavenParser():
+class CustomRavenParser:
   def __init__(self, classifier_folder: Path, classifier_name: str) -> None:
     self._audio_model_path = classifier_folder / f"{classifier_name}"
     self._label_path = classifier_folder / f"{classifier_name}" / "labels" / "label_names.csv"

@@ -1,7 +1,8 @@
 import os
+from collections.abc import Generator, Iterable
 from itertools import count, islice
 from pathlib import Path
-from typing import Any, Generator, Iterable, Optional, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -14,12 +15,21 @@ from tqdm import tqdm
 from birdnet.types import Species, TimeInterval
 
 
-def get_species_from_file(species_file: Path, /, *, encoding: str = "utf8") -> OrderedSet[Species]:
+def get_species_from_file(
+  species_file: Path, /, *, encoding: str = "utf8"
+) -> OrderedSet[Species]:
   species = OrderedSet(species_file.read_text(encoding).splitlines())
   return species
 
 
-def bandpass_signal(audio_signal: npt.NDArray[np.float32], rate: int, fmin: int, fmax: int, new_fmin: int, new_fmax: int) -> npt.NDArray[np.float32]:
+def bandpass_signal(
+  audio_signal: npt.NDArray[np.float32],
+  rate: int,
+  fmin: int,
+  fmax: int,
+  new_fmin: int,
+  new_fmax: int,
+) -> npt.NDArray[np.float32]:
   assert rate > 0
   assert fmin >= 0
   assert fmin < fmax
@@ -52,7 +62,13 @@ def bandpass_signal(audio_signal: npt.NDArray[np.float32], rate: int, fmin: int,
   return sig_f32
 
 
-def chunk_signal(audio_signal: npt.NDArray[np.float32], rate: int, chunk_size: float, chunk_overlap: float, min_chunk_size: float) -> Generator[Tuple[float, float, npt.NDArray[np.float32]], None, None]:
+def chunk_signal(
+  audio_signal: npt.NDArray[np.float32],
+  rate: int,
+  chunk_size: float,
+  chunk_overlap: float,
+  min_chunk_size: float,
+) -> Generator[Tuple[float, float, npt.NDArray[np.float32]], None, None]:
   """Split signal with overlap.
 
   Args:
@@ -76,8 +92,13 @@ def chunk_signal(audio_signal: npt.NDArray[np.float32], rate: int, chunk_size: f
   min_chunk_frame_count = round(rate * min_chunk_size)
 
   # Start of last chunk
-  last_chunk_position = round((audio_signal.size - chunk_frame_count +
-                              chunk_step_frame_count - 1) / chunk_step_frame_count) * chunk_step_frame_count
+  last_chunk_position = (
+    round(
+      (audio_signal.size - chunk_frame_count + chunk_step_frame_count - 1)
+      / chunk_step_frame_count
+    )
+    * chunk_step_frame_count
+  )
   # Make sure at least one chunk is returned
   if last_chunk_position < 0:
     last_chunk_position = 0
@@ -95,7 +116,7 @@ def chunk_signal(audio_signal: npt.NDArray[np.float32], rate: int, chunk_size: f
 
   # Split signal with overlap
   for i in range(0, 1 + last_chunk_position, chunk_step_frame_count):
-    chunk = data[i:i + chunk_frame_count]
+    chunk = data[i : i + chunk_frame_count]
 
     yield start, end, chunk
 
@@ -104,7 +125,9 @@ def chunk_signal(audio_signal: npt.NDArray[np.float32], rate: int, chunk_size: f
     end = start + chunk_size
 
 
-def fillup_with_silence(audio_chunk: npt.NDArray[np.float32], target_length: int) -> npt.NDArray[np.float32]:
+def fillup_with_silence(
+  audio_chunk: npt.NDArray[np.float32], target_length: int
+) -> npt.NDArray[np.float32]:
   current_length = len(audio_chunk)
   assert current_length <= target_length
 
@@ -118,8 +141,12 @@ def fillup_with_silence(audio_chunk: npt.NDArray[np.float32], target_length: int
   return filled_chunk
 
 
-def flat_sigmoid(x: npt.NDArray[np.float32], sensitivity: float) -> npt.NDArray[np.float32]:
-  result: npt.NDArray[np.float32] = 1.0 / (1.0 + np.exp(sensitivity * np.clip(x, -15, 15)))
+def flat_sigmoid(
+  x: npt.NDArray[np.float32], sensitivity: float
+) -> npt.NDArray[np.float32]:
+  result: npt.NDArray[np.float32] = 1.0 / (
+    1.0 + np.exp(sensitivity * np.clip(x, -15, 15))
+  )
   return result
 
 
@@ -129,16 +156,16 @@ def sigmoid_inverse(x: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
 
 def get_app_data_path() -> Path:
   """Returns the appropriate application data path based on the operating system."""
-  if os.name == 'nt':  # Windows
-    app_data_path = os.getenv('APPDATA')
+  if os.name == "nt":  # Windows
+    app_data_path = os.getenv("APPDATA")
     assert app_data_path is not None
-  elif os.name == 'posix':
-    if os.uname().sysname == 'Darwin':  # Mac OS X
-      app_data_path = os.path.expanduser('~/Library/Application Support')
+  elif os.name == "posix":
+    if os.uname().sysname == "Darwin":  # Mac OS X
+      app_data_path = os.path.expanduser("~/Library/Application Support")
     else:  # Linux
-      app_data_path = os.path.expanduser('~/.local/share')
+      app_data_path = os.path.expanduser("~/.local/share")
   else:
-    raise OSError('Unsupported operating system')
+    raise OSError("Unsupported operating system")
 
   result = Path(app_data_path)
   return result
@@ -155,29 +182,39 @@ def download_file(url: str, file_path: Path) -> None:
 
   response = requests.get(url, timeout=30)
   if response.status_code == 200:
-    with open(file_path, 'wb') as file:
+    with open(file_path, "wb") as file:
       file.write(response.content)
   else:
-    raise ValueError(f"Failed to download the file. Status code: {response.status_code}")
+    raise ValueError(
+      f"Failed to download the file. Status code: {response.status_code}"
+    )
 
 
-def download_file_tqdm(url: str, file_path: Path, *, download_size: Optional[int] = None, description: Optional[str] = None) -> int:
+def download_file_tqdm(
+  url: str,
+  file_path: Path,
+  *,
+  download_size: Optional[int] = None,
+  description: Optional[str] = None,
+) -> int:
   assert file_path.parent.is_dir()
 
   response = requests.get(url, stream=True, timeout=30)
-  total_size = int(response.headers.get('content-length', 0))
+  total_size = int(response.headers.get("content-length", 0))
   if download_size is not None:
     total_size = download_size
 
   block_size = 1024
-  with tqdm(total=total_size, unit='iB', unit_scale=True, desc=description) as tqdm_bar:
-    with open(file_path, 'wb') as file:
+  with tqdm(total=total_size, unit="iB", unit_scale=True, desc=description) as tqdm_bar:
+    with open(file_path, "wb") as file:
       for data in response.iter_content(block_size):
         tqdm_bar.update(len(data))
         file.write(data)
 
   if response.status_code != 200 or (total_size not in (0, tqdm_bar.n)):
-    raise ValueError(f"Failed to download the file. Status code: {response.status_code}")
+    raise ValueError(
+      f"Failed to download the file. Status code: {response.status_code}"
+    )
   return total_size
 
 
@@ -185,13 +222,17 @@ def itertools_batched(iterable: Iterable, n: int) -> Generator[Any, None, None]:
   # https://docs.python.org/3.12/library/itertools.html#itertools.batched
   # batched('ABCDEFG', 3) → ABC DEF G
   if n < 1:
-    raise ValueError('n must be at least one')
+    raise ValueError("n must be at least one")
   iterator = iter(iterable)
   while batch := tuple(islice(iterator, n)):
     yield batch
 
 
-def get_chunks_with_overlap(total_duration_s: Union[int, float], chunk_duration_s: Union[int, float], overlap_duration_s: Union[int, float]) -> Generator[Tuple[float, float], None, None]:
+def get_chunks_with_overlap(
+  total_duration_s: Union[int, float],
+  chunk_duration_s: Union[int, float],
+  overlap_duration_s: Union[int, float],
+) -> Generator[Tuple[float, float], None, None]:
   assert total_duration_s > 0
   assert chunk_duration_s > 0
   assert 0 <= overlap_duration_s < chunk_duration_s
@@ -213,7 +254,13 @@ def get_chunks_with_overlap(total_duration_s: Union[int, float], chunk_duration_
       break
 
 
-def iter_chunks_with_overlap(chunk_duration_s: Union[int, float], overlap_duration_s: Union[int, float], /, *, start: Union[int, float] = 0.0) -> Generator[Tuple[float, float], None, None]:
+def iter_chunks_with_overlap(
+  chunk_duration_s: Union[int, float],
+  overlap_duration_s: Union[int, float],
+  /,
+  *,
+  start: Union[int, float] = 0.0,
+) -> Generator[Tuple[float, float], None, None]:
   assert chunk_duration_s > 0
   assert 0 <= overlap_duration_s < chunk_duration_s
 
@@ -231,10 +278,12 @@ def iter_chunks_with_overlap(chunk_duration_s: Union[int, float], overlap_durati
     yield s, end
 
 
-def resample_array(x: npt.NDArray, sample_rate: int, target_sample_rate: int) -> npt.NDArray:
+def resample_array(
+  x: npt.NDArray, sample_rate: int, target_sample_rate: int
+) -> npt.NDArray:
   assert len(x.shape) == 1
-  assert 0 < sample_rate
-  assert 0 < target_sample_rate
+  assert sample_rate > 0
+  assert target_sample_rate > 0
 
   if sample_rate == target_sample_rate:
     return x
@@ -245,7 +294,14 @@ def resample_array(x: npt.NDArray, sample_rate: int, target_sample_rate: int) ->
   return x_resampled
 
 
-def load_audio_in_chunks_with_overlap(audio_path: Path, /, *, chunk_duration_s: float = 3, overlap_duration_s: float = 0, target_sample_rate: int = 48000) -> Generator[Tuple[float, float, npt.NDArray[np.float32]], None, None]:
+def load_audio_in_chunks_with_overlap(
+  audio_path: Path,
+  /,
+  *,
+  chunk_duration_s: float = 3,
+  overlap_duration_s: float = 0,
+  target_sample_rate: int = 48000,
+) -> Generator[Tuple[float, float, npt.NDArray[np.float32]], None, None]:
   assert audio_path.is_file()
 
   sf_info = sf.info(audio_path)
@@ -263,12 +319,21 @@ def load_audio_in_chunks_with_overlap(audio_path: Path, /, *, chunk_duration_s: 
   for start, end in timestamps:
     start_samples = round(start * sample_rate)
     end_samples = round(end * sample_rate)
-    audio, _ = sf.read(audio_path, start=start_samples, stop=end_samples, dtype=np.float32)
+    audio, _ = sf.read(
+      audio_path, start=start_samples, stop=end_samples, dtype=np.float32
+    )
     audio = resample_array(audio, sample_rate, target_sample_rate)
     yield start, end, audio
 
 
-def iter_audio_in_chunks_with_overlap(audio_path: Path, /, *, chunk_duration_s: float = 3, overlap_duration_s: float = 0, target_sample_rate: int = 48000) -> Generator[Tuple[TimeInterval, npt.NDArray[np.float32]], None, None]:
+def iter_audio_in_chunks_with_overlap(
+  audio_path: Path,
+  /,
+  *,
+  chunk_duration_s: float = 3,
+  overlap_duration_s: float = 0,
+  target_sample_rate: int = 48000,
+) -> Generator[Tuple[TimeInterval, npt.NDArray[np.float32]], None, None]:
   # same method as above
   assert audio_path.is_file()
 
@@ -287,7 +352,9 @@ def iter_audio_in_chunks_with_overlap(audio_path: Path, /, *, chunk_duration_s: 
     start_samples = round(start * sample_rate)
     end = min(end, file_duration)
     end_samples = round(end * sample_rate)
-    audio, _ = sf.read(audio_path, start=start_samples, stop=end_samples, dtype=np.float32)
+    audio, _ = sf.read(
+      audio_path, start=start_samples, stop=end_samples, dtype=np.float32
+    )
     audio = resample_array(audio, sample_rate, target_sample_rate)
     yield (start, end), audio
     was_last_chunk = end == file_duration

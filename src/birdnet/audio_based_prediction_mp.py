@@ -1,10 +1,11 @@
 from collections import OrderedDict
+from collections.abc import Generator
 from functools import partial
 from logging import getLogger
 from multiprocessing import Pool
 from os import cpu_count
 from pathlib import Path
-from typing import Callable, Generator, List, Optional, Set, Tuple, Union
+from typing import Callable, List, Optional, Set, Tuple, Union
 
 import soundfile as sf
 from ordered_set import OrderedSet
@@ -12,28 +13,31 @@ from tqdm import tqdm
 
 from birdnet.audio_based_prediction import predict_species_within_audio_file_core
 from birdnet.models.v2m4.model_v2m4_base import AudioModelBaseV2M4
-from birdnet.models.v2m4.model_v2m4_tflite import AudioModelV2M4TFLite, AudioModelV2M4TFLiteBase
+from birdnet.models.v2m4.model_v2m4_tflite import (
+  AudioModelV2M4TFLite,
+  AudioModelV2M4TFLiteBase,
+)
 from birdnet.types import Species, SpeciesPredictions
 
 
 def predict_species_within_audio_files_mp(
-    audio_files: List[Path],
-    /,
-    *,
-    min_confidence: float = 0.1,
-    batch_size: int = 1,
-    chunk_overlap_s: float = 0.0,
-    use_bandpass: bool = True,
-    bandpass_fmin: Optional[int] = 0,
-    bandpass_fmax: Optional[int] = 15_000,
-    apply_sigmoid: bool = True,
-    sigmoid_sensitivity: Optional[float] = 1.0,
-    species_filter: Optional[Union[Set[Species], OrderedSet[Species]]] = None,
-    custom_n_jobs: Optional[int] = None,
-    custom_model: Optional[AudioModelV2M4TFLiteBase] = None,
-    maxtasksperchild: Optional[int] = None,
-    silent: bool = False,
-  ) -> Generator[Tuple[Path, SpeciesPredictions], None, None]:
+  audio_files: List[Path],
+  /,
+  *,
+  min_confidence: float = 0.1,
+  batch_size: int = 1,
+  chunk_overlap_s: float = 0.0,
+  use_bandpass: bool = True,
+  bandpass_fmin: Optional[int] = 0,
+  bandpass_fmax: Optional[int] = 15_000,
+  apply_sigmoid: bool = True,
+  sigmoid_sensitivity: Optional[float] = 1.0,
+  species_filter: Optional[Union[Set[Species], OrderedSet[Species]]] = None,
+  custom_n_jobs: Optional[int] = None,
+  custom_model: Optional[AudioModelV2M4TFLiteBase] = None,
+  maxtasksperchild: Optional[int] = None,
+  silent: bool = False,
+) -> Generator[Tuple[Path, SpeciesPredictions], None, None]:
   """
   Predicts species within audio files using multiprocessing.
 
@@ -85,22 +89,28 @@ def predict_species_within_audio_files_mp(
 
   if not 0 <= min_confidence < 1.0:
     raise ValueError(
-      "Value for 'min_confidence' is invalid! It needs to be in interval [0.0, 1.0).")
+      "Value for 'min_confidence' is invalid! It needs to be in interval [0.0, 1.0)."
+    )
 
   if not 0 <= chunk_overlap_s < 3:
     raise ValueError(
-      "Value for 'chunk_overlap_s' is invalid! It needs to be in interval [0.0, 3.0).")
+      "Value for 'chunk_overlap_s' is invalid! It needs to be in interval [0.0, 3.0)."
+    )
 
   if batch_size < 1:
     raise ValueError(
-      "Value for 'batch_size' is invalid! It needs to be larger than zero.")
+      "Value for 'batch_size' is invalid! It needs to be larger than zero."
+    )
 
   if apply_sigmoid:
     if sigmoid_sensitivity is None:
-      raise ValueError("Value for 'sigmoid_sensitivity' is required if 'apply_sigmoid==True'!")
+      raise ValueError(
+        "Value for 'sigmoid_sensitivity' is required if 'apply_sigmoid==True'!"
+      )
     if not 0.5 <= sigmoid_sensitivity <= 1.5:
       raise ValueError(
-        "Value for 'sigmoid_sensitivity' is invalid! It needs to be in interval [0.5, 1.5].")
+        "Value for 'sigmoid_sensitivity' is invalid! It needs to be in interval [0.5, 1.5]."
+      )
 
   if use_bandpass:
     if bandpass_fmin is None:
@@ -109,11 +119,14 @@ def predict_species_within_audio_files_mp(
       raise ValueError("Value for 'bandpass_fmax' is required if 'use_bandpass==True'!")
 
     if bandpass_fmin < 0:
-      raise ValueError("Value for 'bandpass_fmin' is invalid! It needs to be larger than zero.")
+      raise ValueError(
+        "Value for 'bandpass_fmin' is invalid! It needs to be larger than zero."
+      )
 
     if bandpass_fmax <= bandpass_fmin:
       raise ValueError(
-        "Value for 'bandpass_fmax' is invalid! It needs to be larger than 'bandpass_fmin'.")
+        "Value for 'bandpass_fmax' is invalid! It needs to be larger than 'bandpass_fmin'."
+      )
 
   n_cpus = cpu_count()
   assert n_cpus is not None
@@ -121,11 +134,13 @@ def predict_species_within_audio_files_mp(
   if custom_n_jobs is not None:
     if not 0 < custom_n_jobs <= n_cpus:
       raise ValueError(
-        f"Value for 'custom_n_jobs' is invalid! It needs to be in interval [1, {n_cpus}].")
+        f"Value for 'custom_n_jobs' is invalid! It needs to be in interval [1, {n_cpus}]."
+      )
 
   if maxtasksperchild is not None and maxtasksperchild <= 0:
     raise ValueError(
-      "Value for 'maxtasksperchild' is invalid! It needs to be None or larger than 0.")
+      "Value for 'maxtasksperchild' is invalid! It needs to be None or larger than 0."
+    )
 
   n_jobs = custom_n_jobs if custom_n_jobs is not None else n_cpus
 
@@ -144,10 +159,12 @@ def predict_species_within_audio_files_mp(
   else:
     if not isinstance(custom_model, AudioModelV2M4TFLiteBase):
       raise ValueError(
-        "Value for 'custom_model' is invalid! It needs to be a subclass of 'AudioModelV2M4TFLiteBase'!")
+        "Value for 'custom_model' is invalid! It needs to be a subclass of 'AudioModelV2M4TFLiteBase'!"
+      )
     if custom_model.tflite_num_threads not in [0, 1]:
       raise ValueError(
-        "Value for 'tflite_num_threads' in model is invalid! Multithreading in TFLite models is not supported. Please set tflite_num_threads to 1 to disable multithreading.")
+        "Value for 'tflite_num_threads' in model is invalid! Multithreading in TFLite models is not supported. Please set tflite_num_threads to 1 to disable multithreading."
+      )
     model = custom_model
 
   use_species_filter = species_filter is not None and len(species_filter) > 0
@@ -156,7 +173,8 @@ def predict_species_within_audio_files_mp(
     species_filter_contains_unknown_species = not species_filter.issubset(model.species)
     if species_filter_contains_unknown_species:
       raise ValueError(
-        f"At least one species defined in 'filter_species' is invalid! They need to be known species, e.g., {', '.join(model.species[:3])}")
+        f"At least one species defined in 'filter_species' is invalid! They need to be known species, e.g., {', '.join(model.species[:3])}"
+      )
 
   prediction_method = partial(
     predict_species_within_audio_file_core,
@@ -179,14 +197,18 @@ def predict_species_within_audio_files_mp(
 
   errors: List[Tuple[Path, Exception]] = []
 
-  with tqdm(total=len(audio_files), desc="Predicting species", unit="file", disable=silent) as pbar:
+  with tqdm(
+    total=len(audio_files), desc="Predicting species", unit="file", disable=silent
+  ) as pbar:
     with Pool(
       processes=n_jobs,
       initializer=init_pool,
       initargs=(model,),
       maxtasksperchild=maxtasksperchild,
     ) as pool:
-      for audio_file, result in pool.imap_unordered(process_prediction, audio_files, chunksize=1):
+      for audio_file, result in pool.imap_unordered(
+        process_prediction, audio_files, chunksize=1
+      ):
         if isinstance(result, OrderedDict):
           yield audio_file, result
         else:
@@ -209,17 +231,21 @@ def init_pool(model: AudioModelBaseV2M4) -> None:
   process_model = model
 
 
-def process_predict_species_within_audio_file(audio_file: Path, prediction_method: Callable) -> Tuple[Path, Union[SpeciesPredictions, Exception]]:
+def process_predict_species_within_audio_file(
+  audio_file: Path, prediction_method: Callable
+) -> Tuple[Path, Union[SpeciesPredictions, Exception]]:
   global process_model
 
   if not audio_file.is_file():
     return audio_file, ValueError(
-      "Value for 'audio_file' is invalid! It needs to be a path to an existing audio file.")
+      "Value for 'audio_file' is invalid! It needs to be a path to an existing audio file."
+    )
 
   sf_info = sf.info(audio_file)
   if sf_info.channels != 1:
     return audio_file, ValueError(
-      "Value for 'audio_file' is invalid! It needs to be a mono audio file. Please resample the file to mono.")
+      "Value for 'audio_file' is invalid! It needs to be a mono audio file. Please resample the file to mono."
+    )
 
   try:
     result = SpeciesPredictions(prediction_method(audio_file, model=process_model))

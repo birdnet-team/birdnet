@@ -1,6 +1,7 @@
+from collections.abc import Generator, Iterable
 from operator import itemgetter
 from pathlib import Path
-from typing import Generator, Iterable, List, Optional, Set, Tuple, Union
+from typing import List, Optional, Set, Tuple, Union
 
 import numpy as np
 import soundfile as sf
@@ -10,26 +11,31 @@ from tqdm import tqdm
 from birdnet.models.v2m4.model_v2m4_base import AudioModelBaseV2M4
 from birdnet.models.v2m4.model_v2m4_protobuf import AudioModelV2M4Protobuf
 from birdnet.types import Confidence, Species, SpeciesPrediction, TimeInterval
-from birdnet.utils import (bandpass_signal, fillup_with_silence, flat_sigmoid, itertools_batched,
-                           load_audio_in_chunks_with_overlap)
+from birdnet.utils import (
+  bandpass_signal,
+  fillup_with_silence,
+  flat_sigmoid,
+  itertools_batched,
+  load_audio_in_chunks_with_overlap,
+)
 
 
 def predict_species_within_audio_file(
-    audio_file: Path,
-    /,
-    *,
-    min_confidence: float = 0.1,
-    batch_size: int = 100,
-    chunk_overlap_s: float = 0.0,
-    use_bandpass: bool = True,
-    bandpass_fmin: Optional[int] = 0,
-    bandpass_fmax: Optional[int] = 15_000,
-    apply_sigmoid: bool = True,
-    sigmoid_sensitivity: Optional[float] = 1.0,
-    species_filter: Optional[Union[Set[Species], OrderedSet[Species]]] = None,
-    custom_model: Optional[AudioModelBaseV2M4] = None,
-    silent: bool = False
-  ) -> Generator[Tuple[TimeInterval, SpeciesPrediction], None, None]:
+  audio_file: Path,
+  /,
+  *,
+  min_confidence: float = 0.1,
+  batch_size: int = 100,
+  chunk_overlap_s: float = 0.0,
+  use_bandpass: bool = True,
+  bandpass_fmin: Optional[int] = 0,
+  bandpass_fmax: Optional[int] = 15_000,
+  apply_sigmoid: bool = True,
+  sigmoid_sensitivity: Optional[float] = 1.0,
+  species_filter: Optional[Union[Set[Species], OrderedSet[Species]]] = None,
+  custom_model: Optional[AudioModelBaseV2M4] = None,
+  silent: bool = False,
+) -> Generator[Tuple[TimeInterval, SpeciesPrediction], None, None]:
   """
   Predicts species within an audio file.
 
@@ -75,31 +81,39 @@ def predict_species_within_audio_file(
 
   if not audio_file.is_file():
     raise ValueError(
-      "Value for 'audio_file' is invalid! It needs to be a path to an existing audio file.")
+      "Value for 'audio_file' is invalid! It needs to be a path to an existing audio file."
+    )
 
   sf_info = sf.info(audio_file)
   if sf_info.channels != 1:
     raise ValueError(
-      "Value for 'audio_file' is invalid! It needs to be a mono audio file. Please resample the file to mono.")
+      "Value for 'audio_file' is invalid! It needs to be a mono audio file. Please resample the file to mono."
+    )
 
   if batch_size < 1:
     raise ValueError(
-      "Value for 'batch_size' is invalid! It needs to be larger than zero.")
+      "Value for 'batch_size' is invalid! It needs to be larger than zero."
+    )
 
   if not 0 <= min_confidence < 1.0:
     raise ValueError(
-      "Value for 'min_confidence' is invalid! It needs to be in interval [0.0, 1.0).")
+      "Value for 'min_confidence' is invalid! It needs to be in interval [0.0, 1.0)."
+    )
 
   if not 0 <= chunk_overlap_s < 3:
     raise ValueError(
-      "Value for 'chunk_overlap_s' is invalid! It needs to be in interval [0.0, 3.0).")
+      "Value for 'chunk_overlap_s' is invalid! It needs to be in interval [0.0, 3.0)."
+    )
 
   if apply_sigmoid:
     if sigmoid_sensitivity is None:
-      raise ValueError("Value for 'sigmoid_sensitivity' is required if 'apply_sigmoid==True'!")
+      raise ValueError(
+        "Value for 'sigmoid_sensitivity' is required if 'apply_sigmoid==True'!"
+      )
     if not 0.5 <= sigmoid_sensitivity <= 1.5:
       raise ValueError(
-        "Value for 'sigmoid_sensitivity' is invalid! It needs to be in interval [0.5, 1.5].")
+        "Value for 'sigmoid_sensitivity' is invalid! It needs to be in interval [0.5, 1.5]."
+      )
 
   if use_bandpass:
     if bandpass_fmin is None:
@@ -108,11 +122,14 @@ def predict_species_within_audio_file(
       raise ValueError("Value for 'bandpass_fmax' is required if 'use_bandpass==True'!")
 
     if bandpass_fmin < 0:
-      raise ValueError("Value for 'bandpass_fmin' is invalid! It needs to be larger than zero.")
+      raise ValueError(
+        "Value for 'bandpass_fmin' is invalid! It needs to be larger than zero."
+      )
 
     if bandpass_fmax <= bandpass_fmin:
       raise ValueError(
-        "Value for 'bandpass_fmax' is invalid! It needs to be larger than 'bandpass_fmin'.")
+        "Value for 'bandpass_fmax' is invalid! It needs to be larger than 'bandpass_fmin'."
+      )
 
   model: AudioModelBaseV2M4
   if custom_model is None:
@@ -126,7 +143,8 @@ def predict_species_within_audio_file(
     species_filter_contains_unknown_species = not species_filter.issubset(model.species)
     if species_filter_contains_unknown_species:
       raise ValueError(
-        f"At least one species defined in 'filter_species' is invalid! They need to be known species, e.g., {', '.join(model.species[:3])}")
+        f"At least one species defined in 'filter_species' is invalid! They need to be known species, e.g., {', '.join(model.species[:3])}"
+      )
 
   return predict_species_within_audio_file_core(
     audio_file=audio_file,
@@ -145,20 +163,19 @@ def predict_species_within_audio_file(
 
 
 def predict_species_within_audio_file_core(
-    audio_file: Path,
-    min_confidence: float,
-    batch_size: int,
-    chunk_overlap_s: float,
-    use_bandpass: bool,
-    bandpass_fmin: Optional[int],
-    bandpass_fmax: Optional[int],
-    apply_sigmoid: bool,
-    sigmoid_sensitivity: Optional[float],
-    species_filter: Optional[Union[Set[Species], OrderedSet[Species]]],
-    model: AudioModelBaseV2M4,
-    silent: bool
-  ) -> Generator[Tuple[TimeInterval, SpeciesPrediction], None, None]:
-
+  audio_file: Path,
+  min_confidence: float,
+  batch_size: int,
+  chunk_overlap_s: float,
+  use_bandpass: bool,
+  bandpass_fmin: Optional[int],
+  bandpass_fmax: Optional[int],
+  apply_sigmoid: bool,
+  sigmoid_sensitivity: Optional[float],
+  species_filter: Optional[Union[Set[Species], OrderedSet[Species]]],
+  model: AudioModelBaseV2M4,
+  silent: bool,
+) -> Generator[Tuple[TimeInterval, SpeciesPrediction], None, None]:
   assert audio_file.is_file()
   assert batch_size >= 1
   assert 0 <= min_confidence < 1.0
@@ -201,21 +218,27 @@ def predict_species_within_audio_file_core(
     assert bandpass_fmax > bandpass_fmin
 
     chunked_audio_bandpassed = (
-      (start, end, bandpass_signal(
-        chunk,
-        model.sample_rate,
-        bandpass_fmin,
-        bandpass_fmax,
-        model.sig_fmin,
-        model.sig_fmax,
-      ))
+      (
+        start,
+        end,
+        bandpass_signal(
+          chunk,
+          model.sample_rate,
+          bandpass_fmin,
+          bandpass_fmax,
+          model.sig_fmin,
+          model.sig_fmax,
+        ),
+      )
       for start, end, chunk in chunked_audio
     )
     chunked_audio = chunked_audio_bandpassed
 
   batches = itertools_batched(chunked_audio, batch_size)
   dur = float(sf.info(audio_file).duration)
-  with tqdm(total=round(dur), desc="Predicting species", unit="s", disable=silent) as pbar:
+  with tqdm(
+    total=round(dur), desc="Predicting species", unit="s", disable=silent
+  ) as pbar:
     for batch_of_chunks in batches:
       batch = np.array(list(map(itemgetter(2), batch_of_chunks)), np.float32)
       predicted_species = model.predict_species(batch)
@@ -232,11 +255,15 @@ def predict_species_within_audio_file_core(
         labeled_prediction = (x for x in zip(model.species, prediction))
 
         if min_confidence > 0:
-          labeled_prediction = filter_species_by_confidence(labeled_prediction, min_confidence)
+          labeled_prediction = filter_species_by_confidence(
+            labeled_prediction, min_confidence
+          )
 
         if use_species_filter:
           assert species_filter is not None  # added for mypy
-          labeled_prediction = filter_species_by_name(labeled_prediction, species_filter)
+          labeled_prediction = filter_species_by_name(
+            labeled_prediction, species_filter
+          )
 
         sorted_predictions = sort_predictions(labeled_prediction)
         result = SpeciesPrediction(sorted_predictions)
@@ -246,7 +273,9 @@ def predict_species_within_audio_file_core(
         pbar.update(round(chunk_end - pbar.n))
 
 
-def sort_predictions(predictions: Iterable[Tuple[Species, Confidence]]) -> List[Tuple[Species, Confidence]]:
+def sort_predictions(
+  predictions: Iterable[Tuple[Species, Confidence]],
+) -> List[Tuple[Species, Confidence]]:
   # Sort by score then by name
   result = sorted(
     predictions,
@@ -256,17 +285,18 @@ def sort_predictions(predictions: Iterable[Tuple[Species, Confidence]]) -> List[
   return result
 
 
-def filter_species_by_name(predictions: Iterable[Tuple[Species, Confidence]], use_species: Union[Set[Species], OrderedSet[Species]]) -> Generator[Tuple[Species, Confidence], None, None]:
+def filter_species_by_name(
+  predictions: Iterable[Tuple[Species, Confidence]],
+  use_species: Union[Set[Species], OrderedSet[Species]],
+) -> Generator[Tuple[Species, Confidence], None, None]:
   yield from (
-    (species, score)
-    for species, score in predictions
-    if species in use_species
+    (species, score) for species, score in predictions if species in use_species
   )
 
 
-def filter_species_by_confidence(predictions: Iterable[Tuple[Species, Confidence]], min_confidence: float) -> Generator[Tuple[Species, Confidence], None, None]:
+def filter_species_by_confidence(
+  predictions: Iterable[Tuple[Species, Confidence]], min_confidence: float
+) -> Generator[Tuple[Species, Confidence], None, None]:
   yield from (
-    (species, score)
-    for species, score in predictions
-    if score >= min_confidence
+    (species, score) for species, score in predictions if score >= min_confidence
   )

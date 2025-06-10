@@ -1,4 +1,4 @@
-from typing import OrderedDict as ODType
+from collections import OrderedDict as ODType
 from typing import Tuple
 
 Species = str

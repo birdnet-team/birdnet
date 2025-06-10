@@ -13,7 +13,7 @@ AVAILABLE_LANGUAGES: Set[Language] = {
 }
 
 
-class ModelBaseV2M4():
+class ModelBaseV2M4:
   def __init__(self, species_list: OrderedSet[Species]) -> None:
     self._species_list = species_list
 

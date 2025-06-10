@@ -11,11 +11,14 @@ from birdnet.models.v2m4.model_v2m4_protobuf import AudioModelV2M4Protobuf
 from birdnet.types import Species, SpeciesPredictions
 from birdnet_tests.helper import TEST_RESULTS_DIR, species_predictions_are_equal
 from birdnet_tests.models.m2v4.test_predict_species_within_audio_file import (
-  TEST_FILE_WAV, AudioTestCase, create_ground_truth_test_file,
+  TEST_FILE_WAV,
+  AudioTestCase,
+  create_ground_truth_test_file,
   model_minimum_test_soundscape_predictions_are_correct,
   model_test_identical_predictions_return_same_result,
   model_test_soundscape_predictions_are_globally_correct,
-  predict_species_within_audio_file_in_test_case)
+  predict_species_within_audio_file_in_test_case,
+)
 
 TEST_PATH = Path(TEST_RESULTS_DIR / "v2m4" / "audio-model.protobuf-cpu.pkl")
 

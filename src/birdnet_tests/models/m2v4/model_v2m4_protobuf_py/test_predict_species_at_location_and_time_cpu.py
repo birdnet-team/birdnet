@@ -10,10 +10,15 @@ from birdnet.models.v2m4.model_v2m4_protobuf import MetaModelV2M4Protobuf
 from birdnet.types import SpeciesPrediction
 from birdnet_tests.helper import TEST_RESULTS_DIR, species_prediction_is_equal
 from birdnet_tests.models.m2v4.test_predict_species_at_location_and_time import (
-  LocationTestCase, create_ground_truth_test_file,
-  model_test_identical_predictions_return_same_result, model_test_no_week,
-  model_test_predictions_are_globally_correct, model_test_using_no_threshold_returns_all_species,
-  model_test_using_threshold, predict_species)
+  LocationTestCase,
+  create_ground_truth_test_file,
+  model_test_identical_predictions_return_same_result,
+  model_test_no_week,
+  model_test_predictions_are_globally_correct,
+  model_test_using_no_threshold_returns_all_species,
+  model_test_using_threshold,
+  predict_species,
+)
 
 TEST_PATH = Path(TEST_RESULTS_DIR / "v2m4" / "meta-model.protobuf-cpu.pkl")
 

@@ -1,6 +1,9 @@
 import pytest
 
-from birdnet.models.v2m4.model_v2m4_tflite import AVAILABLE_LANGUAGES, MetaModelV2M4TFLite
+from birdnet.models.v2m4.model_v2m4_tflite import (
+  AVAILABLE_LANGUAGES,
+  MetaModelV2M4TFLite,
+)
 
 
 def test_invalid_language_raises_value_error():

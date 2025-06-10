@@ -5,7 +5,7 @@ from birdnet.models.v2m4.model_v2m4_tflite import AudioModelV2M4TFLiteBase
 from birdnet.utils import get_species_from_file
 
 
-class CustomTFLiteParser():
+class CustomTFLiteParser:
   def __init__(self, classifier_folder: Path, classifier_name: str) -> None:
     self._audio_model_path = classifier_folder / f"{classifier_name}.tflite"
     self._label_path = classifier_folder / f"{classifier_name}_Labels.txt"

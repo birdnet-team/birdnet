@@ -5,8 +5,8 @@ description = "A Python library for identifying bird species by their sounds."
 readme = "README.md"
 requires-python = ">=3.9, <3.12"
 license = { text = "MIT" }
-authors = [{ name = "Stefan Taubert", email = "pypi@stefantaubert.com" }]
-maintainers = [{ name = "Stefan Taubert", email = "pypi@stefantaubert.com" }]
+authors = [{ name = "Stefan Taubert" }]
+maintainers = [{ name = "Stefan Taubert" }]
 keywords = [
   "birds",
   "deep-learning",
@@ -32,16 +32,17 @@ classifiers = [
 ]
 dependencies = [
   "tensorflow==2.15.1",
-  "resampy>=0.4.3, <1.0.0",
-  "soundfile>=0.12.1, <1.0.0",
-  "scipy>=1.9.3, <2.0.0",
-  "ordered-set>=4.1.0, <5.0.0",
-  "tqdm>=4.64.1, <5.0.0",
-  "numpy>=1.23.5, <2.0.0",
+  "resampy==0.4.3",
+  "soundfile==0.12.1",
+  "scipy==1.9.3",
+  "ordered-set==4.1.0",
+  "tqdm==4.64.1",
+  "numpy==1.23.5",
 ]
 
 [project.optional-dependencies]
 and-cuda = ["tensorflow[and-cuda]==2.15.1"]
+dev = ["pytest", "pytest-cov", "pytest-xdist", "tox", "ruff", "mypy", "rope", "build", "twine", "scipy-stubs"]
 
 [project.urls]
 Homepage = "https://github.com/birdnet-team/birdnet"
@@ -65,16 +66,40 @@ log_cli = true
 log_level = "DEBUG"
 testpaths = ["src/birdnet_tests"]
 
-[tool.autopep8]
-indent-size = 2
-ignore = ["E121"]
-max_line_length = 100
+[tool.ruff]
+src = ["src/mel_cepstral_distance"]
+line-length = 88
+indent-width = 2
 
-[tool.isort]
-line_length = 100
-indent = 2
-known_first_party = ["birdnet"]
-known_third_party = []
+[tool.ruff.format]
+indent-style = "space"
+
+[tool.ruff.lint]
+select = [
+    # pycodestyle
+    "E",
+    # Pyflakes
+    "F",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
+    "C4",
+    "T20",
+    "PERF",
+    "ANN",
+    "TID",
+    "EXE", 
+    "W",
+    # "D",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["birdnet*"]
 
 [tool.tox]
 legacy_tox_ini = """
@@ -83,10 +108,23 @@ envlist = py{39,310,311}
 isolated_build = True
 
 [testenv]
+setenv =
+  COVERAGE_FILE = .coverage.{envname}
+
 deps = 
-  pytest>=4.16.0
+  pytest
+  pytest-cov
+  pytest-xdist
+  mypy
+  ruff
 commands = 
   pytest
+  ruff check src/birdnet
+  ruff check src/birdnet_tests
+  pytest -n auto \
+    --cov=src/birdnet \
+    --cov-append \
+    --cov-report=
 """
 
 [build-system]

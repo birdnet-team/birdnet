@@ -98,7 +98,7 @@ def model_test_identical_predictions_return_same_result(model: MetaModelBaseV2M4
 
 
 @dataclass()
-class LocationTestCase():
+class LocationTestCase:
   latitude: float = 42.5
   longitude: float = -76.45
   week: Optional[int] = None
