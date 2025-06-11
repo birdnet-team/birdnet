@@ -116,3 +116,4 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+deploy-PyPI.sh

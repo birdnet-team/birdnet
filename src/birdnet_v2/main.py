@@ -29,7 +29,9 @@ from pathlib import Path
 from typing import Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
+import numpy.typing as npt
 import soundfile as sf  # pip install soundfile
+from numpy.lib.stride_tricks import as_strided
 
 # try:
 #   import tflite_runtime.interpreter as tflite
@@ -37,70 +39,86 @@ import soundfile as sf  # pip install soundfile
 from tensorflow.lite.python import interpreter as tflite
 
 from birdnet_v2.consumer import Consumer, SpeciesTensor
-from birdnet_v2.producer import (  # type: ignore
-  Producer,
-  load_audio_in_chunks_with_overlap,
+from birdnet_v2.producer import (
+    Producer,  # type: ignore
+    load_audio_in_chunks_with_overlap,
 )
 from birdnet_v2.worker import Worker
 
-# ----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 WIN_SEC = 3.0  # window length in seconds
 HOP_SEC = 1.0  # hop size (sec)
 SR = 32_000  # sample rate expected by the model
 WIN_SAMPLES = int(WIN_SEC * SR)
 EMPTY_ID = 0xFFFF
 
-FrameBatch = Tuple[int, int, np.ndarray]  # (file_idx, first_win_idx, batch[B, N])
-import numpy as np
-import soundfile as sf
-from numpy.lib.stride_tricks import as_strided
+# (file_idx, first_win_idx, batch[B, N])
+FrameBatch = Tuple[int, int, np.ndarray]
 
 WIN_SEC = 3.0
 HOP_SEC = 1.0
 
-import numpy.typing as npt
-
 
 def analyze(
-  files: List[Path],
-  *,
-  model_path: Path,
+    files: List[Path],
+    *,
+    model_path: Path,
 ) -> SpeciesTensor:
-  producer = Producer(
-    files,
-    chunk_duration_s=3,
-    target_sample_rate=48000,
-    queue_size=4,
-  )
+    producer = Producer(
+        files,
+        chunk_duration_s=3,
+        target_sample_rate=48000,
+        queue_size=16*600,
+    )
 
-  worker = Worker(
-    model_path,
-    producer,
-    batch_size=4,
-    n_jobs=1,
-    top_k=5,
-    threshold=0.1,
-    whitelist=None,
-  )
-  worker.start()
+    worker = Worker(
+        model_path,
+        producer,
+        batch_size=2,
+        n_jobs=16,
+        top_k=5,
+        threshold=0.1,
+        whitelist=None,
+    )
+    worker.start()
 
-  producer.fill_queue()
+    producer.fill_queue()
 
-  consumer = Consumer(producer, worker, init_w=7)
-  tensor = consumer.consume()
+    consumer = Consumer(producer, worker, init_w=1148)
+    tensor = consumer.consume()
 
-  worker.join()
+    print("before join")
+    worker.join()
+    print("after join")
 
-  return tensor
+    return tensor
 
 
 if __name__ == "__main__":
-  path = Path("test-dataset/test_dataset_1x1440min/0.wav")
-  path = Path("example/soundscape.wav")
-  tst = analyze(
-    [path],
-    model_path=Path(
-      "/home/stefan/.local/share/birdnet/models/v2.4/TFLite/audio-model.tflite"
-    ),
-  )
-  print(tst.get_at(0, 2))
+    audio_path = Path("test-dataset/test_dataset_1x1440min/0.wav")
+    audio_path = Path("example/soundscape.wav")
+    audio_path = Path("test-dataset/test_dataset_1x60min/0.wav")
+    duration = 60
+
+    n_files = 16
+    paths = [audio_path] * n_files
+    model_path = Path(
+        "/home/stefan/.local/share/birdnet/models/v2.4/TFLite/audio-model.tflite")
+    model_path = Path(
+        "src/birdnet_legacy/checkpoints/V2.4/BirdNET_GLOBAL_6K_V2.4_Model_FP32.tflite")
+    import timeit
+    from time import perf_counter
+    start = perf_counter()
+    print(f"Started analysis... {time.strftime('%H:%M:%S')}")
+    tst = analyze(
+        paths,
+        model_path=model_path,
+    )
+    end = perf_counter()
+    print(f"Finished analysis in {end - start:.2f} seconds.")
+    print(
+        f"Finished analysis in {(end - start)/n_files:.2f} seconds per file.")
+    print(f"Finished analysis in {(end - start)/n_files:.2f} s/h.")
+    print(
+        f"Finished analysis in {(end - start)/n_files/duration*1000:.2f} ms/min.")
+    print(tst.get_at(0, 2))
