@@ -12,8 +12,8 @@ from typing import Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from birdnet_v2.producer import Producer
-from birdnet_v2.worker import EMPTY_ID, Worker
+from birdnet_v3.producer import Producer
+from birdnet_v3.worker import EMPTY_ID, Worker
 
 
 class SpeciesTensor:
@@ -72,18 +72,19 @@ class SpeciesTensor:
 
 
 class Consumer:
-  def __init__(self, n_files: int, worker: Worker, init_w: int = 512):
-    self._n_files = n_files
+  def __init__(self, producer: Producer, worker: Worker, init_w: int = 512):
+    self._producer = producer
     self._worker = worker
     self.init_w = init_w
 
   def consume(self):
-    tensor = SpeciesTensor(self._n_files, self.init_w, self._worker.top_k)
+    n_files = len(self._producer._files)
+    tensor = SpeciesTensor(n_files, self.init_w, self._worker.top_k)
     live = len(self._worker.workers)
     while live > 0:
       try:
         file_indices, chunk_indices, species_indicies, species_probs, pred_msk = (
-          self._worker.get_queue.get_nowait()
+          self._worker.queue.get_nowait()
         )
       except queue.Empty:
         # check alive

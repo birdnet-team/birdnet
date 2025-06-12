@@ -7,6 +7,7 @@ import queue
 import sys
 import time
 from collections.abc import Generator
+from multiprocessing import shared_memory
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence, Tuple
 
@@ -20,153 +21,196 @@ from tensorflow.lite.python import interpreter as tflite
 
 from birdnet_v2.producer import Producer
 
-
-class Worker:
-    def __init__(
-        self,
-        model_path: Path,
-        producer: Producer,
-        batch_size: int = 2,
-        n_jobs: Optional[int] = None,
-        top_k: int = 5,
-        threshold: float = 0.03,
-        whitelist: Optional[Sequence[int]] = None,
-    ) -> None:
-        self.top_k = top_k
-
-        self._queue = mp.Queue()
-
-        species_map = [f"sp_{i}" for i in range(6522)]
-
-        valid = np.zeros(len(species_map), bool)
-        if whitelist:
-            valid[list(whitelist)] = True
-        else:
-            valid[:] = True
-        valid.setflags(write=False)
-
-        if n_jobs is None:
-            n_jobs = os.cpu_count()
-            assert n_jobs is not None, "os.cpu_count() returned None"
-
-        # workers
-        self.workers = [
-            mp.Process(
-                target=ChildWorker(model_path, top_k, threshold, valid),
-                args=(producer.queue, self._queue,
-                      producer.reading_finished, batch_size),
-                daemon=True,
-            )
-            for _ in range(n_jobs)
-        ]
-
-    @property
-    def queue(self) -> mp.Queue:
-        """
-        Returns the queue used for processing audio files.
-        """
-        return self._queue
-
-    def start(self) -> None:
-        for p in self.workers:
-            p.start()
-
-    def join(self) -> None:
-        for p in self.workers:
-            p.join()
-
-
 EMPTY_ID = 0  # 0xFFFF
 
 
-# ----------------------------------------------------------------------------
+class Worker:
+  def __init__(
+    self,
+    model_path: Path,
+    batch_size: int,
+    n_slots: int,
+    prod_queue: mp.Queue,
+    sem_free: mp.Semaphore,  # counts free slots
+    sem_fill: mp.Semaphore,  # counts filled slots
+    chunk_duration_samples,
+    n_jobs: int = 4,
+    top_k: int = 5,
+    threshold: float = 0.03,
+    whitelist: Optional[Sequence[int]] = None,
+  ) -> None:
+    self.top_k = top_k
+
+    self._queue = mp.Queue()
+
+    species_map = [f"sp_{i}" for i in range(6522)]
+
+    valid = np.zeros(len(species_map), bool)
+    if whitelist:
+      valid[list(whitelist)] = True
+    else:
+      valid[:] = True
+    valid.setflags(write=False)
+
+    # workers
+    self.workers = [
+      mp.Process(
+        target=ChildWorker(
+          model_path,
+          top_k,
+          threshold,
+          valid,
+          batch_size,
+          n_slots,
+          chunk_duration_samples,
+          prod_queue,
+          self._queue,
+          sem_free,
+          sem_fill,
+        ),
+        daemon=True,
+      )
+      for _ in range(n_jobs)
+    ]
+
+  @property
+  def get_queue(self) -> mp.Queue:
+    """
+    Returns the queue used for processing audio files.
+    """
+    return self._queue
+
+  def start(self) -> None:
+    for p in self.workers:
+      p.start()
+
+  def join(self) -> None:
+    for p in self.workers:
+      p.join()
+      live = sum(p.is_alive() for p in self.workers)
+      print(f"Worker {p.pid} finished. {live} workers still alive.")
+
+
 class ChildWorker:
-    def __init__(self, model_path: str, k: int, thresh: float, valid: np.ndarray):
-        self.k = k
-        self.thresh = thresh
-        self.valid = valid
-        self.interp = tflite.Interpreter(
-            model_path=str(model_path), num_threads=1)
-        self.interp.allocate_tensors()
-        self.in_idx = self.interp.get_input_details()[0]["index"]
-        self.out_idx = self.interp.get_output_details()[0]["index"]
-        # cache last batch shape to avoid resize
-        self.cached_shape: Optional[Tuple[int, int]] = None
+  def __init__(
+    self,
+    model_path: Path,
+    top_k: int,
+    thresh: float,
+    valid: np.ndarray,
+    batch_size: int,
+    n_slots: int,
+    chunk_duration_samples: int,
+    job_q: mp.Queue,
+    out_q: mp.Queue,
+    sem_free: mp.Semaphore,
+    sem_fill: mp.Semaphore,
+  ):
+    self.k = top_k
+    self.thresh = thresh
+    self.valid = valid
+    self.job_q = job_q
+    self.out_q = out_q
+    self.sem_free = sem_free
+    self.sem_fill = sem_fill
+    # Interpreter
+    self.interp = tflite.Interpreter(str(model_path), num_threads=1)
+    self.interp.allocate_tensors()
+    self.in_idx = self.interp.get_input_details()[0]["index"]
+    self.out_idx = self.interp.get_output_details()[0]["index"]
 
-    def _infer_topk(self, batch: np.ndarray):
-        if self.cached_shape != batch.shape:
-            self.interp.resize_tensor_input(
-                self.in_idx, batch.shape, strict=True)
-            self.interp.allocate_tensors()
-            self.cached_shape = batch.shape
-        self.interp.set_tensor(self.in_idx, batch)
-        self.interp.invoke()
-        pred = self.interp.get_tensor(self.out_idx)
-        idx = np.argpartition(pred, -self.k, axis=1)[:, -self.k:]
-        sorted_order = np.take_along_axis(
-            pred, idx, axis=1).argsort(axis=1)[:, ::-1]
-        idx_sorted = np.take_along_axis(idx, sorted_order, axis=1)
-        prob = np.take_along_axis(pred, idx_sorted, axis=1)
-        keep = (prob >= self.thresh) & self.valid[idx_sorted]
-        msk = ~keep
-        idx[msk] = EMPTY_ID
-        prob[msk] = 0.0
-        return idx.astype(np.uint16), prob.astype(np.float16), msk
+    # attatch to existing shared memory buffers
+    # NOTE: these handlers must be created that GC does not delete the shared memory access
+    self._shm_file_indices = shared_memory.SharedMemory(
+      name="bnet_ring_file_indices", create=False
+    )
+    self._shm_chunk_indices = shared_memory.SharedMemory(
+      name="bnet_ring_chunk_indices", create=False
+    )
+    self._shm_audio_samples = shared_memory.SharedMemory(
+      name="bnet_ring_audio_samples", create=False
+    )
 
-    def __call__(self, job_q, out_q, stop, batch_size):
-        buffer_audio = []
-        buffer_meta = []
+    self._ring_file_indices = np.ndarray(
+      (n_slots, batch_size), np.uint32, self._shm_file_indices.buf
+    )
+    self._ring_chunk_indices = np.ndarray(
+      (n_slots, batch_size), np.uint32, self._shm_chunk_indices.buf
+    )
+    self._ring_audio_samples = np.ndarray(
+      (n_slots, batch_size, chunk_duration_samples),
+      np.float32,
+      self._shm_audio_samples.buf,
+    )
 
-        while True:
-            no_more_chunks_available = False
-            chunks_available = not job_q.empty()
-            if chunks_available:
-                try:
-                    file_idx, chunk_index, audio_chunk = job_q.get(timeout=0.1)
-                except queue.Empty:
-                    break
+    self.cached_shape: Optional[Tuple[int, int]] = (batch_size, chunk_duration_samples)
+    self.interp.resize_tensor_input(self.in_idx, self.cached_shape, strict=True)
+    self.interp.allocate_tensors()
 
-                buffer_audio.append(audio_chunk)
-                buffer_meta.append((file_idx, chunk_index))
-            else:
-                queue_still_filling = not stop.is_set()
-                if queue_still_filling:
-                    time.sleep(0.1)
-                    continue
-                else:
-                    no_more_chunks_available = True
+  # ------------------------------------------------------------
+  def _infer(self, batch: np.ndarray):
+    # batch = np.ascontiguousarray(batch)
 
-            batch_is_full = len(buffer_audio) >= batch_size
-            unprocessed_chunks_exist = len(buffer_audio) > 0
+    if self.cached_shape != batch.shape:
+      self.interp.resize_tensor_input(self.in_idx, batch.shape, strict=True)
+      self.interp.allocate_tensors()
+      self.cached_shape = batch.shape
 
-            clear_batch = batch_is_full
+    # print(batch.flags["C_CONTIGUOUS"], batch.strides, batch.dtype)
+    # batch = np.asarray(list(batch), dtype=np.float32)
+    # print(
+    #   batch.dtype,
+    #   batch.flags["C_CONTIGUOUS"],
+    #   batch.strides,
+    #   "size",
+    #   batch.nbytes / 1e6,
+    #   "MB",
+    # )
+    start_time = time.perf_counter()
+    self.interp.set_tensor(self.in_idx, batch)
+    after_set_tensor = time.perf_counter()
+    self.interp.invoke()
+    final = time.perf_counter()
+    print(
+      f"Time to set tensor: {after_set_tensor - start_time:.4f}s, {final - after_set_tensor:.4f}s to invoke interpreter, {final - start_time:.4f}s total"
+    )
+    res = self.interp.get_tensor(self.out_idx)
+    return res
 
-            if no_more_chunks_available and unprocessed_chunks_exist:
-                clear_batch = True
-
-            if clear_batch:
-                batch = np.array(buffer_audio[:batch_size])
-
-                species_indicies, species_probs, pred_msk = self._infer_topk(
-                    batch)
-
-                file_indices = np.array([f[0] for f in buffer_meta])
-                chunk_indices = np.array([f[1] for f in buffer_meta])
-                res = (file_indices, chunk_indices,
-                       species_indicies, species_probs, pred_msk)
-                out_q.put(res)
-
-                leftover = np.array(buffer_audio[batch_size:])
-                buffer_audio = [leftover] if leftover.size else []
-                buffer_meta.clear()
-
-                if no_more_chunks_available:
-                    assert len(leftover) == 0
-                    print("done", f"{job_q.empty()}")
-                    print(f"outputqueue empty: {out_q.empty()}")
-                    break
-
-            if no_more_chunks_available:
-                break
-
-        print("left queue")
+  # ------------------------------------------------------------
+  def __call__(
+    self,
+  ):
+    while True:
+      job = self.job_q.get()
+      if job is None:
+        # Stop signal
+        print("Worker received stop signal.")
+        break
+      slot, n = job
+      self.sem_fill.acquire()
+      audio_samples = self._ring_audio_samples[slot, :n]
+      file_indices = self._ring_file_indices[slot, :n]
+      chunk_indices = self._ring_chunk_indices[slot, :n]
+      pred = self._infer(audio_samples)
+      species_indices = np.argpartition(pred, -self.k, axis=1)[:, -self.k :]
+      species_probs = np.take_along_axis(pred, species_indices, axis=1)
+      order = np.argsort(-species_probs, axis=1)
+      row = np.arange(n)[:, None]
+      species_indices = species_indices[row, order]
+      species_probs = species_probs[row, order]
+      keep = (species_probs >= self.thresh) & self.valid[species_indices]
+      pred_mask = ~keep
+      species_indices[pred_mask] = EMPTY_ID
+      species_probs[pred_mask] = 0.0
+      self.out_q.put(
+        (
+          file_indices,
+          chunk_indices,
+          species_indices.astype(np.uint16, copy=False),
+          species_probs.astype(np.float16, copy=False),
+          pred_mask,
+        )
+      )
+      self.sem_free.release()
+    print("exiting worker process.")

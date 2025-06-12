@@ -2,6 +2,7 @@ import multiprocessing as mp
 import os
 from collections.abc import Generator, Iterable
 from itertools import count, islice
+from multiprocessing import shared_memory
 from multiprocessing.synchronize import Event
 from pathlib import Path
 from typing import Any, List, Optional, Tuple, Union
@@ -15,148 +16,306 @@ from scipy.signal import butter, lfilter, resample
 from tqdm import tqdm
 
 from birdnet.types import Species, TimeInterval
-from birdnet.utils import get_chunks_with_overlap, resample_array
+from birdnet.utils import (
+  fillup_with_silence,
+  get_chunks_with_overlap,
+  itertools_batched,
+  resample_array,
+)
 
 
 def get_chunks_with_overlap(
-    total_duration_s: Union[int, float],
-    chunk_duration_s: Union[int, float],
-    overlap_duration_s: Union[int, float],
+  total_duration_s: Union[int, float],
+  chunk_duration_s: Union[int, float],
+  overlap_duration_s: Union[int, float],
 ) -> Generator[Tuple[float, float], None, None]:
-    assert total_duration_s > 0
-    assert chunk_duration_s > 0
-    assert 0 <= overlap_duration_s < chunk_duration_s
+  assert total_duration_s > 0
+  assert chunk_duration_s > 0
+  assert 0 <= overlap_duration_s < chunk_duration_s
 
-    if not isinstance(overlap_duration_s, float):
-        overlap_duration_s = float(overlap_duration_s)
-    if not isinstance(chunk_duration_s, float):
-        chunk_duration_s = float(chunk_duration_s)
-    if not isinstance(total_duration_s, float):
-        total_duration_s = float(total_duration_s)
+  if not isinstance(overlap_duration_s, float):
+    overlap_duration_s = float(overlap_duration_s)
+  if not isinstance(chunk_duration_s, float):
+    chunk_duration_s = float(chunk_duration_s)
+  if not isinstance(total_duration_s, float):
+    total_duration_s = float(total_duration_s)
 
-    step_duration = chunk_duration_s - overlap_duration_s
-    for start in count(0.0, step_duration):
-        assert start < total_duration_s
-        if (end := start + chunk_duration_s) < total_duration_s:
-            yield start, end
-        else:
-            yield start, total_duration_s
-            break
+  step_duration = chunk_duration_s - overlap_duration_s
+  for start in count(0.0, step_duration):
+    assert start < total_duration_s
+    if (end := start + chunk_duration_s) < total_duration_s:
+      yield start, end
+    else:
+      yield start, total_duration_s
+      break
 
 
 def resample_array(
-    x: npt.NDArray, sample_rate: int, target_sample_rate: int
+  x: npt.NDArray, sample_rate: int, target_sample_rate: int
 ) -> npt.NDArray:
-    assert len(x.shape) == 1
-    assert sample_rate > 0
-    assert target_sample_rate > 0
+  assert len(x.shape) == 1
+  assert sample_rate > 0
+  assert target_sample_rate > 0
 
-    if sample_rate == target_sample_rate:
-        return x
+  if sample_rate == target_sample_rate:
+    return x
 
-    target_sample_count = round(len(x) / sample_rate * target_sample_rate)
-    x_resampled: npt.NDArray = resample(x, target_sample_count)
-    assert x_resampled.dtype == x.dtype
-    return x_resampled
+  target_sample_count = round(len(x) / sample_rate * target_sample_rate)
+  x_resampled: npt.NDArray = resample(x, target_sample_count)
+  assert x_resampled.dtype == x.dtype
+  return x_resampled
 
 
 class Producer:
-    def __init__(
-        self,
-        files: List[Path],
-        chunk_duration_s: float = 3.0,
-        overlap_duration_s: float = 0.0,
-        target_sample_rate: int = 48000,
-        queue_size: int = 16,
-    ):
-        self.chunk_duration_s = chunk_duration_s
-        self.overlap_duration_s = overlap_duration_s
-        self.target_sample_rate = target_sample_rate
-        self._queue = mp.Queue(maxsize=queue_size)
-        self._files = files
-        self.reading_finished = mp.Event()
+  def __init__(
+    self,
+    files: List[Path],
+    batch_size: int,
+    n_slots: int,
+    n_jobs: int,
+    queue: mp.Queue,
+    sem_free: mp.Semaphore,  # counts free slots
+    sem_fill: mp.Semaphore,  # counts filled slots
+    chunk_duration_s: float = 3.0,
+    overlap_duration_s: float = 0.0,
+    target_sample_rate: int = 48000,
+  ):
+    self.chunk_duration_s = chunk_duration_s
+    self.overlap_duration_s = overlap_duration_s
+    self.target_sample_rate = target_sample_rate
+    self._batch_size = batch_size
+    self._n_jobs = n_jobs
+    self._n_slots = n_slots
+    self._sem_free = sem_free
+    self._sem_fill = sem_fill
+    self._write_ptr = 0
+    self._queue = queue
+    self._files = files
+    self.reading_finished = mp.Event()
+    self.chunk_duration_samples = target_sample_rate * int(
+      chunk_duration_s
+    )  # 3 seconds at 48kHz
 
-    @property
-    def queue(self) -> mp.Queue:
-        """
-        Returns the queue used for processing audio files.
-        """
-        return self._queue
+    # attatch to existing shared memory buffers
+    # NOTE: these handlers must be created that GC does not delete the shared memory access
+    self._shm_file_indices = shared_memory.SharedMemory(
+      name="bnet_ring_file_indices", create=False
+    )
+    self._shm_chunk_indices = shared_memory.SharedMemory(
+      name="bnet_ring_chunk_indices", create=False
+    )
+    self._shm_audio_samples = shared_memory.SharedMemory(
+      name="bnet_ring_audio_samples", create=False
+    )
 
-    def fill_queue(
-        self,
-    ) -> None:
-        assert not self.reading_finished.is_set()
-        assert self._queue.empty()
-        # self.reading_finished.clear()
-        # self._queue.close()  # Close the queue before filling it
-        for file_idx, path in enumerate(self._files):
-            chunks = list(load_audio_in_chunks_with_overlap(
-                path,
-                chunk_duration_s=self.chunk_duration_s,
-                overlap_duration_s=self.overlap_duration_s,
-                target_sample_rate=self.target_sample_rate,
-            ))
-            # TODO batch here before putting into the queue
-            for chunk_idx, batch in tqdm(chunks):
-                self._queue.put((file_idx, chunk_idx, batch))
-        self.reading_finished.set()  # Signal that processing is done
+    self._ring_file_indices = np.ndarray(
+      (n_slots, batch_size), np.uint32, self._shm_file_indices.buf
+    )
+    self._ring_chunk_indices = np.ndarray(
+      (n_slots, batch_size), np.uint32, self._shm_chunk_indices.buf
+    )
+    self._ring_audio_samples = np.ndarray(
+      (n_slots, batch_size, self.chunk_duration_samples),
+      np.float32,
+      self._shm_audio_samples.buf,
+    )
 
-    def load_audio_in_chunks_with_overlap(self, audio_path: Path) -> Generator:
-        return load_audio_in_chunks_with_overlap(
-            audio_path,
-            chunk_duration_s=self.chunk_duration_s,
-            overlap_duration_s=self.overlap_duration_s,
-            target_sample_rate=self.target_sample_rate,
-        )
+  def get_chunks_from_files(
+    self,
+  ) -> Generator[tuple[int, int, npt.NDArray[np.float32]], None, None]:
+    for file_index, path in enumerate(self._files):
+      chunks = load_audio_in_chunks_with_overlap(
+        path,
+        chunk_duration_s=self.chunk_duration_s,
+        overlap_duration_s=self.overlap_duration_s,
+        target_sample_rate=self.target_sample_rate,
+      )
+
+      # fill last chunk with silence up to chunksize if it is smaller than 3s
+      chunks = (
+        fillup_with_silence(chunk, self.chunk_duration_samples) for chunk in chunks
+      )
+
+      for chunk_index, chunk in enumerate(chunks):
+        yield file_index, chunk_index, chunk
+
+  def __call__(self) -> None:
+    assert self._queue.empty()
+
+    buffer_input = self.get_chunks_from_files()
+    for batch in itertools_batched(buffer_input, self._batch_size):
+      file_indices, chunk_indices, audio_samples = zip(*batch)
+      self._flush_batch(file_indices, chunk_indices, audio_samples)
+
+    # send poison pills
+    for _ in range(self._n_jobs):
+      self._queue.put(None)
+
+  def _flush_batch(self, file_indices, chunk_indices, audio_samples) -> None:
+    self._sem_free.acquire()
+    slot = self._write_ptr % self._n_slots
+    self._write_ptr += 1
+    current_batch_size = len(audio_samples)
+    assert len(file_indices) == current_batch_size
+    assert len(chunk_indices) == current_batch_size
+    assert 0 <= slot < self._n_slots
+    assert current_batch_size <= self._batch_size
+    self._ring_file_indices[slot, :current_batch_size] = np.asarray(
+      file_indices, np.uint32
+    )
+    self._ring_chunk_indices[slot, :current_batch_size] = np.asarray(
+      chunk_indices, np.uint32
+    )
+    self._ring_audio_samples[slot, :current_batch_size] = np.asarray(
+      np.stack(audio_samples, 0), np.float32
+    )
+    self._queue.put((slot, current_batch_size))
+    self._sem_fill.release()
 
 
 def load_audio_in_chunks_with_overlap(
-    audio_path: Path,
-    /,
-    *,
-    chunk_duration_s: float = 3,
-    overlap_duration_s: float = 0,
-    # read_duration_s: Optional[float] = None,
-    target_sample_rate: int = 48000,
-) -> Generator[tuple[int, npt.NDArray[np.float32]], None, None]:
-    assert audio_path.is_file()
+  audio_path: Path,
+  /,
+  *,
+  chunk_duration_s: float = 3,
+  overlap_duration_s: float = 0,
+  # read_duration_s: Optional[float] = None,
+  target_sample_rate: int = 48000,
+) -> Generator[npt.NDArray[np.float32], None, None]:
+  assert audio_path.is_file()
 
-    sf_info = sf.info(audio_path)
-    is_mono = sf_info.channels == 1
-    assert is_mono
+  sf_info = sf.info(audio_path)
+  is_mono = sf_info.channels == 1
+  assert is_mono
 
-    sample_rate = sf_info.samplerate
+  sample_rate = sf_info.samplerate
 
-    timestamps = get_chunks_with_overlap(
-        float(sf_info.duration),
-        float(chunk_duration_s),
-        float(overlap_duration_s),
+  timestamps = get_chunks_with_overlap(
+    float(sf_info.duration),
+    float(chunk_duration_s),
+    float(overlap_duration_s),
+  )
+
+  for start, end in timestamps:
+    start_samples = round(start * sample_rate)
+    end_samples = round(end * sample_rate)
+    audio, _ = sf.read(
+      audio_path, start=start_samples, stop=end_samples, dtype=np.float32
+    )
+    audio = resample_array(audio, sample_rate, target_sample_rate)
+    yield audio
+
+
+import atexit
+import contextlib
+
+
+@contextlib.contextmanager
+def shm_ring(name: str, size: int):
+  shm = shared_memory.SharedMemory(create=True, name=name, size=size)
+  try:
+    yield shm
+  finally:
+    shm.close()
+    shm.unlink()  # wird sogar bei CTRL-C im finally ausgeführt
+    print(f"Shared memory {name} cleaned up.")
+
+
+def test_producing():
+  import faulthandler
+  import sys
+
+  faulthandler.enable(file=sys.stderr, all_threads=True)
+
+  audio_path = Path("test-dataset/test_dataset_1x1440min/0.wav")
+  audio_path = Path("example/soundscape.wav")
+  n_files = 2
+  files = [audio_path] * n_files
+
+  def start_producer_process(args):
+    producer = Producer(*args)
+    producer.fill_queue()
+
+  batch_size = 3
+  n_slots = 8
+  n_workers = 4
+  prod_queue = mp.Queue()
+  sem_free = mp.Semaphore(n_slots)
+  sem_fill = mp.Semaphore()
+  chunk_duration_s = 3
+  overlap_duration_s = 0
+  target_sample_rate = 48000
+  chunk_duration_samples = int(chunk_duration_s * target_sample_rate)
+
+  with (
+    shm_ring(
+      "bnet_ring_file_indices",
+      n_slots * batch_size * np.dtype(np.uint32).itemsize,
+    ) as shm_file_indices,
+    shm_ring(
+      "bnet_ring_chunk_indices", n_slots * batch_size * np.dtype(np.uint32).itemsize
+    ) as shm_chunk_indices,
+    shm_ring(
+      "bnet_ring_audio_samples",
+      n_slots * batch_size * chunk_duration_samples * np.dtype(np.float32).itemsize,
+    ) as shm_audio_samples,
+  ):
+    print("Shared memory initialized.")
+
+    prod = mp.Process(
+      target=Producer(
+        files,
+        batch_size,
+        n_slots,
+        n_workers,
+        prod_queue,
+        sem_free,
+        sem_fill,
+        chunk_duration_s,
+        overlap_duration_s,
+        target_sample_rate,
+      ),
+      daemon=True,
+    )
+    prod.start()
+
+    ring_file_indices = np.ndarray(
+      (n_slots, batch_size), np.uint32, shm_file_indices.buf
+    )
+    ring_chunk_indices = np.ndarray(
+      (n_slots, batch_size), np.uint32, shm_chunk_indices.buf
+    )
+    ring_audio_samples = np.ndarray(
+      (n_slots, batch_size, chunk_duration_samples),
+      np.float32,
+      shm_audio_samples.buf,
     )
 
-    for idx, (start, end) in enumerate(timestamps):
-        start_samples = round(start * sample_rate)
-        end_samples = round(end * sample_rate)
-        audio, _ = sf.read(
-            audio_path, start=start_samples, stop=end_samples, dtype=np.float32
-        )
-        audio = resample_array(audio, sample_rate, target_sample_rate)
-        yield idx, audio
+    res = []
+    while True:
+      job = prod_queue.get()
+      if job is None:
+        break
+      slot, n = job
+      sem_fill.acquire()
+      file_indices = ring_file_indices[slot, :n]
+      chunk_indices = ring_chunk_indices[slot, :n]
+      audio_samples = ring_audio_samples[slot, :n]
+      res.append(list(chunk_indices))
+      sem_free.release()
+  print("Producer finished processing.")
+  print(res)
+
+
+def test_chunking():
+  from time import perf_counter
+
+  t1 = perf_counter()
+  res = list(
+    load_audio_in_chunks_with_overlap(Path("test-dataset/test_dataset_1x1440min/0.wav"))
+  )
+  print(f"Loaded {len(res)} chunks in {perf_counter() - t1:.2f} seconds")
 
 
 if __name__ == "__main__":
-    from time import perf_counter
-    t1 = perf_counter()
-    res = list(load_audio_in_chunks_with_overlap(
-        Path("test-dataset/test_dataset_1x1440min/0.wav")))
-    print(f"Loaded {len(res)} chunks in {perf_counter() - t1:.2f} seconds")
-
-    # Example usage
-    producer = Producer(files=[Path("example/soundscape.wav")])
-    producer.fill_queue()
-
-    while not producer.queue.empty():
-        file_idx, chunk_idx, batch = producer.queue.get()
-        print(
-            f"File Index: {file_idx}, Chunk Index: {chunk_idx}, Batch Shape: {batch.shape}"
-        )
+  test_producing()

@@ -38,13 +38,12 @@ from numpy.lib.stride_tricks import as_strided
 # except ImportError:  # fallback to full TF (heavier)
 from tensorflow.lite.python import interpreter as tflite
 
-from birdnet_v2.consumer import Consumer, SpeciesTensor
-from birdnet_v2.producer import (
+from birdnet_v3.consumer import Consumer, SpeciesTensor
+from birdnet_v3.producer import (
   Producer,  # type: ignore
   load_audio_in_chunks_with_overlap,
-  shm_ring,
 )
-from birdnet_v2.worker import Worker
+from birdnet_v3.worker import Worker
 
 # ---------------------------------------------------------------------------
 WIN_SEC = 3.0  # window length in seconds
@@ -62,85 +61,48 @@ HOP_SEC = 1.0
 
 def analyze(
   files: List[Path],
+  *,
   model_path: Path,
 ) -> SpeciesTensor:
-  n_jobs: int = 24
-  batch_size = 70
-  n_slots = n_jobs * 2
-  prod_queue = mp.Queue()
-  sem_free = mp.Semaphore(n_slots)
-  sem_fill = mp.Semaphore()
-  chunk_duration_s = 3
-  overlap_duration_s = 0
-  target_sample_rate = 48000
-  chunk_duration_samples = int(chunk_duration_s * target_sample_rate)
+  n_jobs = 24
+  producer = Producer(
+    files,
+    n_jobs=n_jobs,
+    chunk_duration_s=3,
+    target_sample_rate=48000,
+    queue_size=n_jobs * 3,
+  )
 
-  with (
-    shm_ring(
-      "bnet_ring_file_indices",
-      n_slots * batch_size * np.dtype(np.uint32).itemsize,
-    ) as shm_file_indices,
-    shm_ring(
-      "bnet_ring_chunk_indices", n_slots * batch_size * np.dtype(np.uint32).itemsize
-    ) as shm_chunk_indices,
-    shm_ring(
-      "bnet_ring_audio_samples",
-      n_slots * batch_size * chunk_duration_samples * np.dtype(np.float32).itemsize,
-    ) as shm_audio_samples,
-  ):
-    print("Shared memory initialized.")
+  worker = Worker(
+    model_path,
+    producer,
+    batch_size=50,
+    n_jobs=n_jobs,
+    top_k=5,
+    threshold=0.1,
+    whitelist=None,
+  )
+  worker.start()
 
-    prod = mp.Process(
-      target=Producer(
-        files,
-        batch_size,
-        n_slots,
-        n_jobs,
-        prod_queue,
-        sem_free,
-        sem_fill,
-        chunk_duration_s,
-        overlap_duration_s,
-        target_sample_rate,
-      ),
-      daemon=True,
-    )
-    prod.start()
+  producer.fill_queue()
 
-    worker = Worker(
-      model_path=model_path,
-      prod_queue=prod_queue,
-      batch_size=batch_size,
-      n_slots=n_slots,
-      chunk_duration_samples=chunk_duration_samples,
-      sem_free=sem_free,
-      sem_fill=sem_fill,
-      n_jobs=n_jobs,
-      threshold=0.01,
-      top_k=5,
-      whitelist=None,
-    )
+  consumer = Consumer(producer, worker, init_w=1148)
+  tensor = consumer.consume()
 
-    worker.start()
+  print("before join")
+  worker.join()
+  print("after join")
 
-    consumer = Consumer(n_files=len(files), worker=worker, init_w=1148)
-    tensor = consumer.consume()
-
-    prod.join()
-    print("Producer finished.")
-    worker.join()
-    print("Workers finished.")
-
-  print("Producer finished processing.")
   return tensor
 
 
-def test():
+if __name__ == "__main__":
+  audio_path, duration = Path("example/soundscape.wav"), 2
   audio_path, duration = Path("test-dataset/test_dataset_1x1440min/0.wav"), 1440
   audio_path, duration = Path("test-dataset/test_dataset_1x60min/0.wav"), 60
-  audio_path, duration = Path("example/soundscape.wav"), 2
+  # 60 x 4: Finished analysis in 51.26 seconds.
 
-  n_files = 1
+  n_files = 4
   paths = [audio_path] * n_files
   model_path = Path(
     "/home/stefan/.local/share/birdnet/models/v2.4/TFLite/audio-model.tflite"
@@ -153,22 +115,13 @@ def test():
 
   start = perf_counter()
   print(f"Started analysis... {time.strftime('%H:%M:%S')}")
-  result = analyze(
+  tst = analyze(
     paths,
-    model_path,
+    model_path=model_path,
   )
   end = perf_counter()
   print(f"Finished analysis in {end - start:.2f} seconds.")
   print(f"Finished analysis in {(end - start) / n_files:.2f} seconds per file.")
   print(f"Finished analysis in {(end - start) / n_files / duration * 60:.2f} s/h.")
   print(f"Finished analysis in {(end - start) / n_files / duration * 1000:.2f} ms/min.")
-  print(result._species_probs.tolist())
-
-
-if __name__ == "__main__":
-  import faulthandler
-  import sys
-
-  # faulthandler.enable(file=sys.stderr, all_threads=True)
-
-  test()
+  print(tst.get_at(0, 2))
