@@ -65,7 +65,7 @@ def analyze(
   model_path: Path,
 ) -> SpeciesTensor:
   n_jobs: int = 24
-  batch_size = 70
+  batch_size = 50
   n_slots = n_jobs * 2
   prod_queue = mp.Queue()
   sem_free = mp.Semaphore(n_slots)
@@ -137,10 +137,10 @@ def analyze(
 
 def test():
   audio_path, duration = Path("test-dataset/test_dataset_1x1440min/0.wav"), 1440
-  audio_path, duration = Path("test-dataset/test_dataset_1x60min/0.wav"), 60
   audio_path, duration = Path("example/soundscape.wav"), 2
-
-  n_files = 1
+  audio_path, duration = Path("test-dataset/test_dataset_1x60min/0.wav"), 60
+  
+  n_files = 100
   paths = [audio_path] * n_files
   model_path = Path(
     "/home/stefan/.local/share/birdnet/models/v2.4/TFLite/audio-model.tflite"
