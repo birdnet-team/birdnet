@@ -42,3 +42,6 @@ class AcousticTFModel():
 def load(spec: str, *, model_path: str | None = None):
   if spec == "acoustic/v2.4+tf@cpu":
     result = AcousticTFModelV2M4()
+  elif spec == "geo/v3+pb@gpu":
+    pass
+  
