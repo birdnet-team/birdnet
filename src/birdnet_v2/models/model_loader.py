@@ -39,7 +39,7 @@ class AcousticTFModel():
       self._in_idx  = self._interp.get_input_details()[0]["index"]
       self._out_idx = self._interp.get_output_details()[0]["index"]
 
-def load(spec: str, *, model_path: str | None = None):
+def load(spec: str = "acoustic", model_path: str | None = None):
   if spec == "acoustic/v2.4+tf@cpu":
     result = AcousticTFModelV2M4()
   elif spec == "geo/v3+pb@gpu":
