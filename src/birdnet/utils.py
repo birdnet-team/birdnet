@@ -37,7 +37,7 @@ def bandpass_signal(
   assert new_fmin < new_fmax
 
   nth_order = 5
-  nyquist = 0.5 * rate
+  nyquist = rate // 2
 
   # Highpass
   if fmin > new_fmin and fmax == new_fmax:

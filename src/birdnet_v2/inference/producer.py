@@ -2,8 +2,9 @@ import multiprocessing as mp
 import os
 from collections.abc import Generator, Iterable
 from itertools import count, islice
-from multiprocessing import shared_memory
-from multiprocessing.synchronize import Event
+from multiprocessing import Queue
+from multiprocessing.shared_memory import SharedMemory
+from multiprocessing.synchronize import Event, Semaphore
 from pathlib import Path
 from typing import Any, List, Optional, Tuple, Union
 
@@ -17,6 +18,7 @@ from tqdm import tqdm
 
 from birdnet.types import Species, TimeInterval
 from birdnet.utils import (
+  bandpass_signal,
   fillup_with_silence,
   get_chunks_with_overlap,
   itertools_batched,
@@ -73,12 +75,17 @@ class Producer:
     batch_size: int,
     n_slots: int,
     n_jobs: int,
-    queue: mp.Queue,
-    sem_free: mp.Semaphore,  # counts free slots
-    sem_fill: mp.Semaphore,  # counts filled slots
+    queue: Queue,
+    sem_free: Semaphore,  # counts free slots
+    sem_fill: Semaphore,  # counts filled slots
     chunk_duration_s: float = 3.0,
     overlap_duration_s: float = 0.0,
     target_sample_rate: int = 48000,
+    use_bandpass: bool = False,
+    bandpass_fmin: Optional[int] = None,
+    bandpass_fmax: Optional[int] = None,
+    fmin: Optional[int] = None,
+    fmax: Optional[int] = None,
   ):
     self.chunk_duration_s = chunk_duration_s
     self.overlap_duration_s = overlap_duration_s
@@ -91,22 +98,29 @@ class Producer:
     self._write_ptr = 0
     self._queue = queue
     self._files = files
-    self.reading_finished = mp.Event()
-    self.chunk_duration_samples = target_sample_rate * int(
-      chunk_duration_s
-    )  # 3 seconds at 48kHz
+    self.use_bandpass = use_bandpass
 
-    # attatch to existing shared memory buffers
+    if use_bandpass:
+      assert bandpass_fmin is not None
+      assert bandpass_fmax is not None
+      assert 0 <= bandpass_fmin < bandpass_fmax <= target_sample_rate // 2
+      self.bandpass_fmin = bandpass_fmin
+      self.bandpass_fmax = bandpass_fmax
+      self.sig_fmin = fmin
+      self.sig_fmax = fmax
+    else:
+      self.bandpass_fmin = None
+      self.bandpass_fmax = None
+      self.sig_fmin = None
+      self.sig_fmax = None
+
+    self.chunk_duration_samples = target_sample_rate * int(chunk_duration_s)
+
+    # attach to existing shared memory buffers
     # NOTE: these handlers must be created that GC does not delete the shared memory access
-    self._shm_file_indices = shared_memory.SharedMemory(
-      name="bnet_ring_file_indices", create=False
-    )
-    self._shm_chunk_indices = shared_memory.SharedMemory(
-      name="bnet_ring_chunk_indices", create=False
-    )
-    self._shm_audio_samples = shared_memory.SharedMemory(
-      name="bnet_ring_audio_samples", create=False
-    )
+    self._shm_file_indices = SharedMemory(name="bnet_ring_file_indices", create=False)
+    self._shm_chunk_indices = SharedMemory(name="bnet_ring_chunk_indices", create=False)
+    self._shm_audio_samples = SharedMemory(name="bnet_ring_audio_samples", create=False)
 
     self._ring_file_indices = np.ndarray(
       (n_slots, batch_size), np.uint32, self._shm_file_indices.buf
@@ -135,6 +149,24 @@ class Producer:
       chunks = (
         fillup_with_silence(chunk, self.chunk_duration_samples) for chunk in chunks
       )
+
+      if self.use_bandpass:
+        assert self.bandpass_fmin is not None
+        assert self.bandpass_fmax is not None
+        assert self.sig_fmin is not None
+        assert self.sig_fmax is not None
+
+        chunks = (
+          bandpass_signal(
+            chunk,
+            self.target_sample_rate,
+            self.bandpass_fmin,
+            self.bandpass_fmax,
+            self.sig_fmin,
+            self.sig_fmax,
+          )
+          for chunk in chunks
+        )
 
       for chunk_index, chunk in enumerate(chunks):
         yield file_index, chunk_index, chunk
@@ -212,7 +244,7 @@ import contextlib
 
 @contextlib.contextmanager
 def shm_ring(name: str, size: int):
-  shm = shared_memory.SharedMemory(create=True, name=name, size=size)
+  shm = SharedMemory(create=True, name=name, size=size)
   try:
     yield shm
   finally:
@@ -232,14 +264,10 @@ def test_producing():
   n_files = 2
   files = [audio_path] * n_files
 
-  def start_producer_process(args):
-    producer = Producer(*args)
-    producer.fill_queue()
-
   batch_size = 3
   n_slots = 8
   n_workers = 4
-  prod_queue = mp.Queue()
+  prod_queue = Queue()
   sem_free = mp.Semaphore(n_slots)
   sem_fill = mp.Semaphore()
   chunk_duration_s = 3

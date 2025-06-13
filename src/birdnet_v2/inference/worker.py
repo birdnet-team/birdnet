@@ -7,6 +7,7 @@ import queue
 import sys
 import time
 from collections.abc import Generator
+from logging import getLogger
 from multiprocessing import shared_memory
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence, Tuple
@@ -19,9 +20,11 @@ import soundfile as sf  # pip install soundfile
 # except ImportError:  # fallback to full TF (heavier)
 from tensorflow.lite.python import interpreter as tflite
 
-from birdnet_v2.producer import Producer
+from birdnet.utils import flat_sigmoid
+from birdnet_v2.inference.producer import Producer
 
 EMPTY_ID = 0  # 0xFFFF
+EMPTY_PRED = -np.inf
 
 
 class Worker:
@@ -96,7 +99,7 @@ class ChildWorker:
     self,
     model_path: Path,
     top_k: int,
-    thresh: float,
+    thresh: np.ndarray,
     valid: np.ndarray,
     batch_size: int,
     n_slots: int,
@@ -105,14 +108,22 @@ class ChildWorker:
     out_q: mp.Queue,
     sem_free: mp.Semaphore,
     sem_fill: mp.Semaphore,
+    apply_sigmoid: bool = False,
+    sigmoid_sensitivity: Optional[float] = None,
   ):
     self.k = top_k
-    self.thresh = thresh
-    self.valid = valid
+    # Setze für ungültige Spezies den Threshold auf 1.0, sodass (pred >= 1.0) in der Regel fehlschlägt.
+    self.thresh = np.where(valid, thresh, 1.0)[np.newaxis, :]
     self.job_q = job_q
     self.out_q = out_q
     self.sem_free = sem_free
     self.sem_fill = sem_fill
+    self.apply_sigmoid = apply_sigmoid
+    self.sigmoid_sensitivity = None
+    if apply_sigmoid:
+      assert sigmoid_sensitivity is not None
+      self.sigmoid_sensitivity = sigmoid_sensitivity
+
     # Interpreter
     self.interp = tflite.Interpreter(str(model_path), num_threads=1)
     self.interp.allocate_tensors()
@@ -156,16 +167,7 @@ class ChildWorker:
       self.interp.allocate_tensors()
       self.cached_shape = batch.shape
 
-    # print(batch.flags["C_CONTIGUOUS"], batch.strides, batch.dtype)
-    # batch = np.asarray(list(batch), dtype=np.float32)
-    # print(
-    #   batch.dtype,
-    #   batch.flags["C_CONTIGUOUS"],
-    #   batch.strides,
-    #   "size",
-    #   batch.nbytes / 1e6,
-    #   "MB",
-    # )
+    assert batch.flags["C_CONTIGUOUS"]
     start_time = time.perf_counter()
     self.interp.set_tensor(self.in_idx, batch)
     after_set_tensor = time.perf_counter()
@@ -181,11 +183,13 @@ class ChildWorker:
   def __call__(
     self,
   ):
+    logger = getLogger(__name__)
     while True:
       job = self.job_q.get()
       if job is None:
         # Stop signal
-        print("Worker received stop signal.")
+        logger.info("Worker received stop signal.")
+        self.out_q.put(None)
         break
       slot, n = job
       self.sem_fill.acquire()
@@ -193,24 +197,42 @@ class ChildWorker:
       file_indices = self._ring_file_indices[slot, :n]
       chunk_indices = self._ring_chunk_indices[slot, :n]
       pred = self._infer(audio_samples)
+
+      if self.apply_sigmoid:
+        assert self.sigmoid_sensitivity is not None
+        pred = flat_sigmoid(
+          pred,
+          sensitivity=-self.sigmoid_sensitivity,
+        )
+
+      # Filterung vor der Top-k-Auswahl:
+      # Erzeuge eine Maske für gültige Vorhersagen (Threshold und gültige Spezies)
+      valid_mask = pred >= self.thresh
+      # Wenn möglich, in-place modifizieren (sparen einer Kopie)
+      pred[~valid_mask] = EMPTY_PRED
+
+      # Auswahl der Top-k Werte pro Zeile anhand der gefilterten Vorhersagen
       species_indices = np.argpartition(pred, -self.k, axis=1)[:, -self.k :]
       species_probs = np.take_along_axis(pred, species_indices, axis=1)
       order = np.argsort(-species_probs, axis=1)
       row = np.arange(n)[:, None]
       species_indices = species_indices[row, order]
       species_probs = species_probs[row, order]
-      keep = (species_probs >= self.thresh) & self.valid[species_indices]
-      pred_mask = ~keep
+
+      # Setze alle -∞-Werte, welche nicht den Filter passiert haben, auf EMPTY_ID und 0.0
+      pred_mask = species_probs == EMPTY_PRED
       species_indices[pred_mask] = EMPTY_ID
-      species_probs[pred_mask] = 0.0
+
+      species_indices = species_indices.astype(np.uint16, copy=False)
+      species_probs = species_probs.astype(np.float16, copy=False)
+
       self.out_q.put(
         (
           file_indices,
           chunk_indices,
-          species_indices.astype(np.uint16, copy=False),
-          species_probs.astype(np.float16, copy=False),
-          pred_mask,
+          species_indices,
+          species_probs,
         )
       )
       self.sem_free.release()
-    print("exiting worker process.")
+    logger.info("Worker finished")
