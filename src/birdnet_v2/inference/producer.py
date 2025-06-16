@@ -2,6 +2,7 @@ import multiprocessing as mp
 import os
 from collections.abc import Generator, Iterable
 from itertools import count, islice
+from logging import getLogger
 from multiprocessing import Queue
 from multiprocessing.shared_memory import SharedMemory
 from multiprocessing.synchronize import Event, Semaphore
@@ -184,7 +185,11 @@ class Producer:
       self._queue.put(None)
 
   def _flush_batch(self, file_indices, chunk_indices, audio_samples) -> None:
+    logger = getLogger(__name__)
     self._sem_free.acquire()
+    logger.debug(
+      f"Producer acquired FREE. Free slots remaining: {self._sem_free}; Filled slots: {self._sem_fill}"
+    )
     slot = self._write_ptr % self._n_slots
     self._write_ptr += 1
     current_batch_size = len(audio_samples)
@@ -203,6 +208,9 @@ class Producer:
     )
     self._queue.put((slot, current_batch_size))
     self._sem_fill.release()
+    logger.debug(
+      f"Producer released FILL. Free slots remaining: {self._sem_free}; Filled slots: {self._sem_fill}"
+    )
 
 
 def load_audio_in_chunks_with_overlap(

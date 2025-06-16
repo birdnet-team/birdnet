@@ -158,7 +158,8 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
 
     prod_queue = mp.Queue()
     sem_free = mp.Semaphore(n_slots)
-    sem_fill = mp.Semaphore()
+    sem_fill = mp.Semaphore(0)
+    logger.debug(f"FILL: {sem_fill}, FREE: {sem_free}")
 
     with (
       shm_ring(
@@ -297,5 +298,7 @@ def convert_tensor_to_dataframe(
           }
           resulting_lines.append(row)
   df = pd.DataFrame.from_records(resulting_lines)
-  df = df.sort_values(by=["file", "start", "confidence"]).reset_index(drop=True)
+  df = df.sort_values(
+    by=["file", "start", "confidence"], ascending=[True, True, False]
+  ).reset_index(drop=True)
   return df

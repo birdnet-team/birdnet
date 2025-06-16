@@ -23,7 +23,7 @@ from tensorflow.lite.python import interpreter as tflite
 from birdnet.utils import flat_sigmoid
 from birdnet_v2.inference.producer import Producer
 
-EMPTY_ID = 0  # 0xFFFF
+EMPTY_ID = 0xFFFF
 EMPTY_PRED = -np.inf
 
 
@@ -196,6 +196,10 @@ class ChildWorker:
         break
       slot, n = job
       self.sem_fill.acquire()
+      logger.debug(
+        f"Worker acquired FILL; Free slots remaining: {self.sem_free}; Filled slots: {self.sem_fill}"
+      )
+
       audio_samples = self._ring_audio_samples[slot, :n]
       file_indices = self._ring_file_indices[slot, :n]
       chunk_indices = self._ring_chunk_indices[slot, :n]
@@ -222,7 +226,7 @@ class ChildWorker:
       species_indices = species_indices[row, order]
       species_probs = species_probs[row, order]
 
-      # Setze alle -∞-Werte, welche nicht den Filter passiert haben, auf EMPTY_ID und 0.0
+      # Setze alle -∞-Werte, welche nicht den Filter passiert haben, auf EMPTY_ID und EMPTY_PRED
       pred_mask = species_probs == EMPTY_PRED
       species_indices[pred_mask] = EMPTY_ID
 
@@ -238,4 +242,7 @@ class ChildWorker:
         )
       )
       self.sem_free.release()
+      logger.debug(
+        f"Worker released FREE. Free slots remaining: {self.sem_free}; Filled slots: {self.sem_fill}"
+      )
     logger.info("Worker finished")

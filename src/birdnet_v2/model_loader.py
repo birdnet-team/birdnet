@@ -1,3 +1,4 @@
+import logging
 import random
 from pathlib import Path
 from typing import Literal
@@ -18,21 +19,29 @@ def load(spec: str = "acoustic", lang_id: str = "en_us"):
 import tensorflow as tf
 
 if __name__ == "__main__":
+  # faulthandler.enable(file=sys.stderr, all_threads=True)
+  logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s (%(levelname)s): %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+  )
   # Example usage
   model = load("acoustic/v2.4+tf@cpu")
+
+  # alle dateien im ordner
+  folder = Path("test-dataset/test_dataset_5x2min")
+  audio_paths = list(sorted(folder.glob("*.wav")))
+  # audio_paths = [audio_paths[2]]
+  #audio_paths = audio_paths[:3]
 
   audio_paths = [Path("test-dataset/test_dataset_1x60min/0.wav")]
   audio_paths = [Path("example/soundscape.wav")]
   audio_paths = [
     Path("test-dataset/test_dataset_4x60min/0.wav"),
-    Path("test-dataset/test_dataset_4x60min/1.wav"),
+    #Path("test-dataset/test_dataset_4x60min/1.wav"),
     # Path("test-dataset/test_dataset_4x60min/2.wav"),
     # Path("test-dataset/test_dataset_4x60min/3.wav"),
   ]
-
-  # alle dateien im ordner
-  folder = Path("test-dataset/test_dataset_5x2min")
-  audio_paths = list(folder.glob("*.wav"))[:3]
 
   tf.random.set_seed(0)
   random.seed(0)
@@ -42,13 +51,18 @@ if __name__ == "__main__":
   result = model.analyze(
     audio_paths,
     n_jobs=1,
-    apply_sigmoid=True,
+    batch_size=4,
+    n_slots_factor=4,
+    apply_sigmoid=False,
+    top_k=1,
     overlap_duration_s=0,
     sigmoid_sensitivity=1,
-    custom_species_list={
-      "Junco hyemalis_Dark-eyed Junco",
-      "Haemorhous mexicanus_House Finch",
-    },
+    default_confidence_threshold=-np.inf,
+    # custom_species_list={
+    #   "Junco hyemalis_Dark-eyed Junco",
+    #   "Haemorhous mexicanus_House Finch",
+    # },
   )
   result.to_csv("/tmp/predictions.csv", index=False)
   print(result)
+  print("/tmp/predictions.csv written.")

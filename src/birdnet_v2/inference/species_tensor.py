@@ -43,6 +43,9 @@ class SpeciesTensor:
     if needed_n_chunks <= self.current_n_chunks:
       return
 
+    logger = logging.getLogger(__name__)
+    logger.info(f"[resize] from {self.current_n_chunks} → {needed_n_chunks} chunks")
+
     self._species_ids.resize(
       (self._species_ids.shape[0], needed_n_chunks, self._species_ids.shape[2]),
       refcheck=False,
@@ -52,8 +55,6 @@ class SpeciesTensor:
       refcheck=False,
     )
 
-    logger = logging.getLogger(__name__)
-    logger.info(f"[resize] from {self.current_n_chunks} → {needed_n_chunks} chunks")
     logger.info(f"Resulting array allocated: {self.memory_usage_mb:.2f} MB")
 
   def write_block(
