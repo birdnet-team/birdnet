@@ -100,7 +100,7 @@ class ChildWorker:
     model_path: Path,
     top_k: int,
     thresh: np.ndarray,
-    valid: np.ndarray,
+    species_whitelist: np.ndarray,
     batch_size: int,
     n_slots: int,
     chunk_duration_samples: int,
@@ -110,10 +110,11 @@ class ChildWorker:
     sem_fill: mp.Semaphore,
     apply_sigmoid: bool = False,
     sigmoid_sensitivity: Optional[float] = None,
+    num_threads: int = 1,
   ):
     self.k = top_k
-    # Setze für ungültige Spezies den Threshold auf 1.0, sodass (pred >= 1.0) in der Regel fehlschlägt.
-    self.thresh = np.where(valid, thresh, 1.0)[np.newaxis, :]
+    # Setze für ungültige Spezies den Threshold auf inf, sodass (pred >= inf) immer False ist
+    self.thresh = np.where(species_whitelist, thresh, np.inf)[np.newaxis, :]
     self.job_q = job_q
     self.out_q = out_q
     self.sem_free = sem_free
@@ -125,7 +126,9 @@ class ChildWorker:
       self.sigmoid_sensitivity = sigmoid_sensitivity
 
     # Interpreter
-    self.interp = tflite.Interpreter(str(model_path), num_threads=1)
+    self.interp = tflite.Interpreter(
+      str(model_path.absolute()), num_threads=num_threads
+    )
     self.interp.allocate_tensors()
     self.in_idx = self.interp.get_input_details()[0]["index"]
     self.out_idx = self.interp.get_output_details()[0]["index"]

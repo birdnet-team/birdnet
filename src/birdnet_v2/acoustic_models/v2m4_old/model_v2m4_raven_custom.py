@@ -10,7 +10,7 @@ from ordered_set import OrderedSet
 
 from birdnet.types import Species
 from birdnet.utils import sigmoid_inverse
-from birdnet_v2.models.v2m4.model_v2m4_pb import (
+from birdnet_v2.acoustic_models.v2m4_old.model_v2m4_pb import (
   AcousticPbModelV2M4Base,
   check_protobuf_model_files_exist,
   get_custom_device,

@@ -12,7 +12,7 @@ from tensorflow import Tensor
 
 from birdnet.types import Language
 from birdnet.utils import download_file_tqdm, get_species_from_file
-from birdnet_v2.models.v2m4.model_v2m4_base import (
+from birdnet_v2.acoustic_models.v2m4_old.model_v2m4_base import (
   AVAILABLE_LANGUAGES,
   AcousticModelV2M4Base,
   GeoModelV2M4Base,

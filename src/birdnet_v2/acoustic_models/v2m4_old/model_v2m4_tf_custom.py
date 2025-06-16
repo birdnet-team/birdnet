@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Optional
 
 from birdnet.utils import get_species_from_file
-from birdnet_v2.models.v2m4.model_v2m4_tf import AcousticTFModelV2M4Base
+from birdnet_v2.acoustic_models.v2m4_old.model_v2m4_tf import AcousticTFModelV2M4Base
 
 
 class CustomTFParser:

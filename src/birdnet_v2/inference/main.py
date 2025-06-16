@@ -137,7 +137,7 @@ def analyze(
           model_path=model_path,
           thresh=thresholds,
           top_k=top_k,
-          valid=valid,
+          species_whitelist=valid,
           batch_size=batch_size,
           n_slots=n_slots,
           chunk_duration_samples=chunk_duration_samples,

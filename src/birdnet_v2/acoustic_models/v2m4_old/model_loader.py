@@ -1,6 +1,6 @@
   from pathlib import Path
 from typing import Literal
-from birdnet_v2.models.v2m4.model_v2m4_tf import AcousticTFModelV2M4
+from birdnet_v2.acoustic_models.v2m4_old.model_v2m4_tf import AcousticTFModelV2M4
 
 
 class AcousticTFModel():
