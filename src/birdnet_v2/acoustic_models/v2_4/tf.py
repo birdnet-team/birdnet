@@ -41,7 +41,7 @@ from birdnet_v2.inference.producer import (
   shm_ring,
 )
 from birdnet_v2.inference.species_tensor import SpeciesTensor
-from birdnet_v2.inference.worker import EMPTY_ID, ChildWorker, Worker
+from birdnet_v2.inference.worker import ChildWorker, Worker
 from birdnet_v2.model_downloader import ModelDownloader
 
 
@@ -174,7 +174,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
         n_slots * batch_size * self.chunk_size_samples * np.dtype(np.float32).itemsize,
       ),
     ):
-      logger.info("Shared memory initialized.")
+      logger.debug("Shared memory initialized.")
 
       prod = mp.Process(
         target=Producer(
@@ -198,14 +198,18 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       )
       prod.start()
 
+      species_blacklist = ~species_whitelist[np.newaxis, :]
+      species_blacklist.setflags(write=False)
+      species_thresholds = thresholds[np.newaxis, :]
+      species_thresholds.setflags(write=False)
       worker_queue = mp.Queue()
       workers = [
         mp.Process(
           target=ChildWorker(
             model_path=self._model_path,
-            thresh=thresholds,
             top_k=top_k,
-            species_whitelist=species_whitelist,
+            species_thresholds=species_thresholds,
+            species_blacklist=species_blacklist,
             batch_size=batch_size,
             n_slots=n_slots,
             chunk_duration_samples=self.chunk_size_samples,
@@ -229,12 +233,12 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       consumer()
 
       prod.join()
-      logger.info("Producer finished.")
+      logger.debug("Producer finished.")
 
       for w in workers:
         w.join()
-        logger.info(f"Worker {w.pid} finished.")
-      logger.info("All workers finished.")
+        logger.debug(f"Worker {w.pid} finished.")
+      logger.debug("All workers finished.")
 
     df = convert_tensor_to_dataframe(
       result, file_paths, self.chunk_size_s, overlap_duration_s, self._species_list
@@ -272,9 +276,7 @@ def convert_tensor_to_dataframe(
     for j in range(max_chunks):
       species_ids = tensor._species_ids[i, j]
       species_probs = tensor._species_probs[i, j]
-      valid = species_ids != EMPTY_ID
-      if not np.any(valid):
-        continue
+      valid = ~tensor._species_masked[i, j]
       for k in range(tensor._top_k):
         if valid[k]:
           species_id = species_ids[k]
@@ -297,6 +299,8 @@ def convert_tensor_to_dataframe(
             "confidence": species_probs[k],
           }
           resulting_lines.append(row)
+        else:
+          break
   df = pd.DataFrame.from_records(resulting_lines)
   df = df.sort_values(
     by=["file", "start", "confidence"], ascending=[True, True, False]

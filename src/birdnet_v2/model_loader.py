@@ -29,19 +29,22 @@ if __name__ == "__main__":
   model = load("acoustic/v2.4+tf@cpu")
 
   # alle dateien im ordner
-  folder = Path("test-dataset/test_dataset_5x2min")
-  audio_paths = list(sorted(folder.glob("*.wav")))
   # audio_paths = [audio_paths[2]]
-  #audio_paths = audio_paths[:3]
+  # audio_paths = audio_paths[:3]
 
-  audio_paths = [Path("test-dataset/test_dataset_1x60min/0.wav")]
-  audio_paths = [Path("example/soundscape.wav")]
   audio_paths = [
     Path("test-dataset/test_dataset_4x60min/0.wav"),
-    #Path("test-dataset/test_dataset_4x60min/1.wav"),
+    Path("test-dataset/test_dataset_4x60min/1.wav"),
     # Path("test-dataset/test_dataset_4x60min/2.wav"),
     # Path("test-dataset/test_dataset_4x60min/3.wav"),
   ]
+
+  folder = Path("test-dataset/test_dataset_5x2min")
+  audio_paths = list(sorted(folder.glob("*.wav")))
+
+  audio_paths = [Path("example/soundscape.wav")]
+  audio_paths = [Path("test-dataset/test_dataset_1x10min/0.wav")]
+  audio_paths = [Path("test-dataset/test_dataset_1x60min/0.wav")]
 
   tf.random.set_seed(0)
   random.seed(0)
@@ -50,11 +53,11 @@ if __name__ == "__main__":
 
   result = model.analyze(
     audio_paths,
-    n_jobs=1,
+    n_jobs=24,
     batch_size=4,
-    n_slots_factor=4,
+    n_slots_factor=2,
     apply_sigmoid=False,
-    top_k=1,
+    top_k=5,
     overlap_duration_s=0,
     sigmoid_sensitivity=1,
     default_confidence_threshold=-np.inf,

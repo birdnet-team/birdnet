@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 import multiprocessing as mp
 import os
@@ -14,7 +15,6 @@ import numpy as np
 
 from birdnet_v2.inference.producer import Producer
 from birdnet_v2.inference.species_tensor import SpeciesTensor
-from birdnet_v2.inference.worker import EMPTY_ID, ChildWorker, Worker
 
 
 class Consumer:
@@ -30,13 +30,19 @@ class Consumer:
 
   def __call__(self):
     finished_workers = 0
+    received_predictions = 0
+    logger = logging.getLogger(__name__)
     while finished_workers < self._n_jobs:
       data = self._queue.get()
       was_stop_signal_from_worker = data is None
       if was_stop_signal_from_worker:
         finished_workers += 1
       else:
-        file_indices, chunk_indices, species_indicies, species_probs = data
+        file_indices, chunk_indices, top_k_species, top_k_scores, top_k_mask = data
+        received_predictions += top_k_species.shape[0]
+        logger.debug(
+          f"Received data from worker. Total received: {received_predictions}. Chunks: {chunk_indices}"
+        )
         self._tensor.write_block(
-          file_indices, chunk_indices, species_indicies, species_probs
+          file_indices, chunk_indices, top_k_species, top_k_scores, top_k_mask
         )

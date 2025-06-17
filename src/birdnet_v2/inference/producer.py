@@ -207,6 +207,10 @@ class Producer:
       np.stack(audio_samples, 0), np.float32
     )
     self._queue.put((slot, current_batch_size))
+    logger.debug(
+      f"Flushed batch to shared memory on slot {slot}, batch size {current_batch_size}. Chunk indices: {chunk_indices}"
+    )
+
     self._sem_fill.release()
     logger.debug(
       f"Producer released FILL. Free slots remaining: {self._sem_free}; Filled slots: {self._sem_fill}"

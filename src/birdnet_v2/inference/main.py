@@ -135,9 +135,9 @@ def analyze(
       mp.Process(
         target=ChildWorker(
           model_path=model_path,
-          thresh=thresholds,
+          species_thresholds=thresholds,
           top_k=top_k,
-          species_whitelist=valid,
+          species_blacklist=valid,
           batch_size=batch_size,
           n_slots=n_slots,
           chunk_duration_samples=chunk_duration_samples,

@@ -9,6 +9,7 @@ import time
 from collections.abc import Generator
 from logging import getLogger
 from multiprocessing import shared_memory
+from multiprocessing.synchronize import Semaphore
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence, Tuple
 
@@ -99,26 +100,32 @@ class ChildWorker:
     self,
     model_path: Path,
     top_k: int,
-    thresh: np.ndarray,
-    species_whitelist: np.ndarray,
+    species_thresholds: np.ndarray,
+    species_blacklist: np.ndarray,
     batch_size: int,
     n_slots: int,
     chunk_duration_samples: int,
     job_q: mp.Queue,
     out_q: mp.Queue,
-    sem_free: mp.Semaphore,
-    sem_fill: mp.Semaphore,
+    sem_free: Semaphore,
+    sem_fill: Semaphore,
     apply_sigmoid: bool = False,
     sigmoid_sensitivity: Optional[float] = None,
     num_threads: int = 1,
   ):
+    assert species_thresholds.shape[0] == 1
+    assert species_blacklist.shape[0] == 1
+    assert species_thresholds.shape[1] == species_blacklist.shape[1]
+
     self.k = top_k
+    self.thresholds = species_thresholds
+    self.blacklist = species_blacklist
     # Setze für ungültige Spezies den Threshold auf inf, sodass (pred >= inf) immer False ist
-    self.thresh = np.where(species_whitelist, thresh, np.inf)[np.newaxis, :]
     self.job_q = job_q
     self.out_q = out_q
     self.sem_free = sem_free
     self.sem_fill = sem_fill
+    self.prediction_count = 0
     self.apply_sigmoid = apply_sigmoid
     self.sigmoid_sensitivity = None
     if apply_sigmoid:
@@ -176,7 +183,8 @@ class ChildWorker:
     after_set_tensor = time.perf_counter()
     self.interp.invoke()
     final = time.perf_counter()
-    print(
+    logger = getLogger(__name__)
+    logger.debug(
       f"Time to set tensor: {after_set_tensor - start_time:.4f}s, {final - after_set_tensor:.4f}s to invoke interpreter, {final - start_time:.4f}s total"
     )
     res = self.interp.get_tensor(self.out_idx)
@@ -191,18 +199,21 @@ class ChildWorker:
       job = self.job_q.get()
       if job is None:
         # Stop signal
-        logger.info("Worker received stop signal.")
+        logger.debug(f"WORKER({os.getpid()}) - Worker received stop signal.")
         self.out_q.put(None)
         break
-      slot, n = job
       self.sem_fill.acquire()
       logger.debug(
-        f"Worker acquired FILL; Free slots remaining: {self.sem_free}; Filled slots: {self.sem_fill}"
+        f"WORKER({os.getpid()}) - Worker acquired FILL; Free slots remaining: {self.sem_free}; Filled slots: {self.sem_fill}"
       )
 
-      audio_samples = self._ring_audio_samples[slot, :n]
-      file_indices = self._ring_file_indices[slot, :n]
-      chunk_indices = self._ring_chunk_indices[slot, :n]
+      slot, n = job
+      audio_samples = self._ring_audio_samples[slot, :n].copy()
+      file_indices = self._ring_file_indices[slot, :n].copy()
+      chunk_indices = self._ring_chunk_indices[slot, :n].copy()
+      logger.debug(
+        f"WORKER({os.getpid()}) - Received job for slot {slot} with {n} samples. Chunks: {chunk_indices}"
+      )
       pred = self._infer(audio_samples)
 
       if self.apply_sigmoid:
@@ -212,37 +223,120 @@ class ChildWorker:
           sensitivity=-self.sigmoid_sensitivity,
         )
 
-      # Filterung vor der Top-k-Auswahl:
-      # Erzeuge eine Maske für gültige Vorhersagen (Threshold und gültige Spezies)
-      valid_mask = pred >= self.thresh
-      # Wenn möglich, in-place modifizieren (sparen einer Kopie)
-      pred[~valid_mask] = EMPTY_PRED
+      invalid_mask = filter_by_threshold(pred, self.thresholds)
+      invalid_mask = combine_invalid_masks(invalid_mask, self.blacklist, in_place=True)
 
-      # Auswahl der Top-k Werte pro Zeile anhand der gefilterten Vorhersagen
-      species_indices = np.argpartition(pred, -self.k, axis=1)[:, -self.k :]
-      species_probs = np.take_along_axis(pred, species_indices, axis=1)
-      order = np.argsort(-species_probs, axis=1)
-      row = np.arange(n)[:, None]
-      species_indices = species_indices[row, order]
-      species_probs = species_probs[row, order]
+      # select top-k species
+      top_k_species = select_top_k_indices(pred, invalid_mask, self.k)
+      top_k_scores = np.take_along_axis(pred, top_k_species, axis=1)
+      top_k_mask = np.take_along_axis(invalid_mask, top_k_species, axis=1)
 
-      # Setze alle -∞-Werte, welche nicht den Filter passiert haben, auf EMPTY_ID und EMPTY_PRED
-      pred_mask = species_probs == EMPTY_PRED
-      species_indices[pred_mask] = EMPTY_ID
+      # sort desc by scores
+      sorted_indices = get_ordered_indices(top_k_scores)
+      top_k_species = np.take_along_axis(top_k_species, sorted_indices, axis=1)
+      top_k_scores = np.take_along_axis(top_k_scores, sorted_indices, axis=1)
+      top_k_mask = np.take_along_axis(top_k_mask, sorted_indices, axis=1)
 
-      species_indices = species_indices.astype(np.uint16, copy=False)
-      species_probs = species_probs.astype(np.float16, copy=False)
+      assert np.all(top_k_species > 0)
+      assert not np.any(top_k_mask)
 
       self.out_q.put(
         (
           file_indices,
           chunk_indices,
-          species_indices,
-          species_probs,
+          top_k_species,
+          top_k_scores,
+          top_k_mask,
         )
+      )
+      self.prediction_count += top_k_species.shape[0]
+      logger.debug(
+        f"WORKER({os.getpid()}) - Prediction made. Total predictions: {self.prediction_count}. Chunks: {chunk_indices}"
       )
       self.sem_free.release()
       logger.debug(
-        f"Worker released FREE. Free slots remaining: {self.sem_free}; Filled slots: {self.sem_fill}"
+        f"WORKER({os.getpid()}) - Worker released FREE. Free slots remaining: {self.sem_free}; Filled slots: {self.sem_fill}"
       )
-    logger.info("Worker finished")
+    logger.debug(f"WORKER({os.getpid()}) - Worker finished")
+
+
+def filter_by_threshold(
+  logits: np.ndarray,
+  thresh_vec: np.ndarray,
+) -> np.ndarray:
+  assert logits.ndim == 2
+  assert thresh_vec.ndim == 2
+  # logits: (N, C)
+  # thresh_vec: (1, C)  or  (N, C)
+  assert logits.shape[1] == thresh_vec.shape[1]
+  invalid_full = logits < thresh_vec
+  return invalid_full
+
+
+def combine_invalid_masks(
+  mask_a: np.ndarray,  # (N, C)   bool
+  mask_b: np.ndarray,  # (1, C) o. (N, C)
+  *,
+  in_place: bool = False,
+) -> np.ndarray:
+  assert mask_a.ndim == 2 and mask_b.ndim == 2
+  assert mask_a.shape[1] == mask_b.shape[1]
+
+  if in_place:
+    np.logical_or(mask_a, mask_b, out=mask_a)
+    return mask_a
+  else:
+    result = np.logical_or(mask_a, mask_b)
+    return result
+
+
+def select_top_k_indices(
+  logits: np.ndarray,
+  invalid_mask: np.ndarray,
+  k: int,
+) -> np.ndarray:
+  assert logits.ndim == 2
+  assert logits.shape == invalid_mask.shape
+  assert k > 0
+  n_species = logits.shape[1]
+  idx_dtype = uint_dtype_for(n_species - 1)
+
+  shadow = np.where(invalid_mask, -np.inf, logits)
+
+  idx = np.argpartition(shadow, -k, axis=1)[:, -k:]
+  idx = idx.astype(idx_dtype, copy=False)
+  return idx
+
+
+def get_ordered_indices(
+  scores: np.ndarray,  # (N, k) float32
+) -> np.ndarray:
+  assert scores.ndim == 2
+  order = np.argsort(-scores, axis=1)
+  return order
+
+
+import numpy as np
+
+
+def uint_dtype_for(max_value: int) -> np.dtype:
+  """
+  Return the narrowest unsigned-integer NumPy dtype that can represent
+  *max_value* (inclusive).
+
+  Examples
+  --------
+  >>> uint_dtype_for(100)
+  dtype('uint8')
+  >>> uint_dtype_for(42_000)
+  dtype('uint16')
+  >>> uint_dtype_for(3_000_000_000)
+  dtype('uint64')
+  """
+  assert max_value >= 0, "max_value must be non-negative."
+
+  for dt in (np.uint8, np.uint16, np.uint32, np.uint64):
+    if max_value <= np.iinfo(dt).max:
+      return np.dtype(dt)
+
+  raise AssertionError("Value exceeds uint64 range.")
