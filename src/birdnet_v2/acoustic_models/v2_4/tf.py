@@ -32,7 +32,7 @@ from tensorflow.lite.python.interpreter import Interpreter
 
 from birdnet.utils import download_file_tqdm, get_species_from_file
 from birdnet_v2.acoustic_models.v2_4.base import AcousticModelBaseV2_4
-from birdnet_v2.globals import APP_DIR
+from birdnet_v2.globals import APP_DIR, WRITE_FLAG
 from birdnet_v2.inference.consumer import Consumer
 from birdnet_v2.inference.producer import (
   Producer,
@@ -173,8 +173,19 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
         "bnet_ring_audio_samples",
         n_slots * batch_size * self.chunk_size_samples * np.dtype(np.float32).itemsize,
       ),
+      shm_ring(
+        "bnet_ring_batch_sizes",
+        n_slots * np.dtype(np.uint16).itemsize,
+      ),
+      shm_ring(
+        "bnet_ring_flags",
+        n_slots * np.dtype(np.uint8).itemsize,
+      ) as shm_ring_flags,
     ):
       logger.debug("Shared memory initialized.")
+
+      flags = np.ndarray((n_slots,), np.uint8, shm_ring_flags.buf)
+      flags[:] = WRITE_FLAG
 
       prod = mp.Process(
         target=Producer(
@@ -203,6 +214,8 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       species_thresholds = thresholds[np.newaxis, :]
       species_thresholds.setflags(write=False)
       worker_queue = mp.Queue()
+      slot_ptr = mp.Value("I", 0, lock=True)
+
       workers = [
         mp.Process(
           target=ChildWorker(
@@ -212,6 +225,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
             species_blacklist=species_blacklist,
             batch_size=batch_size,
             n_slots=n_slots,
+            slot_ptr=slot_ptr,
             chunk_duration_samples=self.chunk_size_samples,
             job_q=prod_queue,
             out_q=worker_queue,

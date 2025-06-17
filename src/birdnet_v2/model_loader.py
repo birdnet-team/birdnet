@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Literal
 
 import numpy as np
+import tensorflow as tf
 
 from birdnet_v2.acoustic_models.v2_4.tf import AcousticTFModelV2_4
 
@@ -16,12 +17,10 @@ def load(spec: str = "acoustic", lang_id: str = "en_us"):
   return result
 
 
-import tensorflow as tf
-
 if __name__ == "__main__":
   # faulthandler.enable(file=sys.stderr, all_threads=True)
   logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format="%(asctime)s (%(levelname)s): %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
   )
@@ -32,13 +31,6 @@ if __name__ == "__main__":
   # audio_paths = [audio_paths[2]]
   # audio_paths = audio_paths[:3]
 
-  audio_paths = [
-    Path("test-dataset/test_dataset_4x60min/0.wav"),
-    Path("test-dataset/test_dataset_4x60min/1.wav"),
-    # Path("test-dataset/test_dataset_4x60min/2.wav"),
-    # Path("test-dataset/test_dataset_4x60min/3.wav"),
-  ]
-
   folder = Path("test-dataset/test_dataset_5x2min")
   audio_paths = list(sorted(folder.glob("*.wav")))
 
@@ -46,18 +38,27 @@ if __name__ == "__main__":
   audio_paths = [Path("test-dataset/test_dataset_1x10min/0.wav")]
   audio_paths = [Path("test-dataset/test_dataset_1x60min/0.wav")]
 
-  tf.random.set_seed(0)
+  audio_paths = [
+    Path("test-dataset/test_dataset_4x60min/0.wav"),
+    Path("test-dataset/test_dataset_4x60min/1.wav"),
+    Path("test-dataset/test_dataset_4x60min/2.wav"),
+    Path("test-dataset/test_dataset_4x60min/3.wav"),
+  ]
+
   random.seed(0)
   np.random.seed(0)
-  tf.config.experimental.enable_op_determinism()
+  tf.random.set_seed(0)
+  # tf.config.experimental.enable_op_determinism()
+  import time
 
+  start = time.perf_counter()
   result = model.analyze(
     audio_paths,
-    n_jobs=24,
-    batch_size=4,
+    n_jobs=12,
+    batch_size=1,
     n_slots_factor=2,
     apply_sigmoid=False,
-    top_k=5,
+    top_k=2,
     overlap_duration_s=0,
     sigmoid_sensitivity=1,
     default_confidence_threshold=-np.inf,
@@ -66,6 +67,9 @@ if __name__ == "__main__":
     #   "Haemorhous mexicanus_House Finch",
     # },
   )
+  end = time.perf_counter()
   result.to_csv("/tmp/predictions.csv", index=False)
   print(result)
+  print(result["confidence"].mean())
   print("/tmp/predictions.csv written.")
+  print(f"Finished analysis in {end - start:.2f} seconds.")

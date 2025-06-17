@@ -22,6 +22,7 @@ import soundfile as sf  # pip install soundfile
 from tensorflow.lite.python import interpreter as tflite
 
 from birdnet.utils import flat_sigmoid
+from birdnet_v2.globals import BUSY_FLAG, DONE_FLAG, READ_FLAG, WRITE_FLAG
 from birdnet_v2.inference.producer import Producer
 
 EMPTY_ID = 0xFFFF
@@ -56,6 +57,8 @@ class Worker:
       valid[:] = True
     valid.setflags(write=False)
 
+    slot_ptr = mp.Value("I", 0, lock=True)  # shared memory pointer to current slot
+
     # workers
     self.workers = [
       mp.Process(
@@ -67,6 +70,7 @@ class Worker:
           batch_size,
           n_slots,
           chunk_duration_samples,
+          slot_ptr,
           prod_queue,
           self._queue,
           sem_free,
@@ -92,7 +96,7 @@ class Worker:
     for p in self.workers:
       p.join()
       live = sum(p.is_alive() for p in self.workers)
-      print(f"Worker {p.pid} finished. {live} workers still alive.")
+      print(f"WORKER - Worker {p.pid} finished. {live} workers still alive.")
 
 
 class ChildWorker:
@@ -105,6 +109,7 @@ class ChildWorker:
     batch_size: int,
     n_slots: int,
     chunk_duration_samples: int,
+    slot_ptr: mp.Value,
     job_q: mp.Queue,
     out_q: mp.Queue,
     sem_free: Semaphore,
@@ -123,6 +128,7 @@ class ChildWorker:
     # Setze für ungültige Spezies den Threshold auf inf, sodass (pred >= inf) immer False ist
     self.job_q = job_q
     self.out_q = out_q
+    self._slot_ptr = slot_ptr
     self.sem_free = sem_free
     self.sem_fill = sem_fill
     self.prediction_count = 0
@@ -139,6 +145,7 @@ class ChildWorker:
     self.interp.allocate_tensors()
     self.in_idx = self.interp.get_input_details()[0]["index"]
     self.out_idx = self.interp.get_output_details()[0]["index"]
+    self._slot = 0
 
     # attatch to existing shared memory buffers
     # NOTE: these handlers must be created that GC does not delete the shared memory access
@@ -150,6 +157,12 @@ class ChildWorker:
     )
     self._shm_audio_samples = shared_memory.SharedMemory(
       name="bnet_ring_audio_samples", create=False
+    )
+    self._shm_batch_sizes = shared_memory.SharedMemory(
+      name="bnet_ring_batch_sizes", create=False
+    )
+    self._shm_ring_flags = shared_memory.SharedMemory(
+      name="bnet_ring_flags", create=False
     )
 
     self._ring_file_indices = np.ndarray(
@@ -163,6 +176,12 @@ class ChildWorker:
       np.float32,
       self._shm_audio_samples.buf,
     )
+    self._ring_batch_sizes = np.ndarray(
+      (n_slots,), np.uint16, self._shm_batch_sizes.buf
+    )
+    self._ring_flags = np.ndarray((n_slots,), np.uint8, self._shm_ring_flags.buf)
+
+    self._n_slots = n_slots
 
     self.cached_shape: Optional[Tuple[int, int]] = (batch_size, chunk_duration_samples)
     self.interp.resize_tensor_input(self.in_idx, self.cached_shape, strict=True)
@@ -185,10 +204,20 @@ class ChildWorker:
     final = time.perf_counter()
     logger = getLogger(__name__)
     logger.debug(
-      f"Time to set tensor: {after_set_tensor - start_time:.4f}s, {final - after_set_tensor:.4f}s to invoke interpreter, {final - start_time:.4f}s total"
+      f"WORKER({os.getpid()}) - Time to set tensor: {after_set_tensor - start_time:.4f}s, {final - after_set_tensor:.4f}s to invoke interpreter, {final - start_time:.4f}s total"
     )
     res = self.interp.get_tensor(self.out_idx)
     return res
+
+  def _jump_to_next_slot(self) -> None:
+    """Increase the slot index, wrapping around if necessary."""
+    self._slot = (self._slot + 1) % self._n_slots
+    assert 0 <= self._slot < self._n_slots
+
+  def _jump_to_next_slot_ptr(self) -> None:
+    """Increase the slot index, wrapping around if necessary."""
+    self._slot_ptr.value = (self._slot_ptr.value + 1) % self._n_slots
+    assert 0 <= self._slot_ptr.value < self._n_slots
 
   # ------------------------------------------------------------
   def __call__(
@@ -196,23 +225,54 @@ class ChildWorker:
   ):
     logger = getLogger(__name__)
     while True:
-      job = self.job_q.get()
-      if job is None:
-        # Stop signal
-        logger.debug(f"WORKER({os.getpid()}) - Worker received stop signal.")
-        self.out_q.put(None)
-        break
+      # job = self.job_q.get()
+      # if job is None:
+      #   # Stop signal
+      #   logger.debug(f"WORKER({os.getpid()}) - Worker received stop signal.")
+      #   self.out_q.put(None)
+      #   break
       self.sem_fill.acquire()
       logger.debug(
         f"WORKER({os.getpid()}) - Worker acquired FILL; Free slots remaining: {self.sem_free}; Filled slots: {self.sem_fill}"
       )
 
-      slot, n = job
-      audio_samples = self._ring_audio_samples[slot, :n].copy()
-      file_indices = self._ring_file_indices[slot, :n].copy()
-      chunk_indices = self._ring_chunk_indices[slot, :n].copy()
+      while True:
+        with self._slot_ptr.get_lock():
+          if self._ring_flags[self._slot_ptr.value] not in (READ_FLAG, DONE_FLAG):
+            assert self._ring_flags[self._slot_ptr.value] in (WRITE_FLAG, BUSY_FLAG)
+            self._jump_to_next_slot_ptr()
+          else:
+            claimed_slot = self._slot_ptr.value
+            claimed_flag = self._ring_flags[claimed_slot]
+            self._ring_flags[self._slot_ptr.value] = BUSY_FLAG
+            self._jump_to_next_slot_ptr()
+            break
+      # while self._ring_flags[self._slot] not in (READ_FLAG, DONE_FLAG):
+      #   self._jump_to_next_slot()
+      #   logger.debug(
+      #     f"WORKER({os.getpid()}) - Slot {self._slot} is not ready, looking for next available slot."
+      #   )
+      # slot = self._slot_ptr.value
+
+      if claimed_flag == DONE_FLAG:
+        logger.debug(
+          f"WORKER({os.getpid()}) - Worker received DONE_FLAG for slot {claimed_slot}. Exiting."
+        )
+        self.out_q.put(None)
+        break
+      assert claimed_flag == READ_FLAG
+
       logger.debug(
-        f"WORKER({os.getpid()}) - Received job for slot {slot} with {n} samples. Chunks: {chunk_indices}"
+        f"WORKER({os.getpid()}) - Worker acquired READ_FLAG for slot {claimed_slot}."
+      )
+
+      # slot, n = job
+      n = self._ring_batch_sizes[claimed_slot]
+      audio_samples = self._ring_audio_samples[claimed_slot, :n]
+      file_indices = self._ring_file_indices[claimed_slot, :n]
+      chunk_indices = self._ring_chunk_indices[claimed_slot, :n]
+      logger.debug(
+        f"WORKER({os.getpid()}) - Received job for slot {claimed_slot} with {n} samples. Chunks: {chunk_indices}"
       )
       pred = self._infer(audio_samples)
 
@@ -242,8 +302,8 @@ class ChildWorker:
 
       self.out_q.put(
         (
-          file_indices,
-          chunk_indices,
+          file_indices.copy(),
+          chunk_indices.copy(),
           top_k_species,
           top_k_scores,
           top_k_mask,
@@ -253,7 +313,10 @@ class ChildWorker:
       logger.debug(
         f"WORKER({os.getpid()}) - Prediction made. Total predictions: {self.prediction_count}. Chunks: {chunk_indices}"
       )
+
+      self._ring_flags[claimed_slot] = WRITE_FLAG
       self.sem_free.release()
+
       logger.debug(
         f"WORKER({os.getpid()}) - Worker released FREE. Free slots remaining: {self.sem_free}; Filled slots: {self.sem_fill}"
       )
@@ -314,9 +377,6 @@ def get_ordered_indices(
   assert scores.ndim == 2
   order = np.argsort(-scores, axis=1)
   return order
-
-
-import numpy as np
 
 
 def uint_dtype_for(max_value: int) -> np.dtype:

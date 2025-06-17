@@ -41,7 +41,7 @@ class Consumer:
         file_indices, chunk_indices, top_k_species, top_k_scores, top_k_mask = data
         received_predictions += top_k_species.shape[0]
         logger.debug(
-          f"Received data from worker. Total received: {received_predictions}. Chunks: {chunk_indices}"
+          f"CONSUMER - Received data from worker. Total received: {received_predictions}. Chunks: {chunk_indices}"
         )
         self._tensor.write_block(
           file_indices, chunk_indices, top_k_species, top_k_scores, top_k_mask

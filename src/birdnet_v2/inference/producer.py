@@ -25,6 +25,7 @@ from birdnet.utils import (
   itertools_batched,
   resample_array,
 )
+from birdnet_v2.globals import DONE_FLAG, READ_FLAG, WRITE_FLAG
 
 
 def get_chunks_with_overlap(
@@ -96,10 +97,10 @@ class Producer:
     self._n_slots = n_slots
     self._sem_free = sem_free
     self._sem_fill = sem_fill
-    self._write_ptr = 0
+    self._slot = 0
     self._queue = queue
     self._files = files
-    self.use_bandpass = use_bandpass
+    self._use_bandpass = use_bandpass
 
     if use_bandpass:
       assert bandpass_fmin is not None
@@ -122,6 +123,8 @@ class Producer:
     self._shm_file_indices = SharedMemory(name="bnet_ring_file_indices", create=False)
     self._shm_chunk_indices = SharedMemory(name="bnet_ring_chunk_indices", create=False)
     self._shm_audio_samples = SharedMemory(name="bnet_ring_audio_samples", create=False)
+    self._shm_batch_sizes = SharedMemory(name="bnet_ring_batch_sizes", create=False)
+    self._shm_ring_flags = SharedMemory(name="bnet_ring_flags", create=False)
 
     self._ring_file_indices = np.ndarray(
       (n_slots, batch_size), np.uint32, self._shm_file_indices.buf
@@ -134,6 +137,10 @@ class Producer:
       np.float32,
       self._shm_audio_samples.buf,
     )
+    self._ring_batch_sizes = np.ndarray(
+      (n_slots,), np.uint16, self._shm_batch_sizes.buf
+    )
+    self._ring_flags = np.ndarray((n_slots,), np.uint8, self._shm_ring_flags.buf)
 
   def get_chunks_from_files(
     self,
@@ -151,7 +158,7 @@ class Producer:
         fillup_with_silence(chunk, self.chunk_duration_samples) for chunk in chunks
       )
 
-      if self.use_bandpass:
+      if self._use_bandpass:
         assert self.bandpass_fmin is not None
         assert self.bandpass_fmax is not None
         assert self.sig_fmin is not None
@@ -182,38 +189,64 @@ class Producer:
 
     # send poison pills
     for _ in range(self._n_jobs):
-      self._queue.put(None)
+      # self._queue.put(None)
+      self._set_done_flag()
+
+  def _jump_to_next_slot(self) -> None:
+    """Increase the slot index, wrapping around if necessary."""
+    self._slot = (self._slot + 1) % self._n_slots
+    assert 0 <= self._slot < self._n_slots
+
+  def _set_done_flag(self) -> None:
+    """Set the DONE_FLAG in the shared memory to signal that no more data will be produced."""
+    logger = getLogger(__name__)
+    self._sem_free.acquire()
+    logger.debug(
+      f"PRODUCER - Producer acquired FREE. Free slots remaining: {self._sem_free}; Filled slots: {self._sem_fill}"
+    )
+    while self._ring_flags[self._slot] != WRITE_FLAG:
+      self._jump_to_next_slot()
+
+    assert 0 <= self._slot < self._n_slots
+    self._ring_flags[self._slot] = DONE_FLAG
+    logger.debug(f"PRODUCER - Set DONE_FLAG on slot {self._slot}.")
+    self._jump_to_next_slot()
+    self._sem_fill.release()
 
   def _flush_batch(self, file_indices, chunk_indices, audio_samples) -> None:
     logger = getLogger(__name__)
     self._sem_free.acquire()
     logger.debug(
-      f"Producer acquired FREE. Free slots remaining: {self._sem_free}; Filled slots: {self._sem_fill}"
+      f"PRODUCER - Producer acquired FREE. Free slots remaining: {self._sem_free}; Filled slots: {self._sem_fill}"
     )
-    slot = self._write_ptr % self._n_slots
-    self._write_ptr += 1
+    while self._ring_flags[self._slot] != WRITE_FLAG:
+      self._jump_to_next_slot()
+
     current_batch_size = len(audio_samples)
     assert len(file_indices) == current_batch_size
     assert len(chunk_indices) == current_batch_size
-    assert 0 <= slot < self._n_slots
+    assert 0 <= self._slot < self._n_slots
     assert current_batch_size <= self._batch_size
-    self._ring_file_indices[slot, :current_batch_size] = np.asarray(
+    self._ring_file_indices[self._slot, :current_batch_size] = np.asarray(
       file_indices, np.uint32
     )
-    self._ring_chunk_indices[slot, :current_batch_size] = np.asarray(
+    self._ring_chunk_indices[self._slot, :current_batch_size] = np.asarray(
       chunk_indices, np.uint32
     )
-    self._ring_audio_samples[slot, :current_batch_size] = np.asarray(
+    self._ring_audio_samples[self._slot, :current_batch_size] = np.asarray(
       np.stack(audio_samples, 0), np.float32
     )
-    self._queue.put((slot, current_batch_size))
+    self._ring_batch_sizes[self._slot] = current_batch_size
+    # self._queue.put((slot, current_batch_size))
     logger.debug(
-      f"Flushed batch to shared memory on slot {slot}, batch size {current_batch_size}. Chunk indices: {chunk_indices}"
+      f"PRODUCER - Flushed batch to shared memory on slot {self._slot}, batch size {current_batch_size}. Chunk indices: {chunk_indices}"
     )
 
+    self._ring_flags[self._slot] = READ_FLAG
+    self._jump_to_next_slot()
     self._sem_fill.release()
     logger.debug(
-      f"Producer released FILL. Free slots remaining: {self._sem_free}; Filled slots: {self._sem_fill}"
+      f"PRODUCER - Producer released FILL. Free slots remaining: {self._sem_free}; Filled slots: {self._sem_fill}"
     )
 
 

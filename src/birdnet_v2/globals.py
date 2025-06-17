@@ -1,6 +1,20 @@
 import os
 from pathlib import Path
 
+import numpy as np
+
+# flag for "can be written to"
+WRITE_FLAG = np.uint8(0)
+
+# flag for "can be read from"
+READ_FLAG = np.uint8(1)
+
+# flag for "busy", i.e., currently being processed
+BUSY_FLAG = np.uint8(2)
+
+# flag for "done"
+DONE_FLAG = np.uint8(3)
+
 
 def get_app_data_path() -> Path:
   """Returns the appropriate application data path based on the operating system."""
