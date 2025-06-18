@@ -1,3 +1,4 @@
+import logging
 import multiprocessing as mp
 import os
 from collections.abc import Generator, Iterable
@@ -13,6 +14,7 @@ import numpy as np
 import numpy.typing as npt
 import requests
 import soundfile as sf
+from numpy.typing import DTypeLike
 from ordered_set import OrderedSet
 from scipy.signal import butter, lfilter, resample
 from tqdm import tqdm
@@ -26,6 +28,7 @@ from birdnet.utils import (
   resample_array,
 )
 from birdnet_v2.globals import DONE_FLAG, READ_FLAG, WRITE_FLAG
+from birdnet_v2.helper import RingField, max_value_for_uint_dtype, uint_dtype_for
 
 
 def get_chunks_with_overlap(
@@ -77,9 +80,13 @@ class Producer:
     batch_size: int,
     n_slots: int,
     n_jobs: int,
-    queue: Queue,
-    sem_free: Semaphore,  # counts free slots
-    sem_fill: Semaphore,  # counts filled slots
+    rf_file_indices: RingField,
+    rf_chunk_indices: RingField,
+    rf_audio_samples: RingField,
+    rf_batch_sizes: RingField,
+    rf_flags: RingField,
+    sem_free_slots: Semaphore,  # counts free slots
+    sem_filled_slots: Semaphore,  # counts filled slots
     chunk_duration_s: float = 3.0,
     overlap_duration_s: float = 0.0,
     target_sample_rate: int = 48000,
@@ -88,6 +95,7 @@ class Producer:
     bandpass_fmax: Optional[int] = None,
     fmin: Optional[int] = None,
     fmax: Optional[int] = None,
+    max_supported_n_chunks: Optional[int] = None,
   ):
     self.chunk_duration_s = chunk_duration_s
     self.overlap_duration_s = overlap_duration_s
@@ -95,10 +103,9 @@ class Producer:
     self._batch_size = batch_size
     self._n_jobs = n_jobs
     self._n_slots = n_slots
-    self._sem_free = sem_free
-    self._sem_fill = sem_fill
+    self._sem_free_slots = sem_free_slots
+    self._sem_filled_slots = sem_filled_slots
     self._slot = 0
-    self._queue = queue
     self._files = files
     self._use_bandpass = use_bandpass
 
@@ -120,27 +127,20 @@ class Producer:
 
     # attach to existing shared memory buffers
     # NOTE: these handlers must be created that GC does not delete the shared memory access
-    self._shm_file_indices = SharedMemory(name="bnet_ring_file_indices", create=False)
-    self._shm_chunk_indices = SharedMemory(name="bnet_ring_chunk_indices", create=False)
-    self._shm_audio_samples = SharedMemory(name="bnet_ring_audio_samples", create=False)
-    self._shm_batch_sizes = SharedMemory(name="bnet_ring_batch_sizes", create=False)
-    self._shm_ring_flags = SharedMemory(name="bnet_ring_flags", create=False)
-
-    self._ring_file_indices = np.ndarray(
-      (n_slots, batch_size), np.uint32, self._shm_file_indices.buf
+    self._shm_file_indices, self._ring_file_indices = (
+      rf_file_indices.attach_and_get_array()
     )
-    self._ring_chunk_indices = np.ndarray(
-      (n_slots, batch_size), np.uint32, self._shm_chunk_indices.buf
+    self._shm_chunk_indices, self._ring_chunk_indices = (
+      rf_chunk_indices.attach_and_get_array()
     )
-    self._ring_audio_samples = np.ndarray(
-      (n_slots, batch_size, self.chunk_duration_samples),
-      np.float32,
-      self._shm_audio_samples.buf,
+    self._shm_audio_samples, self._ring_audio_samples = (
+      rf_audio_samples.attach_and_get_array()
     )
-    self._ring_batch_sizes = np.ndarray(
-      (n_slots,), np.uint16, self._shm_batch_sizes.buf
+    self._shm_batch_sizes, self._ring_batch_sizes = (
+      rf_batch_sizes.attach_and_get_array()
     )
-    self._ring_flags = np.ndarray((n_slots,), np.uint8, self._shm_ring_flags.buf)
+    self._shm_ring_flags, self._ring_flags = rf_flags.attach_and_get_array()
+    self._max_supported_n_chunks = max_supported_n_chunks
 
   def get_chunks_from_files(
     self,
@@ -180,16 +180,24 @@ class Producer:
         yield file_index, chunk_index, chunk
 
   def __call__(self) -> None:
-    assert self._queue.empty()
-
     buffer_input = self.get_chunks_from_files()
     for batch in itertools_batched(buffer_input, self._batch_size):
       file_indices, chunk_indices, audio_samples = zip(*batch)
+      max_chunk_index = max(chunk_indices)
+      if (
+        self._max_supported_n_chunks is not None
+        and max_chunk_index >= self._max_supported_n_chunks
+      ):
+        logger = getLogger(__name__)
+        logger.error(
+          f"Chunk index {max_chunk_index} exceeds maximum supported chunk index {self._max_supported_n_chunks}. Maximum audio duration is false. Cancelling proceessing."
+        )
+        break
+
       self._flush_batch(file_indices, chunk_indices, audio_samples)
 
     # send poison pills
     for _ in range(self._n_jobs):
-      # self._queue.put(None)
       self._set_done_flag()
 
   def _jump_to_next_slot(self) -> None:
@@ -200,9 +208,9 @@ class Producer:
   def _set_done_flag(self) -> None:
     """Set the DONE_FLAG in the shared memory to signal that no more data will be produced."""
     logger = getLogger(__name__)
-    self._sem_free.acquire()
+    self._sem_free_slots.acquire()
     logger.debug(
-      f"PRODUCER - Producer acquired FREE. Free slots remaining: {self._sem_free}; Filled slots: {self._sem_fill}"
+      f"PRODUCER - Producer acquired FREE. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
     )
     while self._ring_flags[self._slot] != WRITE_FLAG:
       self._jump_to_next_slot()
@@ -211,13 +219,13 @@ class Producer:
     self._ring_flags[self._slot] = DONE_FLAG
     logger.debug(f"PRODUCER - Set DONE_FLAG on slot {self._slot}.")
     self._jump_to_next_slot()
-    self._sem_fill.release()
+    self._sem_filled_slots.release()
 
   def _flush_batch(self, file_indices, chunk_indices, audio_samples) -> None:
     logger = getLogger(__name__)
-    self._sem_free.acquire()
+    self._sem_free_slots.acquire()
     logger.debug(
-      f"PRODUCER - Producer acquired FREE. Free slots remaining: {self._sem_free}; Filled slots: {self._sem_fill}"
+      f"PRODUCER - Producer acquired FREE. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
     )
     while self._ring_flags[self._slot] != WRITE_FLAG:
       self._jump_to_next_slot()
@@ -228,15 +236,20 @@ class Producer:
     assert 0 <= self._slot < self._n_slots
     assert current_batch_size <= self._batch_size
     self._ring_file_indices[self._slot, :current_batch_size] = np.asarray(
-      file_indices, np.uint32
+      file_indices, self._ring_file_indices.dtype
     )
+    # TODO könnte man noch bei den anderen auch machen
+    assert max(chunk_indices) < max_value_for_uint_dtype(self._ring_chunk_indices.dtype)
+    assert min(chunk_indices) >= 0
     self._ring_chunk_indices[self._slot, :current_batch_size] = np.asarray(
-      chunk_indices, np.uint32
+      chunk_indices, self._ring_chunk_indices.dtype
     )
+
     self._ring_audio_samples[self._slot, :current_batch_size] = np.asarray(
-      np.stack(audio_samples, 0), np.float32
+      np.stack(audio_samples, 0), self._ring_audio_samples.dtype
     )
     self._ring_batch_sizes[self._slot] = current_batch_size
+
     # self._queue.put((slot, current_batch_size))
     logger.debug(
       f"PRODUCER - Flushed batch to shared memory on slot {self._slot}, batch size {current_batch_size}. Chunk indices: {chunk_indices}"
@@ -244,9 +257,9 @@ class Producer:
 
     self._ring_flags[self._slot] = READ_FLAG
     self._jump_to_next_slot()
-    self._sem_fill.release()
+    self._sem_filled_slots.release()
     logger.debug(
-      f"PRODUCER - Producer released FILL. Free slots remaining: {self._sem_free}; Filled slots: {self._sem_fill}"
+      f"PRODUCER - Producer released FILL. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
     )
 
 
@@ -288,7 +301,7 @@ import contextlib
 
 
 @contextlib.contextmanager
-def shm_ring(name: str, size: int):
+def shm_ring_from_name(name: str, size: int):
   shm = SharedMemory(create=True, name=name, size=size)
   try:
     yield shm
@@ -321,14 +334,14 @@ def test_producing():
   chunk_duration_samples = int(chunk_duration_s * target_sample_rate)
 
   with (
-    shm_ring(
+    shm_ring_from_name(
       "bnet_ring_file_indices",
       n_slots * batch_size * np.dtype(np.uint32).itemsize,
     ) as shm_file_indices,
-    shm_ring(
+    shm_ring_from_name(
       "bnet_ring_chunk_indices", n_slots * batch_size * np.dtype(np.uint32).itemsize
     ) as shm_chunk_indices,
-    shm_ring(
+    shm_ring_from_name(
       "bnet_ring_audio_samples",
       n_slots * batch_size * chunk_duration_samples * np.dtype(np.float32).itemsize,
     ) as shm_audio_samples,

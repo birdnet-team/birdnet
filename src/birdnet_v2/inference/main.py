@@ -28,7 +28,7 @@ from birdnet_v2.inference.consumer import Consumer
 from birdnet_v2.inference.producer import (
   Producer,  # type: ignore
   load_audio_in_chunks_with_overlap,
-  shm_ring,
+  shm_ring_from_name,
 )
 from birdnet_v2.inference.species_tensor import SpeciesTensor
 from birdnet_v2.inference.worker import ChildWorker, Worker
@@ -94,14 +94,14 @@ def analyze(
         thresholds[sp_id] = threshold
 
   with (
-    shm_ring(
+    shm_ring_from_name(
       "bnet_ring_file_indices",
       n_slots * batch_size * np.dtype(np.uint32).itemsize,
     ),
-    shm_ring(
+    shm_ring_from_name(
       "bnet_ring_chunk_indices", n_slots * batch_size * np.dtype(np.uint32).itemsize
     ),
-    shm_ring(
+    shm_ring_from_name(
       "bnet_ring_audio_samples",
       n_slots * batch_size * chunk_duration_samples * np.dtype(np.float32).itemsize,
     ),

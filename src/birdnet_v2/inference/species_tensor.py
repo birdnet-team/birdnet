@@ -3,14 +3,35 @@ from __future__ import annotations
 import logging
 
 import numpy as np
+from numpy.typing import DTypeLike
+
+from birdnet_v2.helper import uint_dtype_for
 
 
 class SpeciesTensor:
-  def __init__(self, n_files: int, n_chunks: int, top_k: int):
+  def __init__(
+    self,
+    n_files: int,
+    n_chunks: int,
+    top_k: int,
+    n_species: int,
+    prob_dtype: DTypeLike,
+    files_dtype: DTypeLike,
+    chunk_indices_dtype: DTypeLike,
+  ):
+    self._files_dtype = files_dtype
+    self._chunk_indices_dtype = chunk_indices_dtype
     self._top_k = top_k
 
-    self._species_ids = np.empty((n_files, n_chunks, self._top_k), dtype=np.uint16)
-    self._species_probs = np.empty((n_files, n_chunks, self._top_k), dtype=np.float32)
+    self._species_ids = np.empty(
+      (n_files, n_chunks, self._top_k),
+      dtype=uint_dtype_for(
+        max(0, n_species - 1),
+      ),
+    )
+
+    self._species_probs = np.empty((n_files, n_chunks, self._top_k), dtype=prob_dtype)
+
     self._species_masked = np.full((n_files, n_chunks, self._top_k), True, dtype=bool)
 
     logger = logging.getLogger(__name__)
@@ -63,6 +84,11 @@ class SpeciesTensor:
     top_k_scores: np.ndarray,  # 2dim
     top_k_mask: np.ndarray,  # 2dim
   ):
+    assert file_indices.dtype == self._files_dtype
+    assert top_k_species.dtype == self._species_ids.dtype
+    assert top_k_scores.dtype == self._species_probs.dtype
+    assert top_k_mask.dtype == self._species_masked.dtype
+    assert chunk_indices.dtype == self._chunk_indices_dtype
     max_chunk_size = max(chunk_indices) + 1
     self.ensure_capacity(max_chunk_size)
     self._species_ids[file_indices, chunk_indices] = top_k_species

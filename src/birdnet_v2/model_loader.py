@@ -34,16 +34,15 @@ if __name__ == "__main__":
   folder = Path("test-dataset/test_dataset_5x2min")
   audio_paths = list(sorted(folder.glob("*.wav")))
 
-  audio_paths = [Path("example/soundscape.wav")]
-  audio_paths = [Path("test-dataset/test_dataset_1x10min/0.wav")]
-  audio_paths = [Path("test-dataset/test_dataset_1x60min/0.wav")]
-
   audio_paths = [
     Path("test-dataset/test_dataset_4x60min/0.wav"),
     Path("test-dataset/test_dataset_4x60min/1.wav"),
     Path("test-dataset/test_dataset_4x60min/2.wav"),
     Path("test-dataset/test_dataset_4x60min/3.wav"),
   ]
+  audio_paths = [Path("test-dataset/test_dataset_1x10min/0.wav")]
+  audio_paths = [Path("example/soundscape.wav")]
+  audio_paths = [Path("test-dataset/test_dataset_1x60min/0.wav")]
 
   random.seed(0)
   np.random.seed(0)
