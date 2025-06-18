@@ -208,6 +208,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       shape=(n_slots, batch_size, self.chunk_size_samples),
     )
 
+    assert batch_size > 0
     rf_batch_sizes = RingField(
       "bnet_ring_batch_sizes",
       dtype=uint_dtype_for(batch_size),

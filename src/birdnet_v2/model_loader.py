@@ -41,8 +41,8 @@ if __name__ == "__main__":
     Path("test-dataset/test_dataset_4x60min/3.wav"),
   ]
   audio_paths = [Path("test-dataset/test_dataset_1x10min/0.wav")]
-  audio_paths = [Path("example/soundscape.wav")]
   audio_paths = [Path("test-dataset/test_dataset_1x60min/0.wav")]
+  audio_paths = [Path("example/soundscape.wav")]
 
   random.seed(0)
   np.random.seed(0)
@@ -61,6 +61,7 @@ if __name__ == "__main__":
     overlap_duration_s=0,
     sigmoid_sensitivity=1,
     default_confidence_threshold=-np.inf,
+    # max_audio_duration_min=60,
     # custom_species_list={
     #   "Junco hyemalis_Dark-eyed Junco",
     #   "Haemorhous mexicanus_House Finch",
