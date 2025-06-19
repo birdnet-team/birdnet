@@ -1,6 +1,7 @@
 # birdnet_batch_inference.py – raw‑audio version
 from __future__ import annotations
 
+import ctypes
 import logging
 import math
 import multiprocessing as mp
@@ -11,6 +12,7 @@ import sys
 import tempfile
 import time
 import zipfile
+from collections import deque
 from collections.abc import Generator
 from multiprocessing.shared_memory import SharedMemory
 from multiprocessing.synchronize import Event, Semaphore
@@ -51,8 +53,65 @@ from birdnet_v2.inference.producer import (
   shm_ring_from_name,
 )
 from birdnet_v2.inference.species_tensor import SpeciesTensor
-from birdnet_v2.inference.worker import ChildWorker, Worker
+from birdnet_v2.inference.worker import ChildWorker
 from birdnet_v2.model_downloader import ModelDownloader
+
+
+class PerformanceTracker:
+  def __init__(
+    self,
+    pred_dur_queue: mp.SimpleQueue,
+    stop_event: mp.Event,
+    update_interval: float,
+    print_last_n: int,
+    start: float,
+    stop_time: mp.RawValue,
+    chunk_size_s: float = 3.0,
+  ):
+    self._pred_dur_queue = pred_dur_queue
+    self._pred_dur_deque = deque(maxlen=print_last_n)
+    self._batch_sizes_deque = deque(maxlen=print_last_n)
+    self._update_every = update_interval
+    self._stop_event = stop_event
+    self._next_print = time.time()
+    self._total_chunks_processed = 0
+    self._total_processing_duration = 0.0
+    self._start = start
+    self._chunk_size_s = chunk_size_s
+    self._stop_time = stop_time
+
+  def __call__(self):
+    # check stop event
+    logger = logging.getLogger(__name__)
+    stop = None
+    while True:
+      processing_finished = self._stop_event.is_set()
+      queue_is_empty = self._pred_dur_queue.empty()
+      if processing_finished:
+        stop = self._stop_time.value
+        if queue_is_empty:
+          break
+
+      while not self._pred_dur_queue.empty():
+        dur, batch_size = self._pred_dur_queue.get()
+        self._pred_dur_deque.append(dur)
+        self._batch_sizes_deque.append(batch_size)
+        self._total_chunks_processed += batch_size
+        self._total_processing_duration += dur
+
+      now = time.time()
+      perf_duration = time.perf_counter() - self._start
+      if now >= self._next_print and len(self._pred_dur_deque) > 0:
+        avg = sum(self._pred_dur_deque) / sum(self._batch_sizes_deque)
+        chunks_per_s = self._total_chunks_processed / perf_duration
+        logger.info(
+          f"Ø Inference speed: {self._total_processing_duration / self._total_chunks_processed * 1000:.0f} ms/chunk; last {len(self._pred_dur_deque)} predictions: {avg * 1000:.0f} ms/chunk; {chunks_per_s:.0f} chunks/s = {chunks_per_s * self._chunk_size_s / 60:.2f} min/s"
+        )
+
+        self._next_print = now + self._update_every
+    assert stop is not None
+    total_duration = stop - self._start
+    logger.info(f"Total processing time: {total_duration:.2f} s")
 
 
 class AcousticTFModelV2_4(AcousticModelBaseV2_4):
@@ -121,6 +180,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     custom_species_list: set[str] | None = None,
     half_precision: bool = True,
     max_audio_duration_min: float | None = None,
+    track_performance: bool = True,
   ):
     logger = logging.getLogger(__name__)
 
@@ -218,7 +278,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
 
     rf_flags = RingField(
       "bnet_ring_flags",
-      dtype=np.dtype(np.uint8),
+      dtype=np.dtype(np.uint8),  # 4 Values
       shape=(n_slots,),
     )
 
@@ -232,6 +292,19 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       files_dtype=rf_file_indices.dtype,
     )
 
+    species_blacklist = ~species_whitelist[np.newaxis, :]
+    species_blacklist.setflags(write=False)
+    species_thresholds = thresholds[np.newaxis, :]
+    species_thresholds.setflags(write=False)
+    worker_queue = mp.Queue()
+    slot_ptr = mp.Value(
+      uint_ctype_from_dtype(uint_dtype_for(n_slots - 1)), 0, lock=True
+    )  # type: ignore
+
+    pred_dur_queue = mp.SimpleQueue()
+    stop_event = mp.Event()
+    stop_time = mp.RawValue(ctypes.c_float, 0.0)  # float32
+
     with (
       create_shm_ring(rf_file_indices),
       create_shm_ring(rf_chunk_indices),
@@ -244,6 +317,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       flags = rf_flags.get_array(shm_ring_flags)
       flags[:] = WRITE_FLAG
 
+      start = time.perf_counter()
       prod = mp.Process(
         target=Producer(
           file_paths,
@@ -271,12 +345,21 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       )
       prod.start()
 
-      species_blacklist = ~species_whitelist[np.newaxis, :]
-      species_blacklist.setflags(write=False)
-      species_thresholds = thresholds[np.newaxis, :]
-      species_thresholds.setflags(write=False)
-      worker_queue = mp.Queue()
-      slot_ptr = mp.Value("I", 0, lock=True)
+      inference_tracker = None
+      if track_performance:
+        inference_tracker = mp.Process(
+          target=PerformanceTracker(
+            pred_dur_queue,
+            stop_event,
+            update_interval=1,
+            print_last_n=500,
+            stop_time=stop_time,
+            start=start,
+            chunk_size_s=self.chunk_size_s,
+          ),
+          daemon=True,
+        )
+        inference_tracker.start()
 
       workers = [
         mp.Process(
@@ -300,6 +383,8 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
             apply_sigmoid=apply_sigmoid,
             prob_dtype=prob_dtype,
             sigmoid_sensitivity=sigmoid_sensitivity,
+            pred_dur_queue=pred_dur_queue,
+            track_performance=track_performance,
             num_threads=1,  # more than one is not possible with multiprocessing in this tflite version
           ),
           daemon=True,
@@ -315,6 +400,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
         worker_queue=worker_queue,
         species_tensor=result,
         max_chunk_index=max_chunk_idx_ptr,
+        pred_dur_queue=pred_dur_queue,
       )
       consumer()
 
@@ -325,29 +411,53 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
         w.join()
         logger.debug(f"Worker {w.pid} finished.")
       logger.debug("All workers finished.")
+      stop_time.value = time.perf_counter()
 
-    df = convert_tensor_to_dataframe(
-      result, file_paths, self.chunk_size_s, overlap_duration_s, self._species_list
+      if track_performance:
+        stop_event.set()
+        assert inference_tracker is not None
+        inference_tracker.join()
+
+    res = PredictionResult(
+      tensor=result,
+      files=file_paths,
+      chunk_duration_s=self.chunk_size_s,
+      overlap_duration_s=overlap_duration_s,
+      species_list=self._species_list,
     )
-    return df
+    return res
 
 
 class PredictionResult:
-  def __init__(self, tensor: SpeciesTensor):
-    pass
+  def __init__(
+    self,
+    tensor: SpeciesTensor,
+    files: OrderedSet[Path],
+    chunk_duration_s: int | float,
+    overlap_duration_s: int | float,
+    species_list: OrderedSet[str],
+  ):
+    self._tensor = tensor
+    self._files = files
+    self._chunk_duration_s = chunk_duration_s
+    self._overlap_duration_s = overlap_duration_s
+    self._species_list = species_list
 
   def to_dataframe(self):
-    """
-    Convert the prediction result to a pandas DataFrame.
-    """
-    pass
+    return convert_tensor_to_dataframe(
+      self._tensor,
+      self._files,
+      self._chunk_duration_s,
+      self._overlap_duration_s,
+      self._species_list,
+    )
 
 
 def convert_tensor_to_dataframe(
   tensor: SpeciesTensor,
   files: OrderedSet[Path],
-  chunk_duration_s: Union[int, float],
-  overlap_duration_s: Union[int, float],
+  chunk_duration_s: int | float,
+  overlap_duration_s: int | float,
   species_list: OrderedSet[str],
 ) -> pd.DataFrame:
   max_chunks = tensor.current_n_chunks

@@ -7,6 +7,7 @@ import os
 import queue
 import sys
 import time
+from collections import deque
 from collections.abc import Generator
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence, Tuple
@@ -24,11 +25,14 @@ class Consumer:
     worker_queue: mp.Queue,
     species_tensor: SpeciesTensor,
     max_chunk_index: mp.RawValue,
+    pred_dur_queue: mp.SimpleQueue,
   ):
     self._n_jobs = n_jobs
     self._queue = worker_queue
     self._tensor = species_tensor
     self._max_chunk_index = max_chunk_index
+    self._pred_dur_queue = pred_dur_queue
+    self._pred_dur_deque = deque(maxlen=50)
 
   def __call__(self):
     finished_workers = 0

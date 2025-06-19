@@ -49,12 +49,16 @@ class ChildWorker:
     prob_dtype: DTypeLike,
     apply_sigmoid: bool,
     sigmoid_sensitivity: Optional[float],
+    pred_dur_queue: mp.SimpleQueue,
+    track_performance: bool,
     num_threads: int = 1,
   ):
     assert species_thresholds.shape[0] == 1
     assert species_blacklist.shape[0] == 1
     assert species_thresholds.shape[1] == species_blacklist.shape[1]
 
+    self._track_performance = track_performance
+    self._pred_dur_queue = pred_dur_queue
     self._top_k = top_k
     self._thresholds = species_thresholds
     self._blacklist = species_blacklist
@@ -117,6 +121,9 @@ class ChildWorker:
     after_set_tensor = time.perf_counter()
     self._interp.invoke()
     final = time.perf_counter()
+    if self._track_performance:
+      pred_dur = final - start_time
+      self._pred_dur_queue.put((pred_dur, batch.shape[0]))
     logger = getLogger(__name__)
     logger.debug(
       f"WORKER({os.getpid()}) - Time to set tensor: {after_set_tensor - start_time:.4f}s, {final - after_set_tensor:.4f}s to invoke interpreter, {final - start_time:.4f}s total"
