@@ -49,7 +49,7 @@ class SpeciesTensor:
   def current_n_chunks(self) -> int:
     return self._species_ids.shape[1]
 
-  def ensure_capacity(self, needed_n_chunks: int):
+  def _ensure_capacity(self, needed_n_chunks: int):
     if needed_n_chunks <= self.current_n_chunks:
       return
 
@@ -83,14 +83,16 @@ class SpeciesTensor:
     top_k_species: np.ndarray,  # 2dim
     top_k_scores: np.ndarray,  # 2dim
     top_k_mask: np.ndarray,  # 2dim
+    global_max_chunk_idx: int,
   ):
     assert file_indices.dtype == self._files_dtype
     assert top_k_species.dtype == self._species_ids.dtype
     assert top_k_scores.dtype == self._species_probs.dtype
     assert top_k_mask.dtype == self._species_masked.dtype
     assert chunk_indices.dtype == self._chunk_indices_dtype
-    max_chunk_size = max(chunk_indices) + 1
-    self.ensure_capacity(max_chunk_size)
+    block_max_chunk_idx = chunk_indices.max()
+    max_chunk_size = max(block_max_chunk_idx, global_max_chunk_idx) + 1
+    self._ensure_capacity(max_chunk_size)
     self._species_ids[file_indices, chunk_indices] = top_k_species
     self._species_probs[file_indices, chunk_indices] = top_k_scores
     self._species_masked[file_indices, chunk_indices] = top_k_mask

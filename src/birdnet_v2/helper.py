@@ -89,3 +89,53 @@ def get_max_n_chunks(
   assert effective_chunk_duration_s > 0
   n_chunks = math.ceil(total_duration_s / effective_chunk_duration_s)
   return n_chunks
+
+
+import ctypes
+import multiprocessing as mp
+
+import numpy as np
+
+# ---------------- Mapping -----------------
+_DTYPE_TO_CODE = {
+  np.uint8: "B",  # unsigned char
+  np.int8: "b",
+  np.uint16: "H",  # unsigned short
+  np.int16: "h",
+  np.uint32: "I",  # unsigned int
+  np.int32: "i",
+  np.uint64: "Q",  # unsigned long long
+  np.int64: "q",
+  np.float32: "f",
+  np.float64: "d",
+}
+
+# ---------------- Mapping -----------------
+_UINT_DTYPE_TO_CTYPE = {
+  np.uint8: ctypes.c_uint8,
+  np.uint16: ctypes.c_uint16,
+  np.uint32: ctypes.c_uint32,
+  np.uint64: ctypes.c_uint64,
+}
+
+from numpy.typing import DTypeLike
+
+
+def code_from_dtype(dtype: DTypeLike) -> str:
+  """
+  Erzeugt ein multiprocessing.RawValue mit dem zugehörigen Typecode
+  für den angegebenen NumPy-Datentyp.
+  """
+  dtype = np.dtype(dtype).type  # z. B. <class 'numpy.uint16'>
+  code = _DTYPE_TO_CODE[dtype]
+  return code
+
+
+def uint_ctype_from_dtype(dtype: DTypeLike) -> ctypes._SimpleCData:
+  """
+  Erzeugt ein multiprocessing.RawValue mit dem zugehörigen Typecode
+  für den angegebenen NumPy-Datentyp.
+  """
+  dtype = np.dtype(dtype).type  # z. B. <class 'numpy.uint16'>
+  code = _UINT_DTYPE_TO_CTYPE[dtype]
+  return code

@@ -28,7 +28,12 @@ from birdnet.utils import (
   resample_array,
 )
 from birdnet_v2.globals import DONE_FLAG, READ_FLAG, WRITE_FLAG
-from birdnet_v2.helper import RingField, max_value_for_uint_dtype, uint_dtype_for
+from birdnet_v2.helper import (
+  RingField,
+  get_max_n_chunks,
+  max_value_for_uint_dtype,
+  uint_dtype_for,
+)
 
 
 def get_chunks_with_overlap(
@@ -87,6 +92,7 @@ class Producer:
     rf_flags: RingField,
     sem_free_slots: Semaphore,  # counts free slots
     sem_filled_slots: Semaphore,  # counts filled slots
+    max_chunk_idx_ptr: mp.RawValue,
     chunk_duration_s: float = 3.0,
     overlap_duration_s: float = 0.0,
     target_sample_rate: int = 48000,
@@ -95,7 +101,6 @@ class Producer:
     bandpass_fmax: Optional[int] = None,
     fmin: Optional[int] = None,
     fmax: Optional[int] = None,
-    max_supported_n_chunks: Optional[int] = None,
   ):
     self.chunk_duration_s = chunk_duration_s
     self.overlap_duration_s = overlap_duration_s
@@ -108,6 +113,7 @@ class Producer:
     self._slot = 0
     self._files = files
     self._use_bandpass = use_bandpass
+    self._max_chunk_idx_ptr = max_chunk_idx_ptr
 
     if use_bandpass:
       assert bandpass_fmin is not None
@@ -140,12 +146,28 @@ class Producer:
       rf_batch_sizes.attach_and_get_array()
     )
     self._shm_ring_flags, self._ring_flags = rf_flags.attach_and_get_array()
-    self._max_supported_n_chunks = max_supported_n_chunks
+    self._max_supported_chunk_index = (
+      max_value_for_uint_dtype(rf_chunk_indices.dtype) - 1
+    )
 
   def get_chunks_from_files(
     self,
   ) -> Generator[tuple[int, int, npt.NDArray[np.float32]], None, None]:
     for file_index, path in enumerate(self._files):
+      audio_duration = get_audio_duration(path)
+      file_n_chunks = get_max_n_chunks(
+        audio_duration, self.chunk_duration_s, self.overlap_duration_s
+      )
+      file_max_chunk_index = file_n_chunks - 1
+
+      if file_max_chunk_index > self._max_chunk_idx_ptr.value:
+        if file_max_chunk_index > self._max_supported_chunk_index:
+          logger = getLogger(__name__)
+          logger.error(
+            f"File {path} has a duration of {audio_duration / 60:.2f} min and contains {file_n_chunks} chunks, which exceeds the maximum supported amount of chunks {self._max_supported_chunk_index + 1}. Please set maximum audio duration."
+          )
+          continue
+        self._max_chunk_idx_ptr.value = file_max_chunk_index
       chunks = load_audio_in_chunks_with_overlap(
         path,
         chunk_duration_s=self.chunk_duration_s,
@@ -184,13 +206,10 @@ class Producer:
     for batch in itertools_batched(buffer_input, self._batch_size):
       file_indices, chunk_indices, audio_samples = zip(*batch)
       max_chunk_index = max(chunk_indices)
-      if (
-        self._max_supported_n_chunks is not None
-        and max_chunk_index >= self._max_supported_n_chunks
-      ):
+      if max_chunk_index > self._max_supported_chunk_index:
         logger = getLogger(__name__)
         logger.error(
-          f"Chunk index {max_chunk_index} exceeds maximum supported chunk index {self._max_supported_n_chunks}. Maximum audio duration is false. Cancelling proceessing."
+          f"Chunk index {max_chunk_index} exceeds maximum supported chunk index {self._max_supported_chunk_index}. Please set maximum audio duration. Cancelling proceessing."
         )
         break
 
@@ -261,6 +280,16 @@ class Producer:
     logger.debug(
       f"PRODUCER - Producer released FILL. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
     )
+
+
+def get_audio_duration(audio_path: Path) -> float:
+  """
+  Returns the duration of the audio file in seconds.
+  """
+  assert audio_path.is_file()
+  sf_info = sf.info(audio_path)
+  result = float(sf_info.duration)
+  return result
 
 
 def load_audio_in_chunks_with_overlap(

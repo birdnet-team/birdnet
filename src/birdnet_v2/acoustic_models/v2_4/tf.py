@@ -36,8 +36,11 @@ from birdnet_v2.acoustic_models.v2_4.base import AcousticModelBaseV2_4
 from birdnet_v2.globals import APP_DIR, WRITE_FLAG
 from birdnet_v2.helper import (
   RingField,
+  code_from_dtype,
   create_shm_ring,
   get_max_n_chunks,
+  max_value_for_uint_dtype,
+  uint_ctype_from_dtype,
   uint_dtype_for,
 )
 from birdnet_v2.inference.consumer import Consumer
@@ -102,22 +105,22 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
 
   def analyze(
     self,
-    files: List[Path] | List[str],
+    files: list[Path] | list[str],
     top_k: int = 5,
     n_jobs: int = 4,
     batch_size: int = 50,
     n_slots_factor: int = 2,
     overlap_duration_s: float = 0,
     default_confidence_threshold: float = 0.1,
-    custom_confidence_thresholds: Optional[dict[str, float]] = None,
+    custom_confidence_thresholds: dict[str, float] | None = None,
     use_bandpass: bool = False,
-    bandpass_fmin: Optional[int] = None,
-    bandpass_fmax: Optional[int] = None,
+    bandpass_fmin: int | None = None,
+    bandpass_fmax: int | None = None,
     apply_sigmoid: bool = True,
-    sigmoid_sensitivity: Optional[float] = 1.0,
-    custom_species_list: Optional[set[str]] = None,
+    sigmoid_sensitivity: float | None = 1.0,
+    custom_species_list: set[str] | None = None,
     half_precision: bool = True,
-    max_audio_duration_min: Optional[float] = None,
+    max_audio_duration_min: float | None = None,
   ):
     logger = logging.getLogger(__name__)
 
@@ -161,23 +164,21 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     thresholds.setflags(write=False)
 
     # chunks_dtype for max file duration:
-    # hopsize 1s = overlap 2s:
+    # hopsize 3s & overlap 0s: n-chunks ÷ 1200
     # ---
-    # uint8 = 4 ¼ min
-    # uint16 = 18 h 12 min 16 s
-    # uint32 = 1,19 mio hours = 136 years
-    # ---
-    # hopsize 3s = overlap 0s:
-    # ---
-    # uint8 = 12 min 48 s
-    # uint16 = 54 h 36 m 48 s
+    # uint8 = 255 chunks = 0 m 12 s
+    # uint16 = 65 535 chunks = 54 m 36 s
+    # uint32 = 4 294 967 295 chunks = 2 485 days = 59 652 h
     reserve_n_chunks = 0
-    chunks_dtype = np.dtype(np.uint16)
+    chunks_dtype = np.dtype(np.uint32)
     if max_audio_duration_min is not None:
       reserve_n_chunks = get_max_n_chunks(
         max_audio_duration_min, self.chunk_size_s, overlap_duration_s
       )
       chunks_dtype = uint_dtype_for(max(0, reserve_n_chunks - 1))
+
+    chunks_code_type = uint_ctype_from_dtype(chunks_dtype)
+    max_chunk_idx_ptr = mp.RawValue(chunks_code_type, max(0, reserve_n_chunks - 1))  # type: ignore
 
     prob_dtype: DTypeLike = np.float16 if half_precision else np.float32
 
@@ -264,9 +265,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
           bandpass_fmin=bandpass_fmin,
           fmax=self.sig_fmax,
           fmin=self.sig_fmin,
-          max_supported_n_chunks=reserve_n_chunks
-          if max_audio_duration_min is not None
-          else None,
+          max_chunk_idx_ptr=max_chunk_idx_ptr,
         ),
         daemon=True,
       )
@@ -311,7 +310,12 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       for w in workers:
         w.start()
 
-      consumer = Consumer(n_jobs, worker_queue, result)
+      consumer = Consumer(
+        n_jobs=n_jobs,
+        worker_queue=worker_queue,
+        species_tensor=result,
+        max_chunk_index=max_chunk_idx_ptr,
+      )
       consumer()
 
       prod.join()
@@ -386,11 +390,15 @@ def convert_tensor_to_dataframe(
           break
   df = pd.DataFrame.from_records(resulting_lines)
 
-  # sorting with float16 is not supported by pandas DataFrame
-  df["_confidence32"] = df["confidence"].astype(np.float32, copy=False)
-  df = (
-    df.sort_values(by=["file", "start", "_confidence32"], ascending=[True, True, False])
-    .drop(columns="_confidence32")
-    .reset_index(drop=True)
-  )
+  if len(df.index) > 0:
+    # sorting with float16 is not supported by pandas DataFrame
+    df["_confidence32"] = df["confidence"].astype(np.float32, copy=False)
+    df = (
+      df.sort_values(
+        by=["file", "start", "_confidence32"], ascending=[True, True, False]
+      )
+      .drop(columns="_confidence32")
+      .reset_index(drop=True)
+    )
+
   return df

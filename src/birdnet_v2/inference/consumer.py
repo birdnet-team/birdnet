@@ -23,10 +23,12 @@ class Consumer:
     n_jobs: int,
     worker_queue: mp.Queue,
     species_tensor: SpeciesTensor,
+    max_chunk_index: mp.RawValue,
   ):
     self._n_jobs = n_jobs
     self._queue = worker_queue
     self._tensor = species_tensor
+    self._max_chunk_index = max_chunk_index
 
   def __call__(self):
     finished_workers = 0
@@ -44,5 +46,10 @@ class Consumer:
           f"CONSUMER - Received data from worker. Total received: {received_predictions}. Chunks: {chunk_indices}"
         )
         self._tensor.write_block(
-          file_indices, chunk_indices, top_k_species, top_k_scores, top_k_mask
+          file_indices,
+          chunk_indices,
+          top_k_species,
+          top_k_scores,
+          top_k_mask,
+          self._max_chunk_index.value,
         )

@@ -41,8 +41,8 @@ if __name__ == "__main__":
     Path("test-dataset/test_dataset_4x60min/3.wav"),
   ]
   audio_paths = [Path("test-dataset/test_dataset_1x10min/0.wav")]
-  audio_paths = [Path("test-dataset/test_dataset_1x60min/0.wav")]
   audio_paths = [Path("example/soundscape.wav")]
+  audio_paths = [Path("test-dataset/test_dataset_1x60min/0.wav")]
 
   random.seed(0)
   np.random.seed(0)
@@ -70,6 +70,7 @@ if __name__ == "__main__":
   end = time.perf_counter()
   result.to_csv("/tmp/predictions.csv", index=False)
   print(result)
-  print(result["confidence"].mean())
+  if len(result.index) > 0:
+    print(result["confidence"].mean())
   print("/tmp/predictions.csv written.")
   print(f"Finished analysis in {end - start:.2f} seconds.")
