@@ -25,80 +25,6 @@ from tensorflow.lite.python import interpreter as tflite
 from birdnet.utils import flat_sigmoid
 from birdnet_v2.globals import BUSY_FLAG, DONE_FLAG, READ_FLAG, WRITE_FLAG
 from birdnet_v2.helper import RingField, uint_dtype_for, uint_dtype_for_files
-from birdnet_v2.inference.producer import Producer
-
-EMPTY_ID = 0xFFFF
-EMPTY_PRED = -np.inf
-
-
-class Worker:
-  def __init__(
-    self,
-    model_path: Path,
-    batch_size: int,
-    n_slots: int,
-    prod_queue: mp.Queue,
-    sem_free: mp.Semaphore,  # counts free slots
-    sem_fill: mp.Semaphore,  # counts filled slots
-    chunk_duration_samples,
-    n_jobs: int = 4,
-    top_k: int = 5,
-    threshold: float = 0.03,
-    whitelist: Optional[Sequence[int]] = None,
-  ) -> None:
-    self.top_k = top_k
-
-    self._queue = mp.Queue()
-
-    species_map = [f"sp_{i}" for i in range(6522)]
-
-    valid = np.zeros(len(species_map), bool)
-    if whitelist:
-      valid[list(whitelist)] = True
-    else:
-      valid[:] = True
-    valid.setflags(write=False)
-
-    slot_ptr = mp.Value("I", 0, lock=True)  # shared memory pointer to current slot
-
-    # workers
-    self.workers = [
-      mp.Process(
-        target=ChildWorker(
-          model_path,
-          top_k,
-          threshold,
-          valid,
-          batch_size,
-          n_slots,
-          chunk_duration_samples,
-          slot_ptr,
-          prod_queue,
-          self._queue,
-          sem_free,
-          sem_fill,
-        ),
-        daemon=True,
-      )
-      for _ in range(n_jobs)
-    ]
-
-  @property
-  def get_queue(self) -> mp.Queue:
-    """
-    Returns the queue used for processing audio files.
-    """
-    return self._queue
-
-  def start(self) -> None:
-    for p in self.workers:
-      p.start()
-
-  def join(self) -> None:
-    for p in self.workers:
-      p.join()
-      live = sum(p.is_alive() for p in self.workers)
-      print(f"WORKER - Worker {p.pid} finished. {live} workers still alive.")
 
 
 class ChildWorker:
@@ -207,9 +133,7 @@ class ChildWorker:
     assert 0 <= self._slot_ptr.value < self._n_slots
 
   # ------------------------------------------------------------
-  def __call__(
-    self,
-  ):
+  def __call__(self):
     logger = getLogger(__name__)
     while True:
       self._sem_filled.acquire()
