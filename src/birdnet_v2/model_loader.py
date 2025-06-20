@@ -1,6 +1,7 @@
 import logging
 import random
 from enum import Enum
+from multiprocessing import set_start_method
 from pathlib import Path
 from typing import Literal
 
@@ -64,6 +65,8 @@ def load_custom(
 
 
 if __name__ == "__main__":
+  set_start_method("spawn", force=True)  # Windows-freundlich
+
   # faulthandler.enable(file=sys.stderr, all_threads=True)
   logging.basicConfig(
     level=logging.DEBUG,
@@ -106,10 +109,10 @@ if __name__ == "__main__":
     Path("test-dataset/test_dataset_4x60min/3.wav"),
   ]
   # model.use_custom_model(model_path, custom_species_list="..")
-  audio_paths = [Path("example/soundscape.wav")]
   audio_paths = [Path("test-dataset/test_dataset_1x60min/0.wav")]
   audio_paths = [Path("src/birdnet_v2_debug/10min.wav")]
   audio_paths = [Path("src/birdnet_v2_debug/60min.wav")]
+  audio_paths = [Path("example/soundscape.wav")]
 
   start = time.perf_counter()
   result = model.analyze(
@@ -141,7 +144,8 @@ if __name__ == "__main__":
   end = time.perf_counter()
   df = result.to_dataframe()
   import tempfile
-  output_file = Path(tempfile.gettempdir()) /  "predictions.csv"
+
+  output_file = Path(tempfile.gettempdir()) / "predictions.csv"
   df.to_csv(output_file, index=False)
   # for file in audio_paths:
   #   file_df = result.get_file_results(file).to_dataframe()

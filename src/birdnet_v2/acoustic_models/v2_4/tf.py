@@ -2,8 +2,12 @@
 from __future__ import annotations
 
 import ctypes
+
+# You'll need these imports in your own code
 import logging
+import logging.handlers
 import math
+import multiprocessing
 import multiprocessing as mp
 import os
 import queue
@@ -14,9 +18,14 @@ import time
 import zipfile
 from collections import deque
 from collections.abc import Generator
+from logging.handlers import QueueHandler, QueueListener
+from multiprocessing import Queue
 from multiprocessing.shared_memory import SharedMemory
 from multiprocessing.synchronize import Event, Semaphore
 from pathlib import Path
+
+# Next two import lines for this demo only
+from random import choice, random
 from typing import Iterable, List, Literal, Optional, Sequence, Set, Tuple, Union
 
 import numpy as np
@@ -54,7 +63,81 @@ from birdnet_v2.inference.producer import (
 )
 from birdnet_v2.inference.species_tensor import SpeciesTensor
 from birdnet_v2.inference.worker import ChildWorker
+from birdnet_v2.logging_utils import (
+  enable_package_queue_logging,
+  start_queue_listener,
+)
 from birdnet_v2.model_downloader import ModelDownloader
+
+
+#
+# Because you'll want to define the logging configurations for listener and workers, the
+# listener and worker process functions take a configurer parameter which is a callable
+# for configuring logging for that process. These functions are also passed the queue,
+# which they use for communication.
+#
+# In practice, you can configure the listener however you want, but note that in this
+# simple example, the listener does not apply level or filter logic to received records.
+# In practice, you would probably want to do this logic in the worker processes, to avoid
+# sending events which would be filtered out between processes.
+#
+# The size of the rotated files is made small so you can see the results easily.
+def listener_configurer():
+  root = logging.getLogger()
+  h = logging.FileHandler("mptest.log", "a")
+  f = logging.Formatter(
+    "%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s"
+  )
+  h.setFormatter(f)
+  root.addHandler(h)
+
+
+# This is the listener process top-level loop: wait for logging events
+# (LogRecords)on the queue and handle them, quit when you get a None for a
+# LogRecord.
+def listener_process(queue, configurer):
+  configurer()
+  while True:
+    try:
+      record = queue.get()
+      if record is None:  # We send this as a sentinel to tell the listener to quit.
+        break
+      logger = logging.getLogger(record.name)
+      logger.handle(record)  # No level or filter logic applied - just do it!
+    except Exception:
+      import sys
+      import traceback
+
+      print("Problem:", file=sys.stderr)
+      traceback.print_exc(file=sys.stderr)
+
+
+# The worker configuration is done at the start of the worker process run.
+# Note that on Windows you can't rely on fork semantics, so each process
+# will run the logging configuration code when it starts.
+def logging_configurer(queue):
+  h = logging.handlers.QueueHandler(queue)  # Just the one handler needed
+  root = logging.getLogger()
+  root.handlers.clear()
+  root.addHandler(h)
+  # send all messages, for demo; no other level or filter logic applied.
+  # root.setLevel(logging.DEBUG)
+
+
+# This is the worker process top-level loop, which just logs ten events with
+# random intervening delays before terminating.
+# The print messages are just so you know it's doing something!
+def worker_process(queue, configurer):
+  configurer(queue)
+  name = multiprocessing.current_process().name
+  print("Worker started: %s" % name)
+  for i in range(10):
+    time.sleep(random())
+    logger = logging.getLogger(choice(LOGGERS))
+    level = choice(LEVELS)
+    message = choice(MESSAGES)
+    logger.log(level, message)
+  print("Worker finished: %s" % name)
 
 
 class PerformanceTracker:
@@ -182,7 +265,15 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     max_audio_duration_min: float | None = None,
     track_performance: bool = True,
   ):
+    logging_queue = multiprocessing.Queue(-1)
+    logging_listener = multiprocessing.Process(
+      target=listener_process, args=(logging_queue, listener_configurer)
+    )
+    logging_listener.start()
+
+    logging_configurer(logging_queue)
     logger = logging.getLogger(__name__)
+    logger.debug("Starting analysis...")
 
     file_paths: OrderedSet[Path] = OrderedSet([])
     for file in files:
@@ -329,6 +420,8 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
           rf_batch_sizes=rf_batch_sizes,
           rf_flags=rf_flags,
           n_jobs=n_jobs,
+          logging_queue=logging_queue,
+          logging_configurer=logging_configurer,
           sem_free_slots=sem_free_slots,
           sem_filled_slots=sem_filled_slots,
           chunk_duration_s=self.chunk_size_s,
@@ -417,6 +510,9 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
         stop_event.set()
         assert inference_tracker is not None
         inference_tracker.join()
+
+    logging_queue.put_nowait(None)
+    logging_listener.join()
 
     res = PredictionResult(
       tensor=result,

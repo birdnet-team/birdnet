@@ -1,15 +1,14 @@
 import logging
 import multiprocessing as mp
-from multiprocessing import shared_memory
 import os
 from collections.abc import Generator, Iterable
 from itertools import count, islice
 from logging import getLogger
-from multiprocessing import Queue
+from multiprocessing import Queue, shared_memory
 from multiprocessing.shared_memory import SharedMemory
 from multiprocessing.synchronize import Event, Semaphore
 from pathlib import Path
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Callable, List, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -94,6 +93,8 @@ class Producer:
     sem_free_slots: Semaphore,  # counts free slots
     sem_filled_slots: Semaphore,  # counts filled slots
     max_chunk_idx_ptr: mp.RawValue,
+    logging_queue: mp.Queue,
+    logging_configurer: Callable,
     chunk_duration_s: float = 3.0,
     overlap_duration_s: float = 0.0,
     target_sample_rate: int = 48000,
@@ -115,6 +116,8 @@ class Producer:
     self._files = files
     self._use_bandpass = use_bandpass
     self._max_chunk_idx_ptr = max_chunk_idx_ptr
+    self._logging_queue = logging_queue
+    self._logging_configurer = logging_configurer
 
     if use_bandpass:
       assert bandpass_fmin is not None
@@ -151,12 +154,10 @@ class Producer:
     self._ring_flags: np.ndarray | None = None
     self._logger: logging.Logger | None = None
     # self._mm: mmap.mmap | None = None
-    
+
     self._max_supported_chunk_index = (
       max_value_for_uint_dtype(rf_chunk_indices.dtype) - 1
     )
-    
-
 
   def _load_ring_buffers(self) -> None:
     self._shm_file_indices, self._ring_file_indices = (
@@ -174,6 +175,7 @@ class Producer:
     self._shm_ring_flags, self._ring_flags = self._rf_flags.attach_and_get_array()
 
   def _init(self) -> None:
+    self._logging_configurer(self._logging_queue)
     self._load_ring_buffers()
 
   def get_chunks_from_files(
