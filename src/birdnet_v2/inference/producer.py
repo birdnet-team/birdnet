@@ -1,5 +1,6 @@
 import logging
 import multiprocessing as mp
+from multiprocessing import shared_memory
 import os
 from collections.abc import Generator, Iterable
 from itertools import count, islice
@@ -131,24 +132,49 @@ class Producer:
 
     self.chunk_duration_samples = target_sample_rate * int(chunk_duration_s)
 
-    # attach to existing shared memory buffers
-    # NOTE: these handlers must be created that GC does not delete the shared memory access
-    self._shm_file_indices, self._ring_file_indices = (
-      rf_file_indices.attach_and_get_array()
-    )
-    self._shm_chunk_indices, self._ring_chunk_indices = (
-      rf_chunk_indices.attach_and_get_array()
-    )
-    self._shm_audio_samples, self._ring_audio_samples = (
-      rf_audio_samples.attach_and_get_array()
-    )
-    self._shm_batch_sizes, self._ring_batch_sizes = (
-      rf_batch_sizes.attach_and_get_array()
-    )
-    self._shm_ring_flags, self._ring_flags = rf_flags.attach_and_get_array()
+    self._rf_file_indices = rf_file_indices
+    self._rf_chunk_indices = rf_chunk_indices
+    self._rf_audio_samples = rf_audio_samples
+    self._rf_batch_sizes = rf_batch_sizes
+    self._rf_flags = rf_flags
+
+    self._shm_file_indices: shared_memory.SharedMemory | None = None
+    self._shm_chunk_indices: shared_memory.SharedMemory | None = None
+    self._shm_audio_samples: shared_memory.SharedMemory | None = None
+    self._shm_batch_sizes: shared_memory.SharedMemory | None = None
+    self._shm_ring_flags: shared_memory.SharedMemory | None = None
+
+    self._ring_file_indices: np.ndarray | None = None
+    self._ring_chunk_indices: np.ndarray | None = None
+    self._ring_audio_samples: np.ndarray | None = None
+    self._ring_batch_sizes: np.ndarray | None = None
+    self._ring_flags: np.ndarray | None = None
+    self._logger: logging.Logger | None = None
+    # self._mm: mmap.mmap | None = None
+    
     self._max_supported_chunk_index = (
       max_value_for_uint_dtype(rf_chunk_indices.dtype) - 1
     )
+    
+
+
+  def _load_ring_buffers(self) -> None:
+    self._shm_file_indices, self._ring_file_indices = (
+      self._rf_file_indices.attach_and_get_array()
+    )
+    self._shm_chunk_indices, self._ring_chunk_indices = (
+      self._rf_chunk_indices.attach_and_get_array()
+    )
+    self._shm_audio_samples, self._ring_audio_samples = (
+      self._rf_audio_samples.attach_and_get_array()
+    )
+    self._shm_batch_sizes, self._ring_batch_sizes = (
+      self._rf_batch_sizes.attach_and_get_array()
+    )
+    self._shm_ring_flags, self._ring_flags = self._rf_flags.attach_and_get_array()
+
+  def _init(self) -> None:
+    self._load_ring_buffers()
 
   def get_chunks_from_files(
     self,
@@ -202,6 +228,7 @@ class Producer:
         yield file_index, chunk_index, chunk
 
   def __call__(self) -> None:
+    self._init()
     buffer_input = self.get_chunks_from_files()
     for batch in itertools_batched(buffer_input, self._batch_size):
       file_indices, chunk_indices, audio_samples = zip(*batch)

@@ -66,7 +66,7 @@ def load_custom(
 if __name__ == "__main__":
   # faulthandler.enable(file=sys.stderr, all_threads=True)
   logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format="%(asctime)s (%(levelname)s): %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
   )
@@ -98,7 +98,6 @@ if __name__ == "__main__":
   model = load("acoustic", "2.4", "cpu", "en_us")
 
   # model = load_custom_model("acoustic/v2.4+pb@cpu", custom_species_list="..")
-  audio_paths = [Path("test-dataset/test_dataset_1x60min/0.wav")]
 
   audio_paths = [
     Path("test-dataset/test_dataset_4x60min/0.wav"),
@@ -108,11 +107,14 @@ if __name__ == "__main__":
   ]
   # model.use_custom_model(model_path, custom_species_list="..")
   audio_paths = [Path("example/soundscape.wav")]
+  audio_paths = [Path("test-dataset/test_dataset_1x60min/0.wav")]
+  audio_paths = [Path("src/birdnet_v2_debug/10min.wav")]
+  audio_paths = [Path("src/birdnet_v2_debug/60min.wav")]
 
   start = time.perf_counter()
   result = model.analyze(
     audio_paths,
-    n_jobs=12,
+    n_jobs=1,
     batch_size=1,
     n_slots_factor=2,
     apply_sigmoid=False,
@@ -138,11 +140,13 @@ if __name__ == "__main__":
   )
   end = time.perf_counter()
   df = result.to_dataframe()
-  df.to_csv("/tmp/predictions.csv", index=False)
+  import tempfile
+  output_file = Path(tempfile.gettempdir()) /  "predictions.csv"
+  df.to_csv(output_file, index=False)
   # for file in audio_paths:
   #   file_df = result.get_file_results(file).to_dataframe()
   #   file_df.to_csv(..)
   if len(df.index) > 0:
     print(f"Mean: {df['confidence'].mean()}, Shape: {df.shape}")
   print(f"Finished analysis in {end - start:.2f} seconds.")
-  print("/tmp/predictions.csv written.")
+  print(f"{output_file.absolute()} written.")

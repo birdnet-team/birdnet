@@ -160,6 +160,9 @@ class ChildWorker:
     assert 0 <= self._slot_ptr.value < self._n_slots
 
   def _load_ring_buffers(self) -> None:
+    
+    # attach to existing shared memory buffers
+    # NOTE: these handlers must be created that GC does not delete the shared memory access
     self._shm_file_indices, self._ring_file_indices = (
       self._rf_file_indices.attach_and_get_array()
     )

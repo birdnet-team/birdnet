@@ -489,8 +489,8 @@ def convert_tensor_to_dataframe(
 
           row = {
             "file": str(files[i].absolute()),
-            "start": time.strftime("%-H:%M:%S", time.gmtime(start_sec)),
-            "end": time.strftime("%-H:%M:%S", time.gmtime(end_sec)),
+            "start": time.strftime("%H:%M:%S", time.gmtime(start_sec)),
+            "end": time.strftime("%H:%M:%S", time.gmtime(end_sec)),
             "scientific_name": scientific_name,
             "common_name": common_name,
             "confidence": species_probs[k],
