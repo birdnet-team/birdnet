@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import logging
 import math
+import mmap
 import multiprocessing as mp
 import os
 import queue
@@ -77,57 +79,75 @@ class ChildWorker:
       self._sigmoid_sensitivity = sigmoid_sensitivity
 
     # Interpreter
-    self._interp = tflite.Interpreter(
-      str(model_path.absolute()), num_threads=num_threads
-    )
-    self._interp.allocate_tensors()
-    self._in_idx = self._interp.get_input_details()[0]["index"]
-    self._out_idx = self._interp.get_output_details()[0]["index"]
+    self._interp: tflite.Interpreter | None = None
     self._slot = 0
 
     # attatch to existing shared memory buffers
     # NOTE: these handlers must be created that GC does not delete the shared memory access
-    self._shm_file_indices, self._ring_file_indices = (
-      rf_file_indices.attach_and_get_array()
-    )
-    self._shm_chunk_indices, self._ring_chunk_indices = (
-      rf_chunk_indices.attach_and_get_array()
-    )
-    self._shm_audio_samples, self._ring_audio_samples = (
-      rf_audio_samples.attach_and_get_array()
-    )
-    self._shm_batch_sizes, self._ring_batch_sizes = (
-      rf_batch_sizes.attach_and_get_array()
-    )
-    self._shm_ring_flags, self._ring_flags = rf_flags.attach_and_get_array()
-
     self._n_slots = n_slots
+    self._batch_size = batch_size
+    self._chunk_duration_samples = chunk_duration_samples
+    self._cached_shape: tuple[int, ...] | None = None
+    self._model_path = str(model_path.absolute())
+    self._num_threads = num_threads
 
-    self._cached_shape: Optional[Tuple[int, int]] = (batch_size, chunk_duration_samples)
-    self._interp.resize_tensor_input(self._in_idx, self._cached_shape, strict=True)
+    self._rf_file_indices = rf_file_indices
+    self._rf_chunk_indices = rf_chunk_indices
+    self._rf_audio_samples = rf_audio_samples
+    self._rf_batch_sizes = rf_batch_sizes
+    self._rf_flags = rf_flags
+
+    self._in_idx: int | None = None
+    self._out_idx: int | None = None
+
+    self._shm_file_indices: shared_memory.SharedMemory | None = None
+    self._shm_chunk_indices: shared_memory.SharedMemory | None = None
+    self._shm_audio_samples: shared_memory.SharedMemory | None = None
+    self._shm_batch_sizes: shared_memory.SharedMemory | None = None
+    self._shm_ring_flags: shared_memory.SharedMemory | None = None
+
+    self._ring_file_indices: np.ndarray | None = None
+    self._ring_chunk_indices: np.ndarray | None = None
+    self._ring_audio_samples: np.ndarray | None = None
+    self._ring_batch_sizes: np.ndarray | None = None
+    self._ring_flags: np.ndarray | None = None
+    self._logger: logging.Logger | None = None
+    # self._mm: mmap.mmap | None = None
+
+  def _load_model(self):
+    assert self._interp is None
+
+    # memory_map not working for TF 2.15.1:
+    # f = open(self._model_path, "rb")
+    # self._mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+    self._interp = tflite.Interpreter(self._model_path, num_threads=self._num_threads)
     self._interp.allocate_tensors()
+    self._in_idx = self._interp.get_input_details()[0]["index"]
+    self._out_idx = self._interp.get_output_details()[0]["index"]
+
+  def _set_tensor(self, batch: np.ndarray):
+    assert self._interp is not None
+    assert batch.flags["C_CONTIGUOUS"]
+    assert batch.ndim == 2
+
+    shape = batch.shape
+    if self._cached_shape != shape:
+      self._interp.resize_tensor_input(self._in_idx, shape, strict=True)
+      self._interp.allocate_tensors()
+      self._cached_shape = shape
+    self._interp.set_tensor(self._in_idx, batch)
 
   # ------------------------------------------------------------
   def _infer(self, batch: np.ndarray):
-    assert batch.flags["C_CONTIGUOUS"]
+    assert self._interp is not None
 
-    if self._cached_shape != batch.shape:
-      self._interp.resize_tensor_input(self._in_idx, batch.shape, strict=True)
-      self._interp.allocate_tensors()
-      self._cached_shape = batch.shape
-
+    self._set_tensor(batch)
     start_time = time.perf_counter()
-    self._interp.set_tensor(self._in_idx, batch)
-    after_set_tensor = time.perf_counter()
     self._interp.invoke()
     final = time.perf_counter()
     if self._track_performance:
       pred_dur = final - start_time
       self._pred_dur_queue.put((pred_dur, batch.shape[0]))
-    logger = getLogger(__name__)
-    logger.debug(
-      f"WORKER({os.getpid()}) - Time to set tensor: {after_set_tensor - start_time:.4f}s, {final - after_set_tensor:.4f}s to invoke interpreter, {final - start_time:.4f}s total"
-    )
     res: np.ndarray = self._interp.get_tensor(self._out_idx)
     assert res.dtype == np.float32
 
@@ -139,13 +159,47 @@ class ChildWorker:
     self._slot_ptr.value = (self._slot_ptr.value + 1) % self._n_slots
     assert 0 <= self._slot_ptr.value < self._n_slots
 
-  # ------------------------------------------------------------
+  def _load_ring_buffers(self) -> None:
+    self._shm_file_indices, self._ring_file_indices = (
+      self._rf_file_indices.attach_and_get_array()
+    )
+    self._shm_chunk_indices, self._ring_chunk_indices = (
+      self._rf_chunk_indices.attach_and_get_array()
+    )
+    self._shm_audio_samples, self._ring_audio_samples = (
+      self._rf_audio_samples.attach_and_get_array()
+    )
+    self._shm_batch_sizes, self._ring_batch_sizes = (
+      self._rf_batch_sizes.attach_and_get_array()
+    )
+    self._shm_ring_flags, self._ring_flags = self._rf_flags.attach_and_get_array()
+
+  def _init(self) -> None:
+    self._logger = getLogger(__name__)
+    self._load_ring_buffers()
+    self._load_model()
+
+  @property
+  def _pid(self) -> int:
+    return os.getpid()
+
+  def _log_debug(self, msg: str) -> None:
+    assert self._logger is not None
+    self._logger.debug(f"WORKER({self._pid}) - {msg}")
+
   def __call__(self):
-    logger = getLogger(__name__)
+    self._init()
+
+    assert self._ring_flags is not None
+    assert self._ring_file_indices is not None
+    assert self._ring_chunk_indices is not None
+    assert self._ring_audio_samples is not None
+    assert self._ring_batch_sizes is not None
+
     while True:
       self._sem_filled.acquire()
-      logger.debug(
-        f"WORKER({os.getpid()}) - Worker acquired FILL; Free slots remaining: {self._sem_free}; Filled slots: {self._sem_filled}"
+      self._log_debug(
+        f"Acquired FILL; Free slots remaining: {self._sem_free}; Filled slots: {self._sem_filled}"
       )
 
       while True:
@@ -161,24 +215,19 @@ class ChildWorker:
             break
 
       if claimed_flag == DONE_FLAG:
-        logger.debug(
-          f"WORKER({os.getpid()}) - Worker received DONE_FLAG for slot {claimed_slot}. Exiting."
-        )
+        self._log_debug(f"Received DONE_FLAG for slot {claimed_slot}. Exiting.")
         self._out_q.put(None)
         break
       assert claimed_flag == READ_FLAG
 
-      logger.debug(
-        f"WORKER({os.getpid()}) - Worker acquired READ_FLAG for slot {claimed_slot}."
-      )
+      self._log_debug(f"Acquired READ_FLAG for slot {claimed_slot}.")
 
-      # slot, n = job
       n = self._ring_batch_sizes[claimed_slot]
       audio_samples = self._ring_audio_samples[claimed_slot, :n]
       file_indices = self._ring_file_indices[claimed_slot, :n]
       chunk_indices = self._ring_chunk_indices[claimed_slot, :n]
-      logger.debug(
-        f"WORKER({os.getpid()}) - Received job for slot {claimed_slot} with {n} samples. Chunks: {chunk_indices}"
+      self._log_debug(
+        f"Received job for slot {claimed_slot} with {n} chunks: {chunk_indices}"
       )
       pred = self._infer(audio_samples)
 
@@ -213,17 +262,17 @@ class ChildWorker:
         )
       )
       self._prediction_count += top_k_species.shape[0]
-      logger.debug(
-        f"WORKER({os.getpid()}) - Prediction made. Total predictions: {self._prediction_count}. Chunks: {chunk_indices}"
+      self._log_debug(
+        f"Prediction made. Total predictions: {self._prediction_count}. Chunks: {chunk_indices}"
       )
 
       self._ring_flags[claimed_slot] = WRITE_FLAG
       self._sem_free.release()
 
-      logger.debug(
-        f"WORKER({os.getpid()}) - Worker released FREE. Free slots remaining: {self._sem_free}; Filled slots: {self._sem_filled}"
+      self._log_debug(
+        f"Released FREE. Free slots remaining: {self._sem_free}; Filled slots: {self._sem_filled}"
       )
-    logger.debug(f"WORKER({os.getpid()}) - Worker finished")
+    self._log_debug("Finished.")
 
 
 def filter_by_threshold(
