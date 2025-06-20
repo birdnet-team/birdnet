@@ -112,7 +112,7 @@ if __name__ == "__main__":
   start = time.perf_counter()
   result = model.analyze(
     audio_paths,
-    n_jobs=24,
+    n_jobs=1,
     batch_size=1,
     n_slots_factor=2,
     apply_sigmoid=False,

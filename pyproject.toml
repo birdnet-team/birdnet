@@ -38,7 +38,7 @@ dependencies = [
   "ordered-set==4.1.0",
   "tqdm==4.64.1",
   "numpy==1.23.5",
-  "pandas=2.3.0",
+  "pandas==2.3.0",
 ]
 
 [project.optional-dependencies]
