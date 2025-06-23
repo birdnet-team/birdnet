@@ -1,10 +1,16 @@
+import ctypes
 import logging
 import math
-from contextlib import contextmanager
+import multiprocessing as mp
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from multiprocessing import shared_memory
+from typing import Iterable
 
 import numpy as np
+from numpy.typing import DTypeLike
+
+from birdnet_v2.logging_utils import get_logger
 
 
 def uint_dtype_for_files(n_files: int) -> np.dtype:
@@ -59,6 +65,19 @@ class RingField:
     """
     return shared_memory.SharedMemory(name=self.name, create=False)
 
+  def cleanup(self) -> None:
+    try:
+      shm = self.attach_shared_memory()
+    except FileNotFoundError:
+      return
+    else:
+      logger = get_logger(__name__)
+      logger.debug(f"Cleaning up shared memory {self.name}.")
+      shm.close()
+      with suppress(FileNotFoundError):
+        shm.unlink()
+      logger.debug(f"Shared memory {self.name} cleaned up.")
+
   def get_array(self, shm: shared_memory.SharedMemory) -> np.ndarray:
     view = np.ndarray(self.shape, self.dtype, buffer=shm.buf)
     return view
@@ -71,12 +90,12 @@ class RingField:
 
 @contextmanager  # type: ignore
 def create_shm_ring(ring: RingField) -> shared_memory.SharedMemory:  # type: ignore
-  shm = shared_memory.SharedMemory(create=True, name=ring.name, size=ring.nbytes)
+  shm = shared_memory.SharedMemory(name=ring.name, create=True, size=ring.nbytes)
   try:
     yield shm  # type: ignore
   finally:
     shm.close()
-    shm.unlink()  # wird sogar bei CTRL-C im finally ausgeführt
+    shm.unlink()
     logger = logging.getLogger(__name__)
     logger.debug(f"Shared memory {ring.name} cleaned up.")
 
@@ -90,11 +109,6 @@ def get_max_n_chunks(
   n_chunks = math.ceil(total_duration_s / effective_chunk_duration_s)
   return n_chunks
 
-
-import ctypes
-import multiprocessing as mp
-
-import numpy as np
 
 # ---------------- Mapping -----------------
 _DTYPE_TO_CODE = {
@@ -118,24 +132,14 @@ _UINT_DTYPE_TO_CTYPE = {
   np.uint64: ctypes.c_uint64,
 }
 
-from numpy.typing import DTypeLike
-
 
 def code_from_dtype(dtype: DTypeLike) -> str:
-  """
-  Erzeugt ein multiprocessing.RawValue mit dem zugehörigen Typecode
-  für den angegebenen NumPy-Datentyp.
-  """
   dtype = np.dtype(dtype).type  # z. B. <class 'numpy.uint16'>
   code = _DTYPE_TO_CODE[dtype]
   return code
 
 
 def uint_ctype_from_dtype(dtype: DTypeLike) -> ctypes._SimpleCData:
-  """
-  Erzeugt ein multiprocessing.RawValue mit dem zugehörigen Typecode
-  für den angegebenen NumPy-Datentyp.
-  """
   dtype = np.dtype(dtype).type  # z. B. <class 'numpy.uint16'>
   code = _UINT_DTYPE_TO_CTYPE[dtype]
   return code

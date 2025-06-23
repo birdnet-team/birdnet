@@ -67,9 +67,9 @@ def load_custom(
 
 
 if __name__ == "__main__":
-  # set_start_method("forkserver", force=True)  # Windows-freundlich
-  # set_start_method("spawn", force=True)  # Windows-freundlich
-  set_start_method("fork", force=True)  # Windows-freundlich
+  # set_start_method("forkserver", force=True) # Linux, macOS
+  # set_start_method("spawn", force=True)  # Windows
+  set_start_method("fork", force=True)  # Linux, macOS
 
   # faulthandler.enable(file=sys.stderr, all_threads=True)
   logging.basicConfig(

@@ -328,6 +328,12 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       shape=(n_slots,),
     )
 
+    rf_file_indices.cleanup()
+    rf_chunk_indices.cleanup()
+    rf_audio_samples.cleanup()
+    rf_batch_sizes.cleanup()
+    rf_flags.cleanup()
+
     result = SpeciesTensor(
       n_files,
       n_chunks=reserve_n_chunks,
