@@ -67,6 +67,7 @@ from birdnet_v2.helper import (
   uint_dtype_for,
 )
 from birdnet_v2.inference.consumer import Consumer
+from birdnet_v2.inference.perf_tracker import PerformanceTracker
 from birdnet_v2.inference.producer import (
   Producer,
   get_chunks_with_overlap,  # type: ignore
@@ -80,72 +81,6 @@ from birdnet_v2.logging_utils import (
   get_package_logging_level,
 )
 from birdnet_v2.model_downloader import ModelDownloader
-
-
-class PerformanceTracker(bn_logging.LogableProcessBase):
-  def __init__(
-    self,
-    pred_dur_queue: mp.SimpleQueue,
-    stop_event: mp.Event,
-    update_interval: float,
-    print_last_n: int,
-    start: float,
-    stop_time: mp.RawValue,
-    logging_queue: mp.Queue,
-    logging_level: int,
-    chunk_size_s: float = 3.0,
-  ):
-    super().__init__(__name__, logging_queue, logging_level)
-
-    self._pred_dur_queue = pred_dur_queue
-    self._pred_dur_deque = deque(maxlen=print_last_n)
-    self._batch_sizes_deque = deque(maxlen=print_last_n)
-    self._update_every = update_interval
-    self._stop_event = stop_event
-    self._next_print = time.time()
-    self._total_chunks_processed = 0
-    self._total_processing_duration = 0.0
-    self._start = start
-    self._chunk_size_s = chunk_size_s
-    self._stop_time = stop_time
-
-  def __call__(self):
-    self._init_logging()
-
-    # self._logging_configurer(self._logging_queue)
-    # process_logging_configurer(self._logging_queue)
-    # self._logger = logging.getLogger(__name__)
-    # check stop event
-    stop = None
-    while True:
-      processing_finished = self._stop_event.is_set()
-      queue_is_empty = self._pred_dur_queue.empty()
-      if processing_finished:
-        stop = self._stop_time.value
-        if queue_is_empty:
-          break
-
-      while not self._pred_dur_queue.empty():
-        dur, batch_size = self._pred_dur_queue.get()
-        self._pred_dur_deque.append(dur)
-        self._batch_sizes_deque.append(batch_size)
-        self._total_chunks_processed += batch_size
-        self._total_processing_duration += dur
-
-      now = time.time()
-      perf_duration = time.perf_counter() - self._start
-      if now >= self._next_print and len(self._pred_dur_deque) > 0:
-        avg = sum(self._pred_dur_deque) / sum(self._batch_sizes_deque)
-        chunks_per_s = self._total_chunks_processed / perf_duration
-        self._logger.info(
-          f"Ø Inference speed: {self._total_processing_duration / self._total_chunks_processed * 1000:.0f} ms/chunk; last {len(self._pred_dur_deque)} predictions: {avg * 1000:.0f} ms/chunk; {chunks_per_s:.0f} chunks/s = {chunks_per_s * self._chunk_size_s / 60:.2f} min/s"
-        )
-
-        self._next_print = now + self._update_every
-    assert stop is not None
-    total_duration = stop - self._start
-    self._logger.info(f"Total processing time: {total_duration:.2f} s")
-    self._uninit_logging()
 
 
 class AcousticTFModelV2_4(AcousticModelBaseV2_4):
@@ -216,6 +151,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     max_audio_duration_min: float | None = None,
     track_performance: bool = True,
   ):
+    start = time.perf_counter()
     # if multiprocessing.get_start_method() not in ("spawn", "fork"):
     #   raise ValueError("Multiprocessing start method must be 'spawn' or 'fork'!")
     logging_level = get_package_logging_level()
@@ -354,6 +290,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     )  # type: ignore
 
     pred_dur_queue = mp.SimpleQueue()
+    perf_res: mp.SimpleQueue | None = None
     stop_event = mp.Event()
     stop_time = mp.RawValue(ctypes.c_float, 0.0)  # float32
 
@@ -369,7 +306,6 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       flags = rf_flags.get_array(shm_ring_flags)
       flags[:] = WRITE_FLAG
 
-      start = time.perf_counter()
       prod = mp.Process(
         target=Producer(
           file_paths,
@@ -401,6 +337,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
 
       inference_tracker = None
       if track_performance:
+        perf_res = mp.SimpleQueue()
         inference_tracker = mp.Process(
           target=PerformanceTracker(
             pred_dur_queue,
@@ -412,6 +349,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
             chunk_size_s=self.chunk_size_s,
             logging_queue=logging_queue,
             logging_level=logging_level,
+            perf_res=perf_res,
           ),
           daemon=True,
         )
@@ -469,12 +407,15 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
         w.join()
         logger.debug(f"Worker {w.pid} finished.")
       logger.debug("All workers finished.")
-      stop_time.value = time.perf_counter()
 
       if track_performance:
+        stop_time.value = time.perf_counter()
         stop_event.set()
         assert inference_tracker is not None
+        assert perf_res is not None
         inference_tracker.join()
+        perf_result = perf_res.get()
+        # TODO
 
     logging_queue.put_nowait(None)
     logging_listener.join()

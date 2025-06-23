@@ -81,24 +81,6 @@ if __name__ == "__main__":
   root = get_package_logger()
   root.setLevel(logging.DEBUG)
 
-  # console = logging.StreamHandler(sys.stdout)
-  # console.setFormatter(logging.Formatter("%(asctime)s (%(levelname)s): %(message)s"))
-  # console.setLevel(logging.DEBUG)
-  # root.addHandler(console)
-
-  # root = logging.getLogger()
-  # root.handlers.clear()
-
-  # h = logging.FileHandler("mptest.log", mode="w")
-  # f = logging.Formatter(
-  #   "%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s"
-  # )
-  # h.setFormatter(f)
-  # root.addHandler(h)
-  # alle dateien im ordner
-  # audio_paths = [audio_paths[2]]
-  # audio_paths = audio_paths[:3]
-
   folder = Path("test-dataset/test_dataset_5x2min")
   audio_paths = list(sorted(folder.glob("*.wav")))
 
@@ -131,10 +113,10 @@ if __name__ == "__main__":
     Path("test-dataset/test_dataset_4x60min/3.wav"),
   ]
   # model.use_custom_model(model_path, custom_species_list="..")
-  audio_paths = [Path("test-dataset/test_dataset_1x60min/0.wav")]
   audio_paths = [Path("src/birdnet_v2_debug/10min.wav")]
-  audio_paths = [Path("src/birdnet_v2_debug/60min.wav")]
   audio_paths = [Path("example/soundscape.wav")]
+  audio_paths = [Path("src/birdnet_v2_debug/60min.wav")]
+  audio_paths = [Path("test-dataset/test_dataset_1x60min/0.wav")]
 
   start = time.perf_counter()
   result = model.analyze(
