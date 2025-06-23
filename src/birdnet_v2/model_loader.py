@@ -1,5 +1,6 @@
 import logging
 import random
+import sys
 from enum import Enum
 from multiprocessing import set_start_method
 from pathlib import Path
@@ -9,6 +10,7 @@ import numpy as np
 import tensorflow as tf
 
 from birdnet_v2.acoustic_models.v2_4.tf import AcousticTFModelV2_4
+from birdnet_v2.logging_utils import get_package_logger
 
 
 class ModelType(str, Enum):
@@ -65,14 +67,34 @@ def load_custom(
 
 
 if __name__ == "__main__":
-  set_start_method("spawn", force=True)  # Windows-freundlich
+  # set_start_method("forkserver", force=True)  # Windows-freundlich
+  # set_start_method("spawn", force=True)  # Windows-freundlich
+  set_start_method("fork", force=True)  # Windows-freundlich
 
   # faulthandler.enable(file=sys.stderr, all_threads=True)
   logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.WARNING,
     format="%(asctime)s (%(levelname)s): %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
   )
+
+  root = get_package_logger()
+  root.setLevel(logging.DEBUG)
+
+  # console = logging.StreamHandler(sys.stdout)
+  # console.setFormatter(logging.Formatter("%(asctime)s (%(levelname)s): %(message)s"))
+  # console.setLevel(logging.DEBUG)
+  # root.addHandler(console)
+
+  # root = logging.getLogger()
+  # root.handlers.clear()
+
+  # h = logging.FileHandler("mptest.log", mode="w")
+  # f = logging.Formatter(
+  #   "%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s"
+  # )
+  # h.setFormatter(f)
+  # root.addHandler(h)
   # alle dateien im ordner
   # audio_paths = [audio_paths[2]]
   # audio_paths = audio_paths[:3]
@@ -117,7 +139,7 @@ if __name__ == "__main__":
   start = time.perf_counter()
   result = model.analyze(
     audio_paths,
-    n_jobs=1,
+    n_jobs=12,
     batch_size=1,
     n_slots_factor=2,
     apply_sigmoid=False,

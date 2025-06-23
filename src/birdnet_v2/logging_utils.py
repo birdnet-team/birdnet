@@ -2,62 +2,144 @@
 from __future__ import annotations
 
 import logging
+import multiprocessing
+import multiprocessing as mp
 import sys
 from logging.handlers import QueueHandler, QueueListener
 from multiprocessing import Queue
 
 PKG_NAME = "birdnet"
 
-def get_module_logger():
+
+def get_package_logger():
   return logging.getLogger(PKG_NAME)
 
-# ------------------------------------------------------------ #
-# 1) Im HAUPTprozess aufrufen → Listener starten
-# ------------------------------------------------------------ #
-def start_queue_listener(
-  loglevel: str | int = "INFO",
-  fmt: str = "%(asctime)s (%(processName)s) %(levelname).1s: %(message)s",
-) -> tuple[Queue, QueueListener]:
+
+# # The worker configuration is done at the start of the worker process run.
+# # Note that on Windows you can't rely on fork semantics, so each process
+# # will run the logging configuration code when it starts.
+# def process_logging_configurer(logging_queue: Queue):
+#   root = logging.getLogger()
+#   assert root.level == logging.WARNING
+#   assert root.hasHandlers() is False
+#   h = QueueHandler(logging_queue)  # Just the one handler needed
+#   root.setLevel(logging.NOTSET)
+#   root.addHandler(h)
+
+
+def add_queue_handler(logging_queue: Queue):
+  root = get_package_logger()
+  h = QueueHandler(logging_queue)  # Just the one handler needed
+  root.addHandler(h)
+  return h
+
+
+def queue_handler_exists(logging_queue: Queue):
+  root = get_package_logger()
+  for handler in root.handlers:
+    if isinstance(handler, QueueHandler) and handler.queue is logging_queue:
+      return True
+  return False
+
+
+def remove_queue_handler(handler: QueueHandler):
+  root = get_package_logger()
+  # check has queue handler already
+  assert handler in root.handlers
+  root.removeHandler(handler)
+
+
+def get_logger(name: str):
+  logger = logging.getLogger(name)
+  logger.parent = get_package_logger()
+  return logger
+
+
+def get_package_logging_level() -> int:
   """
-  Richtet einen QueueListener ein, der Records aus *allen* Prozessen
-  entgegennimmt und in die Konsole (oder andere Handler) schreibt.
-
-  Rückgabe:
-      log_queue  – an Worker weiterreichen
-      listener   – nach `join()` der Worker mit `.stop()` beenden
+  Gibt das Logging-Level des birdnet-Pakets zurück.
   """
-  log_queue: Queue = Queue()
-
-  console = logging.StreamHandler(sys.stdout)
-  console.setFormatter(logging.Formatter(fmt))
-  console.setLevel(loglevel)
-
-  listener = QueueListener(log_queue, console)
-  listener.start()
-  return log_queue, listener
+  result = get_package_logger().level
+  return result
 
 
-# ------------------------------------------------------------ #
-# 2) In JEDEM Prozess (Haupt + Worker) aufrufen
-# ------------------------------------------------------------ #
-def enable_package_queue_logging(
-  log_queue: Queue,
-) -> None:
-  """
-  Hängt einen QueueHandler **nur** an den birdnet-Stamm-Logger.
-  Unter-Logger propagieren automatisch dorthin.
-  """
-  pkg_log = logging.getLogger(PKG_NAME)
+def init_package_logger(logging_level: int) -> None:
+  root = get_package_logger()
+  root.setLevel(logging_level)
+  root.propagate = False
 
-  # Doppeltes Anhängen vermeiden
-  if any(
-    isinstance(h, QueueHandler) and h.queue is log_queue for h in pkg_log.handlers
+
+init_package_logger(logging.INFO)
+
+
+class QueueFileWriter:
+  def __init__(self, log_queue: Queue, logging_level: int):
+    self._logging_level = logging_level
+    self._log_queue = log_queue
+
+  def __call__(self):
+    logger = logging.getLogger("birdnet-file-writer")
+    logger.setLevel(self._logging_level)
+    logger.propagate = False
+    assert len(logger.handlers) == 0
+
+    h = logging.FileHandler("mptest.log", mode="w")
+    f = logging.Formatter(
+      "%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s"
+    )
+    h.setFormatter(f)
+    logger.addHandler(h)
+
+    while True:
+      try:
+        record: logging.LogRecord = self._log_queue.get()
+        if record is None:
+          break
+        logger.handle(record)
+      except Exception:
+        import sys
+        import traceback
+
+        print("Problem:", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+
+
+class LogableProcessBase:
+  def __init__(
+    self,
+    name: str,
+    logging_queue: mp.Queue,
+    logging_level: int,
   ):
-    return
+    self.__logger: logging.Logger | None = None
+    self.__logging_queue = logging_queue
+    self.__logging_level = logging_level
+    self.__local_queue_handler: QueueHandler | None = None
+    self.__name = name
 
-  qh = QueueHandler(log_queue)
-  qh.setLevel(pkg_log.level)  # respektiert Paket-Level
-  pkg_log.addHandler(qh)
+  def _init_logging(self) -> None:
+    if mp.get_start_method() in ("spawn", "forkserver"):
+      init_package_logger(self.__logging_level)
+      self.__local_queue_handler = add_queue_handler(self.__logging_queue)
+    else:
+      assert mp.get_start_method() == "fork"
+      assert queue_handler_exists(self.__logging_queue)
+    self.__logger = get_logger(self.__name)
+    self.__logger.debug(f"Initialized logging for {self.__name}.")
 
-  # WICHTIG: Keine Weiterleitung an Root, damit wir Root nicht verändern
-  pkg_log.propagate = False
+  def _uninit_logging(self) -> None:
+    assert self.__logger is not None
+    self.__logger.debug(f"Uninitializing logging for {self.__name}.")
+    if mp.get_start_method() in ("spawn", "forkserver"):
+      assert self.__local_queue_handler is not None
+      remove_queue_handler(self.__local_queue_handler)
+    else:
+      assert mp.get_start_method() == "fork"
+      assert self.__local_queue_handler is None
+    self.__local_queue_handler = None
+    self.__logger = None
+
+  @property
+  def _logger(self) -> logging.Logger:
+    assert self.__logger is not None
+    return self.__logger

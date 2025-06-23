@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import logging.handlers
 import math
 import mmap
 import multiprocessing as mp
@@ -13,7 +14,7 @@ from logging import getLogger
 from multiprocessing import shared_memory
 from multiprocessing.synchronize import Semaphore
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence, Tuple
+from typing import Callable, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 import soundfile as sf  # pip install soundfile
@@ -24,12 +25,13 @@ from numpy.typing import DTypeLike
 # except ImportError:  # fallback to full TF (heavier)
 from tensorflow.lite.python import interpreter as tflite
 
+import birdnet_v2.logging_utils as bn_logging
 from birdnet.utils import flat_sigmoid
 from birdnet_v2.globals import BUSY_FLAG, DONE_FLAG, READ_FLAG, WRITE_FLAG
 from birdnet_v2.helper import RingField, uint_dtype_for, uint_dtype_for_files
 
 
-class ChildWorker:
+class ChildWorker(bn_logging.LogableProcessBase):
   def __init__(
     self,
     model_path: Path,
@@ -50,11 +52,15 @@ class ChildWorker:
     sem_fill: Semaphore,
     prob_dtype: DTypeLike,
     apply_sigmoid: bool,
-    sigmoid_sensitivity: Optional[float],
+    sigmoid_sensitivity: float | None,
     pred_dur_queue: mp.SimpleQueue,
     track_performance: bool,
+    logging_queue: mp.Queue,
+    logging_level: int,
     num_threads: int = 1,
   ):
+    super().__init__(__name__, logging_queue, logging_level)
+
     assert species_thresholds.shape[0] == 1
     assert species_blacklist.shape[0] == 1
     assert species_thresholds.shape[1] == species_blacklist.shape[1]
@@ -111,7 +117,6 @@ class ChildWorker:
     self._ring_audio_samples: np.ndarray | None = None
     self._ring_batch_sizes: np.ndarray | None = None
     self._ring_flags: np.ndarray | None = None
-    self._logger: logging.Logger | None = None
     # self._mm: mmap.mmap | None = None
 
   def _load_model(self):
@@ -177,16 +182,18 @@ class ChildWorker:
     self._shm_ring_flags, self._ring_flags = self._rf_flags.attach_and_get_array()
 
   def _init(self) -> None:
-    self._logger = getLogger(__name__)
+    self._init_logging()
     self._load_ring_buffers()
     self._load_model()
+
+  def _uninit(self) -> None:
+    self._uninit_logging()
 
   @property
   def _pid(self) -> int:
     return os.getpid()
 
   def _log_debug(self, msg: str) -> None:
-    assert self._logger is not None
     self._logger.debug(f"WORKER({self._pid}) - {msg}")
 
   def __call__(self):
@@ -275,6 +282,7 @@ class ChildWorker:
         f"Released FREE. Free slots remaining: {self._sem_free}; Filled slots: {self._sem_filled}"
       )
     self._log_debug("Finished.")
+    self._uninit()
 
 
 def filter_by_threshold(

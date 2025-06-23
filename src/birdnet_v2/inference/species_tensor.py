@@ -5,6 +5,7 @@ import logging
 import numpy as np
 from numpy.typing import DTypeLike
 
+import birdnet_v2.logging_utils as bn_logging
 from birdnet_v2.helper import uint_dtype_for
 
 
@@ -19,6 +20,8 @@ class SpeciesTensor:
     files_dtype: DTypeLike,
     chunk_indices_dtype: DTypeLike,
   ):
+    self._logger = bn_logging.get_logger(__name__)
+
     self._files_dtype = files_dtype
     self._chunk_indices_dtype = chunk_indices_dtype
     self._top_k = top_k
@@ -33,9 +36,7 @@ class SpeciesTensor:
     self._species_probs = np.empty((n_files, n_chunks, self._top_k), dtype=prob_dtype)
 
     self._species_masked = np.full((n_files, n_chunks, self._top_k), True, dtype=bool)
-
-    logger = logging.getLogger(__name__)
-    logger.debug(f"Resulting array allocated: {self.memory_usage_mb:.2f} MB")
+    self._logger.debug(f"Resulting array allocated: {self.memory_usage_mb:.2f} MB")
 
   @property
   def memory_usage_mb(self) -> float:
@@ -71,8 +72,7 @@ class SpeciesTensor:
     # --- Initialisiere NUR den neu angehängten Bereich ----------------
     self._species_masked[:, old_n_chunks:needed_n_chunks, :] = True
 
-    logger = logging.getLogger(__name__)
-    logger.debug(
+    self._logger.debug(
       f"[resized] from {old_n_chunks} → {needed_n_chunks} chunks. Resulting array allocated: {self.memory_usage_mb:.2f} MB"
     )
 

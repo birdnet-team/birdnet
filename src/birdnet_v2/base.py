@@ -1,4 +1,7 @@
+import multiprocessing as mp
 from abc import ABC, abstractmethod
+
+import birdnet_v2.logging_utils as bn_logging
 
 
 class ModelBase(ABC):
@@ -18,3 +21,4 @@ class ModelBase(ABC):
   @property
   def backend(self) -> str:
     return self._backend
+
