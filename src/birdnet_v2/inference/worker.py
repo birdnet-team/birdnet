@@ -149,8 +149,8 @@ class ChildWorker(bn_logging.LogableProcessBase):
     self._set_tensor(batch)
     start_time = time.perf_counter()
     self._interp.invoke()
-    final = time.perf_counter()
     if self._track_performance:
+      final = time.perf_counter()
       pred_dur = final - start_time
       self._pred_dur_queue.put((pred_dur, batch.shape[0]))
     res: np.ndarray = self._interp.get_tensor(self._out_idx)

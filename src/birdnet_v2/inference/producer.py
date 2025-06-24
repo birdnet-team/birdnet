@@ -10,6 +10,7 @@ from multiprocessing import Queue, shared_memory
 from multiprocessing.shared_memory import SharedMemory
 from multiprocessing.synchronize import Event, Semaphore
 from pathlib import Path
+from time import sleep
 from typing import Any, Callable, List, Optional, Tuple, Union
 
 import numpy as np
@@ -81,6 +82,64 @@ def resample_array(
   return x_resampled
 
 
+class FilesAnalyzer(bn_logging.LogableProcessBase):
+  def __init__(
+    self,
+    files: List[Path],
+    logging_queue: mp.Queue,
+    logging_level: int,
+    chunk_duration_s: float,
+    overlap_duration_s: float,
+    rf_chunk_indices: RingField,
+    max_chunk_idx_ptr: mp.RawValue,
+    analyzing_result: mp.SimpleQueue,
+    tot_n_chunks: mp.RawValue,
+  ):
+    super().__init__(__name__, logging_queue, logging_level)
+    self._files = files
+    self.chunk_duration_s = chunk_duration_s
+    self.overlap_duration_s = overlap_duration_s
+    self._rf_chunk_indices = rf_chunk_indices
+    self._max_chunk_idx_ptr = max_chunk_idx_ptr
+    self._tot_n_chunks = tot_n_chunks
+    self._max_supported_chunk_index = (
+      max_value_for_uint_dtype(rf_chunk_indices.dtype) - 1
+    )
+    self._analyzing_result = analyzing_result
+
+  def __call__(self) -> None:
+    self._init_logging()
+    durations = []
+    current_max_chunk_index = 0
+    n_chunks = 0
+    for path in self._files:
+      audio_duration_s = get_audio_duration_s(path)
+      durations.append(audio_duration_s)
+
+      file_n_chunks = get_max_n_chunks(
+        audio_duration_s, self.chunk_duration_s, self.overlap_duration_s
+      )
+      file_max_chunk_index = file_n_chunks - 1
+      n_chunks += file_n_chunks
+
+      if file_max_chunk_index > current_max_chunk_index:
+        if file_max_chunk_index > self._max_supported_chunk_index:
+          self._logger.error(
+            f"File {path} has a duration of {audio_duration_s / 60:.2f} min and contains {file_n_chunks} chunks, which exceeds the maximum supported amount of chunks {self._max_supported_chunk_index + 1}. Please set maximum audio duration."
+          )
+          continue
+        current_max_chunk_index = file_max_chunk_index
+        self._max_chunk_idx_ptr.value = current_max_chunk_index
+    self._tot_n_chunks.value = n_chunks
+    res = {}
+    res["file_durations_s"] = durations
+    res["max_chunk_index"] = current_max_chunk_index
+    res["tot_n_chunks"] = n_chunks
+    self._analyzing_result.put(res)
+    self._logger.info(f"Total duration of all files: {sum(durations) / 60**2:.2f} h.")
+    self._uninit_logging()
+
+
 class Producer(bn_logging.LogableProcessBase):
   def __init__(
     self,
@@ -98,9 +157,9 @@ class Producer(bn_logging.LogableProcessBase):
     max_chunk_idx_ptr: mp.RawValue,
     logging_queue: mp.Queue,
     logging_level: int,
-    chunk_duration_s: float = 3.0,
-    overlap_duration_s: float = 0.0,
-    target_sample_rate: int = 48000,
+    chunk_duration_s: float,
+    overlap_duration_s: float,
+    target_sample_rate: int,
     use_bandpass: bool = False,
     bandpass_fmin: Optional[int] = None,
     bandpass_fmax: Optional[int] = None,
@@ -187,16 +246,16 @@ class Producer(bn_logging.LogableProcessBase):
     self,
   ) -> Generator[tuple[int, int, npt.NDArray[np.float32]], None, None]:
     for file_index, path in enumerate(self._files):
-      audio_duration = get_audio_duration(path)
+      audio_duration_s = get_audio_duration_s(path)
       file_n_chunks = get_max_n_chunks(
-        audio_duration, self.chunk_duration_s, self.overlap_duration_s
+        audio_duration_s, self.chunk_duration_s, self.overlap_duration_s
       )
       file_max_chunk_index = file_n_chunks - 1
 
       if file_max_chunk_index > self._max_chunk_idx_ptr.value:
         if file_max_chunk_index > self._max_supported_chunk_index:
           self._logger.error(
-            f"File {path} has a duration of {audio_duration / 60:.2f} min and contains {file_n_chunks} chunks, which exceeds the maximum supported amount of chunks {self._max_supported_chunk_index + 1}. Please set maximum audio duration."
+            f"File {path} has a duration of {audio_duration_s / 60:.2f} min and contains {file_n_chunks} chunks, which exceeds the maximum supported amount of chunks {self._max_supported_chunk_index + 1}. Please set maximum audio duration."
           )
           continue
         self._max_chunk_idx_ptr.value = file_max_chunk_index
@@ -259,6 +318,8 @@ class Producer(bn_logging.LogableProcessBase):
     assert 0 <= self._slot < self._n_slots
 
   def _set_done_flag(self) -> None:
+    assert self._ring_flags is not None
+
     """Set the DONE_FLAG in the shared memory to signal that no more data will be produced."""
     self._sem_free_slots.acquire()
     self._logger.debug(
@@ -274,6 +335,12 @@ class Producer(bn_logging.LogableProcessBase):
     self._sem_filled_slots.release()
 
   def _flush_batch(self, file_indices, chunk_indices, audio_samples) -> None:
+    assert self._ring_audio_samples is not None
+    assert self._ring_file_indices is not None
+    assert self._ring_chunk_indices is not None
+    assert self._ring_batch_sizes is not None
+    assert self._ring_flags is not None
+
     self._sem_free_slots.acquire()
     self._logger.debug(
       f"PRODUCER - Producer acquired FREE. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
@@ -301,10 +368,11 @@ class Producer(bn_logging.LogableProcessBase):
     )
     self._ring_batch_sizes[self._slot] = current_batch_size
 
-    # self._queue.put((slot, current_batch_size))
     self._logger.debug(
       f"PRODUCER - Flushed batch to shared memory on slot {self._slot}, batch size {current_batch_size}. Chunk indices: {chunk_indices}"
     )
+
+    # sleep(0.1)
 
     self._ring_flags[self._slot] = READ_FLAG
     self._jump_to_next_slot()
@@ -314,7 +382,7 @@ class Producer(bn_logging.LogableProcessBase):
     )
 
 
-def get_audio_duration(audio_path: Path) -> float:
+def get_audio_duration_s(audio_path: Path) -> float:
   """
   Returns the duration of the audio file in seconds.
   """
@@ -355,114 +423,3 @@ def load_audio_in_chunks_with_overlap(
     )
     audio = resample_array(audio, sample_rate, target_sample_rate)
     yield audio
-
-
-import atexit
-import contextlib
-
-
-@contextlib.contextmanager
-def shm_ring_from_name(name: str, size: int):
-  shm = SharedMemory(create=True, name=name, size=size)
-  try:
-    yield shm
-  finally:
-    shm.close()
-    shm.unlink()  # wird sogar bei CTRL-C im finally ausgeführt
-    print(f"Shared memory {name} cleaned up.")
-
-
-def test_producing():
-  import faulthandler
-  import sys
-
-  faulthandler.enable(file=sys.stderr, all_threads=True)
-
-  audio_path = Path("test-dataset/test_dataset_1x1440min/0.wav")
-  audio_path = Path("example/soundscape.wav")
-  n_files = 2
-  files = [audio_path] * n_files
-
-  batch_size = 3
-  n_slots = 8
-  n_workers = 4
-  prod_queue = Queue()
-  sem_free = mp.Semaphore(n_slots)
-  sem_fill = mp.Semaphore()
-  chunk_duration_s = 3
-  overlap_duration_s = 0
-  target_sample_rate = 48000
-  chunk_duration_samples = int(chunk_duration_s * target_sample_rate)
-
-  with (
-    shm_ring_from_name(
-      "bnet_ring_file_indices",
-      n_slots * batch_size * np.dtype(np.uint32).itemsize,
-    ) as shm_file_indices,
-    shm_ring_from_name(
-      "bnet_ring_chunk_indices", n_slots * batch_size * np.dtype(np.uint32).itemsize
-    ) as shm_chunk_indices,
-    shm_ring_from_name(
-      "bnet_ring_audio_samples",
-      n_slots * batch_size * chunk_duration_samples * np.dtype(np.float32).itemsize,
-    ) as shm_audio_samples,
-  ):
-    print("Shared memory initialized.")
-
-    prod = mp.Process(
-      target=Producer(
-        files,
-        batch_size,
-        n_slots,
-        n_workers,
-        prod_queue,
-        sem_free,
-        sem_fill,
-        chunk_duration_s,
-        overlap_duration_s,
-        target_sample_rate,
-      ),
-      daemon=True,
-    )
-    prod.start()
-
-    ring_file_indices = np.ndarray(
-      (n_slots, batch_size), np.uint32, shm_file_indices.buf
-    )
-    ring_chunk_indices = np.ndarray(
-      (n_slots, batch_size), np.uint32, shm_chunk_indices.buf
-    )
-    ring_audio_samples = np.ndarray(
-      (n_slots, batch_size, chunk_duration_samples),
-      np.float32,
-      shm_audio_samples.buf,
-    )
-
-    res = []
-    while True:
-      job = prod_queue.get()
-      if job is None:
-        break
-      slot, n = job
-      sem_fill.acquire()
-      file_indices = ring_file_indices[slot, :n]
-      chunk_indices = ring_chunk_indices[slot, :n]
-      audio_samples = ring_audio_samples[slot, :n]
-      res.append(list(chunk_indices))
-      sem_free.release()
-  print("Producer finished processing.")
-  print(res)
-
-
-def test_chunking():
-  from time import perf_counter
-
-  t1 = perf_counter()
-  res = list(
-    load_audio_in_chunks_with_overlap(Path("test-dataset/test_dataset_1x1440min/0.wav"))
-  )
-  print(f"Loaded {len(res)} chunks in {perf_counter() - t1:.2f} seconds")
-
-
-if __name__ == "__main__":
-  test_producing()

@@ -101,12 +101,11 @@ def create_shm_ring(ring: RingField) -> shared_memory.SharedMemory:  # type: ign
 
 
 def get_max_n_chunks(
-  max_duration_min: float, chunk_size_s: float, overlap_duration_s: float
+  max_duration_s: float, chunk_size_s: float, overlap_duration_s: float
 ) -> int:
-  total_duration_s = max_duration_min * 60
   effective_chunk_duration_s = chunk_size_s - overlap_duration_s
   assert effective_chunk_duration_s > 0
-  n_chunks = math.ceil(total_duration_s / effective_chunk_duration_s)
+  n_chunks = math.ceil(max_duration_s / effective_chunk_duration_s)
   return n_chunks
 
 

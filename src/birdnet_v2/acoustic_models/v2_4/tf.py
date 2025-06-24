@@ -2,22 +2,25 @@
 from __future__ import annotations
 
 import ctypes
-
-# You'll need these imports in your own code
+import json
 import logging
 import logging.handlers
 import math
 import multiprocessing
 import multiprocessing as mp
 import os
+import platform
 import queue
 import shutil
 import sys
 import tempfile
 import time
 import zipfile
-from collections import deque
+from collections import OrderedDict, deque
 from collections.abc import Generator
+
+# You'll need these imports in your own code
+from datetime import datetime
 from logging.handlers import QueueHandler, QueueListener
 from multiprocessing import Queue
 from multiprocessing.shared_memory import SharedMemory
@@ -42,6 +45,7 @@ from typing import (
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+import psutil
 import soundfile as sf  # pip install soundfile
 from numpy.lib.stride_tricks import as_strided
 from numpy.typing import DTypeLike
@@ -69,10 +73,10 @@ from birdnet_v2.helper import (
 from birdnet_v2.inference.consumer import Consumer
 from birdnet_v2.inference.perf_tracker import PerformanceTracker
 from birdnet_v2.inference.producer import (
+  FilesAnalyzer,
   Producer,
   get_chunks_with_overlap,  # type: ignore
   load_audio_in_chunks_with_overlap,
-  shm_ring_from_name,
 )
 from birdnet_v2.inference.species_tensor import SpeciesTensor
 from birdnet_v2.inference.worker import ChildWorker
@@ -151,6 +155,9 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     max_audio_duration_min: float | None = None,
     track_performance: bool = True,
   ):
+    pid = os.getpid()
+    parent = psutil.Process(pid)
+    ramp_up_here = time.time() - parent.create_time()
     start = time.perf_counter()
     # if multiprocessing.get_start_method() not in ("spawn", "fork"):
     #   raise ValueError("Multiprocessing start method must be 'spawn' or 'fork'!")
@@ -215,7 +222,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     chunks_dtype = np.dtype(np.uint32)
     if max_audio_duration_min is not None:
       reserve_n_chunks = get_max_n_chunks(
-        max_audio_duration_min, self.chunk_size_s, overlap_duration_s
+        max_audio_duration_min * 60, self.chunk_size_s, overlap_duration_s
       )
       chunks_dtype = uint_dtype_for(max(0, reserve_n_chunks - 1))
 
@@ -290,9 +297,11 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     )  # type: ignore
 
     pred_dur_queue = mp.SimpleQueue()
+    analyzer_queue = mp.SimpleQueue()
     perf_res: mp.SimpleQueue | None = None
     stop_event = mp.Event()
     stop_time = mp.RawValue(ctypes.c_float, 0.0)  # float32
+    tot_n_chunks_ptr = mp.RawValue(ctypes.c_uint64, 0)
 
     with (
       create_shm_ring(rf_file_indices),
@@ -305,6 +314,21 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
 
       flags = rf_flags.get_array(shm_ring_flags)
       flags[:] = WRITE_FLAG
+
+      file_analyzer_proc = mp.Process(
+        target=FilesAnalyzer(
+          files=file_paths,
+          logging_level=logging_level,
+          logging_queue=logging_queue,
+          chunk_duration_s=self.chunk_size_s,
+          overlap_duration_s=overlap_duration_s,
+          max_chunk_idx_ptr=max_chunk_idx_ptr,
+          rf_chunk_indices=rf_chunk_indices,
+          analyzing_result=analyzer_queue,
+          tot_n_chunks=tot_n_chunks_ptr,
+        )
+      )
+      file_analyzer_proc.start()
 
       prod = mp.Process(
         target=Producer(
@@ -342,7 +366,8 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
           target=PerformanceTracker(
             pred_dur_queue,
             stop_event,
-            update_interval=1,
+            update_interval=0.5,
+            print_interval=1,
             print_last_n=500,
             stop_time=stop_time,
             start=start,
@@ -350,6 +375,9 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
             logging_queue=logging_queue,
             logging_level=logging_level,
             perf_res=perf_res,
+            parent_process_id=os.getpid(),
+            rf_flags=rf_flags,
+            tot_n_chunks_ptr=tot_n_chunks_ptr,
           ),
           daemon=True,
         )
@@ -400,6 +428,9 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       )
       consumer()
 
+      file_analyzer_proc.join()
+      logger.debug("File analyzer finished.")
+
       prod.join()
       logger.debug("Producer finished.")
 
@@ -409,13 +440,134 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       logger.debug("All workers finished.")
 
       if track_performance:
-        stop_time.value = time.perf_counter()
+        stop = time.perf_counter()
+        stop_time.value = stop
         stop_event.set()
         assert inference_tracker is not None
         assert perf_res is not None
         inference_tracker.join()
         perf_result = perf_res.get()
-        # TODO
+
+        wall_time_s = stop - start
+
+        analyzer_res: dict = analyzer_queue.get()
+        file_durations_s = analyzer_res["file_durations_s"]
+        max_chunk_index = analyzer_res["max_chunk_index"]
+        tot_n_chunks = analyzer_res["tot_n_chunks"]
+
+        total_chunks_processed = perf_result["total_chunks_processed"]
+        cpu_time_s = perf_result["summed_prediction_duration_s"]
+        memory_usages_mb = perf_result["memory_usages_mb"]
+        cpu_usages_pct = perf_result["cpu_usages_pct"]
+        free_slots = perf_result["free_slots"]
+        filled_slots = perf_result["filled_slots"]
+        busy_slots = perf_result["busy_slots"]
+        preloaded_slots = perf_result["preloaded_slots"]
+        ramp_up_time_until_first_pred_s = perf_result["ramp_up_time_until_first_pred_s"]
+
+        model_pred_ms_per_chunk = cpu_time_s / total_chunks_processed * 1000
+        pc_chunks_per_s = total_chunks_processed / wall_time_s
+        pc_audio_min_per_s = pc_chunks_per_s * self.chunk_size_s / 60
+        n_files = len(file_paths)
+
+        meta = OrderedDict()
+        # Timestamp
+        meta["date"] = datetime.now().isoformat(timespec="seconds")
+        # Hardware
+        meta["host"] = platform.node()
+        meta["cpu"] = platform.processor()
+        meta["cpu_cores"] = psutil.cpu_count(logical=False)
+        meta["cpu_logical_cores"] = psutil.cpu_count(logical=True)
+        meta["ram_GiB"] = psutil.virtual_memory().total / 1024**3
+        meta["n_jobs"] = n_jobs
+        meta["start_method"] = multiprocessing.get_start_method()
+        # Software
+        meta["os"] = f"{platform.system()} {platform.release()}"
+        meta["python"] = platform.python_version()
+        meta["birdnet"] = "2.0.0"
+        # Model
+        meta["model_type"] = "tf"
+        meta["model_version"] = "2.4"
+        meta["custom_model"] = self._use_custom_model
+        meta["model_path"] = str(self._model_path.absolute())
+        meta["model_n_species"] = len(self._species_list)
+        # Dataset
+        meta["n_files"] = len(file_paths)
+        meta["tot_file_duration_h"] = sum(file_durations_s) / 60**2
+        # meta["max_chunk_index"] = max_chunk_index
+        meta["max_n_chunks"] = max_chunk_idx_ptr.value + 1
+        meta["tot_n_chunks"] = tot_n_chunks
+        # Parameter
+        meta["chunk_s"] = self.chunk_size_s
+        meta["overlap_s"] = overlap_duration_s
+        meta["batch_size"] = batch_size
+        meta["top_k"] = top_k
+        # meta["n_slots_factor"] = n_slots_factor
+        meta["ringsize"] = n_slots
+        meta["apply_sigmoid"] = apply_sigmoid
+        meta["sigmoid_sensitivity"] = sigmoid_sensitivity if apply_sigmoid else None
+        meta["use_bandpass"] = use_bandpass
+        meta["bandpass_fmin"] = bandpass_fmin
+        meta["bandpass_fmax"] = bandpass_fmax
+        meta["half_precision"] = half_precision
+        meta["default_confidence_threshold"] = default_confidence_threshold
+        meta["n_custom_species"] = (
+          len(custom_species_list) if custom_species_list else 0
+        )
+        meta["n_custom_confidence_thresholds"] = (
+          len(custom_confidence_thresholds) if custom_confidence_thresholds else 0
+        )
+        # Metrics
+        meta["rampup_first_line_s"] = ramp_up_here
+        meta["max_audio_duration_min"] = -1  # TODO
+        meta["wall_time_s"] = wall_time_s
+        meta["cpu_time_s"] = cpu_time_s
+        meta["rampup_time_s"] = ramp_up_time_until_first_pred_s
+        meta["n_chunks_processed"] = total_chunks_processed
+        meta["model_pred_ms_per_chunk"] = model_pred_ms_per_chunk
+        meta["pc_chunks_per_s"] = pc_chunks_per_s
+        meta["pc_audio_min_per_s"] = pc_audio_min_per_s
+        meta["result_memory_usage_MiB"] = result.memory_usage_mb
+        assert len(memory_usages_mb) == len(cpu_usages_pct)
+        n_usage_recordings = len(memory_usages_mb)
+        meta["n_usage_recordings"] = n_usage_recordings
+        meta["max_memory_usages_MiB"] = max(memory_usages_mb, default=np.nan)
+        meta["avg_memory_usage_MiB"] = (
+          sum(memory_usages_mb) / len(memory_usages_mb)
+          if len(memory_usages_mb) > 0
+          else np.nan
+        )
+        meta["max_cpu_usages_pct"] = max(cpu_usages_pct, default=np.nan)
+        meta["avg_cpu_usage_pct"] = (
+          sum(cpu_usages_pct) / len(cpu_usages_pct)
+          if len(cpu_usages_pct) > 0
+          else np.nan
+        )
+        meta["avg_free_slots"] = (
+          sum(free_slots) / len(free_slots) if len(free_slots) > 0 else np.nan
+        )
+        meta["avg_filled_slots"] = (
+          sum(filled_slots) / len(filled_slots) if len(filled_slots) > 0 else np.nan
+        )
+        meta["avg_busy_slots"] = (
+          sum(busy_slots) / len(busy_slots) if len(busy_slots) > 0 else np.nan
+        )
+        meta["avg_preloaded_slots"] = (
+          sum(preloaded_slots) / len(preloaded_slots)
+          if len(preloaded_slots) > 0
+          else np.nan
+        )
+
+        meta_out = Path(tempfile.gettempdir()) / "meta.json"
+        with open(meta_out, "w", encoding="utf8") as f:
+          json.dump(meta, f, indent=2, ensure_ascii=False)
+        meta_df_out = Path(tempfile.gettempdir()) / "meta.csv"
+        meta_df = pd.DataFrame.from_records([meta])
+        meta_df.to_csv(
+          meta_df_out, mode="a", header=not meta_df_out.exists(), index=False
+        )
+        logger.info(f"Meta data JSON written to: {meta_out.absolute()}")
+        logger.info(f"Meta data CSV written to: {meta_df_out.absolute()}")
 
     logging_queue.put_nowait(None)
     logging_listener.join()

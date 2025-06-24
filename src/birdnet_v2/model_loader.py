@@ -90,7 +90,6 @@ if __name__ == "__main__":
     Path("test-dataset/test_dataset_4x60min/2.wav"),
     Path("test-dataset/test_dataset_4x60min/3.wav"),
   ]
-  audio_paths = [Path("test-dataset/test_dataset_1x10min/0.wav")]
 
   random.seed(0)
   np.random.seed(0)
@@ -106,18 +105,20 @@ if __name__ == "__main__":
 
   # model = load_custom_model("acoustic/v2.4+pb@cpu", custom_species_list="..")
 
+  # model.use_custom_model(model_path, custom_species_list="..")
+  audio_paths = [Path("src/birdnet_v2_debug/10min.wav")]
+  audio_paths = [Path("src/birdnet_v2_debug/60min.wav")]
+
+  audio_paths = [Path("test-dataset/test_dataset_1x10min/0.wav")]
+  audio_paths = [Path("test-dataset/test_dataset_1x60min/0.wav")]
+
+  audio_paths = [Path("example/soundscape.wav")]
   audio_paths = [
     Path("test-dataset/test_dataset_4x60min/0.wav"),
     Path("test-dataset/test_dataset_4x60min/1.wav"),
     Path("test-dataset/test_dataset_4x60min/2.wav"),
     Path("test-dataset/test_dataset_4x60min/3.wav"),
   ]
-  # model.use_custom_model(model_path, custom_species_list="..")
-  audio_paths = [Path("src/birdnet_v2_debug/10min.wav")]
-  audio_paths = [Path("example/soundscape.wav")]
-  audio_paths = [Path("src/birdnet_v2_debug/60min.wav")]
-  audio_paths = [Path("test-dataset/test_dataset_1x60min/0.wav")]
-
   start = time.perf_counter()
   result = model.analyze(
     audio_paths,
