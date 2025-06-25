@@ -78,5 +78,6 @@ def download_and_extract_hsn_data() -> None:
 
 
 if __name__ == "__main__":
+  download_and_extract_hsn_data()
   res = get_hsn_file_paths()
   print(len(res))

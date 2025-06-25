@@ -78,6 +78,6 @@ def download_and_extract_data() -> None:
 
 
 if __name__ == "__main__":
-  # download_and_extract_data()
+  download_and_extract_data()
   res = get_pow_file_paths()
   print(len(res))
