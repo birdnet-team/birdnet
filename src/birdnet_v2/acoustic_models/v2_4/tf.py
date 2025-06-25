@@ -419,7 +419,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
             stop_event,
             update_interval=0.5,
             print_interval=1,
-            print_last_n=50,
+            print_last_n=2,
             stop_time=stop_time,
             start=start,
             chunk_size_s=self.chunk_size_s,

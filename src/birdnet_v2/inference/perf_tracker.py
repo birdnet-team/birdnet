@@ -164,7 +164,11 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       if now >= self._next_update:
         memory_usage = parent_process.memory_info().rss
         for child in parent_process.children(recursive=True):
-          memory_usage += child.memory_info().rss
+          try:
+            memory_usage += child.memory_info().rss
+          except psutil.NoSuchProcess:
+            continue
+                
         memory_usage_MiB = memory_usage / (1024 * 1024)
         memory_usages.append(memory_usage_MiB)
 
