@@ -57,7 +57,7 @@ from tensorflow.lite.python.interpreter import Interpreter
 import birdnet_v2.logging_utils as bn_logging
 from birdnet.utils import download_file_tqdm, get_species_from_file
 from birdnet_v2.acoustic_models.v2_4.base import AcousticModelBaseV2_4
-from birdnet_v2.globals import APP_DIR, BUSY_FLAG, READ_FLAG, WRITE_FLAG
+from birdnet_v2.globals import APP_DIR, READABLE_FLAG, READING_FLAG, WRITABLE_FLAG
 from birdnet_v2.helper import (
   RingField,
   code_from_dtype,
@@ -105,6 +105,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
     self._perf_res = perf_res
     self._pred_dur_queue = pred_dur_queue
+    self._n_last = print_last_n
     self._pred_dur_deque = deque(maxlen=print_last_n)
     self._batch_sizes_deque = deque(maxlen=print_last_n)
     self._update_every = update_interval
@@ -171,9 +172,9 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         cpu_usages.append(cpu_usage)
 
         c = Counter(self._ring_flags)
-        n_free = c.get(WRITE_FLAG, 0)
-        n_preloaded = c.get(READ_FLAG, 0)
-        n_busy = c.get(BUSY_FLAG, 0)
+        n_free = c.get(WRITABLE_FLAG, 0)
+        n_preloaded = c.get(READABLE_FLAG, 0)
+        n_busy = c.get(READING_FLAG, 0)
         n_filled = len(self._ring_flags) - n_free
         free_slots.append(n_free)
         filled_slots.append(n_filled)
@@ -194,10 +195,12 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
         cpu_usage = psutil.cpu_percent()
 
-        avg_preloaded_slots = np.mean(preloaded_slots) if preloaded_slots else 0
-        avg_free_slots = np.mean(free_slots) if free_slots else 0
-        avg_filled_slots = np.mean(filled_slots) if filled_slots else 0
-        avg_busy_slots = np.mean(busy_slots) if busy_slots else 0
+        avg_preloaded_slots = (
+          np.mean(preloaded_slots[-self._n_last :]) if preloaded_slots else 0
+        )
+        avg_free_slots = np.mean(free_slots[-self._n_last :]) if free_slots else 0
+        avg_filled_slots = np.mean(filled_slots[-self._n_last :]) if filled_slots else 0
+        avg_busy_slots = np.mean(busy_slots[-self._n_last :]) if busy_slots else 0
 
         output_msg_fields = [
           f"inference speed: {self._summed_pred_duration / self._total_chunks_processed * 1000:.0f} ms/chunk",

@@ -27,7 +27,13 @@ from tensorflow.lite.python import interpreter as tflite
 
 import birdnet_v2.logging_utils as bn_logging
 from birdnet.utils import flat_sigmoid
-from birdnet_v2.globals import BUSY_FLAG, DONE_FLAG, READ_FLAG, WRITE_FLAG
+from birdnet_v2.globals import (
+  DONE_FLAG,
+  READABLE_FLAG,
+  READING_FLAG,
+  WRITABLE_FLAG,
+  WRITING_FLAG,
+)
 from birdnet_v2.helper import RingField, uint_dtype_for, uint_dtype_for_files
 
 
@@ -213,21 +219,29 @@ class ChildWorker(bn_logging.LogableProcessBase):
 
       while True:
         with self._slot_ptr.get_lock():
-          if self._ring_flags[self._slot_ptr.value] not in (READ_FLAG, DONE_FLAG):
-            assert self._ring_flags[self._slot_ptr.value] in (WRITE_FLAG, BUSY_FLAG)
-            self._jump_to_next_slot_ptr()
-          else:
-            claimed_slot = self._slot_ptr.value
-            claimed_flag = self._ring_flags[claimed_slot]
-            self._ring_flags[self._slot_ptr.value] = BUSY_FLAG
+          current_slot = self._slot_ptr.value
+          current_slot_flag = self._ring_flags[current_slot]
+          # TODO: check if all ring_size slots = DONE
+          if current_slot_flag in (READABLE_FLAG, DONE_FLAG):
+            claimed_slot = current_slot
+            claimed_flag = current_slot_flag
+            if claimed_flag == READABLE_FLAG:
+              self._ring_flags[claimed_slot] = READING_FLAG
             self._jump_to_next_slot_ptr()
             break
+          else:
+            assert current_slot_flag in (
+              WRITABLE_FLAG,
+              WRITING_FLAG,
+              READING_FLAG,
+            )
+            self._jump_to_next_slot_ptr()
 
       if claimed_flag == DONE_FLAG:
         self._log_debug(f"Received DONE_FLAG for slot {claimed_slot}. Exiting.")
         self._out_q.put(None)
         break
-      assert claimed_flag == READ_FLAG
+      assert claimed_flag == READABLE_FLAG
 
       self._log_debug(f"Acquired READ_FLAG for slot {claimed_slot}.")
 
@@ -275,7 +289,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
         f"Prediction made. Total predictions: {self._prediction_count}. Chunks: {chunk_indices}"
       )
 
-      self._ring_flags[claimed_slot] = WRITE_FLAG
+      self._ring_flags[claimed_slot] = WRITABLE_FLAG
       self._sem_free.release()
 
       self._log_debug(

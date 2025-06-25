@@ -4,16 +4,18 @@ from pathlib import Path
 import numpy as np
 
 # flag for "can be written to"
-WRITE_FLAG = np.uint8(0)
+WRITABLE_FLAG = np.uint8(0)
+
+WRITING_FLAG = np.uint8(1)
 
 # flag for "can be read from"
-READ_FLAG = np.uint8(1)
+READABLE_FLAG = np.uint8(2)
 
 # flag for "busy", i.e., currently being processed
-BUSY_FLAG = np.uint8(2)
+READING_FLAG = np.uint8(3)
 
 # flag for "done"
-DONE_FLAG = np.uint8(3)
+DONE_FLAG = np.uint8(4)
 
 
 def get_app_data_path() -> Path:

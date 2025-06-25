@@ -10,6 +10,7 @@ from multiprocessing import Queue, shared_memory
 from multiprocessing.shared_memory import SharedMemory
 from multiprocessing.synchronize import Event, Semaphore
 from pathlib import Path
+from queue import Empty
 from time import sleep
 from typing import Any, Callable, List, Optional, Tuple, Union
 
@@ -31,7 +32,13 @@ from birdnet.utils import (
   itertools_batched,
   resample_array,
 )
-from birdnet_v2.globals import DONE_FLAG, READABLE_FLAG, WRITABLE_FLAG
+from birdnet_v2.globals import (
+  DONE_FLAG,
+  READABLE_FLAG,
+  READING_FLAG,
+  WRITABLE_FLAG,
+  WRITING_FLAG,
+)
 from birdnet_v2.helper import (
   RingField,
   get_max_n_chunks,
@@ -82,68 +89,11 @@ def resample_array(
   return x_resampled
 
 
-class FilesAnalyzer(bn_logging.LogableProcessBase):
+class ChildProducer(bn_logging.LogableProcessBase):
   def __init__(
     self,
-    files: List[Path],
-    logging_queue: mp.Queue,
-    logging_level: int,
-    chunk_duration_s: float,
-    overlap_duration_s: float,
-    rf_chunk_indices: RingField,
-    max_chunk_idx_ptr: mp.RawValue,
-    analyzing_result: mp.SimpleQueue,
-    tot_n_chunks: mp.RawValue,
-  ):
-    super().__init__(__name__, logging_queue, logging_level)
-    self._files = files
-    self.chunk_duration_s = chunk_duration_s
-    self.overlap_duration_s = overlap_duration_s
-    self._rf_chunk_indices = rf_chunk_indices
-    self._max_chunk_idx_ptr = max_chunk_idx_ptr
-    self._tot_n_chunks = tot_n_chunks
-    self._max_supported_chunk_index = (
-      max_value_for_uint_dtype(rf_chunk_indices.dtype) - 1
-    )
-    self._analyzing_result = analyzing_result
-
-  def __call__(self) -> None:
-    self._init_logging()
-    durations = []
-    current_max_chunk_index = 0
-    n_chunks = 0
-    for path in self._files:
-      audio_duration_s = get_audio_duration_s(path)
-      durations.append(audio_duration_s)
-
-      file_n_chunks = get_max_n_chunks(
-        audio_duration_s, self.chunk_duration_s, self.overlap_duration_s
-      )
-      file_max_chunk_index = file_n_chunks - 1
-      n_chunks += file_n_chunks
-
-      if file_max_chunk_index > current_max_chunk_index:
-        if file_max_chunk_index > self._max_supported_chunk_index:
-          self._logger.error(
-            f"File {path} has a duration of {audio_duration_s / 60:.2f} min and contains {file_n_chunks} chunks, which exceeds the maximum supported amount of chunks {self._max_supported_chunk_index + 1}. Please set maximum audio duration."
-          )
-          continue
-        current_max_chunk_index = file_max_chunk_index
-        self._max_chunk_idx_ptr.value = current_max_chunk_index
-    self._tot_n_chunks.value = n_chunks
-    res = {}
-    res["file_durations_s"] = durations
-    res["max_chunk_index"] = current_max_chunk_index
-    res["tot_n_chunks"] = n_chunks
-    self._analyzing_result.put(res)
-    self._logger.info(f"Total duration of all files: {sum(durations) / 60**2:.2f} h.")
-    self._uninit_logging()
-
-
-class Producer(bn_logging.LogableProcessBase):
-  def __init__(
-    self,
-    files: List[Path],
+    files_queue: Queue,
+    slot_ptr: mp.Value,
     batch_size: int,
     n_slots: int,
     n_jobs: int,
@@ -155,6 +105,8 @@ class Producer(bn_logging.LogableProcessBase):
     sem_free_slots: Semaphore,  # counts free slots
     sem_filled_slots: Semaphore,  # counts filled slots
     max_chunk_idx_ptr: mp.RawValue,
+    prod_done_ptr: mp.Value,
+    n_prods: int,
     logging_queue: mp.Queue,
     logging_level: int,
     chunk_duration_s: float,
@@ -176,10 +128,12 @@ class Producer(bn_logging.LogableProcessBase):
     self._n_slots = n_slots
     self._sem_free_slots = sem_free_slots
     self._sem_filled_slots = sem_filled_slots
-    self._slot = 0
-    self._files = files
+    self._slot_ptr = slot_ptr
+    self._files_queue = files_queue
     self._use_bandpass = use_bandpass
     self._max_chunk_idx_ptr = max_chunk_idx_ptr
+    self._prod_done_ptr = prod_done_ptr
+    self._n_prods = n_prods
 
     if use_bandpass:
       assert bandpass_fmin is not None
@@ -238,14 +192,24 @@ class Producer(bn_logging.LogableProcessBase):
   def _init(self) -> None:
     self._init_logging()
     self._load_ring_buffers()
+    self._logger.debug(f"PRODUCER({os.getpid()}) - Initialized.")
 
   def _uninit(self) -> None:
+    self._logger.debug(f"PRODUCER({os.getpid()}) - Uninitializing...")
     self._uninit_logging()
 
   def get_chunks_from_files(
     self,
   ) -> Generator[tuple[int, int, npt.NDArray[np.float32]], None, None]:
-    for file_index, path in enumerate(self._files):
+    while True:
+      queue_entry = self._files_queue.get()
+      poison_pill = queue_entry is None
+      if poison_pill:
+        self._logger.debug(f"PRODUCER({os.getpid()}) - Received poison pill. Exiting.")
+        break
+      assert isinstance(queue_entry, tuple)
+      file_index, path = queue_entry
+
       audio_duration_s = get_audio_duration_s(path)
       file_n_chunks = get_max_n_chunks(
         audio_duration_s, self.chunk_duration_s, self.overlap_duration_s
@@ -306,33 +270,47 @@ class Producer(bn_logging.LogableProcessBase):
 
       self._flush_batch(file_indices, chunk_indices, audio_samples)
 
-    # send poison pills
-    for _ in range(self._n_jobs):
-      self._set_done_flag()
+    with self._prod_done_ptr.get_lock():
+      self._prod_done_ptr.value = self._prod_done_ptr.value + 1
+      self._logger.debug(
+        f"PRODUCER({os.getpid()}) - Set prod_done_ptr to {self._prod_done_ptr.value}."
+      )
+      is_last_producer = self._prod_done_ptr.value == self._n_prods
+
+    if is_last_producer:
+      self._logger.debug(
+        f"PRODUCER({os.getpid()}) - Last producer finished. Sending poison pills."
+      )
+      # send poison pills
+      # can also use n_jobs here, but this is faster
+      for _ in range(self._n_slots):
+        self._set_done_flag()
 
     self._uninit()
 
-  def _jump_to_next_slot(self) -> None:
+  def _jump_to_next_slot_ptr(self) -> None:
     """Increase the slot index, wrapping around if necessary."""
-    self._slot = (self._slot + 1) % self._n_slots
-    assert 0 <= self._slot < self._n_slots
+    self._slot_ptr.value = (self._slot_ptr.value + 1) % self._n_slots
+    assert 0 <= self._slot_ptr.value < self._n_slots
 
   def _set_done_flag(self) -> None:
-    # Set the DONE_FLAG in the shared memory to signal that no more data will be produced.
-
     assert self._ring_flags is not None
+    # only one producer process gets into this method
 
+    """Set the DONE_FLAG in the shared memory to signal that no more data will be produced."""
     self._sem_free_slots.acquire()
     self._logger.debug(
-      f"PRODUCER - Producer acquired FREE. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
+      f"PRODUCER({os.getpid()}) - Producer acquired FREE. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
     )
-    while self._ring_flags[self._slot] != WRITABLE_FLAG:
-      self._jump_to_next_slot()
+    while self._ring_flags[self._slot_ptr.value] != WRITABLE_FLAG:
+      self._jump_to_next_slot_ptr()
 
-    assert 0 <= self._slot < self._n_slots
-    self._ring_flags[self._slot] = DONE_FLAG
-    self._logger.debug(f"PRODUCER - Set DONE_FLAG on slot {self._slot}.")
-    self._jump_to_next_slot()
+    assert 0 <= self._slot_ptr.value < self._n_slots
+    self._ring_flags[self._slot_ptr.value] = DONE_FLAG
+    self._logger.debug(
+      f"PRODUCER({os.getpid()}) - Set DONE_FLAG on slot {self._slot_ptr.value}."
+    )
+    self._jump_to_next_slot_ptr()
     self._sem_filled_slots.release()
 
   def _flush_batch(self, file_indices, chunk_indices, audio_samples) -> None:
@@ -344,42 +322,67 @@ class Producer(bn_logging.LogableProcessBase):
 
     self._sem_free_slots.acquire()
     self._logger.debug(
-      f"PRODUCER - Producer acquired FREE. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
+      f"PRODUCER({os.getpid()}) - Producer acquired FREE. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
     )
-    while self._ring_flags[self._slot] != WRITABLE_FLAG:
-      self._jump_to_next_slot()
+
+    while True:
+      with self._slot_ptr.get_lock():
+        current_slot = self._slot_ptr.value
+        current_slot_flag = self._ring_flags[current_slot]
+        # can never be DONE because this flag is set after all chunks from all files have been flushed
+        assert current_slot_flag != DONE_FLAG
+
+        if current_slot_flag == WRITABLE_FLAG:
+          claimed_slot = current_slot
+          claimed_flag = current_slot_flag
+          if claimed_flag == WRITABLE_FLAG:
+            self._ring_flags[claimed_slot] = WRITING_FLAG
+          self._jump_to_next_slot_ptr()
+          break
+        else:
+          assert current_slot_flag in (
+            READABLE_FLAG,
+            READING_FLAG,
+            WRITING_FLAG,
+          )
+          self._jump_to_next_slot_ptr()
+
+    assert claimed_flag == WRITABLE_FLAG
+    self._logger.debug(
+      f"PRODUCER({os.getpid()}) - Acquired WRITABLE_FLAG for slot {claimed_slot}."
+    )
 
     current_batch_size = len(audio_samples)
     assert len(file_indices) == current_batch_size
     assert len(chunk_indices) == current_batch_size
-    assert 0 <= self._slot < self._n_slots
+    assert 0 <= claimed_slot < self._n_slots
     assert current_batch_size <= self._batch_size
-    self._ring_file_indices[self._slot, :current_batch_size] = np.asarray(
+    self._ring_file_indices[claimed_slot, :current_batch_size] = np.asarray(
       file_indices, self._ring_file_indices.dtype
     )
     # TODO könnte man noch bei den anderen auch machen
     assert max(chunk_indices) < max_value_for_uint_dtype(self._ring_chunk_indices.dtype)
     assert min(chunk_indices) >= 0
-    self._ring_chunk_indices[self._slot, :current_batch_size] = np.asarray(
+    self._ring_chunk_indices[claimed_slot, :current_batch_size] = np.asarray(
       chunk_indices, self._ring_chunk_indices.dtype
     )
 
-    self._ring_audio_samples[self._slot, :current_batch_size] = np.asarray(
+    self._ring_audio_samples[claimed_slot, :current_batch_size] = np.asarray(
       np.stack(audio_samples, 0), self._ring_audio_samples.dtype
     )
-    self._ring_batch_sizes[self._slot] = current_batch_size
+    self._ring_batch_sizes[claimed_slot] = current_batch_size
 
     self._logger.debug(
-      f"PRODUCER - Flushed batch to shared memory on slot {self._slot}, batch size {current_batch_size}. Chunk indices: {chunk_indices}"
+      f"PRODUCER({os.getpid()}) - Flushed batch to shared memory on slot {claimed_slot}, batch size {current_batch_size}. Chunk indices: {chunk_indices}"
     )
 
     # sleep(0.1)
 
-    self._ring_flags[self._slot] = READABLE_FLAG
-    self._jump_to_next_slot()
+    self._ring_flags[claimed_slot] = READABLE_FLAG
     self._sem_filled_slots.release()
+
     self._logger.debug(
-      f"PRODUCER - Producer released FILL. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
+      f"PRODUCER({os.getpid()}) - Producer released FILL. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
     )
 
 

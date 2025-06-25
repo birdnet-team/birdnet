@@ -33,7 +33,7 @@ from birdnet.utils import (
   itertools_batched,
   resample_array,
 )
-from birdnet_v2.globals import DONE_FLAG, READ_FLAG, WRITE_FLAG
+from birdnet_v2.globals import DONE_FLAG, READABLE_FLAG, WRITABLE_FLAG
 from birdnet_v2.helper import (
   RingField,
   max_value_for_uint_dtype,

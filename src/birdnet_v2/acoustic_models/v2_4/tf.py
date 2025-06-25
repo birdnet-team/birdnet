@@ -60,7 +60,7 @@ from tensorflow.lite.python.interpreter import Interpreter
 import birdnet_v2.logging_utils as bn_logging
 from birdnet.utils import download_file_tqdm, get_species_from_file
 from birdnet_v2.acoustic_models.v2_4.base import AcousticModelBaseV2_4
-from birdnet_v2.globals import APP_DIR, WRITE_FLAG
+from birdnet_v2.globals import APP_DIR, WRITABLE_FLAG
 from birdnet_v2.helper import (
   RingField,
   code_from_dtype,
@@ -70,6 +70,7 @@ from birdnet_v2.helper import (
   uint_ctype_from_dtype,
   uint_dtype_for,
 )
+from birdnet_v2.inference.child_producer import ChildProducer
 from birdnet_v2.inference.consumer import Consumer
 from birdnet_v2.inference.perf_tracker import PerformanceTracker
 from birdnet_v2.inference.producer import (
@@ -139,6 +140,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     files: list[Path] | list[str],
     top_k: int = 5,
     n_jobs: int = 4,
+    n_prods: int = 1,
     batch_size: int = 50,
     n_slots_factor: int = 2,
     overlap_duration_s: float = 0,
@@ -179,6 +181,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       if not file.is_file():
         raise ValueError(f"File '{file.absolute()}' does not exist!")
       file_paths.append(file)
+    n_prods = min(n_prods, len(file_paths))
 
     species_whitelist: np.ndarray
     if custom_species_list is not None:
@@ -291,7 +294,12 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     species_thresholds = thresholds[np.newaxis, :]
     species_thresholds.setflags(write=False)
     worker_queue = mp.Queue()
-    slot_ptr = mp.Value(
+    worker_slot_ptr = mp.Value(
+      uint_ctype_from_dtype(uint_dtype_for(n_slots - 1)),
+      0,
+      lock=True,  # Lock = false?
+    )  # type: ignore
+    producer_slot_ptr = mp.Value(
       uint_ctype_from_dtype(uint_dtype_for(n_slots - 1)), 0, lock=True
     )  # type: ignore
 
@@ -301,6 +309,14 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     stop_event = mp.Event()
     stop_time = mp.RawValue(ctypes.c_float, 0.0)  # float32
     tot_n_chunks_ptr = mp.RawValue(ctypes.c_uint64, 0)
+    files_queue = mp.Queue()
+    for file_idx, file_path in enumerate(file_paths):
+      files_queue.put((file_idx, file_path), block=False)
+    for _ in range(n_prods):
+      files_queue.put(None, block=False)
+    prod_done_ptr = mp.Value(
+      uint_ctype_from_dtype(uint_dtype_for(n_prods)), 0, lock=True
+    )
 
     with (
       create_shm_ring(rf_file_indices),
@@ -312,7 +328,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       logger.debug("Shared memory initialized.")
 
       flags = rf_flags.get_array(shm_ring_flags)
-      flags[:] = WRITE_FLAG
+      flags[:] = WRITABLE_FLAG
 
       file_analyzer_proc = mp.Process(
         target=FilesAnalyzer(
@@ -329,34 +345,70 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       )
       file_analyzer_proc.start()
 
-      prod = mp.Process(
-        target=Producer(
-          file_paths,
-          batch_size=batch_size,
-          n_slots=n_slots,
-          rf_file_indices=rf_file_indices,
-          rf_chunk_indices=rf_chunk_indices,
-          rf_audio_samples=rf_audio_samples,
-          rf_batch_sizes=rf_batch_sizes,
-          rf_flags=rf_flags,
-          n_jobs=n_jobs,
-          logging_queue=logging_queue,
-          logging_level=logging_level,
-          sem_free_slots=sem_free_slots,
-          sem_filled_slots=sem_filled_slots,
-          chunk_duration_s=self.chunk_size_s,
-          overlap_duration_s=overlap_duration_s,
-          target_sample_rate=self.sample_rate,
-          use_bandpass=use_bandpass,
-          bandpass_fmax=bandpass_fmax,
-          bandpass_fmin=bandpass_fmin,
-          fmax=self.sig_fmax,
-          fmin=self.sig_fmin,
-          max_chunk_idx_ptr=max_chunk_idx_ptr,
-        ),
-        daemon=True,
-      )
-      prod.start()
+      # prod = mp.Process(
+      #   target=Producer(
+      #     file_paths,
+      #     batch_size=batch_size,
+      #     n_slots=n_slots,
+      #     rf_file_indices=rf_file_indices,
+      #     rf_chunk_indices=rf_chunk_indices,
+      #     rf_audio_samples=rf_audio_samples,
+      #     rf_batch_sizes=rf_batch_sizes,
+      #     rf_flags=rf_flags,
+      #     n_jobs=n_jobs,
+      #     logging_queue=logging_queue,
+      #     logging_level=logging_level,
+      #     sem_free_slots=sem_free_slots,
+      #     sem_filled_slots=sem_filled_slots,
+      #     chunk_duration_s=self.chunk_size_s,
+      #     overlap_duration_s=overlap_duration_s,
+      #     target_sample_rate=self.sample_rate,
+      #     use_bandpass=use_bandpass,
+      #     bandpass_fmax=bandpass_fmax,
+      #     bandpass_fmin=bandpass_fmin,
+      #     fmax=self.sig_fmax,
+      #     fmin=self.sig_fmin,
+      #     max_chunk_idx_ptr=max_chunk_idx_ptr,
+      #   ),
+      #   daemon=True,
+      # )
+      # prod.start()
+
+      producer_processes: list[mp.Process] = [
+        mp.Process(
+          target=ChildProducer(
+            files_queue=files_queue,
+            slot_ptr=producer_slot_ptr,
+            batch_size=batch_size,
+            n_slots=n_slots,
+            rf_file_indices=rf_file_indices,
+            rf_chunk_indices=rf_chunk_indices,
+            rf_audio_samples=rf_audio_samples,
+            rf_batch_sizes=rf_batch_sizes,
+            rf_flags=rf_flags,
+            n_jobs=n_jobs,
+            logging_queue=logging_queue,
+            logging_level=logging_level,
+            sem_free_slots=sem_free_slots,
+            sem_filled_slots=sem_filled_slots,
+            chunk_duration_s=self.chunk_size_s,
+            overlap_duration_s=overlap_duration_s,
+            target_sample_rate=self.sample_rate,
+            use_bandpass=use_bandpass,
+            bandpass_fmax=bandpass_fmax,
+            bandpass_fmin=bandpass_fmin,
+            fmax=self.sig_fmax,
+            fmin=self.sig_fmin,
+            max_chunk_idx_ptr=max_chunk_idx_ptr,
+            prod_done_ptr=prod_done_ptr,
+            n_prods=n_prods,
+          ),
+          daemon=True,
+        )
+        for _ in range(n_prods)
+      ]
+      for p in producer_processes:
+        p.start()
 
       inference_tracker = None
       if track_performance:
@@ -367,7 +419,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
             stop_event,
             update_interval=0.5,
             print_interval=1,
-            print_last_n=500,
+            print_last_n=50,
             stop_time=stop_time,
             start=start,
             chunk_size_s=self.chunk_size_s,
@@ -382,7 +434,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
         )
         inference_tracker.start()
 
-      workers = [
+      worker_processes = [
         mp.Process(
           target=ChildWorker(
             model_path=self._model_path,
@@ -391,7 +443,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
             species_blacklist=species_blacklist,
             batch_size=batch_size,
             n_slots=n_slots,
-            slot_ptr=slot_ptr,
+            slot_ptr=worker_slot_ptr,
             chunk_duration_samples=self.chunk_size_samples,
             out_q=worker_queue,
             logging_queue=logging_queue,
@@ -415,7 +467,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
         for _ in range(n_jobs)
       ]
 
-      for w in workers:
+      for w in worker_processes:
         w.start()
 
       consumer = Consumer(
@@ -430,10 +482,14 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       file_analyzer_proc.join()
       logger.debug("File analyzer finished.")
 
-      prod.join()
+      for p in producer_processes:
+        p.join()
+        logger.debug(f"Producer {p.pid} finished.")
+
+      # prod.join()
       logger.debug("Producer finished.")
 
-      for w in workers:
+      for w in worker_processes:
         w.join()
         logger.debug(f"Worker {w.pid} finished.")
       logger.debug("All workers finished.")

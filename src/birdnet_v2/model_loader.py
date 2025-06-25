@@ -114,20 +114,24 @@ if __name__ == "__main__":
   audio_paths = [Path("test-dataset/test_dataset_1x10min/0.wav")]
   audio_paths = [Path("test-dataset/test_dataset_1x60min/0.wav")]
 
-  audio_paths = [Path("example/soundscape.wav")]
-  audio_paths = get_hsn_file_paths()
-  audio_paths = get_pow_file_paths()
-
   audio_paths = [
     Path("test-dataset/test_dataset_4x60min/0.wav"),
     Path("test-dataset/test_dataset_4x60min/1.wav"),
     Path("test-dataset/test_dataset_4x60min/2.wav"),
     Path("test-dataset/test_dataset_4x60min/3.wav"),
   ]
+  audio_paths = [Path("example/soundscape.wav")]
+  audio_paths = [
+    Path("src/birdnet_tests/test_files/soundscape.wav"),
+    # Path("src/birdnet_tests/test_files/soundscape.flac"),
+  ]
+  audio_paths = get_hsn_file_paths()
+  audio_paths = get_pow_file_paths()
   start = time.perf_counter()
   result = model.analyze(
     audio_paths,
-    n_jobs=12,
+    n_jobs=10,
+    n_prods=2,
     batch_size=1,
     n_slots_factor=3,
     apply_sigmoid=False,
