@@ -11,6 +11,8 @@ import tensorflow as tf
 
 from birdnet_v2.acoustic_models.v2_4.tf import AcousticTFModelV2_4
 from birdnet_v2.logging_utils import get_package_logger
+from birdnet_v2_tests.hsn_downloader import get_hsn_file_paths
+from birdnet_v2_tests.pow_downloader import get_pow_file_paths
 
 
 class ModelType(str, Enum):
@@ -113,6 +115,9 @@ if __name__ == "__main__":
   audio_paths = [Path("test-dataset/test_dataset_1x60min/0.wav")]
 
   audio_paths = [Path("example/soundscape.wav")]
+  audio_paths = get_hsn_file_paths()
+  audio_paths = get_pow_file_paths()
+
   audio_paths = [
     Path("test-dataset/test_dataset_4x60min/0.wav"),
     Path("test-dataset/test_dataset_4x60min/1.wav"),
@@ -124,7 +129,7 @@ if __name__ == "__main__":
     audio_paths,
     n_jobs=12,
     batch_size=1,
-    n_slots_factor=2,
+    n_slots_factor=3,
     apply_sigmoid=False,
     top_k=2,
     overlap_duration_s=0,

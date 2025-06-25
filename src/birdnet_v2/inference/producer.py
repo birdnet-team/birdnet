@@ -423,3 +423,35 @@ def load_audio_in_chunks_with_overlap(
     )
     audio = resample_array(audio, sample_rate, target_sample_rate)
     yield audio
+
+
+def load_audio_in_chunks_with_overlap_v2(
+  audio_path: Path,
+  /,
+  *,
+  chunk_duration_s: float = 3,
+  overlap_duration_s: float = 0,
+  # read_duration_s: Optional[float] = None,
+  target_sample_rate: int = 48000,
+) -> Generator[npt.NDArray[np.float32], None, None]:
+  assert audio_path.is_file()
+
+  sf_info = sf.info(audio_path)
+  is_mono = sf_info.channels == 1
+  assert is_mono
+
+  sample_rate = sf_info.samplerate
+
+  timestamps = get_chunks_with_overlap(
+    float(sf_info.duration),
+    float(chunk_duration_s),
+    float(overlap_duration_s),
+  )
+  full_audio, _ = sf.read(audio_path, dtype=np.float32)
+  full_audio = resample_array(full_audio, sample_rate, target_sample_rate)
+
+  for start, end in timestamps:
+    start_samples = round(start * target_sample_rate)
+    end_samples = round(end * target_sample_rate)
+    audio = full_audio[start_samples:end_samples]
+    yield audio

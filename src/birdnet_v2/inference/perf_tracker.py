@@ -195,6 +195,9 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         cpu_usage = psutil.cpu_percent()
 
         avg_preloaded_slots = np.mean(preloaded_slots) if preloaded_slots else 0
+        avg_free_slots = np.mean(free_slots) if free_slots else 0
+        avg_filled_slots = np.mean(filled_slots) if filled_slots else 0
+        avg_busy_slots = np.mean(busy_slots) if busy_slots else 0
 
         output_msg_fields = [
           f"inference speed: {self._summed_pred_duration / self._total_chunks_processed * 1000:.0f} ms/chunk",
@@ -203,12 +206,26 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
           f"{chunks_per_s * self._chunk_size_s / 60:.2f} min/s",
           f"memory usage: {memory_usage_MiB:.2f} MiB",
           f"CPU usage: {cpu_usage:.1f}%",
-          f"preloaded batches: {avg_preloaded_slots:.0f}",
+          f"prel: {avg_preloaded_slots:.0f}",
+          f"free: {avg_free_slots:.0f}",
+          f"busy: {avg_busy_slots:.0f}",
+          f"fill: {avg_filled_slots:.0f}",
         ]
 
         if self._tot_n_chunks_ptr.value > 0:
           progress = self._total_chunks_processed / self._tot_n_chunks_ptr.value * 100
           output_msg_fields.append(f"progress: {progress:.2f}%")
+          est_remaining_time_s = (
+            perf_duration
+            * (self._tot_n_chunks_ptr.value - self._total_chunks_processed)
+            / self._total_chunks_processed
+          )
+          # formatted as HH:MM:SS ohne ms
+          est_remaining_time = str(
+            datetime.timedelta(seconds=math.ceil(est_remaining_time_s))
+          )
+          # est_remaining_time = est_remaining_time.split(".")[0]  # remove ms
+          output_msg_fields.append(f"remaining: {est_remaining_time}")
         else:
           output_msg_fields.append("progress: analyzing...")
 

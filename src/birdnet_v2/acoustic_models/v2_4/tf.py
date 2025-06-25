@@ -76,7 +76,6 @@ from birdnet_v2.inference.producer import (
   FilesAnalyzer,
   Producer,
   get_chunks_with_overlap,  # type: ignore
-  load_audio_in_chunks_with_overlap,
 )
 from birdnet_v2.inference.species_tensor import SpeciesTensor
 from birdnet_v2.inference.worker import ChildWorker
