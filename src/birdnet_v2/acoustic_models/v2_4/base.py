@@ -389,12 +389,11 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         )
         inference_tracker.start()
 
-      backend = self.get_backend_instance()
       worker_processes = [
         mp.Process(
           target=ChildWorker(
             model_path=self.model_path,
-            backend=backend,
+            backend=self.get_backend_instance(),
             top_k=top_k,
             species_thresholds=species_thresholds,
             species_blacklist=species_blacklist,
