@@ -1,34 +1,23 @@
 # birdnet_batch_inference.py – raw‑audio version
 from __future__ import annotations
 
-import logging
-import math
-import multiprocessing as mp
 import os
-import queue
 import shutil
-import sys
 import tempfile
-import time
 import zipfile
-from collections.abc import Generator
-from multiprocessing.shared_memory import SharedMemory
-from multiprocessing.synchronize import Event, Semaphore
 from pathlib import Path
-from typing import Iterable, List, Literal, Optional, Sequence, Set, Tuple
 
-import numpy as np
-import numpy.typing as npt
 import soundfile as sf  # pip install soundfile
-from numpy.lib.stride_tricks import as_strided
 from ordered_set import OrderedSet
 
 from birdnet.utils import download_file_tqdm, get_species_from_file
+from birdnet_v2.acoustic_models.v2_4.tf import AcousticTFModelV2_4
+from birdnet_v2.base import MODEL_BACKENDS, MODEL_TYPES, MODEL_VERSIONS
 from birdnet_v2.globals import APP_DIR
 
 
 def get_species_from_file(
-  species_file: Path, /, *, encoding: str = "utf8"
+  species_file: Path, /, *, encoding: str = "utf-8"
 ) -> OrderedSet[str]:
   species = OrderedSet(species_file.read_text(encoding).splitlines())
   return species
@@ -72,7 +61,9 @@ class TFDownloaderV2_4:
     model_is_downloaded = True
 
     model_path, lang_dir = ModelDownloader.get_model_and_labels_paths(
-      "acoustic", "v2.4", "tf"
+      AcousticTFModelV2_4.get_model_type(),
+      AcousticTFModelV2_4.get_version(),
+      AcousticTFModelV2_4.get_backend(),
     )
 
     model_is_downloaded &= model_path.is_file()
@@ -91,7 +82,7 @@ class TFDownloaderV2_4:
     model_is_downloaded = True
 
     model_path, lang_dir = ModelDownloader.get_model_and_labels_paths(
-      "geo", "v2.4", "tf"
+      "geo", "2.4", "tf"
     )
 
     model_is_downloaded &= model_path.is_file()
@@ -129,7 +120,11 @@ class TFDownloaderV2_4:
       species_dl_dir = extract_dir / "labels"
 
       acoustic_model_path, acoustic_lang_dir = (
-        ModelDownloader.get_model_and_labels_paths("acoustic", "v2.4", "tf")
+        ModelDownloader.get_model_and_labels_paths(
+          AcousticTFModelV2_4.get_model_type(),
+          AcousticTFModelV2_4.get_version(),
+          AcousticTFModelV2_4.get_backend(),
+        )
       )
       acoustic_model_path.parent.mkdir(parents=True, exist_ok=True)
       shutil.move(acoustic_model_dl_path, acoustic_model_path)
@@ -138,7 +133,7 @@ class TFDownloaderV2_4:
       shutil.move(species_dl_dir, acoustic_lang_dir)
 
       geo_model_path, geo_lang_dir = ModelDownloader.get_model_and_labels_paths(
-        "geo", "v2.4", "tf"
+        "geo", "2.4", "tf"
       )
 
       geo_model_path.parent.mkdir(parents=True, exist_ok=True)
@@ -150,26 +145,22 @@ class TFDownloaderV2_4:
 
 class ModelDownloader:
   checkers = {
-    ("acoustic", "v2.4", "tf"): TFDownloaderV2_4.check_acoustic_model_available,
-    ("geo", "v2.4", "tf"): TFDownloaderV2_4.check_geo_model_available,
+    ("acoustic", "2.4", "tf"): TFDownloaderV2_4.check_acoustic_model_available,
+    ("geo", "2.4", "tf"): TFDownloaderV2_4.check_geo_model_available,
   }
   downloaders = {
-    ("acoustic", "v2.4", "tf"): TFDownloaderV2_4.download_acoustic_and_geo_model,
-    ("geo", "v2.4", "tf"): TFDownloaderV2_4.download_acoustic_and_geo_model,
+    ("acoustic", "2.4", "tf"): TFDownloaderV2_4.download_acoustic_and_geo_model,
+    ("geo", "2.4", "tf"): TFDownloaderV2_4.download_acoustic_and_geo_model,
   }
 
   @classmethod
   def get_model_and_labels_paths(
     cls,
-    model: Literal["acoustic", "geo"],
-    version: Literal["v2.4"],
-    backend: Literal["tf", "pb"],
+    model: MODEL_TYPES,
+    version: MODEL_VERSIONS,
+    backend: MODEL_BACKENDS,
   ) -> tuple[Path, Path]:
-    assert model in ("acoustic", "geo")
-    assert version in ("v2.4",)
-    assert backend in ("tf", "pb")
-
-    parent_dir = APP_DIR / f"{model}-models" / version / backend
+    parent_dir = APP_DIR / f"{model}-models" / f"v{version}" / backend
     model_path = parent_dir / "model.tflite"
     lang_path = parent_dir / "labels"
     return model_path, lang_path
@@ -177,9 +168,9 @@ class ModelDownloader:
   @classmethod
   def get_model_path_and_labels(
     cls,
-    model: Literal["acoustic", "geo"],
-    version: Literal["v2.4"],
-    backend: Literal["tf", "pb"],
+    model: MODEL_TYPES,
+    version: MODEL_VERSIONS,
+    backend: MODEL_BACKENDS,
     lang_id: str,
     download_if_not_available: bool = True,
   ) -> tuple[Path, OrderedSet[str]]:
@@ -198,14 +189,10 @@ class ModelDownloader:
   @classmethod
   def download_model_files(
     cls,
-    model: Literal["acoustic", "geo"],
-    version: Literal["v2.4"],
-    backend: Literal["tf", "pb"],
+    model: MODEL_TYPES,
+    version: MODEL_VERSIONS,
+    backend: MODEL_BACKENDS,
   ) -> None:
-    assert version in ("v2.4",)
-    assert backend in ("tf", "pb")
-    assert model in ("acoustic", "geo")
-
     checker = cls.checkers.get((model, version, backend))
     assert checker is not None
 
@@ -218,6 +205,6 @@ class ModelDownloader:
 
 if __name__ == "__main__":
   # Example usage
-  ModelDownloader.download_model_files("acoustic", "v2.4", "tf")
-  ModelDownloader.download_model_files("geo", "v2.4", "tf")
+  ModelDownloader.download_model_files("acoustic", "2.4", "tf")
+  ModelDownloader.download_model_files("geo", "2.4", "tf")
   print("Models downloaded successfully.")

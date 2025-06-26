@@ -4,8 +4,7 @@ from __future__ import annotations
 import logging
 import multiprocessing
 import multiprocessing as mp
-import sys
-from logging.handlers import QueueHandler, QueueListener
+from logging.handlers import QueueHandler
 from multiprocessing import Queue
 
 PKG_NAME = "birdnet"

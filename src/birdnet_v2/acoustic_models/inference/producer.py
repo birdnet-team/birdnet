@@ -1,30 +1,19 @@
-import logging
 import multiprocessing
 import multiprocessing as mp
 import os
-from collections.abc import Generator, Iterable
-from itertools import count, islice
-from logging import getLogger
-from logging.handlers import QueueHandler
+from collections.abc import Generator
+from itertools import count
 from multiprocessing import Queue, shared_memory
-from multiprocessing.shared_memory import SharedMemory
-from multiprocessing.synchronize import Event, Semaphore
+from multiprocessing.synchronize import Semaphore
 from pathlib import Path
-from queue import Empty
-from time import sleep
-from typing import Any, Callable, List, Optional, Tuple, Union
+from typing import Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
-import requests
 import soundfile as sf
-from numpy.typing import DTypeLike
-from ordered_set import OrderedSet
-from scipy.signal import butter, lfilter, resample
-from tqdm import tqdm
+from scipy.signal import resample
 
 import birdnet_v2.logging_utils as bn_logging
-from birdnet.types import Species, TimeInterval
 from birdnet.utils import (
   bandpass_signal,
   fillup_with_silence,
@@ -43,7 +32,6 @@ from birdnet_v2.helper import (
   RingField,
   get_max_n_chunks,
   max_value_for_uint_dtype,
-  uint_dtype_for,
 )
 
 
@@ -168,7 +156,6 @@ class ChildProducer(bn_logging.LogableProcessBase):
     self._ring_audio_samples: np.ndarray | None = None
     self._ring_batch_sizes: np.ndarray | None = None
     self._ring_flags: np.ndarray | None = None
-    # self._mm: mmap.mmap | None = None
 
     self._max_supported_chunk_index = (
       max_value_for_uint_dtype(rf_chunk_indices.dtype) - 1

@@ -1,6 +1,5 @@
 import logging
 import random
-import sys
 from enum import Enum
 from multiprocessing import set_start_method
 from pathlib import Path
@@ -130,8 +129,8 @@ if __name__ == "__main__":
   start = time.perf_counter()
   result = model.analyze(
     audio_paths,
-    n_jobs=10,
-    n_prods=2,
+    n_jobs=1,
+    n_prods=1,
     batch_size=1,
     n_slots_factor=2,
     apply_sigmoid=False,

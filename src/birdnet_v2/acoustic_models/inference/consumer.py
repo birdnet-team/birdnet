@@ -1,21 +1,10 @@
 from __future__ import annotations
 
-import logging
-import math
 import multiprocessing as mp
-import os
-import queue
-import sys
-import time
-from collections import deque
-from collections.abc import Generator
-from pathlib import Path
-from typing import Callable, Iterable, List, Optional, Sequence, Tuple
 
-import numpy as np
 
 import birdnet_v2.logging_utils as bn_logging
-from birdnet_v2.inference.species_tensor import SpeciesTensor
+from birdnet_v2.acoustic_models.inference.species_tensor import SpeciesTensor
 
 
 class Consumer:

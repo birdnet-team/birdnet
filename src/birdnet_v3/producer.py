@@ -1,20 +1,15 @@
 import multiprocessing as mp
-import os
-from collections.abc import Generator, Iterable
-from itertools import count, islice
-from multiprocessing.synchronize import Event
+from collections.abc import Generator
+from itertools import count
 from pathlib import Path
-from typing import Any, List, Optional, Tuple, Union
+from typing import List, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
-import requests
 import soundfile as sf
-from ordered_set import OrderedSet
-from scipy.signal import butter, lfilter, resample
+from scipy.signal import resample
 from tqdm import tqdm
 
-from birdnet.types import Species, TimeInterval
 from birdnet.utils import get_chunks_with_overlap, resample_array
 
 

@@ -1,45 +1,13 @@
-import atexit
 import contextlib
-import logging
 import multiprocessing
 import multiprocessing as mp
-import os
-from collections.abc import Generator, Iterable
-from itertools import count, islice
-from logging import getLogger
-from logging.handlers import QueueHandler
-from multiprocessing import Queue, shared_memory
+from multiprocessing import Queue
 from multiprocessing.shared_memory import SharedMemory
-from multiprocessing.synchronize import Event, Semaphore
 from pathlib import Path
-from time import sleep
-from typing import Any, Callable, List, Optional, Tuple, Union
 
 import numpy as np
-import numpy.typing as npt
-import requests
-import soundfile as sf
-from numpy.typing import DTypeLike
-from ordered_set import OrderedSet
-from scipy.signal import butter, lfilter, resample
-from tqdm import tqdm
 
-import birdnet_v2.logging_utils as bn_logging
-from birdnet.types import Species, TimeInterval
-from birdnet.utils import (
-  bandpass_signal,
-  fillup_with_silence,
-  get_chunks_with_overlap,
-  itertools_batched,
-  resample_array,
-)
-from birdnet_v2.globals import DONE_FLAG, READABLE_FLAG, WRITABLE_FLAG
-from birdnet_v2.helper import (
-  RingField,
-  max_value_for_uint_dtype,
-  uint_dtype_for,
-)
-from birdnet_v2.inference.producer import (
+from birdnet_v2.acoustic_models.inference.producer import (
   Producer,
   load_audio_in_chunks_with_overlap,
 )

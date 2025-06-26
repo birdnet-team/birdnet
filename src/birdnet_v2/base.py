@@ -1,24 +1,27 @@
-import multiprocessing as mp
 from abc import ABC, abstractmethod
+from typing import Literal
 
-import birdnet_v2.logging_utils as bn_logging
+MODEL_TYPE_ACOUSTIC = "acoustic"
+MODEL_TYPE_GEO = "geo"
+
+MODEL_VERSION_V2_4 = "2.4"
+MODEL_BACKEND_TF = "tf"
+MODEL_BACKEND_PB = "pb"
+
+MODEL_TYPES = Literal["acoustic", "geo"]
+MODEL_VERSIONS = Literal["2.4",]
+MODEL_BACKENDS = Literal["tf", "pb"]
 
 
 class ModelBase(ABC):
-  def __init__(self, version: str, backend: str, model_type: str) -> None:
-    self._model_type = model_type
-    self._backend = backend
-    self._version = version
+  @classmethod
+  @abstractmethod
+  def get_version(cls) -> MODEL_VERSIONS: ...
 
-  @property
-  def version(self) -> str:
-    return self._version
+  @classmethod
+  @abstractmethod
+  def get_backend(cls) -> MODEL_BACKENDS: ...
 
-  @property
-  def model_type(self) -> str:
-    return self._model_type
-
-  @property
-  def backend(self) -> str:
-    return self._backend
-
+  @classmethod
+  @abstractmethod
+  def get_model_type(cls) -> MODEL_TYPES: ...

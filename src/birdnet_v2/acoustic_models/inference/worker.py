@@ -1,20 +1,11 @@
 from __future__ import annotations
 
-import logging
-import logging.handlers
-import math
-import mmap
 import multiprocessing as mp
 import os
-import queue
-import sys
 import time
-from collections.abc import Generator
-from logging import getLogger
 from multiprocessing import shared_memory
 from multiprocessing.synchronize import Semaphore
 from pathlib import Path
-from typing import Callable, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 import soundfile as sf  # pip install soundfile
@@ -27,6 +18,7 @@ from tensorflow.lite.python import interpreter as tflite
 
 import birdnet_v2.logging_utils as bn_logging
 from birdnet.utils import flat_sigmoid
+from birdnet_v2.acoustic_models.base import AcousticInferenceBackend
 from birdnet_v2.globals import (
   DONE_FLAG,
   READABLE_FLAG,
@@ -34,7 +26,7 @@ from birdnet_v2.globals import (
   WRITABLE_FLAG,
   WRITING_FLAG,
 )
-from birdnet_v2.helper import RingField, uint_dtype_for, uint_dtype_for_files
+from birdnet_v2.helper import RingField, uint_dtype_for
 
 
 class ChildWorker(bn_logging.LogableProcessBase):
@@ -51,6 +43,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
     rf_audio_samples: RingField,
     rf_batch_sizes: RingField,
     rf_flags: RingField,
+    backend: AcousticInferenceBackend,
     chunk_duration_samples: int,
     slot_ptr: mp.Value,
     out_q: mp.Queue,
@@ -71,6 +64,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
     assert species_blacklist.shape[0] == 1
     assert species_thresholds.shape[1] == species_blacklist.shape[1]
 
+    self._backend = backend
     self._track_performance = track_performance
     self._pred_dur_queue = pred_dur_queue
     self._top_k = top_k
@@ -99,8 +93,8 @@ class ChildWorker(bn_logging.LogableProcessBase):
     self._n_slots = n_slots
     self._batch_size = batch_size
     self._chunk_duration_samples = chunk_duration_samples
-    self._cached_shape: tuple[int, ...] | None = None
-    self._model_path = str(model_path.absolute())
+    # self._cached_shape: tuple[int, ...] | None = None
+    # self._model_path = str(model_path.absolute())
     self._num_threads = num_threads
 
     self._rf_file_indices = rf_file_indices
@@ -126,44 +120,56 @@ class ChildWorker(bn_logging.LogableProcessBase):
     # self._mm: mmap.mmap | None = None
 
   def _load_model(self):
-    assert self._interp is None
+    self._backend.lazy_load()
+    # assert self._interp is None
 
-    # memory_map not working for TF 2.15.1:
-    # f = open(self._model_path, "rb")
-    # self._mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
-    self._interp = tflite.Interpreter(self._model_path, num_threads=self._num_threads)
-    self._interp.allocate_tensors()
-    self._in_idx = self._interp.get_input_details()[0]["index"]
-    self._out_idx = self._interp.get_output_details()[0]["index"]
+    # # memory_map not working for TF 2.15.1:
+    # # f = open(self._model_path, "rb")
+    # # self._mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+    # self._interp = tflite.Interpreter(self._model_path, num_threads=self._num_threads)
+    # self._interp.allocate_tensors()
+    # self._in_idx = self._interp.get_input_details()[0]["index"]
+    # self._out_idx = self._interp.get_output_details()[0]["index"]
 
-  def _set_tensor(self, batch: np.ndarray):
-    assert self._interp is not None
-    assert batch.flags["C_CONTIGUOUS"]
-    assert batch.ndim == 2
+  # def _set_tensor(self, batch: np.ndarray):
+  #   assert self._interp is not None
+  #   assert batch.flags["C_CONTIGUOUS"]
+  #   assert batch.ndim == 2
 
-    shape = batch.shape
-    if self._cached_shape != shape:
-      self._interp.resize_tensor_input(self._in_idx, shape, strict=True)
-      self._interp.allocate_tensors()
-      self._cached_shape = shape
-    self._interp.set_tensor(self._in_idx, batch)
+  #   shape = batch.shape
+  #   if self._cached_shape != shape:
+  #     self._interp.resize_tensor_input(self._in_idx, shape, strict=True)
+  #     self._interp.allocate_tensors()
+  #     self._cached_shape = shape
+  #   self._interp.set_tensor(self._in_idx, batch)
 
-  # ------------------------------------------------------------
+  # # ------------------------------------------------------------
   def _infer(self, batch: np.ndarray):
-    assert self._interp is not None
-
-    self._set_tensor(batch)
     start_time = time.perf_counter()
-    self._interp.invoke()
+    res = self._backend.infer(batch)
     if self._track_performance:
       final = time.perf_counter()
       pred_dur = final - start_time
       self._pred_dur_queue.put((pred_dur, batch.shape[0]))
-    res: np.ndarray = self._interp.get_tensor(self._out_idx)
     assert res.dtype == np.float32
-
     res = res.astype(self._prob_dtype, copy=False)
     return res
+
+  # def _infer_old(self, batch: np.ndarray):
+  #   assert self._interp is not None
+
+  #   self._set_tensor(batch)
+  #   start_time = time.perf_counter()
+  #   self._interp.invoke()
+  #   if self._track_performance:
+  #     final = time.perf_counter()
+  #     pred_dur = final - start_time
+  #     self._pred_dur_queue.put((pred_dur, batch.shape[0]))
+  #   res: np.ndarray = self._interp.get_tensor(self._out_idx)
+  #   assert res.dtype == np.float32
+
+  #   res = res.astype(self._prob_dtype, copy=False)
+  #   return res
 
   def _jump_to_next_slot_ptr(self) -> None:
     """Increase the slot index, wrapping around if necessary."""

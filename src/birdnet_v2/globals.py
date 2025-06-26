@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 
@@ -16,6 +17,8 @@ READING_FLAG = np.uint8(3)
 
 # flag for "done"
 DONE_FLAG = np.uint8(4)
+
+DEVICES = Literal["cpu", "gpu"]
 
 
 def get_app_data_path() -> Path:

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import logging
-
 import numpy as np
 from numpy.typing import DTypeLike
 
@@ -19,7 +17,7 @@ class SpeciesTensor:
     prob_dtype: DTypeLike,
     files_dtype: DTypeLike,
     chunk_indices_dtype: DTypeLike,
-  ):
+  ) -> None:
     self._logger = bn_logging.get_logger(__name__)
 
     self._files_dtype = files_dtype
@@ -50,7 +48,7 @@ class SpeciesTensor:
   def current_n_chunks(self) -> int:
     return self._species_ids.shape[1]
 
-  def _ensure_capacity(self, needed_n_chunks: int):
+  def _ensure_capacity(self, needed_n_chunks: int) -> None:
     if needed_n_chunks <= self.current_n_chunks:
       return
 
@@ -84,7 +82,7 @@ class SpeciesTensor:
     top_k_scores: np.ndarray,  # 2dim
     top_k_mask: np.ndarray,  # 2dim
     global_max_chunk_idx: int,
-  ):
+  ) -> None:
     assert file_indices.dtype == self._files_dtype
     assert top_k_species.dtype == self._species_ids.dtype
     assert top_k_scores.dtype == self._species_probs.dtype

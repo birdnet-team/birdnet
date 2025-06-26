@@ -18,25 +18,16 @@ backend.
 
 from __future__ import annotations
 
-import math
-import multiprocessing as mp
-import os
-import queue
-import sys
 import time
-from collections.abc import Generator
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence, Tuple
+from typing import List, Tuple
 
 import numpy as np
-import numpy.typing as npt
 import soundfile as sf  # pip install soundfile
-from numpy.lib.stride_tricks import as_strided
 
 # try:
 #   import tflite_runtime.interpreter as tflite
 # except ImportError:  # fallback to full TF (heavier)
-from tensorflow.lite.python import interpreter as tflite
 
 from birdnet_v3.consumer import Consumer, SpeciesTensor
 from birdnet_v3.producer import (

@@ -1,79 +1,32 @@
 # birdnet_batch_inference.py – raw‑audio version
 from __future__ import annotations
 
-import ctypes
 
 # You'll need these imports in your own code
 import datetime
-import logging
-import logging.handlers
 import math
 import multiprocessing
 import multiprocessing as mp
-import os
-import queue
 import sys
-import tempfile
 import time
-import zipfile
 from collections import Counter, deque
-from collections.abc import Generator
-from logging.handlers import QueueHandler, QueueListener
-from multiprocessing import Queue, shared_memory
-from multiprocessing.shared_memory import SharedMemory
-from multiprocessing.synchronize import Event, Semaphore
-from pathlib import Path
+from multiprocessing import shared_memory
 
 # Next two import lines for this demo only
-from random import choice, random
-from typing import (
-  Any,
-  Callable,
-  Iterable,
-  List,
-  Literal,
-  Optional,
-  Sequence,
-  Set,
-  Tuple,
-  Union,
-)
 
 import numpy as np
-import numpy.typing as npt
-import pandas as pd
 import psutil
 import soundfile as sf  # pip install soundfile
-from numpy.lib.stride_tricks import as_strided
-from numpy.typing import DTypeLike
-from ordered_set import OrderedSet
 
 # try:
 #   import tflite_runtime.interpreter as tflite
 # except ImportError:  # fallback to full TF (heavier)
-from tensorflow.lite.python import interpreter as tflite
-from tensorflow.lite.python.interpreter import Interpreter
 
 import birdnet_v2.logging_utils as bn_logging
-from birdnet.utils import download_file_tqdm, get_species_from_file
-from birdnet_v2.acoustic_models.v2_4.base import AcousticModelBaseV2_4
-from birdnet_v2.globals import APP_DIR, READABLE_FLAG, READING_FLAG, WRITABLE_FLAG
+from birdnet_v2.globals import READABLE_FLAG, READING_FLAG, WRITABLE_FLAG
 from birdnet_v2.helper import (
   RingField,
-  code_from_dtype,
-  create_shm_ring,
-  max_value_for_uint_dtype,
-  uint_ctype_from_dtype,
-  uint_dtype_for,
 )
-from birdnet_v2.inference.consumer import Consumer
-from birdnet_v2.inference.species_tensor import SpeciesTensor
-from birdnet_v2.inference.worker import ChildWorker
-from birdnet_v2.logging_utils import (
-  QueueFileWriter,
-  get_package_logging_level,
-)
-from birdnet_v2.model_downloader import ModelDownloader
 
 
 class PerformanceTracker(bn_logging.LogableProcessBase):
