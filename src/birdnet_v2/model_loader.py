@@ -1,6 +1,5 @@
 import logging
 import random
-from enum import Enum
 from multiprocessing import set_start_method
 from pathlib import Path
 from typing import Literal
@@ -8,6 +7,7 @@ from typing import Literal
 import numpy as np
 import tensorflow as tf
 
+from birdnet_v2.acoustic_models.v2_4.pb import AcousticPBModelV2_4
 from birdnet_v2.acoustic_models.v2_4.tf import AcousticTFModelV2_4
 from birdnet_v2.base import (
   MODEL_BACKEND_PB,
@@ -18,7 +18,6 @@ from birdnet_v2.base import (
   MODEL_TYPES,
   MODEL_VERSION_V2_4,
   MODEL_VERSIONS,
-  ModelBase,
 )
 from birdnet_v2.logging_utils import get_package_logger
 from birdnet_v2_tests.hsn_downloader import get_hsn_file_paths
@@ -42,7 +41,7 @@ def load(
         return AcousticTFModelV2_4.load_official(lang_id)
       else:
         assert backend == MODEL_BACKEND_PB
-        pass
+        return AcousticPBModelV2_4.load_official(lang_id)
     raise AssertionError()
   else:
     assert model_type == MODEL_TYPE_GEO
@@ -51,7 +50,6 @@ def load(
         pass
       else:
         assert backend == MODEL_BACKEND_PB
-        pass
     raise AssertionError()
 
 
@@ -69,7 +67,6 @@ def load_custom(
         return AcousticTFModelV2_4.load_custom(model_path, species_list)
       else:
         assert backend == MODEL_BACKEND_PB
-        pass
     raise AssertionError()
   else:
     assert model_type == MODEL_TYPE_GEO
@@ -78,7 +75,6 @@ def load_custom(
         pass
       else:
         assert backend == MODEL_BACKEND_PB
-        pass
     raise AssertionError()
 
 
@@ -118,6 +114,7 @@ if __name__ == "__main__":
   # model = load("acoustic/v2.4")
   # model = load("geo/v2.4+tf@cpu")
   model = load("acoustic", "2.4", "tf", "cpu", "en_us")
+  model = load("acoustic", "2.4", "pb", "cpu", "en_us")
 
   # model = load_custom_model("acoustic/v2.4+pb@cpu", custom_species_list="..")
 
@@ -139,13 +136,13 @@ if __name__ == "__main__":
     # Path("src/birdnet_tests/test_files/soundscape.flac"),
   ]
   audio_paths = get_hsn_file_paths()
-  audio_paths = get_pow_file_paths()
   audio_paths = [Path("example/soundscape.wav")]
+  audio_paths = get_pow_file_paths()
   start = time.perf_counter()
   result = model.analyze(
     audio_paths,
-    n_jobs=1,
-    n_prods=1,
+    n_jobs=10,
+    n_prods=2,
     batch_size=1,
     n_slots_factor=2,
     apply_sigmoid=False,

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Literal, Self
+from typing import Literal
 
 MODEL_TYPE_ACOUSTIC = "acoustic"
 MODEL_TYPE_GEO = "geo"

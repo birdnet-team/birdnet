@@ -68,10 +68,14 @@ class DownloaderTFLite:
     self._version_path.mkdir(parents=True, exist_ok=True)
 
     zip_download_path = self._version_path / "download.zip"
-    download_file_tqdm(DOWNLOAD_URL, zip_download_path, download_size=DOWNLOAD_SIZE,
-                       description="Downloading models")
+    download_file_tqdm(
+      DOWNLOAD_URL,
+      zip_download_path,
+      download_size=DOWNLOAD_SIZE,
+      description="Downloading models",
+    )
 
-    with zipfile.ZipFile(zip_download_path, 'r') as zip_ref:
+    with zipfile.ZipFile(zip_download_path, "r") as zip_ref:
       zip_ref.extractall(self._version_path)
 
     os.remove(zip_download_path)
@@ -83,13 +87,19 @@ class DownloaderTFLite:
 
 
 class MetaModelV2M4TFLiteBase(MetaModelBaseV2M4):
-  def __init__(self, model_path: Path, species_list: OrderedSet[str], tflite_num_threads: Optional[int]) -> None:
+  def __init__(
+    self,
+    model_path: Path,
+    species_list: OrderedSet[str],
+    tflite_num_threads: Optional[int],
+  ) -> None:
     super().__init__(species_list)
     assert tflite_num_threads is None or (tflite_num_threads >= 1)
 
     # Load TFLite model and allocate tensors.
     self._meta_interpreter = Interpreter(
-      str(model_path.absolute()), num_threads=tflite_num_threads)
+      str(model_path.absolute()), num_threads=tflite_num_threads
+    )
 
     # Get input tensor index
     input_details = self._meta_interpreter.get_input_details()
@@ -104,19 +114,26 @@ class MetaModelV2M4TFLiteBase(MetaModelBaseV2M4):
     self._meta_interpreter.set_tensor(self._meta_input_layer_index, sample)
     self._meta_interpreter.invoke()
     prediction: npt.NDArray[np.float32] = self._meta_interpreter.get_tensor(
-      self._meta_output_layer_index)[0]
+      self._meta_output_layer_index
+    )[0]
     return prediction
 
 
 class AudioModelV2M4TFLiteBase(AudioModelBaseV2M4):
-  def __init__(self, model_path: Path, species_list: OrderedSet[str], tflite_num_threads: Optional[int]) -> None:
+  def __init__(
+    self,
+    model_path: Path,
+    species_list: OrderedSet[str],
+    tflite_num_threads: Optional[int],
+  ) -> None:
     super().__init__(species_list)
     assert tflite_num_threads is None or (tflite_num_threads >= 1)
 
     self._tflite_num_threads = tflite_num_threads
     # Load TFLite model and allocate tensors.
     self._audio_interpreter = Interpreter(
-      str(model_path.absolute()), num_threads=tflite_num_threads)
+      str(model_path.absolute()), num_threads=tflite_num_threads
+    )
     # Get input tensor index
     input_details = self._audio_interpreter.get_input_details()
     self._audio_input_layer_index = input_details[0]["index"]
@@ -132,19 +149,24 @@ class AudioModelV2M4TFLiteBase(AudioModelBaseV2M4):
   def predict_species(self, batch: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
     assert batch.dtype == np.float32
 
-    self._audio_interpreter.resize_tensor_input(self._audio_input_layer_index, batch.shape)
+    self._audio_interpreter.resize_tensor_input(
+      self._audio_input_layer_index, batch.shape
+    )
     self._audio_interpreter.allocate_tensors()
 
     self._audio_interpreter.set_tensor(self._audio_input_layer_index, batch)
     self._audio_interpreter.invoke()
     prediction: npt.NDArray[np.float32] = self._audio_interpreter.get_tensor(
-      self._audio_output_layer_index)
+      self._audio_output_layer_index
+    )
 
     return prediction
 
 
 class AudioModelV2M4TFLite(AudioModelV2M4TFLiteBase):
-  def __init__(self, /, *, tflite_num_threads: Optional[int] = 1, language: Language = "en_us") -> None:
+  def __init__(
+    self, /, *, tflite_num_threads: Optional[int] = 1, language: Language = "en_us"
+  ) -> None:
     """
     Initializes the AudioModelV2M4TFLite instance.
 
@@ -165,7 +187,8 @@ class AudioModelV2M4TFLite(AudioModelV2M4TFLiteBase):
 
     if tflite_num_threads is not None and tflite_num_threads < 1:
       raise ValueError(
-        "Value for 'tflite_num_threads' is invalid! It needs to be None or larger than zero.")
+        "Value for 'tflite_num_threads' is invalid! It needs to be None or larger than zero."
+      )
 
     validate_language(language)
 
@@ -174,15 +197,16 @@ class AudioModelV2M4TFLite(AudioModelV2M4TFLiteBase):
     downloader.ensure_model_is_available()
 
     species_list = get_species_from_file(
-      downloader.get_language_path(language),
-      encoding="utf8"
+      downloader.get_language_path(language), encoding="utf8"
     )
 
     super().__init__(downloader.audio_model_path, species_list, tflite_num_threads)
 
 
 class MetaModelV2M4TFLite(MetaModelV2M4TFLiteBase):
-  def __init__(self, /, *, tflite_num_threads: Optional[int] = 1, language: Language = "en_us") -> None:
+  def __init__(
+    self, /, *, tflite_num_threads: Optional[int] = 1, language: Language = "en_us"
+  ) -> None:
     """
     Initializes the MetaModelV2M4TFLite instance.
 
@@ -203,7 +227,8 @@ class MetaModelV2M4TFLite(MetaModelV2M4TFLiteBase):
 
     if tflite_num_threads is not None and tflite_num_threads < 1:
       raise ValueError(
-        "Value for 'tflite_num_threads' is invalid! It needs to be None or larger than zero.")
+        "Value for 'tflite_num_threads' is invalid! It needs to be None or larger than zero."
+      )
 
     validate_language(language)
 
@@ -212,8 +237,7 @@ class MetaModelV2M4TFLite(MetaModelV2M4TFLiteBase):
     downloader.ensure_model_is_available()
 
     species_list = get_species_from_file(
-      downloader.get_language_path(language),
-      encoding="utf8"
+      downloader.get_language_path(language), encoding="utf8"
     )
 
     super().__init__(downloader.meta_model_path, species_list, tflite_num_threads)

@@ -24,7 +24,6 @@ from typing import (
 import numpy as np
 import pandas as pd
 import psutil
-import soundfile as sf  # pip install soundfile
 from numpy.typing import DTypeLike
 from ordered_set import OrderedSet
 

@@ -3,9 +3,8 @@ import multiprocessing as mp
 from pathlib import Path
 from typing import List
 
-
-from birdnet_v2.acoustic_models.inference.producer import get_audio_duration_s
 import birdnet_v2.logging_utils as bn_logging
+from birdnet_v2.acoustic_models.inference.producer import get_audio_duration_s
 from birdnet_v2.helper import (
   RingField,
   get_max_n_chunks,

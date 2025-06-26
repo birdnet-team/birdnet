@@ -12,11 +12,9 @@ from pathlib import Path
 
 # Next two import lines for this demo only
 from typing import (
-  Self,
   final,
 )
 
-import soundfile as sf  # pip install soundfile  # pip install soundfile
 from ordered_set import OrderedSet
 
 # try:
@@ -99,15 +97,15 @@ class AcousticTFDownloaderV2_4:
 
   @classmethod
   def _download_acoustic_model(cls) -> None:
-    DOWNLOAD_URL = "https://zenodo.org/records/15050749/files/BirdNET_v2.4_tflite.zip"
-    DOWNLOAD_SIZE = 76822925
+    url = "https://zenodo.org/records/15050749/files/BirdNET_v2.4_tflite.zip"
+    dl_size = 76822925
 
     with tempfile.TemporaryDirectory(prefix="birdnet_download") as temp_dir:
       zip_download_path = Path(temp_dir) / "download.zip"
       download_file_tqdm(
-        DOWNLOAD_URL,
+        url,
         zip_download_path,
-        download_size=DOWNLOAD_SIZE,
+        download_size=dl_size,
         description="Downloading models",
       )
 
