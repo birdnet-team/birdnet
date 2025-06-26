@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Literal
+from typing import Literal, Self
 
 MODEL_TYPE_ACOUSTIC = "acoustic"
 MODEL_TYPE_GEO = "geo"
@@ -14,6 +14,9 @@ MODEL_BACKENDS = Literal["tf", "pb"]
 
 
 class ModelBase(ABC):
+  def __init__(self) -> None:
+    pass
+
   @classmethod
   @abstractmethod
   def get_version(cls) -> MODEL_VERSIONS: ...

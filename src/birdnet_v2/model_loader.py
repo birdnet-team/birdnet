@@ -9,62 +9,77 @@ import numpy as np
 import tensorflow as tf
 
 from birdnet_v2.acoustic_models.v2_4.tf import AcousticTFModelV2_4
+from birdnet_v2.base import (
+  MODEL_BACKEND_PB,
+  MODEL_BACKEND_TF,
+  MODEL_BACKENDS,
+  MODEL_TYPE_ACOUSTIC,
+  MODEL_TYPE_GEO,
+  MODEL_TYPES,
+  MODEL_VERSION_V2_4,
+  MODEL_VERSIONS,
+  ModelBase,
+)
 from birdnet_v2.logging_utils import get_package_logger
 from birdnet_v2_tests.hsn_downloader import get_hsn_file_paths
 from birdnet_v2_tests.pow_downloader import get_pow_file_paths
 
-
-class ModelType(str, Enum):
-  # kanonische Namen
-  ACOUSTIC = "acoustic"
-  GEO = "geo"
-
-
-# ModelTypeLit = Literal["acoustic", "geo"]
-
-
-def load_old(spec: str, lang_id: str = "en_us"):
-  if spec in ("acoustic/v2.4+tf@cpu", "acoustic", "acoustic/v2.4"):
-    result = AcousticTFModelV2_4(lang_id)
-  else:
-    raise NotImplementedError(f"Model spec '{spec}' is not implemented.")
-  return result
-
-
-def load2(
-  model_type: ModelType = ModelType.ACOUSTIC,
-  version: Literal["2.4"] = "2.4",
-  device: Literal["cpu", "gpu"] = "cpu",
-  lang_id: str = "en_us",
-):
-  if model_type == "acoustic" and version == "2.4" and device == "cpu":
-    result = AcousticTFModelV2_4(lang_id)
-  else:
-    raise NotImplementedError(f"Model spec is not implemented.")
-  return result
+# models: list[ModelBase] = [
+#   AcousticTFModelV2_4,
+# ]
 
 
 def load(
-  model_type: Literal["acoustic", "geo"] = "acoustic",
-  version: Literal["2.4"] = "2.4",
+  model_type: MODEL_TYPES = MODEL_TYPE_ACOUSTIC,
+  version: MODEL_VERSIONS = MODEL_VERSION_V2_4,
+  backend: MODEL_BACKENDS = MODEL_BACKEND_TF,
   device: Literal["cpu", "gpu"] = "cpu",
   lang_id: str = "en_us",
 ):
-  if model_type == "acoustic" and version == "2.4" and device == "cpu":
-    result = AcousticTFModelV2_4(lang_id)
+  if model_type == MODEL_TYPE_ACOUSTIC:
+    if version == MODEL_VERSION_V2_4:
+      if backend == MODEL_BACKEND_TF:
+        return AcousticTFModelV2_4.load_official(lang_id)
+      else:
+        assert backend == MODEL_BACKEND_PB
+        pass
+    raise AssertionError()
   else:
-    raise NotImplementedError(f"Model spec is not implemented.")
-  return result
+    assert model_type == MODEL_TYPE_GEO
+    if version == MODEL_VERSION_V2_4:
+      if backend == MODEL_BACKEND_TF:
+        pass
+      else:
+        assert backend == MODEL_BACKEND_PB
+        pass
+    raise AssertionError()
 
 
 def load_custom(
   model_path: Path,
   species_list: Path,
-  model_type: Literal["acoustic"] = "acoustic",
-  version: Literal["2.4"] = "2.4",
+  model_type: MODEL_TYPES = MODEL_TYPE_ACOUSTIC,
+  version: MODEL_VERSIONS = MODEL_VERSION_V2_4,
+  backend: MODEL_BACKENDS = MODEL_BACKEND_TF,
   device: Literal["cpu", "gpu"] = "cpu",
 ):
-  pass
+  if model_type == MODEL_TYPE_ACOUSTIC:
+    if version == MODEL_VERSION_V2_4:
+      if backend == MODEL_BACKEND_TF:
+        return AcousticTFModelV2_4.load_custom(model_path, species_list)
+      else:
+        assert backend == MODEL_BACKEND_PB
+        pass
+    raise AssertionError()
+  else:
+    assert model_type == MODEL_TYPE_GEO
+    if version == MODEL_VERSION_V2_4:
+      if backend == MODEL_BACKEND_TF:
+        pass
+      else:
+        assert backend == MODEL_BACKEND_PB
+        pass
+    raise AssertionError()
 
 
 if __name__ == "__main__":
@@ -102,7 +117,7 @@ if __name__ == "__main__":
   # model = load("acoustic")
   # model = load("acoustic/v2.4")
   # model = load("geo/v2.4+tf@cpu")
-  model = load("acoustic", "2.4", "cpu", "en_us")
+  model = load("acoustic", "2.4", "tf", "cpu", "en_us")
 
   # model = load_custom_model("acoustic/v2.4+pb@cpu", custom_species_list="..")
 

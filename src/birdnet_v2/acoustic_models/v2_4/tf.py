@@ -12,6 +12,7 @@ from pathlib import Path
 
 # Next two import lines for this demo only
 from typing import (
+  Self,
   final,
 )
 
@@ -35,7 +36,7 @@ from birdnet_v2.local_data import get_local_model_root_dir
 
 
 class AcousticTFDownloaderV2_4:
-  _available_langugaes: OrderedSet[str] = OrderedSet(
+  _available_languages: OrderedSet[str] = OrderedSet(
     (
       "af",
       "ar",
@@ -92,7 +93,7 @@ class AcousticTFDownloaderV2_4:
       model_is_downloaded &= audio_is_newest_version
 
     model_is_downloaded &= lang_dir.is_dir()
-    for lang in cls._available_langugaes:
+    for lang in cls._available_languages:
       model_is_downloaded &= (lang_dir / f"{lang}.txt").is_file()
     return model_is_downloaded
 
@@ -145,23 +146,37 @@ class AcousticTFDownloaderV2_4:
 
 
 class AcousticTFModelV2_4(AcousticModelBaseV2_4):
-  def __init__(self, lang_id: str) -> None:
+  def __init__(self) -> None:
     super().__init__()
 
-    self._model_path, self._species_list = (
-      AcousticTFDownloaderV2_4.get_model_path_and_labels(lang_id)
-    )
-    self._use_custom_model = False
-
   def get_backend_instance(self) -> AcousticInferenceBackend:
-    return AcousticTFBackend(self._model_path)
+    return AcousticTFBackend(self.model_path)
 
   @classmethod
   @final
   def get_backend(cls) -> MODEL_BACKENDS:
     return MODEL_BACKEND_TF
 
-  def use_custom_model(self, model_path: Path, species_list: Path) -> None:
+  @classmethod
+  def load_official(cls, lang_id: str) -> AcousticTFModelV2_4:
+    result = cls.__new__(cls)
+    result.__init__()
+    result._load_official_model(lang_id)
+    return result
+
+  def _load_official_model(self, lang_id: str) -> None:
+    self._model_path, self._species_list = (
+      AcousticTFDownloaderV2_4.get_model_path_and_labels(lang_id)
+    )
+    self._use_custom_model = False
+
+  @classmethod
+  def load_custom(cls, model_path: Path, species_list: Path) -> AcousticTFModelV2_4:
+    result = AcousticTFModelV2_4()
+    result._load_custom_model(model_path, species_list)
+    return result
+
+  def _load_custom_model(self, model_path: Path, species_list: Path) -> None:
     if not model_path.is_file():
       raise ValueError(f"Model file '{model_path.absolute()}' does not exist!")
 

@@ -62,16 +62,30 @@ from birdnet_v2.logging_utils import (
 
 
 class AcousticModelBaseV2_4(AcousticModelBase):
-  _model_path: Path
-  _species_list: OrderedSet[str]
-  _use_custom_model: bool
-
   def __init__(self) -> None:
     super().__init__()
+    self._model_path: Path | None = None
+    self._species_list: OrderedSet[str] | None = None
+    self._use_custom_model: bool | None = None
 
   @property
   def n_species(self) -> int:
-    return len(self._species_list)
+    return len(self.species_list)
+
+  @property
+  def model_path(self) -> Path:
+    assert self._model_path is not None
+    return self._model_path
+
+  @property
+  def species_list(self) -> OrderedSet[str]:
+    assert self._species_list is not None
+    return self._species_list
+
+  @property
+  def use_custom_model(self) -> bool:
+    assert self._use_custom_model is not None
+    return self._use_custom_model
 
   @classmethod
   @final
@@ -160,11 +174,11 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         raise ValueError("Custom species list is empty!")
       species_ids_whitelist = np.empty(len(custom_species_list), dtype=int)
       for i, species_name in enumerate(custom_species_list):
-        if species_name not in self._species_list:
+        if species_name not in self.species_list:
           raise ValueError(
-            f"Species '{species_name}' is not in the model's species list! Available species: {', '.join(self._species_list)}"
+            f"Species '{species_name}' is not in the model's species list! Available species: {', '.join(self.species_list)}"
           )
-        species_id = self._species_list.index(species_name)
+        species_id = self.species_list.index(species_name)
         species_ids_whitelist[i] = species_id
 
       species_whitelist = np.full(self.n_species, fill_value=False, dtype=bool)
@@ -177,11 +191,11 @@ class AcousticModelBaseV2_4(AcousticModelBase):
 
     if custom_confidence_thresholds:
       for species_name, threshold in custom_confidence_thresholds.items():
-        if species_name not in self._species_list:
+        if species_name not in self.species_list:
           raise ValueError(
-            f"Species '{species_name}' is not in the model's species list! Available species: {', '.join(self._species_list)}"
+            f"Species '{species_name}' is not in the model's species list! Available species: {', '.join(self.species_list)}"
           )
-        species_id = self._species_list.index(species_name)
+        species_id = self.species_list.index(species_name)
         thresholds[species_id] = threshold
     thresholds.setflags(write=False)
 
@@ -204,7 +218,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
 
     prob_dtype: DTypeLike = np.float16 if half_precision else np.float32
 
-    n_species = len(self._species_list)
+    n_species = self.n_species
     n_files = len(file_paths)
 
     n_slots = n_jobs * n_slots_factor
@@ -380,7 +394,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       worker_processes = [
         mp.Process(
           target=ChildWorker(
-            model_path=self._model_path,
+            model_path=self.model_path,
             backend=backend,
             top_k=top_k,
             species_thresholds=species_thresholds,
@@ -488,9 +502,9 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         # Model
         meta["model_type"] = "tf"
         meta["model_version"] = "2.4"
-        meta["custom_model"] = self._use_custom_model
-        meta["model_path"] = str(self._model_path.absolute())
-        meta["model_n_species"] = len(self._species_list)
+        meta["custom_model"] = self.use_custom_model
+        meta["model_path"] = str(self.model_path.absolute())
+        meta["model_n_species"] = self.n_species
         # Dataset
         meta["n_files"] = len(file_paths)
         meta["tot_file_duration_h"] = sum(file_durations_s) / 60**2
@@ -578,6 +592,6 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       files=file_paths,
       chunk_duration_s=AcousticModelBaseV2_4.get_chunk_size_s(),
       overlap_duration_s=overlap_duration_s,
-      species_list=self._species_list,
+      species_list=self.species_list,
     )
     return res

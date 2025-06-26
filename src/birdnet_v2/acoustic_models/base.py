@@ -14,7 +14,8 @@ class AcousticInferenceBackend(ABC):
 
 
 class AcousticModelBase(ModelBase):
-  pass
+  def __init__(self) -> None:
+    super().__init__()
 
   @abstractmethod
   def get_backend_instance(self) -> AcousticInferenceBackend: ...
