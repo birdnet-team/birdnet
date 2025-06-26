@@ -1,4 +1,5 @@
 import logging
+import os
 import random
 from multiprocessing import set_start_method
 from pathlib import Path
@@ -86,7 +87,7 @@ def load(
     if device.lower() in log_dev.name.lower()
   ]
   if len(all_devices_with_name) == 0:
-    raise Exception("No CPU found!")
+    raise Exception("No device found!")
   logical_device = all_devices_with_name[0]
   if len(all_devices_with_name) > 1:
     logging.warning(
@@ -143,8 +144,12 @@ def load_custom(
 
 if __name__ == "__main__":
   # set_start_method("forkserver", force=True) # Linux, macOS
-  # set_start_method("spawn", force=True)  # Windows
-  set_start_method("fork", force=True)  # Linux, macOS
+  #set_start_method("fork", force=True)  # Linux, macOS
+  set_start_method("spawn", force=True)  # Windows
+    
+  tf.debugging.set_log_device_placement(True)   # zeigt jedes Kernel-Mapping
+  os.environ["TF_CPP_MIN_LOG_LEVEL"] = "0"      # sämtliche TF-Logs
+
 
   # faulthandler.enable(file=sys.stderr, all_threads=True)
   logging.basicConfig(
@@ -176,10 +181,19 @@ if __name__ == "__main__":
   # model = load("acoustic")
   # model = load("acoustic/v2.4")
   # model = load("geo/v2.4+tf@cpu")
+  # os.environ["CUDA_VISIBLE_DEVICES"] = ""
+    
+  # 1) Device-Logs deaktivieren
+  tf.debugging.set_log_device_placement(False)
+
+  # 2) C++-Logger auf WARN oder ERROR stellen
+  os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"   # 0=alle, 1=INFO, 2=WARNING, 3=ERROR
+  tf.get_logger().setLevel("WARNING")        # Python-Logger ebenfalls drosseln
+  
   model = load()
   model = load(backend="pb", device="cpu", lang_id="de")
   model = load(device="cpu", lang_id="de")
-  model = load(backend="pb")
+  model = load(backend="pb", device="gpu")
   # model = load_custom_model("acoustic/v2.4+pb@cpu", custom_species_list="..")
 
   # model.use_custom_model(model_path, custom_species_list="..")
@@ -198,17 +212,21 @@ if __name__ == "__main__":
     Path("src/birdnet_tests/test_files/soundscape.wav"),
     # Path("src/birdnet_tests/test_files/soundscape.flac"),
   ]
+  audio_paths = [Path("test-dataset/test_dataset_1x60min/0.wav")]
   audio_paths = [Path("example/soundscape.wav")]
   audio_paths = get_pow_file_paths()
-  audio_paths = [Path("test-dataset/test_dataset_1x60min/0.wav")]
-  audio_paths = get_hsn_file_paths()
+  audio_paths.extend(get_hsn_file_paths())
+
+  """Gibt eine Liste der Pfade zu den Dateien im Zielverzeichnis zurück."""
+  audio_paths.extend(list(Path("test-dataset/HSN copy").glob("**/*.flac")))
+
   start = time.perf_counter()
   result = model.analyze(
     audio_paths,
     n_jobs=1,
-    n_prods=2,
-    batch_size=1,
-    n_slots_factor=2,
+    n_prods=10,
+    batch_size=1000,
+    n_slots_factor=4,
     apply_sigmoid=False,
     top_k=5,
     overlap_duration_s=0,

@@ -20,9 +20,13 @@ class AcousticPBBackend(AcousticInferenceBackend):
   def lazy_load(self) -> None:
     assert self._audio_model is None
 
-    all_devices_with_name = tf.config.list_logical_devices(self._device_name)
+    all_devices_with_name: list[tf.config.LogicalDevice] = [
+      log_dev
+      for log_dev in tf.config.list_logical_devices()
+      if log_dev.name == self._device_name
+    ]
     assert len(all_devices_with_name) == 1
-    device: tf.config.LogicalDevice = all_devices_with_name[0]
+    device = all_devices_with_name[0]
     self._device = device
 
     self._audio_model = tf.saved_model.load(self._model_path)
@@ -31,9 +35,13 @@ class AcousticPBBackend(AcousticInferenceBackend):
   def infer(self, batch: np.ndarray) -> np.ndarray:
     assert self._audio_model is not None
     assert self._device is not None
+    basic_fn = self._audio_model.signatures["basic"]  # oder "basic"
 
-    with tf.device(self._device):  # type: ignore
-      prediction: Tensor = self._audio_model.basic(batch)["scores"]
+    # keine Retrace-Warnungen, weil wir eine Concrete-Function benutzen
+    prediction = basic_fn(inputs=batch)
+    prediction = prediction["scores"]     
+    # with tf.device(self._device.name):  # type: ignore
+    #   prediction: Tensor = self._audio_model.basic(batch)["scores"]
     prediction_np = prediction.numpy()
     assert prediction_np.dtype == np.float32
     return prediction_np

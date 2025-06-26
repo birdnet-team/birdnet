@@ -120,7 +120,14 @@ class ChildWorker(bn_logging.LogableProcessBase):
     # self._mm: mmap.mmap | None = None
 
   def _load_model(self):
-    self._backend.lazy_load()
+    self._log_debug(f"Loading model...")
+    try:
+      self._backend.lazy_load()
+    except Exception as e:
+      self._log_debug(f"Failed to load model: {e}")
+      raise e
+    else:
+      self._log_debug(f"Model loaded.")
     # assert self._interp is None
 
     # # memory_map not working for TF 2.15.1:
@@ -177,6 +184,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
     assert 0 <= self._slot_ptr.value < self._n_slots
 
   def _load_ring_buffers(self) -> None:
+    self._log_debug("Attaching ring buffers...")
     # attach to existing shared memory buffers
     # NOTE: these handlers must be created that GC does not delete the shared memory access
     self._shm_file_indices, self._ring_file_indices = (
@@ -192,11 +200,13 @@ class ChildWorker(bn_logging.LogableProcessBase):
       self._rf_batch_sizes.attach_and_get_array()
     )
     self._shm_ring_flags, self._ring_flags = self._rf_flags.attach_and_get_array()
+    self._log_debug(f"Attached ring buffers.")
 
   def _init(self) -> None:
     self._init_logging()
     self._load_ring_buffers()
     self._load_model()
+    self._log_debug("Worker initialized.")
 
   def _uninit(self) -> None:
     self._uninit_logging()
