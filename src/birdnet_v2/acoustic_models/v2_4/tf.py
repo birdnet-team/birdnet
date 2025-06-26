@@ -70,14 +70,10 @@ from birdnet_v2.helper import (
   uint_ctype_from_dtype,
   uint_dtype_for,
 )
-from birdnet_v2.inference.child_producer import ChildProducer
+from birdnet_v2.inference.producer import ChildProducer
 from birdnet_v2.inference.consumer import Consumer
+from birdnet_v2.inference.files_analyzer import FilesAnalyzer
 from birdnet_v2.inference.perf_tracker import PerformanceTracker
-from birdnet_v2.inference.producer import (
-  FilesAnalyzer,
-  Producer,
-  get_chunks_with_overlap,  # type: ignore
-)
 from birdnet_v2.inference.species_tensor import SpeciesTensor
 from birdnet_v2.inference.worker import ChildWorker
 from birdnet_v2.logging_utils import (
@@ -471,11 +467,10 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
         w.start()
 
       consumer = Consumer(
-        n_jobs=n_jobs,
+        n_workers=n_jobs,
         worker_queue=worker_queue,
         species_tensor=result,
         max_chunk_index=max_chunk_idx_ptr,
-        pred_dur_queue=pred_dur_queue,
       )
       consumer()
 

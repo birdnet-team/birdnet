@@ -67,11 +67,6 @@ from birdnet_v2.helper import (
   uint_dtype_for,
 )
 from birdnet_v2.inference.consumer import Consumer
-from birdnet_v2.inference.producer import (
-  Producer,
-  get_chunks_with_overlap,  # type: ignore
-  load_audio_in_chunks_with_overlap,
-)
 from birdnet_v2.inference.species_tensor import SpeciesTensor
 from birdnet_v2.inference.worker import ChildWorker
 from birdnet_v2.logging_utils import (
@@ -168,7 +163,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
             memory_usage += child.memory_info().rss
           except psutil.NoSuchProcess:
             continue
-                
+
         memory_usage_MiB = memory_usage / (1024 * 1024)
         memory_usages.append(memory_usage_MiB)
 
