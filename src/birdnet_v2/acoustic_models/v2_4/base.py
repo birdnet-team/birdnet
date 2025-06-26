@@ -192,7 +192,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       for species_name, threshold in custom_confidence_thresholds.items():
         if species_name not in self.species_list:
           raise ValueError(
-            f"Species '{species_name}' is not in the model's species list! Available species: {', '.join(self.species_list)}"
+            f"Species '{species_name}' is not in the model's species list!"
           )
         species_id = self.species_list.index(species_name)
         thresholds[species_id] = threshold
@@ -374,7 +374,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             stop_event,
             update_interval=0.5,
             print_interval=1,
-            print_last_n=2,
+            print_last_n=20,
             stop_time=stop_time,
             start=start,
             chunk_size_s=AcousticModelBaseV2_4.get_chunk_size_s(),

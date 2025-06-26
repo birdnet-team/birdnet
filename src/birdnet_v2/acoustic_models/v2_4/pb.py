@@ -142,11 +142,12 @@ class AcousticPBDownloaderV2_4:
 
 
 class AcousticPBModelV2_4(AcousticModelBaseV2_4):
-  def __init__(self) -> None:
+  def __init__(self, device: str) -> None:
+    self._device = device
     super().__init__()
 
   def get_backend_instance(self) -> AcousticInferenceBackend:
-    return AcousticPBBackend(self.model_path)
+    return AcousticPBBackend(self.model_path, self._device)
 
   @classmethod
   @final
@@ -154,9 +155,10 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
     return MODEL_BACKEND_PB
 
   @classmethod
-  def load_official(cls, lang_id: str) -> AcousticPBModelV2_4:
-    result = cls.__new__(cls)
-    result.__init__()
+  def load_official(cls, lang_id: str, device: str) -> AcousticPBModelV2_4:
+    # result = cls.__new__(cls)
+    # result.__init__(device)
+    result = AcousticPBModelV2_4(device)
     result._load_official_model(lang_id)
     return result
 
@@ -167,8 +169,10 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
     self._use_custom_model = False
 
   @classmethod
-  def load_custom(cls, model_path: Path, species_list: Path) -> AcousticPBModelV2_4:
-    result = AcousticPBModelV2_4()
+  def load_custom(
+    cls, model_path: Path, species_list: Path, device: str
+  ) -> AcousticPBModelV2_4:
+    result = AcousticPBModelV2_4(device)
     result._load_custom_model(model_path, species_list)
     return result
 

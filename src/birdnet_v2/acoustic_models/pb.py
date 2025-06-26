@@ -9,22 +9,22 @@ from birdnet_v2.acoustic_models.base import AcousticInferenceBackend
 
 
 class AcousticPBBackend(AcousticInferenceBackend):
-  def __init__(self, model_path: Path) -> None:
+  def __init__(self, model_path: Path, device: str) -> None:
     super().__init__()
     self._model_path = str(model_path.absolute())
     self._audio_model = None
-    self._device_name = "CPU"
+    self._device_name = device
     self._device: tf.config.LogicalDevice | None = None
 
   @final
   def lazy_load(self) -> None:
     assert self._audio_model is None
 
-    all_cpus = tf.config.list_logical_devices(self._device_name)
-    if len(all_cpus) == 0:
-      raise Exception("No CPU found!")
-    first_cpu: tf.config.LogicalDevice = all_cpus[0]
-    self._device = first_cpu
+    all_devices_with_name = tf.config.list_logical_devices(self._device_name)
+    assert len(all_devices_with_name) == 1
+    device: tf.config.LogicalDevice = all_devices_with_name[0]
+    self._device = device
+
     self._audio_model = tf.saved_model.load(self._model_path)
 
   @final

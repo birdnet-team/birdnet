@@ -2,7 +2,7 @@ import logging
 import random
 from multiprocessing import set_start_method
 from pathlib import Path
-from typing import Literal
+from typing import Literal, overload
 
 import numpy as np
 import tensorflow as tf
@@ -28,20 +28,81 @@ from birdnet_v2_tests.pow_downloader import get_pow_file_paths
 # ]
 
 
+@overload
+def load(  # type: ignore
+  *,
+  model_type: Literal["acoustic"] = ...,
+  version: Literal["2.4"] = ...,
+  backend: Literal["tf"] = ...,
+  device: Literal["cpu", "gpu"] = ...,
+  lang_id: str = ...,
+) -> AcousticTFModelV2_4: ...
+
+
+@overload
 def load(
+  *,
+  model_type: Literal["acoustic"] = ...,
+  version: Literal["2.4"] = ...,
+  backend: Literal["pb"] = ...,
+  device: Literal["cpu", "gpu"] = ...,
+  lang_id: str = ...,
+) -> AcousticPBModelV2_4: ...
+
+
+# @overload
+# def load(
+#   *,
+#   model_type: Literal["acoustic"] = MODEL_TYPE_ACOUSTIC,
+#   version: Literal["2.4"] = MODEL_VERSION_V2_4,
+#   backend: Literal["tf"] = MODEL_BACKEND_TF,
+#   device: Literal["cpu", "gpu"] = "cpu",
+#   lang_id: str = "en_us",
+# ) -> AcousticTFModelV2_4: ...
+
+
+# @overload
+# def load(
+#   *,
+#   model_type: Literal["acoustic"] = MODEL_TYPE_ACOUSTIC,
+#   version: Literal["2.4"] = MODEL_VERSION_V2_4,
+#   backend: Literal["pb"] = MODEL_BACKEND_PB,
+#   device: Literal["cpu", "gpu"] = "cpu",
+#   lang_id: str = "en_us",
+# ) -> AcousticPBModelV2_4: ...
+
+
+def load(
+  *,
   model_type: MODEL_TYPES = MODEL_TYPE_ACOUSTIC,
   version: MODEL_VERSIONS = MODEL_VERSION_V2_4,
   backend: MODEL_BACKENDS = MODEL_BACKEND_TF,
-  device: Literal["cpu", "gpu"] = "cpu",
+  device: str = "CPU",
   lang_id: str = "en_us",
 ):
+  all_devices_with_name = [
+    log_dev
+    for log_dev in tf.config.list_logical_devices()
+    if device.lower() in log_dev.name.lower()
+  ]
+  if len(all_devices_with_name) == 0:
+    raise Exception("No CPU found!")
+  logical_device = all_devices_with_name[0]
+  if len(all_devices_with_name) > 1:
+    logging.warning(
+      f"Multiple devices found: {all_devices_with_name}. "
+      f"Using the first one ('{logical_device.name}')."
+    )
+
   if model_type == MODEL_TYPE_ACOUSTIC:
     if version == MODEL_VERSION_V2_4:
       if backend == MODEL_BACKEND_TF:
+        if logical_device.device_type != "CPU":
+          raise ValueError("TF models can only be loaded on CPU!")
         return AcousticTFModelV2_4.load_official(lang_id)
       else:
         assert backend == MODEL_BACKEND_PB
-        return AcousticPBModelV2_4.load_official(lang_id)
+        return AcousticPBModelV2_4.load_official(lang_id, logical_device.name)
     raise AssertionError()
   else:
     assert model_type == MODEL_TYPE_GEO
@@ -64,6 +125,8 @@ def load_custom(
   if model_type == MODEL_TYPE_ACOUSTIC:
     if version == MODEL_VERSION_V2_4:
       if backend == MODEL_BACKEND_TF:
+        if device != "cpu":
+          raise ValueError("TF models can only be loaded on CPU!")
         return AcousticTFModelV2_4.load_custom(model_path, species_list)
       else:
         assert backend == MODEL_BACKEND_PB
@@ -113,9 +176,10 @@ if __name__ == "__main__":
   # model = load("acoustic")
   # model = load("acoustic/v2.4")
   # model = load("geo/v2.4+tf@cpu")
-  model = load("acoustic", "2.4", "tf", "cpu", "en_us")
-  model = load("acoustic", "2.4", "pb", "cpu", "en_us")
-
+  model = load()
+  model = load(backend="pb", device="cpu", lang_id="de")
+  model = load(device="cpu", lang_id="de")
+  model = load(backend="pb")
   # model = load_custom_model("acoustic/v2.4+pb@cpu", custom_species_list="..")
 
   # model.use_custom_model(model_path, custom_species_list="..")
@@ -123,7 +187,6 @@ if __name__ == "__main__":
   audio_paths = [Path("src/birdnet_v2_debug/60min.wav")]
 
   audio_paths = [Path("test-dataset/test_dataset_1x10min/0.wav")]
-  audio_paths = [Path("test-dataset/test_dataset_1x60min/0.wav")]
 
   audio_paths = [
     Path("test-dataset/test_dataset_4x60min/0.wav"),
@@ -135,13 +198,14 @@ if __name__ == "__main__":
     Path("src/birdnet_tests/test_files/soundscape.wav"),
     # Path("src/birdnet_tests/test_files/soundscape.flac"),
   ]
-  audio_paths = get_hsn_file_paths()
   audio_paths = [Path("example/soundscape.wav")]
   audio_paths = get_pow_file_paths()
+  audio_paths = [Path("test-dataset/test_dataset_1x60min/0.wav")]
+  audio_paths = get_hsn_file_paths()
   start = time.perf_counter()
   result = model.analyze(
     audio_paths,
-    n_jobs=10,
+    n_jobs=1,
     n_prods=2,
     batch_size=1,
     n_slots_factor=2,
