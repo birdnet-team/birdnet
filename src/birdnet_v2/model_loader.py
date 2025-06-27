@@ -193,7 +193,7 @@ if __name__ == "__main__":
   model = load()
   model = load(backend="pb", device="cpu", lang_id="de")
   model = load(device="cpu", lang_id="de")
-  model = load(backend="pb", device="gpu")
+  model = load(backend="pb", device="cpu")
   # model = load_custom_model("acoustic/v2.4+pb@cpu", custom_species_list="..")
 
   # model.use_custom_model(model_path, custom_species_list="..")
@@ -213,19 +213,19 @@ if __name__ == "__main__":
     # Path("src/birdnet_tests/test_files/soundscape.flac"),
   ]
   audio_paths = [Path("test-dataset/test_dataset_1x60min/0.wav")]
-  audio_paths = [Path("example/soundscape.wav")]
   audio_paths = get_pow_file_paths()
   audio_paths.extend(get_hsn_file_paths())
 
   """Gibt eine Liste der Pfade zu den Dateien im Zielverzeichnis zurück."""
-  audio_paths.extend(list(Path("test-dataset/HSN copy").glob("**/*.flac")))
+  # audio_paths.extend(list(Path("test-dataset/HSN copy").glob("**/*.flac")))
+  audio_paths = [Path("example/soundscape.wav")]
 
   start = time.perf_counter()
   result = model.analyze(
     audio_paths,
     n_jobs=1,
-    n_prods=10,
-    batch_size=1000,
+    n_prods=1,
+    batch_size=1,
     n_slots_factor=4,
     apply_sigmoid=False,
     top_k=5,

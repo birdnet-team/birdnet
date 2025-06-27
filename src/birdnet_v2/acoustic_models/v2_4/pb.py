@@ -142,12 +142,21 @@ class AcousticPBDownloaderV2_4:
 
 
 class AcousticPBModelV2_4(AcousticModelBaseV2_4):
-  def __init__(self, device: str) -> None:
-    self._device = device
+  def __init__(self, device_name: str) -> None:
+    self._device_name = device_name
     super().__init__()
 
   def get_backend_instance(self) -> AcousticInferenceBackend:
-    return AcousticPBBackend(self.model_path, self._device)
+    return AcousticPBBackend(self.model_path, self._device_name)
+  
+  def get_backend_type(self) -> type[AcousticInferenceBackend]:
+    return AcousticPBBackend
+
+  def get_backend_args(self) -> dict:
+    return {
+      "model_path": self.model_path,
+      "device": self._device_name,
+    }
 
   @classmethod
   @final

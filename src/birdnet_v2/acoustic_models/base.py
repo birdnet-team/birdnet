@@ -19,3 +19,9 @@ class AcousticModelBase(ModelBase):
 
   @abstractmethod
   def get_backend_instance(self) -> AcousticInferenceBackend: ...
+  
+  @abstractmethod
+  def get_backend_type(self) -> type[AcousticInferenceBackend]: ...
+  
+  @abstractmethod
+  def get_backend_args(self) -> dict: ...

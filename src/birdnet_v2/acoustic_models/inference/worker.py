@@ -44,6 +44,8 @@ class ChildWorker(bn_logging.LogableProcessBase):
     rf_batch_sizes: RingField,
     rf_flags: RingField,
     backend: AcousticInferenceBackend,
+    backend_type: type[AcousticInferenceBackend],
+    backend_kwargs: dict,
     chunk_duration_samples: int,
     slot_ptr: mp.Value,
     out_q: mp.Queue,
@@ -64,7 +66,9 @@ class ChildWorker(bn_logging.LogableProcessBase):
     assert species_blacklist.shape[0] == 1
     assert species_thresholds.shape[1] == species_blacklist.shape[1]
 
-    self._backend = backend
+    self._backend = None # backend
+    self._backend_type = backend_type
+    self._backend_kwargs = backend_kwargs
     self._track_performance = track_performance
     self._pred_dur_queue = pred_dur_queue
     self._top_k = top_k
@@ -122,6 +126,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
   def _load_model(self):
     self._log_debug(f"Loading model...")
     try:
+      self._backend = self._backend_type(**self._backend_kwargs)
       self._backend.lazy_load()
     except Exception as e:
       self._log_debug(f"Failed to load model: {e}")
