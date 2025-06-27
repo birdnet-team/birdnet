@@ -6,7 +6,7 @@ from typing import Optional
 import numpy as np
 import numpy.typing as npt
 from ordered_set import OrderedSet
-from tensorflow.lite.python.interpreter import Interpreter
+# from tensorflow.lite.python.interpreter import Interpreter
 
 from birdnet.types import Language
 from birdnet.utils import download_file_tqdm, get_species_from_file

@@ -389,16 +389,20 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         )
         inference_tracker.start()
 
-      backend = self.get_backend_type()
+      backend_kwargs =[self.get_backend_args()
+                       for _ in range(n_jobs)
+      ]
       
-
+      # for i, kwargs in enumerate(backend_kwargs):
+      #   kwargs["device"] =kwargs["device"].replace("0", str(i)) # Assign different CPU cores
+        
       worker_processes = [
         mp.Process(
           target=ChildWorker(
             model_path=self.model_path,
             backend=self.get_backend_instance(),
             backend_type=self.get_backend_type(),
-            backend_kwargs=self.get_backend_args(),
+            backend_kwargs=backend_kwargs[i],
             top_k=top_k,
             species_thresholds=species_thresholds,
             species_blacklist=species_blacklist,
@@ -425,7 +429,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
           ),
           daemon=True,
         )
-        for _ in range(n_jobs)
+        for i in range(n_jobs)
       ]
 
       for w in worker_processes:

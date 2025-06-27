@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Literal, overload
 
 import numpy as np
-import tensorflow as tf
 
 from birdnet_v2.acoustic_models.v2_4.pb import AcousticPBModelV2_4
 from birdnet_v2.acoustic_models.v2_4.tf import AcousticTFModelV2_4
@@ -35,7 +34,7 @@ def load(  # type: ignore
   model_type: Literal["acoustic"] = ...,
   version: Literal["2.4"] = ...,
   backend: Literal["tf"] = ...,
-  device: Literal["cpu", "gpu"] = ...,
+  device: str = ...,
   lang_id: str = ...,
 ) -> AcousticTFModelV2_4: ...
 
@@ -46,7 +45,7 @@ def load(
   model_type: Literal["acoustic"] = ...,
   version: Literal["2.4"] = ...,
   backend: Literal["pb"] = ...,
-  device: Literal["cpu", "gpu"] = ...,
+  device: str = ...,
   lang_id: str = ...,
 ) -> AcousticPBModelV2_4: ...
 
@@ -81,29 +80,30 @@ def load(
   device: str = "CPU",
   lang_id: str = "en_us",
 ):
-  all_devices_with_name = [
-    log_dev
-    for log_dev in tf.config.list_logical_devices()
-    if device.lower() in log_dev.name.lower()
-  ]
-  if len(all_devices_with_name) == 0:
-    raise Exception("No device found!")
-  logical_device = all_devices_with_name[0]
-  if len(all_devices_with_name) > 1:
-    logging.warning(
-      f"Multiple devices found: {all_devices_with_name}. "
-      f"Using the first one ('{logical_device.name}')."
-    )
+  # import tensorflow as tf
+  # all_devices_with_name = [
+  #   log_dev
+  #   for log_dev in tf.config.list_logical_devices()
+  #   if device.lower() in log_dev.name.lower()
+  # ]
+  # if len(all_devices_with_name) == 0:
+  #   raise Exception("No device found!")
+  # logical_device = all_devices_with_name[0]
+  # if len(all_devices_with_name) > 1:
+  #   logging.warning(
+  #     f"Multiple devices found: {all_devices_with_name}. "
+  #     f"Using the first one ('{logical_device.name}')."
+  #   )
 
   if model_type == MODEL_TYPE_ACOUSTIC:
     if version == MODEL_VERSION_V2_4:
       if backend == MODEL_BACKEND_TF:
-        if logical_device.device_type != "CPU":
+        if "cpu" not in device.lower():
           raise ValueError("TF models can only be loaded on CPU!")
         return AcousticTFModelV2_4.load_official(lang_id)
       else:
         assert backend == MODEL_BACKEND_PB
-        return AcousticPBModelV2_4.load_official(lang_id, logical_device.name)
+        return AcousticPBModelV2_4.load_official(lang_id, device)
     raise AssertionError()
   else:
     assert model_type == MODEL_TYPE_GEO
@@ -144,10 +144,9 @@ def load_custom(
 
 if __name__ == "__main__":
   # set_start_method("forkserver", force=True) # Linux, macOS
-  #set_start_method("fork", force=True)  # Linux, macOS
-  set_start_method("spawn", force=True)  # Windows
+  set_start_method("fork", force=True)  # Linux, macOS
+  # set_start_method("spawn", force=True)  # Windows
     
-  tf.debugging.set_log_device_placement(True)   # zeigt jedes Kernel-Mapping
   os.environ["TF_CPP_MIN_LOG_LEVEL"] = "0"      # sämtliche TF-Logs
 
 
@@ -173,7 +172,6 @@ if __name__ == "__main__":
 
   random.seed(0)
   np.random.seed(0)
-  tf.random.set_seed(0)
   # tf.config.experimental.enable_op_determinism()
   import time
 
@@ -184,16 +182,16 @@ if __name__ == "__main__":
   # os.environ["CUDA_VISIBLE_DEVICES"] = ""
     
   # 1) Device-Logs deaktivieren
-  tf.debugging.set_log_device_placement(False)
+  # tf.debugging.set_log_device_placement(False)
 
   # 2) C++-Logger auf WARN oder ERROR stellen
   os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"   # 0=alle, 1=INFO, 2=WARNING, 3=ERROR
-  tf.get_logger().setLevel("WARNING")        # Python-Logger ebenfalls drosseln
+  # tf.get_logger().setLevel("WARNING")        # Python-Logger ebenfalls drosseln
   
-  model = load()
-  model = load(backend="pb", device="cpu", lang_id="de")
   model = load(device="cpu", lang_id="de")
+  model = load(backend="pb", device="gpu:0")
   model = load(backend="pb", device="cpu")
+  model = load()
   # model = load_custom_model("acoustic/v2.4+pb@cpu", custom_species_list="..")
 
   # model.use_custom_model(model_path, custom_species_list="..")
@@ -213,20 +211,57 @@ if __name__ == "__main__":
     # Path("src/birdnet_tests/test_files/soundscape.flac"),
   ]
   audio_paths = [Path("test-dataset/test_dataset_1x60min/0.wav")]
-  audio_paths = get_pow_file_paths()
-  audio_paths.extend(get_hsn_file_paths())
 
   """Gibt eine Liste der Pfade zu den Dateien im Zielverzeichnis zurück."""
-  # audio_paths.extend(list(Path("test-dataset/HSN copy").glob("**/*.flac")))
   audio_paths = [Path("example/soundscape.wav")]
-
+  audio_paths = get_pow_file_paths()
+  audio_paths.extend(get_hsn_file_paths())
+  audio_paths.extend(list(Path("test-dataset/HSN copy").glob("**/*.flac")))
+  audio_paths.extend(list(Path("test-dataset/LARGE").glob("**/*.wav")))
+  audio_paths.extend(list(Path("test-dataset/LARGE").glob("**/*.WAV")))
+  
+  audio_paths = list(Path("test-dataset/test_dataset_100x60min").glob("**/*.wav"))
+  audio_paths = list(Path("test-dataset/test_dataset_200x60min").glob("**/*.wav"))
+  audio_paths = list(Path("/home/mi/sttau/test-datasets/test_dataset_1000x60min").glob("**/*.wav"))
+  params_1000h_3gpu = {
+    "n_jobs": 3,
+    "n_prods": 10,
+    "batch_size": 1000,
+    "n_slots_factor": 4,
+  }
+  
+  audio_paths = list(Path("/home/mi/sttau/test-datasets/test_dataset_100x60min").glob("**/*.wav"))
+  params_100h_48cpu = {
+    "n_jobs": 45,
+    "n_prods": 3,
+    "batch_size": 1,
+    "n_slots_factor": 2,
+  }
+  res_100h_4cpu = 'inference speed: 69 ms/chunk; 636 chunks/s; 31.81 min/s; memory usage: 27010.21 MiB; CPU usage: 50.7%; prel: 45; free: 0; busy: 45; fill: 90; progress: 99.53%; remaining: 0:00:01'
+  params = params_100h_48cpu
+  audio_paths = list(Path("/home/mi/sttau/test-datasets/test_dataset_1000x60min").glob("**/*.wav"))
+  params_1000h_4cpu = {
+    "n_jobs": 3,
+    "n_prods": 1,
+    "batch_size": 1,
+    "n_slots_factor": 4,
+  }
+  
+  params_1000h_48cpu = {
+    "n_jobs": 45,
+    "n_prods": 3,
+    "batch_size": 1,
+    "n_slots_factor": 4,
+  }
+  params = params_1000h_48cpu
+  
   start = time.perf_counter()
   result = model.analyze(
     audio_paths,
-    n_jobs=1,
-    n_prods=1,
-    batch_size=1,
-    n_slots_factor=4,
+    n_jobs=params["n_jobs"],
+    n_prods=params["n_prods"],
+    batch_size=params["batch_size"],
+    n_slots_factor=params["n_slots_factor"],
     apply_sigmoid=False,
     top_k=5,
     overlap_duration_s=0,

@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import final
 
 import soundfile as sf  # pip install soundfile
-import tensorflow as tf
 
 # You'll need these imports in your own code
 # Next two import lines for this demo only
@@ -193,6 +192,7 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
       raise ValueError(f"Species list file '{species_list.absolute()}' does not exist!")
 
     try:
+      import tensorflow as tf
       tf.saved_model.load(model_path)
     except ValueError as e:
       raise ValueError(

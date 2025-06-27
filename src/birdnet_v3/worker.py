@@ -13,7 +13,7 @@ import soundfile as sf  # pip install soundfile
 # try:
 #   import tflite_runtime.interpreter as tflite
 # except ImportError:  # fallback to full TF (heavier)
-from tensorflow.lite.python import interpreter as tflite
+# from tensorflow.lite.python import interpreter as tflite
 
 from birdnet_v3.producer import Producer
 

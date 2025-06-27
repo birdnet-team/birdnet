@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import final
 
 import numpy as np
-from tensorflow.lite.python import interpreter as tflite
+# 
 
 from birdnet_v2.acoustic_models.base import AcousticInferenceBackend
 
@@ -20,14 +20,17 @@ class AcousticTFBackend(AcousticInferenceBackend):
   @final
   def lazy_load(self) -> None:
     assert self._interp is None
+    
+    from tensorflow.lite.python import interpreter as tflite
 
     # memory_map not working for TF 2.15.1:
     # f = open(self._model_path, "rb")
     # self._mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
-    self._interp = tflite.Interpreter(self._model_path, num_threads=1)
-    self._interp.allocate_tensors()
-    self._in_idx = self._interp.get_input_details()[0]["index"]
-    self._out_idx = self._interp.get_output_details()[0]["index"]
+    interp = tflite.Interpreter(self._model_path, num_threads=1)
+    interp.allocate_tensors()
+    self._interp = interp
+    self._in_idx = interp.get_input_details()[0]["index"]
+    self._out_idx = interp.get_output_details()[0]["index"]
 
   def _set_tensor(self, batch: np.ndarray):
     assert self._interp is not None

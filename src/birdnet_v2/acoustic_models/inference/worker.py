@@ -14,7 +14,7 @@ from numpy.typing import DTypeLike
 # try:
 #   import tflite_runtime.interpreter as tflite
 # except ImportError:  # fallback to full TF (heavier)
-from tensorflow.lite.python import interpreter as tflite
+# from tensorflow.lite.python import interpreter as tflite
 
 import birdnet_v2.logging_utils as bn_logging
 from birdnet.utils import flat_sigmoid

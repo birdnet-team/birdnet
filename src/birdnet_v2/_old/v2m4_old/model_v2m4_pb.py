@@ -2,13 +2,13 @@ import os
 import zipfile
 from logging import getLogger
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import numpy as np
 import numpy.typing as npt
-import tensorflow as tf
+# import tensorflow as tf
 from ordered_set import OrderedSet
-from tensorflow import Tensor
+# from tensorflow import Tensor
 
 from birdnet.types import Language
 from birdnet.utils import download_file_tqdm, get_species_from_file
@@ -88,7 +88,7 @@ class DownloaderProtobuf:
       assert self._check_model_files_exist()
 
 
-def try_get_gpu_otherwise_return_cpu() -> tf.config.LogicalDevice:
+def try_get_gpu_otherwise_return_cpu() -> Any:
   all_gpus = tf.config.list_logical_devices("GPU")
   if len(all_gpus) > 0:
     first_gpu = all_gpus[0]
@@ -100,7 +100,7 @@ def try_get_gpu_otherwise_return_cpu() -> tf.config.LogicalDevice:
   return first_cpu
 
 
-def get_custom_device(device_name: str) -> tf.config.LogicalDevice:
+def get_custom_device(device_name: str) -> Any:
   matched_device: tf.config.LogicalDevice = None
   available_devices: List[tf.config.LogicalDevice] = tf.config.list_logical_devices()
 
@@ -120,7 +120,7 @@ class GeoPbModelV2M4Base(GeoModelV2M4Base):
     self,
     model_path: Path,
     species_list: OrderedSet[str],
-    device: tf.config.LogicalDevice,
+    device: Any,
   ) -> None:
     super().__init__(species_list)
     self._device = device

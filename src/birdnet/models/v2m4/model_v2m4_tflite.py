@@ -6,7 +6,7 @@ from typing import Optional
 import numpy as np
 import numpy.typing as npt
 from ordered_set import OrderedSet
-from tensorflow.lite.python.interpreter import Interpreter
+# from tensorflow.lite.python.interpreter import Interpreter
 
 from birdnet.models.v2m4.model_v2m4_base import (
   AVAILABLE_LANGUAGES,

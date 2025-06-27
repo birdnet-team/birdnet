@@ -5,7 +5,7 @@ from typing import Optional
 
 import numpy as np
 import numpy.typing as npt
-import tensorflow as tf
+# import tensorflow as tf
 from ordered_set import OrderedSet
 
 from birdnet.models.v2m4.model_v2m4_protobuf import (
