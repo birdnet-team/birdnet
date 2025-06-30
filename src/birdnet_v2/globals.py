@@ -2,6 +2,7 @@ from typing import Literal
 
 import numpy as np
 
+
 # flag for "can be written to"
 WRITABLE_FLAG = np.uint8(0)
 

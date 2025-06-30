@@ -121,3 +121,4 @@ src/birdnet_v2/model_loader.py
 src/birdnet_v2_debug/10min.wav
 src/birdnet_v2_debug/60min.wav
 install.md
+src/birdnet_v2/eagle.txt

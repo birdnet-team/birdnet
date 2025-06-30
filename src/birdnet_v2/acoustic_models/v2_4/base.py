@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ctypes
+import importlib.metadata
 import json
 import multiprocessing
 import multiprocessing as mp
@@ -125,8 +126,8 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     self,
     files: list[Path] | list[str],
     top_k: int = 5,
-    n_jobs: int = 4,
-    n_prods: int = 1,
+    n_producers: int = 1,
+    n_workers: int = 4,
     batch_size: int = 50,
     n_slots_factor: int = 2,
     overlap_duration_s: float = 0,
@@ -141,11 +142,14 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     half_precision: bool = True,
     max_audio_duration_min: float | None = None,
     track_performance: bool = True,
+    device: str | list[str] = "cpu",
   ):
+    start = time.perf_counter()
+    start_time = time.time()
+
     pid = os.getpid()
     parent = psutil.Process(pid)
-    ramp_up_here = time.time() - parent.create_time()
-    start = time.perf_counter()
+    ramp_up_here = start_time - parent.create_time()
     logging_level = get_package_logging_level()
     logging_queue = multiprocessing.Queue()
     logging_listener = multiprocessing.Process(
@@ -159,13 +163,13 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     logger.info("Starting analysis...")
 
     file_paths: OrderedSet[Path] = OrderedSet([])
-    for file in files:
+    for file in sorted(files):
       if isinstance(file, str):
         file = Path(file)
       if not file.is_file():
         raise ValueError(f"File '{file.absolute()}' does not exist!")
       file_paths.append(file)
-    n_prods = min(n_prods, len(file_paths))
+    n_producers = min(n_producers, len(file_paths))
 
     species_whitelist: np.ndarray
     if custom_species_list is not None:
@@ -220,7 +224,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     n_species = self.n_species
     n_files = len(file_paths)
 
-    n_slots = n_jobs * n_slots_factor
+    n_slots = n_workers * n_slots_factor
 
     sem_free_slots = mp.Semaphore(n_slots)
     sem_filled_slots = mp.Semaphore(0)
@@ -279,28 +283,31 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     species_thresholds.setflags(write=False)
     worker_queue = mp.Queue()
     worker_slot_ptr = mp.Value(
-      uint_ctype_from_dtype(uint_dtype_for(n_slots - 1)),
+      uint_ctype_from_dtype(uint_dtype_for(n_slots - 1)),  # type: ignore
       0,
       lock=True,  # Lock = false?
     )  # type: ignore
     producer_slot_ptr = mp.Value(
-      uint_ctype_from_dtype(uint_dtype_for(n_slots - 1)), 0, lock=True
+      uint_ctype_from_dtype(uint_dtype_for(n_slots - 1)),  # type: ignore
+      0,
+      lock=True,
     )  # type: ignore
 
     pred_dur_queue = mp.SimpleQueue()
     analyzer_queue = mp.SimpleQueue()
     perf_res: mp.SimpleQueue | None = None
-    stop_event = mp.Event()
-    stop_time = mp.RawValue(ctypes.c_float, 0.0)  # float32
+    perf_stop_event = mp.Event()
     tot_n_chunks_ptr = mp.RawValue(ctypes.c_uint64, 0)
     files_queue = mp.Queue()
     for file_idx, file_path in enumerate(file_paths):
       files_queue.put((file_idx, file_path), block=False)
-    for _ in range(n_prods):
+    for _ in range(n_producers):
       files_queue.put(None, block=False)
     prod_done_ptr = mp.Value(
-      uint_ctype_from_dtype(uint_dtype_for(n_prods)), 0, lock=True
-    )
+      uint_ctype_from_dtype(uint_dtype_for(n_producers)),  # type: ignore
+      0,
+      lock=True,
+    )  # type: ignore
 
     with (
       create_shm_ring(rf_file_indices),
@@ -325,7 +332,8 @@ class AcousticModelBaseV2_4(AcousticModelBase):
           rf_chunk_indices=rf_chunk_indices,
           analyzing_result=analyzer_queue,
           tot_n_chunks=tot_n_chunks_ptr,
-        )
+        ),
+        daemon=True,
       )
       file_analyzer_proc.start()
 
@@ -341,7 +349,6 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             rf_audio_samples=rf_audio_samples,
             rf_batch_sizes=rf_batch_sizes,
             rf_flags=rf_flags,
-            n_jobs=n_jobs,
             logging_queue=logging_queue,
             logging_level=logging_level,
             sem_free_slots=sem_free_slots,
@@ -356,26 +363,25 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             fmin=AcousticModelBaseV2_4.get_sig_fmin(),
             max_chunk_idx_ptr=max_chunk_idx_ptr,
             prod_done_ptr=prod_done_ptr,
-            n_prods=n_prods,
+            n_prods=n_producers,
           ),
           daemon=True,
         )
-        for _ in range(n_prods)
+        for _ in range(n_producers)
       ]
       for p in producer_processes:
         p.start()
 
-      inference_tracker = None
+      perf_tracker = None
       if track_performance:
         perf_res = mp.SimpleQueue()
-        inference_tracker = mp.Process(
+        perf_tracker = mp.Process(
           target=PerformanceTracker(
             pred_dur_queue,
-            stop_event,
+            perf_stop_event,
             update_interval=0.5,
             print_interval=1,
             print_last_n=20,
-            stop_time=stop_time,
             start=start,
             chunk_size_s=AcousticModelBaseV2_4.get_chunk_size_s(),
             logging_queue=logging_queue,
@@ -387,15 +393,13 @@ class AcousticModelBaseV2_4(AcousticModelBase):
           ),
           daemon=True,
         )
-        inference_tracker.start()
+        perf_tracker.start()
 
-      backend_kwargs =[self.get_backend_args()
-                       for _ in range(n_jobs)
-      ]
-      
+      backend_kwargs = [self.get_backend_args() for _ in range(n_workers)]
+
       # for i, kwargs in enumerate(backend_kwargs):
       #   kwargs["device"] =kwargs["device"].replace("0", str(i)) # Assign different CPU cores
-        
+
       worker_processes = [
         mp.Process(
           target=ChildWorker(
@@ -429,14 +433,14 @@ class AcousticModelBaseV2_4(AcousticModelBase):
           ),
           daemon=True,
         )
-        for i in range(n_jobs)
+        for i in range(n_workers)
       ]
 
       for w in worker_processes:
         w.start()
 
       consumer = Consumer(
-        n_workers=n_jobs,
+        n_workers=n_workers,
         worker_queue=worker_queue,
         species_tensor=result,
         max_chunk_index=max_chunk_idx_ptr,
@@ -449,146 +453,156 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       for p in producer_processes:
         p.join()
         logger.debug(f"Producer {p.pid} finished.")
-
-      # prod.join()
-      logger.debug("Producer finished.")
+      logger.debug("All producers finished.")
 
       for w in worker_processes:
         w.join()
         logger.debug(f"Worker {w.pid} finished.")
       logger.debug("All workers finished.")
 
+      stop = time.perf_counter()
+      wall_time_s = stop - start
+
       if track_performance:
-        stop = time.perf_counter()
-        stop_time.value = stop
-        stop_event.set()
-        assert inference_tracker is not None
-        assert perf_res is not None
-        inference_tracker.join()
-        perf_result = perf_res.get()
+        assert perf_tracker is not None
+        perf_stop_event.set()
+        perf_tracker.join()
+        logger.debug("Performance tracker finished.")
 
-        wall_time_s = stop - start
+    analyzer_res: dict = analyzer_queue.get()
+    file_durations_s: np.ndarray = analyzer_res["file_durations_s"]
+    tot_n_chunks = analyzer_res["tot_n_chunks"]
+    total_chunks_processed = tot_n_chunks
 
-        analyzer_res: dict = analyzer_queue.get()
-        file_durations_s = analyzer_res["file_durations_s"]
-        max_chunk_index = analyzer_res["max_chunk_index"]
-        tot_n_chunks = analyzer_res["tot_n_chunks"]
+    meta = OrderedDict()
+    # Timestamp
+    meta["date"] = datetime.now().isoformat(timespec="seconds")
+    # Hardware
+    meta["host"] = platform.node()
+    meta["cpu"] = platform.processor()
+    meta["cpu_cores"] = psutil.cpu_count(logical=False)
+    meta["cpu_logical_cores"] = psutil.cpu_count(logical=True)
+    meta["ram_GiB"] = psutil.virtual_memory().total / 1024**3
+    meta["n_producers"] = n_producers
+    meta["n_workers"] = n_workers
+    meta["start_method"] = multiprocessing.get_start_method()
+    meta["device"] = self.get_backend_args().get("device", "cpu")
+    # Software
+    meta["os"] = f"{platform.system()} {platform.release()}"
+    meta["python"] = platform.python_version()
+    meta["birdnet_version"] = importlib.metadata.version("birdnet")
+    # Model
+    meta["model_type"] = AcousticModelBaseV2_4.get_model_type()
+    meta["model_version"] = AcousticModelBaseV2_4.get_version()
+    meta["custom_model"] = self.use_custom_model
+    meta["model_path"] = str(self.model_path.absolute())
+    meta["model_n_species"] = self.n_species
+    # Dataset
+    meta["n_files"] = len(file_paths)
+    meta["tot_file_duration_h"] = file_durations_s.sum() / 60**2
+    meta["avg_audio_duration_min"] = file_durations_s.mean() / 60
+    meta["min_audio_duration_min"] = file_durations_s.min() / 60
+    meta["max_audio_duration_min"] = file_durations_s.max() / 60
+    meta["max_n_chunks"] = max_chunk_idx_ptr.value + 1
+    meta["tot_n_chunks"] = tot_n_chunks
+    # Parameter
+    meta["chunk_s"] = AcousticModelBaseV2_4.get_chunk_size_s()
+    meta["overlap_s"] = overlap_duration_s
+    meta["batch_size"] = batch_size
+    meta["top_k"] = top_k
+    meta["n_slots_factor"] = n_slots_factor
+    meta["ringsize"] = n_slots
+    meta["apply_sigmoid"] = apply_sigmoid
+    meta["sigmoid_sensitivity"] = sigmoid_sensitivity if apply_sigmoid else None
+    meta["use_bandpass"] = use_bandpass
+    meta["bandpass_fmin"] = bandpass_fmin
+    meta["bandpass_fmax"] = bandpass_fmax
+    meta["half_precision"] = half_precision
+    meta["default_confidence_threshold"] = default_confidence_threshold
+    meta["n_custom_species"] = len(custom_species_list) if custom_species_list else 0
+    meta["n_custom_confidence_thresholds"] = (
+      len(custom_confidence_thresholds) if custom_confidence_thresholds else 0
+    )
 
-        total_chunks_processed = perf_result["total_chunks_processed"]
-        cpu_time_s = perf_result["summed_prediction_duration_s"]
-        memory_usages_mb = perf_result["memory_usages_mb"]
-        cpu_usages_pct = perf_result["cpu_usages_pct"]
-        free_slots = perf_result["free_slots"]
-        filled_slots = perf_result["filled_slots"]
-        busy_slots = perf_result["busy_slots"]
-        preloaded_slots = perf_result["preloaded_slots"]
-        ramp_up_time_until_first_pred_s = perf_result["ramp_up_time_until_first_pred_s"]
+    pc_chunks_per_s = total_chunks_processed / wall_time_s
+    pc_audio_min_per_s = pc_chunks_per_s * AcousticModelBaseV2_4.get_chunk_size_s() / 60
+    # samples_per_second = (
+    #   AcousticModelBaseV2_4.get_chunk_size_samples() * pc_chunks_per_s
+    # )
 
-        model_pred_ms_per_chunk = cpu_time_s / total_chunks_processed * 1000
-        pc_chunks_per_s = total_chunks_processed / wall_time_s
-        pc_audio_min_per_s = (
-          pc_chunks_per_s * AcousticModelBaseV2_4.get_chunk_size_s() / 60
-        )
-        n_files = len(file_paths)
+    meta["rampup_first_line_s"] = ramp_up_here
+    meta["wall_time_s"] = wall_time_s
+    meta["cpu_time_s"] = None
+    meta["rampup_time_s"] = None
+    meta["model_pred_ms_per_chunk"] = None
+    meta["pc_chunks_per_s"] = pc_chunks_per_s
+    meta["pc_audio_min_per_s"] = pc_audio_min_per_s
+    meta["result_memory_usage_MiB"] = result.memory_usage_mb
+    meta["n_usage_recordings"] = None
+    meta["max_memory_usages_MiB"] = None
+    meta["avg_memory_usage_MiB"] = None
+    meta["max_cpu_usages_pct"] = None
+    meta["avg_cpu_usage_pct"] = None
+    meta["avg_free_slots"] = None
+    meta["avg_filled_slots"] = None
+    meta["avg_busy_slots"] = None
+    meta["avg_preloaded_slots"] = None
 
-        meta = OrderedDict()
-        # Timestamp
-        meta["date"] = datetime.now().isoformat(timespec="seconds")
-        # Hardware
-        meta["host"] = platform.node()
-        meta["cpu"] = platform.processor()
-        meta["cpu_cores"] = psutil.cpu_count(logical=False)
-        meta["cpu_logical_cores"] = psutil.cpu_count(logical=True)
-        meta["ram_GiB"] = psutil.virtual_memory().total / 1024**3
-        meta["n_jobs"] = n_jobs
-        meta["start_method"] = multiprocessing.get_start_method()
-        # Software
-        meta["os"] = f"{platform.system()} {platform.release()}"
-        meta["python"] = platform.python_version()
-        meta["birdnet"] = "2.0.0"
-        # Model
-        meta["model_type"] = "tf"
-        meta["model_version"] = "2.4"
-        meta["custom_model"] = self.use_custom_model
-        meta["model_path"] = str(self.model_path.absolute())
-        meta["model_n_species"] = self.n_species
-        # Dataset
-        meta["n_files"] = len(file_paths)
-        meta["tot_file_duration_h"] = sum(file_durations_s) / 60**2
-        # meta["max_chunk_index"] = max_chunk_index
-        meta["max_n_chunks"] = max_chunk_idx_ptr.value + 1
-        meta["tot_n_chunks"] = tot_n_chunks
-        # Parameter
-        meta["chunk_s"] = AcousticModelBaseV2_4.get_chunk_size_s()
-        meta["overlap_s"] = overlap_duration_s
-        meta["batch_size"] = batch_size
-        meta["top_k"] = top_k
-        # meta["n_slots_factor"] = n_slots_factor
-        meta["ringsize"] = n_slots
-        meta["apply_sigmoid"] = apply_sigmoid
-        meta["sigmoid_sensitivity"] = sigmoid_sensitivity if apply_sigmoid else None
-        meta["use_bandpass"] = use_bandpass
-        meta["bandpass_fmin"] = bandpass_fmin
-        meta["bandpass_fmax"] = bandpass_fmax
-        meta["half_precision"] = half_precision
-        meta["default_confidence_threshold"] = default_confidence_threshold
-        meta["n_custom_species"] = (
-          len(custom_species_list) if custom_species_list else 0
-        )
-        meta["n_custom_confidence_thresholds"] = (
-          len(custom_confidence_thresholds) if custom_confidence_thresholds else 0
-        )
-        # Metrics
-        meta["rampup_first_line_s"] = ramp_up_here
-        meta["max_audio_duration_min"] = -1  # TODO
-        meta["wall_time_s"] = wall_time_s
-        meta["cpu_time_s"] = cpu_time_s
-        meta["rampup_time_s"] = ramp_up_time_until_first_pred_s
-        meta["n_chunks_processed"] = total_chunks_processed
-        meta["model_pred_ms_per_chunk"] = model_pred_ms_per_chunk
-        meta["pc_chunks_per_s"] = pc_chunks_per_s
-        meta["pc_audio_min_per_s"] = pc_audio_min_per_s
-        meta["result_memory_usage_MiB"] = result.memory_usage_mb
-        assert len(memory_usages_mb) == len(cpu_usages_pct)
-        n_usage_recordings = len(memory_usages_mb)
-        meta["n_usage_recordings"] = n_usage_recordings
-        meta["max_memory_usages_MiB"] = max(memory_usages_mb, default=np.nan)
-        meta["avg_memory_usage_MiB"] = (
-          sum(memory_usages_mb) / len(memory_usages_mb)
-          if len(memory_usages_mb) > 0
-          else np.nan
-        )
-        meta["max_cpu_usages_pct"] = max(cpu_usages_pct, default=np.nan)
-        meta["avg_cpu_usage_pct"] = (
-          sum(cpu_usages_pct) / len(cpu_usages_pct)
-          if len(cpu_usages_pct) > 0
-          else np.nan
-        )
-        meta["avg_free_slots"] = (
-          sum(free_slots) / len(free_slots) if len(free_slots) > 0 else np.nan
-        )
-        meta["avg_filled_slots"] = (
-          sum(filled_slots) / len(filled_slots) if len(filled_slots) > 0 else np.nan
-        )
-        meta["avg_busy_slots"] = (
-          sum(busy_slots) / len(busy_slots) if len(busy_slots) > 0 else np.nan
-        )
-        meta["avg_preloaded_slots"] = (
-          sum(preloaded_slots) / len(preloaded_slots)
-          if len(preloaded_slots) > 0
-          else np.nan
-        )
+    if track_performance:
+      assert perf_res is not None
+      perf_result = perf_res.get()
+      total_chunks_processed = perf_result["total_chunks_processed"]
+      cpu_time_s = perf_result["summed_prediction_duration_s"]
+      memory_usages_mb = perf_result["memory_usages_mb"]
+      cpu_usages_pct = perf_result["cpu_usages_pct"]
+      free_slots = perf_result["free_slots"]
+      filled_slots = perf_result["filled_slots"]
+      busy_slots = perf_result["busy_slots"]
+      preloaded_slots = perf_result["preloaded_slots"]
+      ramp_up_time_until_first_pred_s = perf_result["ramp_up_time_until_first_pred_s"]
+      model_pred_ms_per_chunk = cpu_time_s / total_chunks_processed * 1000
 
-        meta_out = Path(tempfile.gettempdir()) / "meta.json"
-        with open(meta_out, "w", encoding="utf8") as f:
-          json.dump(meta, f, indent=2, ensure_ascii=False)
-        meta_df_out = Path(tempfile.gettempdir()) / "meta.csv"
-        meta_df = pd.DataFrame.from_records([meta])
-        meta_df.to_csv(
-          meta_df_out, mode="a", header=not meta_df_out.exists(), index=False
-        )
-        logger.info(f"Meta data JSON written to: {meta_out.absolute()}")
-        logger.info(f"Meta data CSV written to: {meta_df_out.absolute()}")
+      # Metrics
+      meta["cpu_time_s"] = cpu_time_s
+      meta["rampup_time_s"] = ramp_up_time_until_first_pred_s
+      meta["n_chunks_processed"] = total_chunks_processed
+      meta["model_pred_ms_per_chunk"] = model_pred_ms_per_chunk
+      assert len(memory_usages_mb) == len(cpu_usages_pct)
+      n_usage_recordings = len(memory_usages_mb)
+      meta["n_usage_recordings"] = n_usage_recordings
+      meta["max_memory_usages_MiB"] = max(memory_usages_mb, default=np.nan)
+      meta["avg_memory_usage_MiB"] = (
+        sum(memory_usages_mb) / len(memory_usages_mb)
+        if len(memory_usages_mb) > 0
+        else np.nan
+      )
+      meta["max_cpu_usages_pct"] = max(cpu_usages_pct, default=np.nan)
+      meta["avg_cpu_usage_pct"] = (
+        sum(cpu_usages_pct) / len(cpu_usages_pct) if len(cpu_usages_pct) > 0 else np.nan
+      )
+      meta["avg_free_slots"] = (
+        sum(free_slots) / len(free_slots) if len(free_slots) > 0 else np.nan
+      )
+      meta["avg_filled_slots"] = (
+        sum(filled_slots) / len(filled_slots) if len(filled_slots) > 0 else np.nan
+      )
+      meta["avg_busy_slots"] = (
+        sum(busy_slots) / len(busy_slots) if len(busy_slots) > 0 else np.nan
+      )
+      meta["avg_preloaded_slots"] = (
+        sum(preloaded_slots) / len(preloaded_slots)
+        if len(preloaded_slots) > 0
+        else np.nan
+      )
+
+    meta_out = Path(tempfile.gettempdir()) / "meta.json"
+    with open(meta_out, "w", encoding="utf8") as f:
+      json.dump(meta, f, indent=2, ensure_ascii=False)
+    meta_df_out = Path(tempfile.gettempdir()) / "meta.csv"
+    meta_df = pd.DataFrame.from_records([meta])
+    meta_df.to_csv(meta_df_out, mode="a", header=not meta_df_out.exists(), index=False)
+    logger.info(f"Meta data JSON written to: {meta_out.absolute()}")
+    logger.info(f"Meta data CSV written to: {meta_df_out.absolute()}")
 
     logging_queue.put_nowait(None)
     logging_listener.join()

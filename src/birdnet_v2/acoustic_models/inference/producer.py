@@ -84,7 +84,6 @@ class ChildProducer(bn_logging.LogableProcessBase):
     slot_ptr: mp.Value,
     batch_size: int,
     n_slots: int,
-    n_jobs: int,
     rf_file_indices: RingField,
     rf_chunk_indices: RingField,
     rf_audio_samples: RingField,
@@ -112,7 +111,6 @@ class ChildProducer(bn_logging.LogableProcessBase):
     self.overlap_duration_s = overlap_duration_s
     self.target_sample_rate = target_sample_rate
     self._batch_size = batch_size
-    self._n_jobs = n_jobs
     self._n_slots = n_slots
     self._sem_free_slots = sem_free_slots
     self._sem_filled_slots = sem_filled_slots

@@ -2,10 +2,9 @@ from pathlib import Path
 from typing import final
 
 import numpy as np
-# 
 
+#
 from birdnet_v2.acoustic_models.base import AcousticInferenceBackend
-
 
 
 class AcousticTFBackend(AcousticInferenceBackend):
@@ -18,9 +17,9 @@ class AcousticTFBackend(AcousticInferenceBackend):
     self._cached_shape: tuple[int, ...] | None = None
 
   @final
-  def lazy_load(self) -> None:
+  def lazy_load(self, logical_device_name: str) -> None:
     assert self._interp is None
-    
+
     from tensorflow.lite.python import interpreter as tflite
 
     # memory_map not working for TF 2.15.1:

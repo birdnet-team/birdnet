@@ -7,6 +7,7 @@ from typing import Literal, overload
 
 import numpy as np
 
+from birdnet_v2.acoustic_models.v2_4.base import AcousticModelBaseV2_4
 from birdnet_v2.acoustic_models.v2_4.pb import AcousticPBModelV2_4
 from birdnet_v2.acoustic_models.v2_4.tf import AcousticTFModelV2_4
 from birdnet_v2.base import (
@@ -146,9 +147,8 @@ if __name__ == "__main__":
   # set_start_method("forkserver", force=True) # Linux, macOS
   set_start_method("fork", force=True)  # Linux, macOS
   # set_start_method("spawn", force=True)  # Windows
-    
-  os.environ["TF_CPP_MIN_LOG_LEVEL"] = "0"      # sämtliche TF-Logs
 
+  os.environ["TF_CPP_MIN_LOG_LEVEL"] = "0"  # sämtliche TF-Logs
 
   # faulthandler.enable(file=sys.stderr, all_threads=True)
   logging.basicConfig(
@@ -180,18 +180,14 @@ if __name__ == "__main__":
   # model = load("acoustic/v2.4")
   # model = load("geo/v2.4+tf@cpu")
   # os.environ["CUDA_VISIBLE_DEVICES"] = ""
-    
+
   # 1) Device-Logs deaktivieren
   # tf.debugging.set_log_device_placement(False)
 
   # 2) C++-Logger auf WARN oder ERROR stellen
-  os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"   # 0=alle, 1=INFO, 2=WARNING, 3=ERROR
+  os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"  # 0=alle, 1=INFO, 2=WARNING, 3=ERROR
   # tf.get_logger().setLevel("WARNING")        # Python-Logger ebenfalls drosseln
-  
-  model = load(device="cpu", lang_id="de")
-  model = load(backend="pb", device="gpu:0")
-  model = load(backend="pb", device="cpu")
-  model = load()
+
   # model = load_custom_model("acoustic/v2.4+pb@cpu", custom_species_list="..")
 
   # model.use_custom_model(model_path, custom_species_list="..")
@@ -210,7 +206,6 @@ if __name__ == "__main__":
     Path("src/birdnet_tests/test_files/soundscape.wav"),
     # Path("src/birdnet_tests/test_files/soundscape.flac"),
   ]
-  audio_paths = [Path("test-dataset/test_dataset_1x60min/0.wav")]
 
   """Gibt eine Liste der Pfade zu den Dateien im Zielverzeichnis zurück."""
   audio_paths = [Path("example/soundscape.wav")]
@@ -219,47 +214,72 @@ if __name__ == "__main__":
   audio_paths.extend(list(Path("test-dataset/HSN copy").glob("**/*.flac")))
   audio_paths.extend(list(Path("test-dataset/LARGE").glob("**/*.wav")))
   audio_paths.extend(list(Path("test-dataset/LARGE").glob("**/*.WAV")))
-  
+
   audio_paths = list(Path("test-dataset/test_dataset_100x60min").glob("**/*.wav"))
   audio_paths = list(Path("test-dataset/test_dataset_200x60min").glob("**/*.wav"))
-  audio_paths = list(Path("/home/mi/sttau/test-datasets/test_dataset_1000x60min").glob("**/*.wav"))
+  audio_paths = list(
+    Path("/home/mi/sttau/test-datasets/test_dataset_1000x60min").glob("**/*.wav")
+  )
   params_1000h_3gpu = {
-    "n_jobs": 3,
-    "n_prods": 10,
+    "n_workers": 3,
+    "n_producers": 10,
     "batch_size": 1000,
     "n_slots_factor": 4,
   }
-  
-  audio_paths = list(Path("/home/mi/sttau/test-datasets/test_dataset_100x60min").glob("**/*.wav"))
+
+  audio_paths = list(
+    Path("/home/mi/sttau/test-datasets/test_dataset_100x60min").glob("**/*.wav")
+  )
   params_100h_48cpu = {
-    "n_jobs": 45,
-    "n_prods": 3,
+    "n_workers": 45,
+    "n_producers": 3,
     "batch_size": 1,
     "n_slots_factor": 2,
   }
-  res_100h_4cpu = 'inference speed: 69 ms/chunk; 636 chunks/s; 31.81 min/s; memory usage: 27010.21 MiB; CPU usage: 50.7%; prel: 45; free: 0; busy: 45; fill: 90; progress: 99.53%; remaining: 0:00:01'
+  res_100h_4cpu = "inference speed: 69 ms/chunk; 636 chunks/s; 31.81 min/s; memory usage: 27010.21 MiB; CPU usage: 50.7%; prel: 45; free: 0; busy: 45; fill: 90; progress: 99.53%; remaining: 0:00:01"
   params = params_100h_48cpu
-  audio_paths = list(Path("/home/mi/sttau/test-datasets/test_dataset_1000x60min").glob("**/*.wav"))
+  audio_paths = list(
+    Path("/home/mi/sttau/test-datasets/test_dataset_1000x60min").glob("**/*.wav")
+  )
   params_1000h_4cpu = {
-    "n_jobs": 3,
-    "n_prods": 1,
+    "n_workers": 3,
+    "n_producers": 1,
     "batch_size": 1,
     "n_slots_factor": 4,
   }
-  
+
   params_1000h_48cpu = {
-    "n_jobs": 45,
-    "n_prods": 3,
+    "n_workers": 45,
+    "n_producers": 3,
     "batch_size": 1,
     "n_slots_factor": 4,
   }
   params = params_1000h_48cpu
-  
+  audio_paths = [
+    Path("src/birdnet_tests/test_files/soundscape.wav"),
+    Path("test-dataset/test_dataset_1x60min/0.wav"),
+  ]
+  params = {
+    "n_workers": 11,
+    "n_producers": 1,
+    "batch_size": 1,
+    "n_slots_factor": 2,
+    "backend": "tf",
+    "device": "cpu",
+  }
+
+  # model = load(device="cpu", lang_id="de")
+  # model = load(backend="pb", device="gpu:0")
+  model: AcousticModelBaseV2_4 = load(
+    backend=params["backend"], device=params["device"]
+  )
+  # model = load()
+
   start = time.perf_counter()
   result = model.analyze(
     audio_paths,
-    n_jobs=params["n_jobs"],
-    n_prods=params["n_prods"],
+    n_workers=params["n_workers"],
+    n_producers=params["n_producers"],
     batch_size=params["batch_size"],
     n_slots_factor=params["n_slots_factor"],
     apply_sigmoid=False,
@@ -267,7 +287,7 @@ if __name__ == "__main__":
     overlap_duration_s=0,
     sigmoid_sensitivity=1,
     default_confidence_threshold=-np.inf,
-    track_performance=True,
+    track_performance=False,
     half_precision=True,
     custom_confidence_thresholds={
       "Junco hyemalis_Dark-eyed Junco": -np.inf,

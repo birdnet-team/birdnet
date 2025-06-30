@@ -1,7 +1,6 @@
 # birdnet_batch_inference.py – raw‑audio version
 from __future__ import annotations
 
-
 # You'll need these imports in your own code
 import datetime
 import math
@@ -13,7 +12,6 @@ from collections import Counter, deque
 from multiprocessing import shared_memory
 
 # Next two import lines for this demo only
-
 import numpy as np
 import psutil
 import soundfile as sf  # pip install soundfile
@@ -21,7 +19,6 @@ import soundfile as sf  # pip install soundfile
 # try:
 #   import tflite_runtime.interpreter as tflite
 # except ImportError:  # fallback to full TF (heavier)
-
 import birdnet_v2.logging_utils as bn_logging
 from birdnet_v2.globals import READABLE_FLAG, READING_FLAG, WRITABLE_FLAG
 from birdnet_v2.helper import (
@@ -38,7 +35,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     print_interval: float,
     print_last_n: int,
     start: float,
-    stop_time: mp.RawValue,
     logging_queue: mp.Queue,
     logging_level: int,
     perf_res: mp.SimpleQueue,
@@ -64,7 +60,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._summed_pred_duration = 0.0
     self._start = start
     self._chunk_size_s = chunk_size_s
-    self._stop_time = stop_time
     self._parent_process_id = parent_process_id
     self._print_every = print_interval
     self._rf_flags = rf_flags
@@ -90,7 +85,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       processing_finished = self._stop_event.is_set()
       queue_is_empty = self._pred_dur_queue.empty()
       if processing_finished:
-        stop = self._stop_time.value
         if queue_is_empty:
           # TODO print again final stats
           break
@@ -189,14 +183,10 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         print(output_msg, file=sys.stdout)
 
         self._next_print = now + self._print_every
-    assert stop is not None
-    total_duration = stop - self._start
-    self._logger.info(f"Total processing time: {total_duration:.2f} s")
 
     stats = {}
     stats["total_chunks_processed"] = self._total_chunks_processed
     stats["summed_prediction_duration_s"] = self._summed_pred_duration
-    stats["total_duration_s"] = total_duration
     stats["ramp_up_time_until_first_pred_s"] = ramp_up_time_until_first_pred
     stats["memory_usages_mb"] = memory_usages
     stats["cpu_usages_pct"] = cpu_usages

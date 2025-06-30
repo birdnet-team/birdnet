@@ -3,6 +3,9 @@ import multiprocessing as mp
 from pathlib import Path
 from typing import List
 
+import numpy as np
+from ordered_set import OrderedSet
+
 import birdnet_v2.logging_utils as bn_logging
 from birdnet_v2.acoustic_models.inference.producer import get_audio_duration_s
 from birdnet_v2.helper import (
@@ -15,7 +18,7 @@ from birdnet_v2.helper import (
 class FilesAnalyzer(bn_logging.LogableProcessBase):
   def __init__(
     self,
-    files: List[Path],
+    files: OrderedSet[Path],
     logging_queue: mp.Queue,
     logging_level: int,
     chunk_duration_s: float,
@@ -62,8 +65,7 @@ class FilesAnalyzer(bn_logging.LogableProcessBase):
         self._max_chunk_idx_ptr.value = current_max_chunk_index
     self._tot_n_chunks.value = n_chunks
     res = {}
-    res["file_durations_s"] = durations
-    res["max_chunk_index"] = current_max_chunk_index
+    res["file_durations_s"] = np.array(durations)
     res["tot_n_chunks"] = n_chunks
     self._analyzing_result.put(res)
     self._logger.info(f"Total duration of all files: {sum(durations) / 60**2:.2f} h.")
