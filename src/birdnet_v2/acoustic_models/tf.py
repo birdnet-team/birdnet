@@ -1,3 +1,7 @@
+import contextlib
+import io
+import logging
+import os
 from pathlib import Path
 from typing import Any, final
 
@@ -19,34 +23,61 @@ class AcousticTFBackend(AcousticInferenceBackend):
   def lazy_load(self, device_name: str) -> None:
     assert self._interp is None
 
+    if "CPU" not in device_name:
+      raise ValueError("TensorFlow models can only be loaded on CPU!")
+
+    import absl.logging as absl_logging
+
+    absl_verbosity_before = absl_logging.get_verbosity()
+    absl_logging.set_verbosity(absl_logging.ERROR)
+    absl_logging.set_stderrthreshold("error")
+    tf_verbosity_before = logging.getLogger("tensorflow").level
+    logging.getLogger("tensorflow").setLevel(logging.WARNING)
+    os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+
     from tensorflow.lite.python import interpreter as tflite
 
     # memory_map not working for TF 2.15.1:
     # f = open(self._model_path, "rb")
     # self._mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
     interp = tflite.Interpreter(self._model_path, num_threads=1)
+
     interp.allocate_tensors()
     self._interp = interp
     self._in_idx = interp.get_input_details()[0]["index"]
     self._out_idx = interp.get_output_details()[0]["index"]
 
+    # self._in_view = self._interp.tensor(self._in_idx)()[0]
+
+    absl_logging.set_verbosity(absl_verbosity_before)
+    logging.getLogger("tensorflow").setLevel(tf_verbosity_before)
+
+    # tf.random.set_seed(0)
+
   def _set_tensor(self, batch: np.ndarray):
+    from tensorflow.lite.python.interpreter import Interpreter
+
     assert self._interp is not None
     assert batch.flags["C_CONTIGUOUS"]
     assert batch.ndim == 2
+    interpr: Interpreter = self._interp
 
     shape = batch.shape
     if self._cached_shape != shape:
-      self._interp.resize_tensor_input(self._in_idx, shape, strict=True)
-      self._interp.allocate_tensors()
+      interpr.resize_tensor_input(self._in_idx, shape, strict=True)
+      interpr.allocate_tensors()
       self._cached_shape = shape
-    self._interp.set_tensor(self._in_idx, batch)
+    # self._in_view[:n, :] = batch
+    interpr.set_tensor(self._in_idx, batch)
 
   @final
   def infer(self, batch: np.ndarray) -> np.ndarray:
+    from tensorflow.lite.python.interpreter import Interpreter
+
     assert self._interp is not None
+    interpr: Interpreter = self._interp
     self._set_tensor(batch)
-    self._interp.invoke()
-    res: np.ndarray = self._interp.get_tensor(self._out_idx)
+    interpr.invoke()
+    res: np.ndarray = interpr.get_tensor(self._out_idx)
     assert res.dtype == np.float32
     return res

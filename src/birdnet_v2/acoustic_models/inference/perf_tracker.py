@@ -53,8 +53,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._perf_res = perf_res
     self._pred_dur_queue = pred_dur_queue
     self._n_last = print_last_n
-    self._pred_dur_deque = deque(maxlen=print_last_n)
-    self._batch_sizes_deque = deque(maxlen=print_last_n)
+    self._pred_dur_deque = deque(maxlen=self._n_last)
+    self._batch_sizes_deque = deque(maxlen=self._n_last)
     self._update_every = update_interval
     self._stop_event = stop_event
     self._next_print = time.time()
@@ -77,12 +77,22 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     perf_duration = 0
     ramp_up_time_until_first_pred = None
     parent_process = psutil.Process(self._parent_process_id)
-    cpu_usages = []
-    memory_usages = []
-    free_slots = []
-    filled_slots = []
-    busy_slots = []
-    preloaded_slots = []
+    float_max_memory_usage = 0
+    float_avg_memory_usage = 0
+    float_avg_cpu_usage = 0
+    float_max_cpu_usage = 0
+    float_avg_free_slots = 0
+    float_max_free_slots = 0
+    float_avg_filled_slots = 0
+    float_avg_busy_slots = 0
+    float_avg_preloaded_slots = 0
+
+    cpu_usages = deque(maxlen=self._n_last)
+    memory_usages = deque(maxlen=self._n_last)
+    free_slots = deque(maxlen=self._n_last)
+    filled_slots = deque(maxlen=self._n_last)
+    busy_slots = deque(maxlen=self._n_last)
+    preloaded_slots = deque(maxlen=self._n_last)
 
     cancel = False
     while True:
@@ -111,10 +121,10 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       now = time.time()
 
       if now >= self._next_update:
-        memory_usage = parent_process.memory_info().rss
+        memory_usage = parent_process.memory_full_info().uss
         for child in parent_process.children(recursive=True):
           try:
-            memory_usage += child.memory_info().rss
+            memory_usage += child.memory_full_info().uss
           except psutil.NoSuchProcess:
             continue
 
@@ -148,12 +158,10 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
         cpu_usage = psutil.cpu_percent()
 
-        avg_preloaded_slots = (
-          np.mean(preloaded_slots[-self._n_last :]) if preloaded_slots else 0
-        )
-        avg_free_slots = np.mean(free_slots[-self._n_last :]) if free_slots else 0
-        avg_filled_slots = np.mean(filled_slots[-self._n_last :]) if filled_slots else 0
-        avg_busy_slots = np.mean(busy_slots[-self._n_last :]) if busy_slots else 0
+        avg_preloaded_slots = np.mean(preloaded_slots) if preloaded_slots else 0
+        avg_free_slots = np.mean(free_slots) if free_slots else 0
+        avg_filled_slots = np.mean(filled_slots) if filled_slots else 0
+        avg_busy_slots = np.mean(busy_slots) if busy_slots else 0
 
         output_msg_fields = [
           f"inference speed: {self._summed_pred_duration / self._total_chunks_processed * 1000:.0f} ms/chunk",

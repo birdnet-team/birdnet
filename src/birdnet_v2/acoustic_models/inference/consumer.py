@@ -30,13 +30,14 @@ class Consumer:
     while finished_workers < self._n_workers:
       cancel = False
       data = None
-      try:
-        data = self._queue.get(timeout=1.0)
-        break
-      except Empty:
-        if self._cancel_event.is_set():
-          cancel = True
+      while True:
+        try:
+          data = self._queue.get(timeout=1.0)
           break
+        except Empty:
+          if self._cancel_event.is_set():
+            cancel = True
+            break
 
       if self._cancel_event.is_set():
         cancel = True
@@ -44,6 +45,8 @@ class Consumer:
       if cancel:
         self._logger.debug("CONSUMER - Cancel event set. Exiting.")
         break
+
+      assert data is not None
 
       got_stop_signal_from_worker = data is None
       if got_stop_signal_from_worker:

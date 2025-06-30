@@ -21,7 +21,6 @@ from ordered_set import OrderedSet
 #   import tflite_runtime.interpreter as tflite
 # except ImportError:  # fallback to full TF (heavier)
 # from tensorflow.lite.python import interpreter as tflite
-
 from birdnet.utils import download_file_tqdm, get_species_from_file
 from birdnet_v2.acoustic_models.base import AcousticInferenceBackend
 from birdnet_v2.acoustic_models.tf import AcousticTFBackend
@@ -158,19 +157,17 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
   def get_backend_args(self) -> dict:
     return {
       "model_path": self.model_path,
-      }
+    }
 
-  def get_backend_type(self) -> type[AcousticInferenceBackend]: 
+  def get_backend_type(self) -> type[AcousticInferenceBackend]:
     return AcousticTFBackend
-  
+
   @classmethod
   def load_official(cls, lang_id: str) -> AcousticTFModelV2_4:
     result = cls.__new__(cls)
     result.__init__()
     result._load_official_model(lang_id)
     return result
-  
-  
 
   def _load_official_model(self, lang_id: str) -> None:
     self._model_path, self._species_list = (

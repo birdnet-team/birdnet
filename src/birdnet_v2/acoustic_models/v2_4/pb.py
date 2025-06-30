@@ -141,20 +141,18 @@ class AcousticPBDownloaderV2_4:
 
 
 class AcousticPBModelV2_4(AcousticModelBaseV2_4):
-  def __init__(self, device_name: str) -> None:
-    self._device_name = device_name
+  def __init__(self) -> None:
     super().__init__()
 
   def get_backend_instance(self) -> AcousticInferenceBackend:
-    return AcousticPBBackend(self.model_path, self._device_name)
-  
+    return AcousticPBBackend(self.model_path)
+
   def get_backend_type(self) -> type[AcousticInferenceBackend]:
     return AcousticPBBackend
 
   def get_backend_args(self) -> dict:
     return {
       "model_path": self.model_path,
-      "device": self._device_name,
     }
 
   @classmethod
@@ -163,10 +161,10 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
     return MODEL_BACKEND_PB
 
   @classmethod
-  def load_official(cls, lang_id: str, device: str) -> AcousticPBModelV2_4:
+  def load_official(cls, lang_id: str) -> AcousticPBModelV2_4:
     # result = cls.__new__(cls)
     # result.__init__(device)
-    result = AcousticPBModelV2_4(device)
+    result = AcousticPBModelV2_4()
     result._load_official_model(lang_id)
     return result
 
@@ -193,6 +191,7 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
 
     try:
       import tensorflow as tf
+
       tf.saved_model.load(model_path)
     except ValueError as e:
       raise ValueError(

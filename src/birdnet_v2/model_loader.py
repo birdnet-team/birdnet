@@ -36,7 +36,6 @@ def load(  # type: ignore
   model_type: Literal["acoustic"] = ...,
   version: Literal["2.4"] = ...,
   backend: Literal["tf"] = ...,
-  device: str = ...,
   lang_id: str = ...,
 ) -> AcousticTFModelV2_4: ...
 
@@ -79,7 +78,6 @@ def load(
   model_type: MODEL_TYPES = MODEL_TYPE_ACOUSTIC,
   version: MODEL_VERSIONS = MODEL_VERSION_V2_4,
   backend: MODEL_BACKENDS = MODEL_BACKEND_TF,
-  device: str = "CPU",
   lang_id: str = "en_us",
 ):
   # import tensorflow as tf
@@ -100,12 +98,10 @@ def load(
   if model_type == MODEL_TYPE_ACOUSTIC:
     if version == MODEL_VERSION_V2_4:
       if backend == MODEL_BACKEND_TF:
-        if "CPU" not in device.lower():
-          raise ValueError("TF models can only be loaded on CPU!")
         return AcousticTFModelV2_4.load_official(lang_id)
       else:
         assert backend == MODEL_BACKEND_PB
-        return AcousticPBModelV2_4.load_official(lang_id, device)
+        return AcousticPBModelV2_4.load_official(lang_id)
     raise AssertionError()
   else:
     assert model_type == MODEL_TYPE_GEO
@@ -123,13 +119,10 @@ def load_custom(
   model_type: MODEL_TYPES = MODEL_TYPE_ACOUSTIC,
   version: MODEL_VERSIONS = MODEL_VERSION_V2_4,
   backend: MODEL_BACKENDS = MODEL_BACKEND_TF,
-  device: Literal["CPU", "GPU"] = "CPU",
 ):
   if model_type == MODEL_TYPE_ACOUSTIC:
     if version == MODEL_VERSION_V2_4:
       if backend == MODEL_BACKEND_TF:
-        if device != "CPU":
-          raise ValueError("TF models can only be loaded on CPU!")
         return AcousticTFModelV2_4.load_custom(model_path, species_list)
       else:
         assert backend == MODEL_BACKEND_PB
@@ -149,7 +142,7 @@ if __name__ == "__main__":
   set_start_method("fork", force=True)  # Linux, macOS
   # set_start_method("spawn", force=True)  # Windows
 
-  os.environ["TF_CPP_MIN_LOG_LEVEL"] = "0"  # sämtliche TF-Logs
+  # os.environ["TF_CPP_MIN_LOG_LEVEL"] = "0"  # sämtliche TF-Logs
 
   # faulthandler.enable(file=sys.stderr, all_threads=True)
   logging.basicConfig(
@@ -212,12 +205,6 @@ if __name__ == "__main__":
   audio_paths = [Path("test-dataset/test_dataset_1x10min/0.wav")]
 
   audio_paths = [
-    Path("test-dataset/test_dataset_4x60min/0.wav"),
-    Path("test-dataset/test_dataset_4x60min/1.wav"),
-    Path("test-dataset/test_dataset_4x60min/2.wav"),
-    Path("test-dataset/test_dataset_4x60min/3.wav"),
-  ]
-  audio_paths = [
     Path("src/birdnet_tests/test_files/soundscape.wav"),
     # Path("src/birdnet_tests/test_files/soundscape.flac"),
   ]
@@ -270,10 +257,6 @@ if __name__ == "__main__":
     "n_slots_factor": 4,
   }
   params = params_1000h_48cpu
-  audio_paths = [
-    Path("src/birdnet_tests/test_files/soundscape.wav"),
-    # Path("test-dataset/test_dataset_1x60min/0.wav"),
-  ]
   params = {
     "n_workers": 11,
     "n_producers": 1,
@@ -284,19 +267,27 @@ if __name__ == "__main__":
   }
 
   params = {
-    "n_workers": 1,
+    "n_workers": 11,
     "n_producers": 1,
     "batch_size": 1,
     "n_slots_factor": 2,
-    "backend": "pb",
+    "backend": "tf",
     "device": "CPU",
   }
 
+  audio_paths = [
+    Path("test-dataset/test_dataset_4x60min/0.wav"),
+    Path("test-dataset/test_dataset_4x60min/1.wav"),
+    Path("test-dataset/test_dataset_4x60min/2.wav"),
+    Path("test-dataset/test_dataset_4x60min/3.wav"),
+  ]
+  audio_paths = [
+    Path("src/birdnet_tests/test_files/soundscape.wav"),
+    Path("test-dataset/test_dataset_1x60min/0.wav"),
+  ]
   # model = load(device="CPU", lang_id="de")
   # model = load(backend="pb", device="gpu:0")
-  model: AcousticModelBaseV2_4 = load(
-    backend=params["backend"], device=params["device"]
-  )
+  model: AcousticModelBaseV2_4 = load(backend=params["backend"])
   # model = load()
 
   start = time.perf_counter()
