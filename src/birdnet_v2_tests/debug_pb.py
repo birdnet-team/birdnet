@@ -1,4 +1,3 @@
-from pathlib import Path
 import numpy as np, tensorflow as tf, time, os
 
 from birdnet_v2.local_data import get_local_model_root_dir

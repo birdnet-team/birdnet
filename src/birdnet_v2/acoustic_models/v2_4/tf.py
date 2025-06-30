@@ -151,16 +151,16 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
   def get_backend(cls) -> MODEL_BACKENDS:
     return MODEL_BACKEND_TF
 
-  def get_backend_instance(self) -> AcousticInferenceBackend:
-    return AcousticTFBackend(self.model_path)
+  @classmethod
+  @final
+  def get_backend_type(cls) -> type[AcousticInferenceBackend]:
+    return AcousticTFBackend
 
+  @final
   def get_backend_args(self) -> dict:
     return {
       "model_path": self.model_path,
     }
-
-  def get_backend_type(self) -> type[AcousticInferenceBackend]:
-    return AcousticTFBackend
 
   @classmethod
   def load_official(cls, lang_id: str) -> AcousticTFModelV2_4:

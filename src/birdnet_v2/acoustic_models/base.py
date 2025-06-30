@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Any
 
 import numpy as np
 
@@ -18,11 +17,9 @@ class AcousticModelBase(ModelBase):
   def __init__(self) -> None:
     super().__init__()
 
+  @classmethod
   @abstractmethod
-  def get_backend_instance(self) -> AcousticInferenceBackend: ...
-
-  @abstractmethod
-  def get_backend_type(self) -> type[AcousticInferenceBackend]: ...
+  def get_backend_type(cls) -> type[AcousticInferenceBackend]: ...
 
   @abstractmethod
   def get_backend_args(self) -> dict: ...

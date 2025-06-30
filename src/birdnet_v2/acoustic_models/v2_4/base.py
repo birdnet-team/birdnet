@@ -45,7 +45,7 @@ from birdnet_v2.base import (
   MODEL_VERSION_V2_4,
   MODEL_VERSIONS,
 )
-from birdnet_v2.globals import WRITABLE_FLAG
+from birdnet_v2.globals import PKG_NAME, WRITABLE_FLAG
 from birdnet_v2.helper import (
   RingField,
   create_shm_ring,
@@ -408,8 +408,6 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       worker_processes = [
         mp.Process(
           target=ChildWorker(
-            model_path=self.model_path,
-            backend=self.get_backend_instance(),
             backend_type=self.get_backend_type(),
             device=devices[i],
             backend_kwargs=backend_kwargs[i],
@@ -499,11 +497,11 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     meta["n_producers"] = n_producers
     meta["n_workers"] = n_workers
     meta["start_method"] = multiprocessing.get_start_method()
-    meta["device"] = self.get_backend_args().get("device", "CPU")
+    meta["device(s)"] = ", ".join(device) if isinstance(device, list) else device
     # Software
     meta["os"] = f"{platform.system()} {platform.release()}"
     meta["python"] = platform.python_version()
-    meta["birdnet_version"] = importlib.metadata.version("birdnet")
+    meta["package_version"] = importlib.metadata.version(PKG_NAME)
     # Model
     meta["model_type"] = AcousticModelBaseV2_4.get_model_type()
     meta["model_version"] = AcousticModelBaseV2_4.get_version()

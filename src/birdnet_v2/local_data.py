@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 from birdnet_v2.base import MODEL_BACKENDS, MODEL_TYPES, MODEL_VERSIONS
+from birdnet_v2.globals import PKG_NAME
 
 
 def get_app_data_path() -> Path:
@@ -23,7 +24,7 @@ def get_app_data_path() -> Path:
 
 def get_birdnet_app_data_folder() -> Path:
   app_data = get_app_data_path()
-  result = app_data / "birdnet"
+  result = app_data / PKG_NAME
   return result
 
 

@@ -144,12 +144,12 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
   def __init__(self) -> None:
     super().__init__()
 
-  def get_backend_instance(self) -> AcousticInferenceBackend:
-    return AcousticPBBackend(self.model_path)
-
-  def get_backend_type(self) -> type[AcousticInferenceBackend]:
+  @classmethod
+  @final
+  def get_backend_type(cls) -> type[AcousticInferenceBackend]:
     return AcousticPBBackend
 
+  @final
   def get_backend_args(self) -> dict:
     return {
       "model_path": self.model_path,

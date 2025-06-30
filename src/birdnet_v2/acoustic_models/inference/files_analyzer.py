@@ -3,7 +3,6 @@ import multiprocessing
 import multiprocessing as mp
 from multiprocessing.synchronize import Event
 from pathlib import Path
-from typing import List
 
 import numpy as np
 from ordered_set import OrderedSet

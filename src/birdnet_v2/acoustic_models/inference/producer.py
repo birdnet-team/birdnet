@@ -1,17 +1,14 @@
 from __future__ import annotations
 
 import ctypes
-import multiprocessing
-import multiprocessing as mp
-import multiprocessing.synchronize
 import os
 from collections.abc import Generator
 from itertools import count
 from multiprocessing import Queue, shared_memory
 from multiprocessing.sharedctypes import Synchronized
-from multiprocessing.synchronize import Semaphore
+from multiprocessing.synchronize import Event, Semaphore
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -82,7 +79,10 @@ class ChildProducer(bn_logging.LogableProcessBase):
   def __init__(
     self,
     files_queue: Queue,
-    slot_ptr: Synchronized,
+    slot_ptr: Synchronized[ctypes.c_uint8]
+    | Synchronized[ctypes.c_uint16]
+    | Synchronized[ctypes.c_uint32]
+    | Synchronized[ctypes.c_uint64],
     batch_size: int,
     n_slots: int,
     rf_file_indices: RingField,
@@ -101,17 +101,17 @@ class ChildProducer(bn_logging.LogableProcessBase):
     | Synchronized[ctypes.c_uint32]
     | Synchronized[ctypes.c_uint64],
     n_prods: int,
-    logging_queue: mp.Queue,
+    logging_queue: Queue,
     logging_level: int,
     chunk_duration_s: float,
     overlap_duration_s: float,
     target_sample_rate: int,
-    cancel_event: "multiprocessing.synchronize.Event",
+    cancel_event: Event,
     use_bandpass: bool,
-    bandpass_fmin: Optional[int],
-    bandpass_fmax: Optional[int],
-    fmin: Optional[int],
-    fmax: Optional[int],
+    bandpass_fmin: int | None,
+    bandpass_fmax: int | None,
+    fmin: int | None,
+    fmax: int | None,
   ):
     super().__init__(__name__, logging_queue, logging_level)
 
@@ -122,7 +122,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
     self._n_slots = n_slots
     self._sem_free_slots = sem_free_slots
     self._sem_filled_slots = sem_filled_slots
-    self._slot_ptr: Synchronized = slot_ptr  # type: ignore
+    self._slot_ptr: Synchronized[int] = slot_ptr  # type: ignore
     self._files_queue = files_queue
     self._use_bandpass = use_bandpass
     self._max_chunk_idx_ptr = max_chunk_idx_ptr  # type: ignore

@@ -1,6 +1,6 @@
-from typing import Literal
-
 import numpy as np
+
+PKG_NAME = "birdnet"
 
 # flag for "can be written to"
 WRITABLE_FLAG = np.uint8(0)
@@ -15,5 +15,3 @@ READING_FLAG = np.uint8(3)
 
 # flag for "done"
 DONE_FLAG = np.uint8(4)
-
-DEVICES = Literal["CPU", "GPU"]

@@ -7,7 +7,7 @@ import multiprocessing as mp
 from logging.handlers import QueueHandler
 from multiprocessing import Queue
 
-PKG_NAME = "birdnet"
+from birdnet_v2.globals import PKG_NAME
 
 
 def get_package_logger():

@@ -1,7 +1,5 @@
 import logging
-import os
 import random
-import warnings
 from multiprocessing import set_start_method
 from pathlib import Path
 from typing import Literal, overload
@@ -267,7 +265,7 @@ if __name__ == "__main__":
   }
 
   params = {
-    "n_workers": 9,
+    "n_workers": 1,
     "n_producers": 3,
     "batch_size": 1,
     "n_slots_factor": 2,
@@ -276,16 +274,16 @@ if __name__ == "__main__":
   }
 
   audio_paths = [
-    Path("src/birdnet_tests/test_files/soundscape.wav"),
-    # Path("test-dataset/test_dataset_1x60min/0.wav"),
-  ]
-  audio_paths = [
     Path("test-dataset/test_dataset_4x60min/0.wav"),
     Path("test-dataset/test_dataset_4x60min/1.wav"),
     Path("test-dataset/test_dataset_4x60min/2.wav"),
     Path("test-dataset/test_dataset_4x60min/3.wav"),
   ]
   audio_paths = get_pow_file_paths()
+  audio_paths = [
+    Path("src/birdnet_tests/test_files/soundscape.wav"),
+    # Path("test-dataset/test_dataset_1x60min/0.wav"),
+  ]
   # model = load(device="CPU", lang_id="de")
   # model = load(backend="pb", device="gpu:0")
   model: AcousticModelBaseV2_4 = load(backend=params["backend"])
