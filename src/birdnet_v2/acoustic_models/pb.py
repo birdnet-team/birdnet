@@ -1,7 +1,11 @@
+import logging
+import os
 import sys
+import warnings
 from pathlib import Path
-from typing import Any, final
+from typing import Any, Callable, final
 
+import absl.logging as absl_logging
 import numpy as np
 
 from birdnet_v2.acoustic_models.base import AcousticInferenceBackend
@@ -14,15 +18,20 @@ class AcousticPBBackend(AcousticInferenceBackend):
     self._audio_model = None
     self._device_name = device
     self._logical_device: Any | None = None
+    self.predict_fn: Callable | None = None
 
   @final
   def lazy_load(self, device_name: str) -> None:
     assert "GPU" in device_name or "CPU" in device_name
+
+    absl_verbosity_before = absl_logging.get_verbosity()
+    absl_logging.set_verbosity(absl_logging.ERROR)
+    tf_verbosity_before = logging.getLogger("tensorflow").level
+    logging.getLogger("tensorflow").setLevel(logging.WARNING)
+    os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
     import tensorflow as tf
 
     tf.random.set_seed(0)
-    tf.get_logger().setLevel("ERROR")
-    tf.debugging.set_log_device_placement(False)
 
     device: tf.config.LogicalDevice | None = None
     if "GPU" in device_name:
@@ -58,22 +67,31 @@ class AcousticPBBackend(AcousticInferenceBackend):
     assert device is not None
     self._logical_device = device
 
-    assert self._audio_model is None
-    self._audio_model = tf.saved_model.load(self._model_path)
+    audio_model = tf.saved_model.load(self._model_path)
+
+    absl_logging.set_verbosity(absl_verbosity_before)
+    logging.getLogger("tensorflow").setLevel(tf_verbosity_before)
+
+    # _SignatureMap({'basic': <ConcreteFunction (*, inputs: TensorSpec(shape=(None, 144000), dtype=tf.float32, name='inputs')) -> Dict[['scores', TensorSpec(shape=(None, 6522), dtype=tf.float32, name='scores')]] at 0x7BD844349190>, 'embeddings': <ConcreteFunction (*, inputs: TensorSpec(shape=(None, 144000), dtype=tf.float32, name='inputs')) -> Dict[['embeddings', TensorSpec(shape=(None, 1024), dtype=tf.float32, name='embeddings')]] at 0x7BD8684EBC50>})
+    self.predict_fn = audio_model.signatures["basic"]  # type: ignore
 
   @final
   def infer(self, batch: np.ndarray) -> np.ndarray:
-    assert self._audio_model is not None
+    # assert self._audio_model is not None
     assert self._logical_device is not None
+    assert self.predict_fn is not None
     # basic_fn = self._audio_model.signatures["basic"]  # oder "basic"
 
     # keine Retrace-Warnungen, weil wir eine Concrete-Function benutzen
     # prediction = basic_fn(inputs=batch)
     # prediction = prediction["scores"]
-    import tensorflow as tf
+    from tensorflow import Tensor, device, float32
 
-    with tf.device(self._logical_device.name):  # type: ignore
-      prediction = self._audio_model.basic(batch)["scores"]
-    prediction_np = prediction.numpy()
+    with device(self._logical_device.name):  # type: ignore
+      # prediction = self._audio_model.basic(batch)["scores"]
+      pred = self.predict_fn(inputs=batch)
+    scores: Tensor = pred["scores"]
+    assert scores.dtype == float32
+    prediction_np = scores.numpy()  # type: ignore
     assert prediction_np.dtype == np.float32
     return prediction_np

@@ -1,6 +1,7 @@
 import logging
 import os
 import random
+import warnings
 from multiprocessing import set_start_method
 from pathlib import Path
 from typing import Literal, overload
@@ -175,6 +176,11 @@ if __name__ == "__main__":
   # tf.config.experimental.enable_op_determinism()
   import time
 
+  # import absl.logging as absl_logging
+
+  # absl_logging.set_verbosity(absl_logging.ERROR)  # absl-Backend
+  # absl_logging.set_stderrthreshold("error")
+
   # Example usage
   # model = load("acoustic")
   # model = load("acoustic/v2.4")
@@ -184,7 +190,17 @@ if __name__ == "__main__":
   # tf.debugging.set_log_device_placement(False)
   # 2) C++-Logger auf WARN oder ERROR stellen
   # 0=alle, 1=INFO, 2=WARNING, 3=ERROR
-  os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+  # os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+
+  # logging.getLogger("tensorflow").setLevel(logging.ERROR)
+  # logging.getLogger("tensorflow").propagate = False
+  # warnings.filterwarnings(
+  #   "ignore",
+  #   message=r".*Importing a function .*unsaved custom gradients.*",
+  #   category=UserWarning,
+  # )
+
+  # os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
   # tf.get_logger().setLevel("WARNING")        # Python-Logger ebenfalls drosseln
 
   # model = load_custom_model("acoustic/v2.4+pb@cpu", custom_species_list="..")
@@ -256,7 +272,7 @@ if __name__ == "__main__":
   params = params_1000h_48cpu
   audio_paths = [
     Path("src/birdnet_tests/test_files/soundscape.wav"),
-    Path("test-dataset/test_dataset_1x60min/0.wav"),
+    # Path("test-dataset/test_dataset_1x60min/0.wav"),
   ]
   params = {
     "n_workers": 11,
@@ -273,7 +289,7 @@ if __name__ == "__main__":
     "batch_size": 1,
     "n_slots_factor": 2,
     "backend": "pb",
-    "device": "GPU:1",
+    "device": "CPU",
   }
 
   # model = load(device="CPU", lang_id="de")
@@ -295,7 +311,7 @@ if __name__ == "__main__":
     overlap_duration_s=0,
     sigmoid_sensitivity=1,
     default_confidence_threshold=-np.inf,
-    track_performance=False,
+    track_performance=True,
     half_precision=True,
     device=params["device"],
     custom_confidence_thresholds={

@@ -1,5 +1,7 @@
+import ctypes
 import multiprocessing
 import multiprocessing as mp
+from multiprocessing.synchronize import Event
 from pathlib import Path
 from typing import List
 
@@ -22,8 +24,8 @@ class FilesAnalyzer(bn_logging.LogableProcessBase):
     rf_chunk_indices: RingField,
     max_chunk_idx_ptr: mp.RawValue,
     analyzing_result: mp.SimpleQueue,
-    tot_n_chunks: mp.RawValue,
-    cancel_event: mp.Event,
+    tot_n_chunks: ctypes.c_uint64,
+    cancel_event: Event,
   ):
     super().__init__(__name__, logging_queue, logging_level)
     self._files = files
@@ -45,7 +47,7 @@ class FilesAnalyzer(bn_logging.LogableProcessBase):
     n_chunks = 0
     for path in self._files:
       if self._cancel_event.is_set():
-        self._logger.info("FilesAnalyzer canceled.")
+        self._logger.info("FilesAnalyzer canceled because of cancel event.")
         self._uninit_logging()
         return
 

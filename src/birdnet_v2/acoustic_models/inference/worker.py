@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import multiprocessing
 import multiprocessing as mp
 import os
 import time
 from multiprocessing import shared_memory
-from multiprocessing.synchronize import Semaphore
+from multiprocessing.synchronize import Event, Semaphore
 from pathlib import Path
 
 import numpy as np
@@ -59,7 +60,8 @@ class ChildWorker(bn_logging.LogableProcessBase):
     logging_queue: mp.Queue,
     logging_level: int,
     device: str,
-    num_threads: int = 1,
+    num_threads: int,
+    cancel_event: Event,
   ):
     super().__init__(__name__, logging_queue, logging_level)
 
@@ -123,6 +125,8 @@ class ChildWorker(bn_logging.LogableProcessBase):
     self._ring_flags: np.ndarray | None = None
     self._device_name = device
     # self._mm: mmap.mmap | None = None
+
+    self._cancel_event = cancel_event
 
   def _load_model(self):
     self._log_debug("Loading model...")
@@ -228,7 +232,8 @@ class ChildWorker(bn_logging.LogableProcessBase):
       self._init()
     except ValueError as e:
       self._log_debug("Failed to initialize worker. Exiting.")
-      self._out_q.put(None)
+      self._cancel_event.set()
+      self._uninit()
       return
 
     assert self._ring_flags is not None
@@ -282,6 +287,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
         pred = self._infer(audio_samples)
       except Exception as e:
         self._log_debug(f"Error during inference: {e}")
+        self._cancel_event.set()
         # mark slot as writable again
         self._ring_flags[claimed_slot] = WRITABLE_FLAG
         self._sem_free.release()

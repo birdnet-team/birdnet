@@ -361,6 +361,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             max_chunk_idx_ptr=max_chunk_idx_ptr,
             prod_done_ptr=prod_done_ptr,
             n_prods=n_producers,
+            cancel_event=cancel_event,
           ),
           daemon=True,
         )
@@ -387,6 +388,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             parent_process_id=os.getpid(),
             rf_flags=rf_flags,
             tot_n_chunks_ptr=tot_n_chunks_ptr,
+            cancel_event=cancel_event,
           ),
           daemon=True,
         )
@@ -433,6 +435,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             sigmoid_sensitivity=sigmoid_sensitivity,
             pred_dur_queue=pred_dur_queue,
             track_performance=track_performance,
+            cancel_event=cancel_event,
             num_threads=1,  # more than one is not possible with multiprocessing in this tflite version
           ),
           daemon=True,
@@ -448,6 +451,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         worker_queue=worker_queue,
         species_tensor=result,
         max_chunk_index=max_chunk_idx_ptr,
+        cancel_event=cancel_event,
       )
       consumer()
 
@@ -472,6 +476,11 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         perf_stop_event.set()
         perf_tracker.join()
         logger.debug("Performance tracker finished.")
+
+    if cancel_event.is_set():
+      raise RuntimeError(
+        "Analysis was cancelled due to an error. Please check the logs for details."
+      )
 
     analyzer_res: dict = analyzer_queue.get()
     file_durations_s: np.ndarray = analyzer_res["file_durations_s"]

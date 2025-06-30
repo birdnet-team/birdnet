@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 # You'll need these imports in your own code
+import ctypes
 import datetime
 import math
 import multiprocessing
@@ -10,6 +11,7 @@ import sys
 import time
 from collections import Counter, deque
 from multiprocessing import shared_memory
+from multiprocessing.synchronize import Event
 
 # Next two import lines for this demo only
 import numpy as np
@@ -41,7 +43,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     chunk_size_s: float,
     parent_process_id: int,
     rf_flags: RingField,
-    tot_n_chunks_ptr: mp.RawValue,
+    tot_n_chunks_ptr: ctypes.c_uint64,
+    cancel_event: Event = None,
   ):
     super().__init__(__name__, logging_queue, logging_level)
 
@@ -66,11 +69,11 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._shm_ring_flags: shared_memory.SharedMemory | None = None
     self._ring_flags: np.ndarray | None = None
     self._tot_n_chunks_ptr = tot_n_chunks_ptr
+    self._cancel_event = cancel_event
 
   def __call__(self):
     self._init_logging()
     self._shm_ring_flags, self._ring_flags = self._rf_flags.attach_and_get_array()
-    stop = None
     perf_duration = 0
     ramp_up_time_until_first_pred = None
     parent_process = psutil.Process(self._parent_process_id)
@@ -81,7 +84,11 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     busy_slots = []
     preloaded_slots = []
 
+    cancel = False
     while True:
+      if self._cancel_event.is_set():
+        cancel = True
+        break
       processing_finished = self._stop_event.is_set()
       queue_is_empty = self._pred_dur_queue.empty()
       if processing_finished:
@@ -183,6 +190,11 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         print(output_msg, file=sys.stdout)
 
         self._next_print = now + self._print_every
+
+    if cancel:
+      self._logger.debug("PerformanceTracker canceled because of cancel event.")
+      self._uninit_logging()
+      return
 
     stats = {}
     stats["total_chunks_processed"] = self._total_chunks_processed

@@ -1,9 +1,14 @@
+from __future__ import annotations
+
+import ctypes
 import multiprocessing
 import multiprocessing as mp
+import multiprocessing.synchronize
 import os
 from collections.abc import Generator
 from itertools import count
 from multiprocessing import Queue, shared_memory
+from multiprocessing.sharedctypes import Synchronized
 from multiprocessing.synchronize import Semaphore
 from pathlib import Path
 from typing import Optional, Tuple, Union
@@ -77,7 +82,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
   def __init__(
     self,
     files_queue: Queue,
-    slot_ptr: mp.Value,
+    slot_ptr: Synchronized,
     batch_size: int,
     n_slots: int,
     rf_file_indices: RingField,
@@ -87,15 +92,21 @@ class ChildProducer(bn_logging.LogableProcessBase):
     rf_flags: RingField,
     sem_free_slots: Semaphore,  # counts free slots
     sem_filled_slots: Semaphore,  # counts filled slots
-    max_chunk_idx_ptr: mp.RawValue,
-    prod_done_ptr: mp.Value,
+    max_chunk_idx_ptr: ctypes.c_uint8
+    | ctypes.c_uint16
+    | ctypes.c_uint32
+    | ctypes.c_uint64,
+    prod_done_ptr: Synchronized[ctypes.c_uint8]
+    | Synchronized[ctypes.c_uint16]
+    | Synchronized[ctypes.c_uint32]
+    | Synchronized[ctypes.c_uint64],
     n_prods: int,
     logging_queue: mp.Queue,
     logging_level: int,
     chunk_duration_s: float,
     overlap_duration_s: float,
     target_sample_rate: int,
-    cancel_event: mp.Event,
+    cancel_event: "multiprocessing.synchronize.Event",
     use_bandpass: bool,
     bandpass_fmin: Optional[int],
     bandpass_fmax: Optional[int],
@@ -111,12 +122,12 @@ class ChildProducer(bn_logging.LogableProcessBase):
     self._n_slots = n_slots
     self._sem_free_slots = sem_free_slots
     self._sem_filled_slots = sem_filled_slots
-    self._slot_ptr = slot_ptr
+    self._slot_ptr: Synchronized = slot_ptr  # type: ignore
     self._files_queue = files_queue
     self._use_bandpass = use_bandpass
-    self._max_chunk_idx_ptr = max_chunk_idx_ptr
-    self._prod_done_ptr = prod_done_ptr
-    self._n_prods = n_prods
+    self._max_chunk_idx_ptr = max_chunk_idx_ptr  # type: ignore
+    self._prod_done_ptr: Synchronized[int] = prod_done_ptr  # type: ignore
+    self._n_producers = n_prods
 
     if use_bandpass:
       assert bandpass_fmin is not None
@@ -252,7 +263,24 @@ class ChildProducer(bn_logging.LogableProcessBase):
         )
         break
 
-      self._sem_free_slots.acquire()
+      cancel = False
+      while True:
+        try:
+          self._sem_free_slots.acquire(timeout=1.0)
+          break
+        except TimeoutError:
+          if self._cancel_event.is_set():
+            cancel = True
+            break
+
+      if self._cancel_event.is_set():
+        cancel = True
+
+      if cancel:
+        self._logger.debug(f"PRODUCER({os.getpid()}) - Cancel event set. Exiting.")
+        self._uninit()
+        return
+
       self._logger.debug(
         f"PRODUCER({os.getpid()}) - Producer acquired FREE. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
       )
@@ -260,7 +288,6 @@ class ChildProducer(bn_logging.LogableProcessBase):
       self._flush_batch(file_indices, chunk_indices, audio_samples)
 
       self._sem_filled_slots.release()
-
       self._logger.debug(
         f"PRODUCER({os.getpid()}) - Producer released FILL. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
       )
@@ -270,7 +297,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
       self._logger.debug(
         f"PRODUCER({os.getpid()}) - Set prod_done_ptr to {self._prod_done_ptr.value}."
       )
-      is_last_producer = self._prod_done_ptr.value == self._n_prods
+      is_last_producer = self._prod_done_ptr.value == self._n_producers
 
     if is_last_producer:
       self._logger.debug(
@@ -315,7 +342,15 @@ class ChildProducer(bn_logging.LogableProcessBase):
     assert self._ring_batch_sizes is not None
     assert self._ring_flags is not None
 
+    cancel = False
+    claimed_flag = None
+    claimed_slot = None
+
     while True:
+      if self._cancel_event.is_set():
+        cancel = True
+        break
+
       with self._slot_ptr.get_lock():
         current_slot = self._slot_ptr.value
         current_slot_flag = self._ring_flags[current_slot]
@@ -336,6 +371,18 @@ class ChildProducer(bn_logging.LogableProcessBase):
             WRITING_FLAG,
           )
           self._jump_to_next_slot_ptr()
+
+    if self._cancel_event.is_set():
+      cancel = True
+
+    if cancel:
+      self._logger.debug(
+        f"PRODUCER({os.getpid()}) - Cancel event set. Exiting _flush_batch."
+      )
+      return
+
+    assert claimed_flag is not None
+    assert claimed_slot is not None
 
     assert claimed_flag == WRITABLE_FLAG
     self._logger.debug(
