@@ -46,12 +46,12 @@ class Consumer:
         self._logger.debug("CONSUMER - Cancel event set. Exiting.")
         break
 
-      assert data is not None
-
       got_stop_signal_from_worker = data is None
       if got_stop_signal_from_worker:
         finished_workers += 1
         continue
+
+      assert data is not None
 
       file_indices, chunk_indices, top_k_species, top_k_scores, top_k_mask = data
       n_received_predictions += top_k_species.shape[0]

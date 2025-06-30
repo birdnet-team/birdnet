@@ -566,47 +566,26 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       perf_result = perf_res.get()
       total_chunks_processed = perf_result["total_chunks_processed"]
       cpu_time_s = perf_result["summed_prediction_duration_s"]
-      memory_usages_mb = perf_result["memory_usages_mb"]
-      cpu_usages_pct = perf_result["cpu_usages_pct"]
-      free_slots = perf_result["free_slots"]
-      filled_slots = perf_result["filled_slots"]
-      busy_slots = perf_result["busy_slots"]
-      preloaded_slots = perf_result["preloaded_slots"]
-      ramp_up_time_until_first_pred_s = perf_result["ramp_up_time_until_first_pred_s"]
       model_pred_ms_per_chunk = cpu_time_s / total_chunks_processed * 1000
 
       # Metrics
       meta["cpu_time_s"] = cpu_time_s
-      meta["rampup_time_s"] = ramp_up_time_until_first_pred_s
+      meta["rampup_time_s"] = perf_result["ramp_up_time_until_first_pred_s"]
       meta["n_chunks_processed"] = total_chunks_processed
       meta["model_pred_ms_per_chunk"] = model_pred_ms_per_chunk
-      assert len(memory_usages_mb) == len(cpu_usages_pct)
-      n_usage_recordings = len(memory_usages_mb)
-      meta["n_usage_recordings"] = n_usage_recordings
-      meta["max_memory_usages_MiB"] = max(memory_usages_mb, default=np.nan)
-      meta["avg_memory_usage_MiB"] = (
-        sum(memory_usages_mb) / len(memory_usages_mb)
-        if len(memory_usages_mb) > 0
-        else np.nan
-      )
-      meta["max_cpu_usages_pct"] = max(cpu_usages_pct, default=np.nan)
-      meta["avg_cpu_usage_pct"] = (
-        sum(cpu_usages_pct) / len(cpu_usages_pct) if len(cpu_usages_pct) > 0 else np.nan
-      )
-      meta["avg_free_slots"] = (
-        sum(free_slots) / len(free_slots) if len(free_slots) > 0 else np.nan
-      )
-      meta["avg_filled_slots"] = (
-        sum(filled_slots) / len(filled_slots) if len(filled_slots) > 0 else np.nan
-      )
-      meta["avg_busy_slots"] = (
-        sum(busy_slots) / len(busy_slots) if len(busy_slots) > 0 else np.nan
-      )
-      meta["avg_preloaded_slots"] = (
-        sum(preloaded_slots) / len(preloaded_slots)
-        if len(preloaded_slots) > 0
-        else np.nan
-      )
+
+      meta["n_usage_recordings"] = meta["n_usage_recordings"]
+
+      meta["max_memory_usages_MiB"] = perf_result["max_memory_usages_MiB"]
+      meta["avg_memory_usages_MiB"] = perf_result["avg_memory_usages_MiB"]
+
+      meta["max_cpu_usages_pct"] = perf_result["max_cpu_usages_pct"]
+      meta["avg_cpu_usages_pct"] = perf_result["avg_cpu_usages_pct"]
+
+      meta["avg_free_slots"] = perf_result["avg_free_slots"]
+      meta["avg_filled_slots"] = perf_result["avg_filled_slots"]
+      meta["avg_busy_slots"] = perf_result["avg_busy_slots"]
+      meta["avg_preloaded_slots"] = perf_result["avg_preloaded_slots"]
 
     meta_out = Path(tempfile.gettempdir()) / "meta.json"
     with open(meta_out, "w", encoding="utf8") as f:

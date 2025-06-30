@@ -77,12 +77,12 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     perf_duration = 0
     ramp_up_time_until_first_pred = None
     parent_process = psutil.Process(self._parent_process_id)
+    float_n_records = 0
     float_max_memory_usage = 0
     float_avg_memory_usage = 0
     float_avg_cpu_usage = 0
     float_max_cpu_usage = 0
     float_avg_free_slots = 0
-    float_max_free_slots = 0
     float_avg_filled_slots = 0
     float_avg_busy_slots = 0
     float_avg_preloaded_slots = 0
@@ -134,16 +134,44 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         cpu_usage = psutil.cpu_percent()
         cpu_usages.append(cpu_usage)
 
+        float_avg_memory_usage = (
+          float_avg_memory_usage * float_n_records + memory_usage_MiB
+        ) / (float_n_records + 1)
+
+        float_max_memory_usage = max(float_max_memory_usage, memory_usage_MiB)
+
+        float_avg_cpu_usage = (float_avg_cpu_usage * float_n_records + cpu_usage) / (
+          float_n_records + 1
+        )
+        float_max_cpu_usage = max(float_max_cpu_usage, cpu_usage)
+
         c = Counter(self._ring_flags)
         n_free = c.get(WRITABLE_FLAG, 0)
         n_preloaded = c.get(READABLE_FLAG, 0)
         n_busy = c.get(READING_FLAG, 0)
         n_filled = len(self._ring_flags) - n_free
+
+        float_avg_free_slots = (float_avg_free_slots * float_n_records + n_free) / (
+          float_n_records + 1
+        )
+
+        float_avg_filled_slots = (
+          float_avg_filled_slots * float_n_records + n_filled
+        ) / (float_n_records + 1)
+
+        float_avg_busy_slots = (float_avg_busy_slots * float_n_records + n_busy) / (
+          float_n_records + 1
+        )
+        float_avg_preloaded_slots = (
+          float_avg_preloaded_slots * float_n_records + n_preloaded
+        ) / (float_n_records + 1)
+
         free_slots.append(n_free)
         filled_slots.append(n_filled)
         busy_slots.append(n_busy)
         preloaded_slots.append(n_preloaded)
 
+        float_n_records += 1
         self._next_update = now + self._update_every
 
       if now >= self._next_print and len(self._pred_dur_deque) > 0:
@@ -208,12 +236,19 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     stats["total_chunks_processed"] = self._total_chunks_processed
     stats["summed_prediction_duration_s"] = self._summed_pred_duration
     stats["ramp_up_time_until_first_pred_s"] = ramp_up_time_until_first_pred
-    stats["memory_usages_mb"] = memory_usages
-    stats["cpu_usages_pct"] = cpu_usages
-    stats["free_slots"] = free_slots
-    stats["filled_slots"] = filled_slots
-    stats["busy_slots"] = busy_slots
-    stats["preloaded_slots"] = preloaded_slots
+    stats["n_usage_recordings"] = float_n_records
+
+    stats["max_memory_usages_MiB"] = float_max_memory_usage
+    stats["avg_memory_usages_MiB"] = float_avg_memory_usage
+
+    stats["max_cpu_usages_pct"] = float_max_cpu_usage
+    stats["avg_cpu_usages_pct"] = float_avg_cpu_usage
+
+    stats["avg_free_slots"] = float_avg_free_slots
+    stats["avg_filled_slots"] = float_avg_filled_slots
+    stats["avg_busy_slots"] = float_avg_busy_slots
+    stats["avg_preloaded_slots"] = float_avg_preloaded_slots
+
     self._perf_res.put(stats)
 
     self._uninit_logging()
