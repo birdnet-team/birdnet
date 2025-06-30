@@ -8,11 +8,7 @@ from ordered_set import OrderedSet
 
 import birdnet_v2.logging_utils as bn_logging
 from birdnet_v2.acoustic_models.inference.producer import get_audio_duration_s
-from birdnet_v2.helper import (
-  RingField,
-  get_max_n_chunks,
-  max_value_for_uint_dtype,
-)
+from birdnet_v2.helper import RingField, get_max_n_chunks, max_value_for_uint_dtype
 
 
 class FilesAnalyzer(bn_logging.LogableProcessBase):
@@ -27,6 +23,7 @@ class FilesAnalyzer(bn_logging.LogableProcessBase):
     max_chunk_idx_ptr: mp.RawValue,
     analyzing_result: mp.SimpleQueue,
     tot_n_chunks: mp.RawValue,
+    cancel_event: mp.Event,
   ):
     super().__init__(__name__, logging_queue, logging_level)
     self._files = files
@@ -39,6 +36,7 @@ class FilesAnalyzer(bn_logging.LogableProcessBase):
       max_value_for_uint_dtype(rf_chunk_indices.dtype) - 1
     )
     self._analyzing_result = analyzing_result
+    self._cancel_event = cancel_event
 
   def __call__(self) -> None:
     self._init_logging()
@@ -46,6 +44,11 @@ class FilesAnalyzer(bn_logging.LogableProcessBase):
     current_max_chunk_index = 0
     n_chunks = 0
     for path in self._files:
+      if self._cancel_event.is_set():
+        self._logger.info("FilesAnalyzer canceled.")
+        self._uninit_logging()
+        return
+
       audio_duration_s = get_audio_duration_s(path)
       durations.append(audio_duration_s)
 

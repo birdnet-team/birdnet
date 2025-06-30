@@ -6,7 +6,6 @@ from typing import Optional
 import numpy as np
 import numpy.typing as npt
 from ordered_set import OrderedSet
-# from tensorflow.lite.python.interpreter import Interpreter
 
 from birdnet.models.v2m4.model_v2m4_base import (
   AVAILABLE_LANGUAGES,
@@ -17,6 +16,9 @@ from birdnet.models.v2m4.model_v2m4_base import (
 )
 from birdnet.types import Language
 from birdnet.utils import download_file_tqdm, get_species_from_file
+
+# from tensorflow.lite.python.interpreter import Interpreter
+
 
 DOWNLOAD_URL = "https://zenodo.org/records/15050749/files/BirdNET_v2.4_tflite.zip"
 DOWNLOAD_SIZE = 76822925

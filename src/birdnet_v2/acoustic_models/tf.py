@@ -1,9 +1,8 @@
 from pathlib import Path
-from typing import final
+from typing import Any, final
 
 import numpy as np
 
-#
 from birdnet_v2.acoustic_models.base import AcousticInferenceBackend
 
 
@@ -11,13 +10,13 @@ class AcousticTFBackend(AcousticInferenceBackend):
   def __init__(self, model_path: Path) -> None:
     super().__init__()
     self._model_path = str(model_path.absolute())
-    self._interp: tflite.Interpreter | None = None
+    self._interp: Any | None = None
     self._in_idx: int | None = None
     self._out_idx: int | None = None
     self._cached_shape: tuple[int, ...] | None = None
 
   @final
-  def lazy_load(self, logical_device_name: str) -> None:
+  def lazy_load(self, device_name: str) -> None:
     assert self._interp is None
 
     from tensorflow.lite.python import interpreter as tflite

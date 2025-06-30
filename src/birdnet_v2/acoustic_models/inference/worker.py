@@ -11,11 +11,6 @@ import numpy as np
 import soundfile as sf  # pip install soundfile
 from numpy.typing import DTypeLike
 
-# try:
-#   import tflite_runtime.interpreter as tflite
-# except ImportError:  # fallback to full TF (heavier)
-# from tensorflow.lite.python import interpreter as tflite
-
 import birdnet_v2.logging_utils as bn_logging
 from birdnet.utils import flat_sigmoid
 from birdnet_v2.acoustic_models.base import AcousticInferenceBackend
@@ -27,6 +22,11 @@ from birdnet_v2.globals import (
   WRITING_FLAG,
 )
 from birdnet_v2.helper import RingField, uint_dtype_for
+
+# try:
+#   import tflite_runtime.interpreter as tflite
+# except ImportError:  # fallback to full TF (heavier)
+# from tensorflow.lite.python import interpreter as tflite
 
 
 class ChildWorker(bn_logging.LogableProcessBase):
@@ -58,6 +58,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
     track_performance: bool,
     logging_queue: mp.Queue,
     logging_level: int,
+    device: str,
     num_threads: int = 1,
   ):
     super().__init__(__name__, logging_queue, logging_level)
@@ -66,7 +67,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
     assert species_blacklist.shape[0] == 1
     assert species_thresholds.shape[1] == species_blacklist.shape[1]
 
-    self._backend = None # backend
+    self._backend = None  # backend
     self._backend_type = backend_type
     self._backend_kwargs = backend_kwargs
     self._track_performance = track_performance
@@ -89,7 +90,6 @@ class ChildWorker(bn_logging.LogableProcessBase):
       self._sigmoid_sensitivity = sigmoid_sensitivity
 
     # Interpreter
-    self._interp: tflite.Interpreter | None = None
     self._slot = 0
 
     # attatch to existing shared memory buffers
@@ -121,18 +121,18 @@ class ChildWorker(bn_logging.LogableProcessBase):
     self._ring_audio_samples: np.ndarray | None = None
     self._ring_batch_sizes: np.ndarray | None = None
     self._ring_flags: np.ndarray | None = None
+    self._device_name = device
     # self._mm: mmap.mmap | None = None
 
   def _load_model(self):
-    self._log_debug(f"Loading model...")
+    self._log_debug("Loading model...")
     try:
       self._backend = self._backend_type(**self._backend_kwargs)
-      self._backend.lazy_load()
-    except Exception as e:
+      self._backend.lazy_load(self._device_name)
+    except ValueError as e:
       self._log_debug(f"Failed to load model: {e}")
       raise e
-    else:
-      self._log_debug(f"Model loaded.")
+    self._log_debug("Model loaded.")
     # assert self._interp is None
 
     # # memory_map not working for TF 2.15.1:
@@ -224,7 +224,12 @@ class ChildWorker(bn_logging.LogableProcessBase):
     self._logger.debug(f"WORKER({self._pid}) - {msg}")
 
   def __call__(self):
-    self._init()
+    try:
+      self._init()
+    except ValueError as e:
+      self._log_debug("Failed to initialize worker. Exiting.")
+      self._out_q.put(None)
+      return
 
     assert self._ring_flags is not None
     assert self._ring_file_indices is not None
@@ -273,7 +278,19 @@ class ChildWorker(bn_logging.LogableProcessBase):
       self._log_debug(
         f"Received job for slot {claimed_slot} with {n} chunks: {chunk_indices}"
       )
-      pred = self._infer(audio_samples)
+      try:
+        pred = self._infer(audio_samples)
+      except Exception as e:
+        self._log_debug(f"Error during inference: {e}")
+        # mark slot as writable again
+        self._ring_flags[claimed_slot] = WRITABLE_FLAG
+        self._sem_free.release()
+        self._log_debug(
+          f"Released FREE. Free slots remaining: {self._sem_free}; Filled slots: {self._sem_filled}"
+        )
+        self._log_debug(f"Exiting worker {self._pid} due to error during inference.")
+        self._out_q.put(None)
+        break
 
       if self._apply_sigmoid:
         assert self._sigmoid_sensitivity is not None

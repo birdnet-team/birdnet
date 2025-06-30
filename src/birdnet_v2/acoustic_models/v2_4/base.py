@@ -18,9 +18,7 @@ from pathlib import Path
 
 # Next two import lines for this demo only
 # backend_protocol.py
-from typing import (
-  final,
-)
+from typing import final
 
 import numpy as np
 import pandas as pd
@@ -55,10 +53,7 @@ from birdnet_v2.helper import (
   uint_ctype_from_dtype,
   uint_dtype_for,
 )
-from birdnet_v2.logging_utils import (
-  QueueFileWriter,
-  get_package_logging_level,
-)
+from birdnet_v2.logging_utils import QueueFileWriter, get_package_logging_level
 
 
 class AcousticModelBaseV2_4(AcousticModelBase):
@@ -142,7 +137,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     half_precision: bool = True,
     max_audio_duration_min: float | None = None,
     track_performance: bool = True,
-    device: str | list[str] = "cpu",
+    device: str | list[str] = "CPU",
   ):
     start = time.perf_counter()
     start_time = time.time()
@@ -297,6 +292,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     analyzer_queue = mp.SimpleQueue()
     perf_res: mp.SimpleQueue | None = None
     perf_stop_event = mp.Event()
+    cancel_event = mp.Event()
     tot_n_chunks_ptr = mp.RawValue(ctypes.c_uint64, 0)
     files_queue = mp.Queue()
     for file_idx, file_path in enumerate(file_paths):
@@ -332,6 +328,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
           rf_chunk_indices=rf_chunk_indices,
           analyzing_result=analyzer_queue,
           tot_n_chunks=tot_n_chunks_ptr,
+          cancel_event=cancel_event,
         ),
         daemon=True,
       )
@@ -399,6 +396,12 @@ class AcousticModelBaseV2_4(AcousticModelBase):
 
       # for i, kwargs in enumerate(backend_kwargs):
       #   kwargs["device"] =kwargs["device"].replace("0", str(i)) # Assign different CPU cores
+      if isinstance(device, list) and len(device) != n_workers:
+        raise ValueError(
+          f"Device list length ({len(device)}) does not match number of workers ({n_workers})."
+        )
+
+      devices = device if isinstance(device, list) else [device] * n_workers
 
       worker_processes = [
         mp.Process(
@@ -406,6 +409,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             model_path=self.model_path,
             backend=self.get_backend_instance(),
             backend_type=self.get_backend_type(),
+            device=devices[i],
             backend_kwargs=backend_kwargs[i],
             top_k=top_k,
             species_thresholds=species_thresholds,
@@ -479,14 +483,14 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     meta["date"] = datetime.now().isoformat(timespec="seconds")
     # Hardware
     meta["host"] = platform.node()
-    meta["cpu"] = platform.processor()
+    meta["CPU"] = platform.processor()
     meta["cpu_cores"] = psutil.cpu_count(logical=False)
     meta["cpu_logical_cores"] = psutil.cpu_count(logical=True)
     meta["ram_GiB"] = psutil.virtual_memory().total / 1024**3
     meta["n_producers"] = n_producers
     meta["n_workers"] = n_workers
     meta["start_method"] = multiprocessing.get_start_method()
-    meta["device"] = self.get_backend_args().get("device", "cpu")
+    meta["device"] = self.get_backend_args().get("device", "CPU")
     # Software
     meta["os"] = f"{platform.system()} {platform.release()}"
     meta["python"] = platform.python_version()

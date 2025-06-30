@@ -57,7 +57,7 @@ def load(
 #   model_type: Literal["acoustic"] = MODEL_TYPE_ACOUSTIC,
 #   version: Literal["2.4"] = MODEL_VERSION_V2_4,
 #   backend: Literal["tf"] = MODEL_BACKEND_TF,
-#   device: Literal["cpu", "gpu"] = "cpu",
+#   device: Literal["CPU", "GPU"] = "CPU",
 #   lang_id: str = "en_us",
 # ) -> AcousticTFModelV2_4: ...
 
@@ -68,7 +68,7 @@ def load(
 #   model_type: Literal["acoustic"] = MODEL_TYPE_ACOUSTIC,
 #   version: Literal["2.4"] = MODEL_VERSION_V2_4,
 #   backend: Literal["pb"] = MODEL_BACKEND_PB,
-#   device: Literal["cpu", "gpu"] = "cpu",
+#   device: Literal["CPU", "GPU"] = "CPU",
 #   lang_id: str = "en_us",
 # ) -> AcousticPBModelV2_4: ...
 
@@ -99,7 +99,7 @@ def load(
   if model_type == MODEL_TYPE_ACOUSTIC:
     if version == MODEL_VERSION_V2_4:
       if backend == MODEL_BACKEND_TF:
-        if "cpu" not in device.lower():
+        if "CPU" not in device.lower():
           raise ValueError("TF models can only be loaded on CPU!")
         return AcousticTFModelV2_4.load_official(lang_id)
       else:
@@ -122,12 +122,12 @@ def load_custom(
   model_type: MODEL_TYPES = MODEL_TYPE_ACOUSTIC,
   version: MODEL_VERSIONS = MODEL_VERSION_V2_4,
   backend: MODEL_BACKENDS = MODEL_BACKEND_TF,
-  device: Literal["cpu", "gpu"] = "cpu",
+  device: Literal["CPU", "GPU"] = "CPU",
 ):
   if model_type == MODEL_TYPE_ACOUSTIC:
     if version == MODEL_VERSION_V2_4:
       if backend == MODEL_BACKEND_TF:
-        if device != "cpu":
+        if device != "CPU":
           raise ValueError("TF models can only be loaded on CPU!")
         return AcousticTFModelV2_4.load_custom(model_path, species_list)
       else:
@@ -180,12 +180,11 @@ if __name__ == "__main__":
   # model = load("acoustic/v2.4")
   # model = load("geo/v2.4+tf@cpu")
   # os.environ["CUDA_VISIBLE_DEVICES"] = ""
-
   # 1) Device-Logs deaktivieren
   # tf.debugging.set_log_device_placement(False)
-
   # 2) C++-Logger auf WARN oder ERROR stellen
-  os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"  # 0=alle, 1=INFO, 2=WARNING, 3=ERROR
+  # 0=alle, 1=INFO, 2=WARNING, 3=ERROR
+  os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
   # tf.get_logger().setLevel("WARNING")        # Python-Logger ebenfalls drosseln
 
   # model = load_custom_model("acoustic/v2.4+pb@cpu", custom_species_list="..")
@@ -265,10 +264,19 @@ if __name__ == "__main__":
     "batch_size": 1,
     "n_slots_factor": 2,
     "backend": "tf",
-    "device": "cpu",
+    "device": "CPU",
   }
 
-  # model = load(device="cpu", lang_id="de")
+  params = {
+    "n_workers": 1,
+    "n_producers": 1,
+    "batch_size": 1,
+    "n_slots_factor": 2,
+    "backend": "pb",
+    "device": "GPU:1",
+  }
+
+  # model = load(device="CPU", lang_id="de")
   # model = load(backend="pb", device="gpu:0")
   model: AcousticModelBaseV2_4 = load(
     backend=params["backend"], device=params["device"]
@@ -289,6 +297,7 @@ if __name__ == "__main__":
     default_confidence_threshold=-np.inf,
     track_performance=False,
     half_precision=True,
+    device=params["device"],
     custom_confidence_thresholds={
       "Junco hyemalis_Dark-eyed Junco": -np.inf,
       "Haemorhous mexicanus_House Finch": 0.1,

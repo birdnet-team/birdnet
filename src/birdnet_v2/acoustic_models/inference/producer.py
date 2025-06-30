@@ -28,11 +28,7 @@ from birdnet_v2.globals import (
   WRITABLE_FLAG,
   WRITING_FLAG,
 )
-from birdnet_v2.helper import (
-  RingField,
-  get_max_n_chunks,
-  max_value_for_uint_dtype,
-)
+from birdnet_v2.helper import RingField, get_max_n_chunks, max_value_for_uint_dtype
 
 
 def get_chunks_with_overlap(
@@ -99,11 +95,12 @@ class ChildProducer(bn_logging.LogableProcessBase):
     chunk_duration_s: float,
     overlap_duration_s: float,
     target_sample_rate: int,
-    use_bandpass: bool = False,
-    bandpass_fmin: Optional[int] = None,
-    bandpass_fmax: Optional[int] = None,
-    fmin: Optional[int] = None,
-    fmax: Optional[int] = None,
+    cancel_event: mp.Event,
+    use_bandpass: bool,
+    bandpass_fmin: Optional[int],
+    bandpass_fmax: Optional[int],
+    fmin: Optional[int],
+    fmax: Optional[int],
   ):
     super().__init__(__name__, logging_queue, logging_level)
 
@@ -158,6 +155,8 @@ class ChildProducer(bn_logging.LogableProcessBase):
     self._max_supported_chunk_index = (
       max_value_for_uint_dtype(rf_chunk_indices.dtype) - 1
     )
+
+    self._cancel_event = cancel_event
 
   def _load_ring_buffers(self) -> None:
     self._shm_file_indices, self._ring_file_indices = (
@@ -253,7 +252,18 @@ class ChildProducer(bn_logging.LogableProcessBase):
         )
         break
 
+      self._sem_free_slots.acquire()
+      self._logger.debug(
+        f"PRODUCER({os.getpid()}) - Producer acquired FREE. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
+      )
+
       self._flush_batch(file_indices, chunk_indices, audio_samples)
+
+      self._sem_filled_slots.release()
+
+      self._logger.debug(
+        f"PRODUCER({os.getpid()}) - Producer released FILL. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
+      )
 
     with self._prod_done_ptr.get_lock():
       self._prod_done_ptr.value = self._prod_done_ptr.value + 1
@@ -304,11 +314,6 @@ class ChildProducer(bn_logging.LogableProcessBase):
     assert self._ring_chunk_indices is not None
     assert self._ring_batch_sizes is not None
     assert self._ring_flags is not None
-
-    self._sem_free_slots.acquire()
-    self._logger.debug(
-      f"PRODUCER({os.getpid()}) - Producer acquired FREE. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
-    )
 
     while True:
       with self._slot_ptr.get_lock():
@@ -362,13 +367,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
     )
 
     # sleep(0.1)
-
     self._ring_flags[claimed_slot] = READABLE_FLAG
-    self._sem_filled_slots.release()
-
-    self._logger.debug(
-      f"PRODUCER({os.getpid()}) - Producer released FILL. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
-    )
 
 
 def get_audio_duration_s(audio_path: Path) -> float:
