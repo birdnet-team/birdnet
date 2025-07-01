@@ -3,8 +3,10 @@ example/soundscape.BirdNET.selection.table.txt
 example/soundscape.birdnet_legacy.selection.table.txt
 src/birdnet_legacy
 src/birdnet_debug
-deploy-PyPI.sh
 upload/
+scripts/
+.venv*/
+test-dataset/
 
 # VSCode
 .vscode
@@ -114,3 +116,9 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+deploy-PyPI.sh
+src/birdnet_v2/model_loader.py
+src/birdnet_v2_debug/10min.wav
+src/birdnet_v2_debug/60min.wav
+install.md
+src/birdnet_v2/eagle.txt
