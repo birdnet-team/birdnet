@@ -30,28 +30,29 @@ encode() {
 # ------------------------------------------------------------ #
 # Konvertierungen                                              #
 # ------------------------------------------------------------ #
-# MP3 – CBR 192 kb/s
-encode -i "$INFILE" -c:a libmp3lame -b:a 192k       "$OUTDIR/$BASENAME.mp3"
 
-# AAC (.m4a) – 192 kb/s
-encode -i "$INFILE" -c:a aac -b:a 192k              "$OUTDIR/$BASENAME.m4a"
+cp "$INFILE" "$OUTDIR/$BASENAME.wav"
 
-# Ogg/Vorbis – VBR q5 (~192 kb/s)
-encode -i "$INFILE" -c:a libvorbis -q:a 5           "$OUTDIR/$BASENAME.ogg"
+# ------------------------------------------------------------ #
+# verlustbehaftet (komprimiert)                                #
+# ------------------------------------------------------------ #
+encode -i "$INFILE" -c:a libmp3lame    -b:a 192k  "$OUTDIR/$BASENAME.mp3"   # MP3
+encode -i "$INFILE" -c:a aac           -b:a 192k  "$OUTDIR/$BASENAME.aac"   # AAC „roher“ Stream
+encode -i "$INFILE" -c:a aac           -b:a 192k  "$OUTDIR/$BASENAME.m4a"   # AAC im MP4-Container
+encode -i "$INFILE" -c:a libvorbis     -q:a 5     "$OUTDIR/$BASENAME.ogg"   # Ogg/Vorbis
+encode -i "$INFILE" -c:a libopus       -b:a 160k  "$OUTDIR/$BASENAME.opus"  # Opus
+encode -i "$INFILE" -c:a wmav2         -b:a 192k  -f asf "$OUTDIR/$BASENAME.wma"  # WMA-2 (ASF)
 
-# Opus – 160 kb/s
-encode -i "$INFILE" -c:a libopus -b:a 160k          "$OUTDIR/$BASENAME.opus"
+# ------------------------------------------------------------ #
+# verlustfrei / PCM                                            #
+# ------------------------------------------------------------ #
+encode -i "$INFILE" -c:a flac                -compression_level 5 "$OUTDIR/${BASENAME}.flac"          # FLAC
+encode -i "$INFILE" -c:a pcm_s24le                          "$OUTDIR/${BASENAME}_24bit.wav"          # WAV 24-bit
+encode -i "$INFILE" -ar 8000 -c:a pcm_alaw                  "$OUTDIR/${BASENAME}_alaw.wav"           # WAV A-Law
+encode -i "$INFILE" -ar 8000 -c:a pcm_mulaw                 "$OUTDIR/${BASENAME}_ulaw.wav"           # WAV µ-Law
+encode -i "$INFILE" -c:a pcm_s16be -f aiff                  "$OUTDIR/${BASENAME}.aiff"               # AIFF
+encode -i "$INFILE" -c:a adpcm_ima_qt -f aiff "$OUTDIR/${BASENAME}.aifc" # AIFC
+encode -i "$INFILE" -c:a pcm_s16be -f au                    "$OUTDIR/${BASENAME}.au"                 # AU / Sun
 
-# FLAC – lossless, Kompression 5
-encode -i "$INFILE" -c:a flac -compression_level 5  "$OUTDIR/${BASENAME}.flac"
 
-# WAV 24-bit PCM
-encode -i "$INFILE" -c:a pcm_s24le                  "$OUTDIR/${BASENAME}_24bit.wav"
-
-# WAV A-Law 8 kHz
-encode -i "$INFILE" -ar 8000 -c:a pcm_alaw          "$OUTDIR/${BASENAME}_alaw.wav"
-
-# WAV µ-Law 8 kHz
-encode -i "$INFILE" -ar 8000 -c:a pcm_mulaw         "$OUTDIR/${BASENAME}_ulaw.wav"
-
-echo -e "\033[1;32m✔️  Alle Konvertierungen abgeschlossen.\033[0m"
+echo -e "\033[1;32m✔️  Konvertierung abgeschlossen.\033[0m"
