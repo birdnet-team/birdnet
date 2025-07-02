@@ -22,6 +22,37 @@ pip install birdnet --user
 pip install birdnet[and-cuda] --user
 ```
 
+## Supported audio formats
+
+- AIFC
+- AIFF
+- AU
+- AVR
+- CAF
+- FLAC
+- HTK
+- IRCAM
+- MAT4
+- MAT5
+- MP3
+- MPC2K
+- NIST
+- OGG
+- OPUS
+- PAF
+- PVF
+- RAW
+- RF64
+- SD2
+- SDS
+- SVX
+- VOC
+- W64
+- WAV
+- WAVEX
+- WVE
+- XI
+
 ## Example usage
 
 ### Identify species within an audio file

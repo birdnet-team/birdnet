@@ -255,18 +255,18 @@ if __name__ == "__main__":
     "n_slots_factor": 4,
   }
   params = params_1000h_48cpu
+
   params = {
-    "n_workers": 11,
-    "n_producers": 1,
+    "n_workers": 1,
+    "n_producers": 3,
     "batch_size": 1,
     "n_slots_factor": 2,
     "backend": "tf",
     "device": "CPU",
   }
-
   params = {
-    "n_workers": 1,
-    "n_producers": 3,
+    "n_workers": 11,
+    "n_producers": 1,
     "batch_size": 1,
     "n_slots_factor": 2,
     "backend": "tf",
@@ -289,9 +289,13 @@ if __name__ == "__main__":
   model: AcousticModelBaseV2_4 = load(backend=params["backend"])
   # model = load()
 
+  audio_paths = Path("src/birdnet_tests/test_files/soundscape.wav")
+  audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
+
   start = time.perf_counter()
   result = model.analyze(
     audio_paths,
+    benchmark=True,
     n_workers=params["n_workers"],
     n_producers=params["n_producers"],
     batch_size=params["batch_size"],

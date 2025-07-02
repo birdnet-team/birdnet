@@ -4,11 +4,53 @@ import math
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from multiprocessing import shared_memory
+from pathlib import Path
+from typing import Generator
 
 import numpy as np
 from numpy.typing import DTypeLike
+from ordered_set import OrderedSet
 
 from birdnet_v2.logging_utils import get_logger
+
+SF_FORMATS = {
+  ".AIFC",
+  ".AIFF",
+  ".AU",
+  ".AVR",
+  ".CAF",
+  ".FLAC",
+  ".HTK",
+  ".IRCAM",
+  ".MAT4",
+  ".MAT5",
+  ".MP3",
+  ".MPC2K",
+  ".NIST",
+  ".OGG",
+  ".OPUS",
+  ".PAF",
+  ".PVF",
+  ".RAW",
+  ".RF64",
+  ".SD2",
+  ".SDS",
+  ".SVX",
+  ".VOC",
+  ".W64",
+  ".WAV",
+  ".WAVEX",
+  ".WVE",
+  ".XI",
+}
+
+
+def get_supported_audio_files(folder: Path) -> Generator[Path, None, None]:
+  assert folder.is_dir()
+  result = (
+    p.absolute() for p in folder.rglob("**/*") if p.suffix.upper() in SF_FORMATS
+  )
+  yield from result
 
 
 def uint_dtype_for_files(n_files: int) -> np.dtype:

@@ -1,4 +1,5 @@
 import os
+import tempfile
 from pathlib import Path
 
 from birdnet_v2.base import MODEL_BACKENDS, MODEL_TYPES, MODEL_VERSIONS
@@ -29,6 +30,17 @@ def get_birdnet_app_data_folder() -> Path:
 
 
 APP_DIR = get_birdnet_app_data_folder()
+
+
+def get_benchmark_dir(
+  model: MODEL_TYPES,
+  version: MODEL_VERSIONS,
+) -> Path:
+  result = (
+    Path(tempfile.gettempdir()) / f"{PKG_NAME}-benchmarks" / f"{model}-v{version}"
+  )
+  result.mkdir(parents=True, exist_ok=True)
+  return result
 
 
 def get_local_model_root_dir(

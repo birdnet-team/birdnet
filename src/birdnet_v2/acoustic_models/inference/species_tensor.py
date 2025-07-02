@@ -42,7 +42,7 @@ class SpeciesTensor:
       self._species_ids.nbytes
       + self._species_probs.nbytes
       + self._species_masked.nbytes
-    ) / (1024 * 1024)
+    ) / 1024**2
 
   @property
   def current_n_chunks(self) -> int:

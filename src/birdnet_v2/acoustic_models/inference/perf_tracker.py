@@ -32,7 +32,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
   def __init__(
     self,
     pred_dur_queue: mp.SimpleQueue,
-    stop_event: mp.Event,
+    stop_event: Event,
     update_interval: float,
     print_interval: float,
     print_last_n: int,
@@ -44,7 +44,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     parent_process_id: int,
     rf_flags: RingField,
     tot_n_chunks_ptr: ctypes.c_uint64,
-    cancel_event: Event = None,
+    cancel_event: Event,
   ):
     super().__init__(__name__, logging_queue, logging_level)
 
