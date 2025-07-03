@@ -6,6 +6,7 @@ from typing import Literal, overload
 
 import numpy as np
 
+from birdnet_v2.acoustic_models.inference.prediction_result import PredictionResult
 from birdnet_v2.acoustic_models.v2_4.base import AcousticModelBaseV2_4
 from birdnet_v2.acoustic_models.v2_4.pb import AcousticPBModelV2_4
 from birdnet_v2.acoustic_models.v2_4.tf import AcousticTFModelV2_4
@@ -279,19 +280,19 @@ if __name__ == "__main__":
     Path("test-dataset/test_dataset_4x60min/2.wav"),
     Path("test-dataset/test_dataset_4x60min/3.wav"),
   ]
-  audio_paths = [
-    Path("src/birdnet_tests/test_files/soundscape.wav"),
-    # Path("test-dataset/test_dataset_1x60min/0.wav"),
-  ]
   # model = load(device="CPU", lang_id="de")
   # model = load(backend="pb", device="gpu:0")
   model: AcousticModelBaseV2_4 = load(backend=params["backend"])
   # model = load()
 
   audio_paths = Path("src/birdnet_tests/test_files/soundscape.wav")
-  audio_paths = get_pow_file_paths()
   audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
 
+  audio_paths = [
+    Path("src/birdnet_tests/test_files/soundscape.wav"),
+    Path("test-dataset/test_dataset_1x60min/0.wav"),
+  ]
+  audio_paths = get_pow_file_paths()
   start = time.perf_counter()
   result = model.analyze(
     audio_paths,
@@ -322,15 +323,19 @@ if __name__ == "__main__":
     # },
   )
   end = time.perf_counter()
-  df = result.to_dataframe()
+  print(f"Finished analysis in {end - start:.2f} seconds.")
   import tempfile
 
-  output_file = Path(tempfile.gettempdir()) / "predictions.csv"
-  df.to_csv(output_file, index=False)
-  # for file in audio_paths:
-  #   file_df = result.get_file_results(file).to_dataframe()
-  #   file_df.to_csv(..)
-  if len(df.index) > 0:
-    print(f"Mean: {df['confidence'].mean()}, Shape: {df.shape}")
-  print(f"Finished analysis in {end - start:.2f} seconds.")
+  output_file = Path(tempfile.gettempdir()) / "predictions.npz"
+  now = time.perf_counter()
+  result.dump(output_file)
+  print(f"Saved to {output_file} in {time.perf_counter() - now:.2f} seconds.")
+  if True:
+    result_loaded = PredictionResult.load(output_file)
+    df = result.to_dataframe()
+    # for file in audio_paths:
+    #   file_df = result.get_file_results(file).to_dataframe()
+    #   file_df.to_csv(..)
+    if len(df.index) > 0:
+      print(f"Mean: {df['confidence'].mean()}, Shape: {df.shape}")
   print(f"{output_file.absolute()} written.")

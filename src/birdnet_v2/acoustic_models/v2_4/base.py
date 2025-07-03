@@ -131,7 +131,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     batch_size: int = 1,
     n_slots_factor: int = 2,
     overlap_duration_s: float = 0,
-    default_confidence_threshold: float = 0.1,
+    default_confidence_threshold: float | None = 0.1,
     custom_confidence_thresholds: dict[str, float] | None = None,
     use_bandpass: bool = False,
     bandpass_fmin: int | None = None,
@@ -224,6 +224,8 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       species_whitelist = np.full(self.n_species, fill_value=True, dtype=bool)
     species_whitelist.setflags(write=False)
 
+    if default_confidence_threshold is None:
+      default_confidence_threshold = -np.inf
     thresholds = np.full(self.n_species, default_confidence_threshold, np.float32)
 
     if custom_confidence_thresholds:
@@ -512,6 +514,15 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         "Analysis was cancelled due to an error. Please check the logs for details."
       )
 
+    res = PredictionResult(
+      tensor=result,
+      files=file_paths,
+      chunk_duration_s=AcousticModelBaseV2_4.get_chunk_size_s(),
+      overlap_duration_s=overlap_duration_s,
+      species_list=self.species_list,
+    )
+    del result
+
     if show_stats == "minimal":
       analyzer_res: dict = analyzer_queue.get()
       file_durations_s: np.ndarray = analyzer_res["file_durations_s"]
@@ -545,7 +556,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         f"\tMax duration (file): {max_audio_duration_min:.2f} min\n"
         f"Memory usage:\n"
         f"\tRingbuffer total: {ringbuffer_total_MiB:.2f} MiB\n"
-        f"\tInference result: {result.memory_usage_mb:.2f} MiB\n"
+        f"\tInference result: {res.memory_size_mb:.2f} MiB\n"
         f"Performance audio processing (all): {pc_audio_min_per_s:.2f} min audio/s ({60 / pc_audio_min_per_s:.2f} s/h audio; {pc_chunks_per_s:.2f} chunks/s)\n"
       )
       print(summary)
@@ -628,7 +639,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         pc_chunks_per_s * AcousticModelBaseV2_4.get_chunk_size_s() / 60
       )
       bm["pc_s_per_audio_h"] = 60 / bm["pc_audio_min_per_s"]
-      bm["result_memory_usage_MiB"] = result.memory_usage_mb
+      bm["result_memory_usage_MiB"] = res.memory_size_mb
       bm["bn_ring_file_indices_MiB"] = rf_file_indices.nbytes / 1024**2
       bm["bn_ring_chunk_indices_MiB"] = rf_chunk_indices.nbytes / 1024**2
       bm["bn_ring_audio_samples_MiB"] = rf_audio_samples.nbytes / 1024**2
@@ -751,11 +762,4 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     logging_listener.join()
     bn_logging.remove_queue_handler(queue_handler)
 
-    res = PredictionResult(
-      tensor=result,
-      files=file_paths,
-      chunk_duration_s=AcousticModelBaseV2_4.get_chunk_size_s(),
-      overlap_duration_s=overlap_duration_s,
-      species_list=self.species_list,
-    )
     return res
