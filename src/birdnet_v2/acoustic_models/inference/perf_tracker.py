@@ -35,7 +35,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     stop_event: Event,
     update_interval: float,
     print_interval: float,
-    print_last_n: int,
+    use_stats_from_last_seconds: float,
+    n_workers: int,
     start: float,
     logging_queue: mp.Queue,
     logging_level: int,
@@ -50,9 +51,11 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
     assert update_interval <= print_interval
 
+    self._n_workers = n_workers
     self._perf_res = perf_res
     self._pred_dur_queue = pred_dur_queue
-    self._n_last = print_last_n
+    self._n_last = int(1 / update_interval * use_stats_from_last_seconds)
+    # self._n_last = print_last_n
     self._pred_dur_deque = deque(maxlen=self._n_last)
     self._batch_sizes_deque = deque(maxlen=self._n_last)
     self._update_every = update_interval
@@ -60,7 +63,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._next_print = time.time()
     self._next_update = self._next_print
     self._total_chunks_processed = 0
-    self._summed_pred_duration = 0.0
+    self._total_batches_processed = 0
+    self._summed_raw_pred_duration = 0.0
     self._start = start
     self._chunk_size_s = chunk_size_s
     self._parent_process_id = parent_process_id
@@ -86,6 +90,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     float_avg_filled_slots = 0
     float_avg_busy_slots = 0
     float_avg_preloaded_slots = 0
+    max_raw_chunks_per_s = 0
 
     cpu_usages = deque(maxlen=self._n_last)
     memory_usages = deque(maxlen=self._n_last)
@@ -93,6 +98,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     filled_slots = deque(maxlen=self._n_last)
     busy_slots = deque(maxlen=self._n_last)
     preloaded_slots = deque(maxlen=self._n_last)
+
+    avg_chunks_per_s = deque(maxlen=self._n_last)
 
     cancel = False
     while True:
@@ -108,10 +115,11 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
       while not self._pred_dur_queue.empty():
         dur, batch_size = self._pred_dur_queue.get()
+        self._total_batches_processed += 1
         self._pred_dur_deque.append(dur)
         self._batch_sizes_deque.append(batch_size)
         self._total_chunks_processed += batch_size
-        self._summed_pred_duration += dur
+        self._summed_raw_pred_duration += dur
         if ramp_up_time_until_first_pred is None:
           ramp_up_time_until_first_pred = time.perf_counter() - self._start - dur
           self._logger.info(
@@ -128,7 +136,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
           except psutil.NoSuchProcess:
             continue
 
-        memory_usage_MiB = memory_usage / (1024 * 1024)
+        memory_usage_MiB = memory_usage / 1024**2
         memory_usages.append(memory_usage_MiB)
 
         cpu_usage = psutil.cpu_percent()
@@ -176,12 +184,16 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
       if now >= self._next_print and len(self._pred_dur_deque) > 0:
         perf_duration = time.perf_counter() - self._start
-        avg = sum(self._pred_dur_deque) / sum(self._batch_sizes_deque)
-        chunks_per_s = self._total_chunks_processed / perf_duration
+        # avg = sum(self._pred_dur_deque) / sum(self._batch_sizes_deque)
+        # chunks_per_s = self._total_chunks_processed / perf_duration
+        # min_per_s = chunks_per_s * self._chunk_size_s / 60
 
-        memory_usage = parent_process.memory_info().rss
+        memory_usage = parent_process.memory_full_info().uss
         for child in parent_process.children(recursive=True):
-          memory_usage += child.memory_info().rss
+          try:
+            memory_usage += child.memory_full_info().uss
+          except psutil.NoSuchProcess:
+            continue
         memory_usage_MiB = memory_usage / 1024**2
 
         cpu_usage = psutil.cpu_percent()
@@ -191,11 +203,23 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         avg_filled_slots = np.mean(filled_slots) if filled_slots else 0
         avg_busy_slots = np.mean(busy_slots) if busy_slots else 0
 
+        raw_chunks_per_s = self._total_chunks_processed / (
+          self._summed_raw_pred_duration / avg_busy_slots
+        )
+        raw_min_per_s = raw_chunks_per_s * self._chunk_size_s / 60
+
+        max_raw_chunks_per_s = max(max_raw_chunks_per_s, raw_chunks_per_s)
+
+        chunks_per_s = raw_chunks_per_s
+        min_per_s = raw_min_per_s
+
+        avg_chunks_per_s.append(chunks_per_s)
+
         output_msg_fields = [
-          f"inference speed: {self._summed_pred_duration / self._total_chunks_processed * 1000:.0f} ms/chunk",
+          f"inference speed: {self._summed_raw_pred_duration / self._total_chunks_processed * 1000:.0f} ms/chunk",
           # f"last {len(self._pred_dur_deque)} predictions: {avg * 1000:.0f} ms/chunk",
           f"{chunks_per_s:.0f} chunks/s",
-          f"{chunks_per_s * self._chunk_size_s / 60:.2f} min/s",
+          f"{min_per_s:.2f} min/s",
           f"memory usage: {memory_usage_MiB:.2f} MiB",
           f"CPU usage: {cpu_usage:.1f}%",
           f"prel: {avg_preloaded_slots:.0f}",
@@ -234,7 +258,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
     stats = {}
     stats["total_chunks_processed"] = self._total_chunks_processed
-    stats["summed_prediction_duration_s"] = self._summed_pred_duration
+    stats["total_batches_processed"] = self._total_batches_processed
+    stats["summed_prediction_duration_s"] = self._summed_raw_pred_duration
     stats["ramp_up_time_until_first_pred_s"] = ramp_up_time_until_first_pred
     stats["n_usage_recordings"] = float_n_records
 
@@ -248,6 +273,19 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     stats["avg_filled_slots"] = float_avg_filled_slots
     stats["avg_busy_slots"] = float_avg_busy_slots
     stats["avg_preloaded_slots"] = float_avg_preloaded_slots
+
+    stats["avg_free_slots_last"] = np.mean(free_slots) if free_slots else 0
+    stats["avg_filled_slots_last"] = np.mean(filled_slots) if filled_slots else 0
+    stats["avg_busy_slots_last"] = np.mean(busy_slots) if busy_slots else 0
+    stats["avg_preloaded_slots_last"] = (
+      np.mean(preloaded_slots) if preloaded_slots else 0
+    )
+
+    stats["max_raw_chunks_per_s"] = max_raw_chunks_per_s
+
+    stats["avg_chunks_per_s_last"] = (
+      np.mean(avg_chunks_per_s) if avg_chunks_per_s else 0
+    )
 
     self._perf_res.put(stats)
 

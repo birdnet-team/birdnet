@@ -4,6 +4,7 @@ from __future__ import annotations
 import ctypes
 import importlib.metadata
 import json
+import math
 import multiprocessing
 import multiprocessing as mp
 import os
@@ -13,12 +14,12 @@ import time
 from collections import OrderedDict
 
 # You'll need these imports in your own code
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 # Next two import lines for this demo only
 # backend_protocol.py
-from typing import Iterable, final
+from typing import Iterable, Literal, Optional, final
 
 import numpy as np
 import pandas as pd
@@ -124,7 +125,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     inp: Path | str | Iterable[Path | str],
     /,
     *,
-    top_k: int = 5,
+    top_k: int | None = 5,
     n_producers: int = 1,
     n_workers: int = 4,
     batch_size: int = 1,
@@ -140,18 +141,22 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     custom_species_list: set[str] | None = None,
     half_precision: bool = True,
     max_audio_duration_min: float | None = None,
-    track_performance: bool = True,
-    benchmark: bool = False,
+    show_stats: Literal["no", "minimal", "progress", "benchmark"] = "progress",
     device: str | list[str] = "CPU",
   ):
     start = time.perf_counter()
     start_time = time.time()
     start_timepoint = datetime.now()
 
-    if benchmark and not track_performance:
+    if top_k is not None and top_k > len(self.species_list):
       raise ValueError(
-        "Benchmarking requires performance tracking to be enabled. Set track_performance=True."
+        f"top_k cannot be larger than the number of species ({len(self.species_list)})."
       )
+
+    if top_k is None:
+      top_k = len(self.species_list)
+
+    track_performance = show_stats in ("progress", "benchmark")
 
     # for i, kwargs in enumerate(backend_kwargs):
     #   kwargs["device"] =kwargs["device"].replace("0", str(i)) # Assign different CPU cores
@@ -412,7 +417,8 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             perf_stop_event,
             update_interval=0.5,
             print_interval=1,
-            print_last_n=20,
+            use_stats_from_last_seconds=30,
+            n_workers=n_workers,
             start=start,
             chunk_size_s=AcousticModelBaseV2_4.get_chunk_size_s(),
             logging_queue=logging_queue,
@@ -493,7 +499,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       logger.debug("All workers finished.")
 
       stop = time.perf_counter()
-      wall_time_s = stop - start
+      end_timepoint = datetime.now()
 
       if track_performance:
         assert perf_tracker is not None
@@ -506,17 +512,55 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         "Analysis was cancelled due to an error. Please check the logs for details."
       )
 
-    if benchmark:
+    if show_stats == "minimal":
+      analyzer_res: dict = analyzer_queue.get()
+      file_durations_s: np.ndarray = analyzer_res["file_durations_s"]
+      tot_n_chunks = analyzer_res["tot_n_chunks"]
+      total_chunks_processed = tot_n_chunks
+      wall_time_s = stop - start
+
+      ringbuffer_total_MiB = (
+        rf_file_indices.nbytes
+        + rf_chunk_indices.nbytes
+        + rf_audio_samples.nbytes
+        + rf_batch_sizes.nbytes
+        + rf_flags.nbytes
+      ) / 1024**2
+
+      pc_chunks_per_s = total_chunks_processed / wall_time_s
+      pc_audio_min_per_s = (
+        pc_chunks_per_s * AcousticModelBaseV2_4.get_chunk_size_s() / 60
+      )
+      tot_file_duration_h = file_durations_s.sum() / 60**2
+
+      summary = (
+        f"-------------------------------\n"
+        f"----------- Summary -----------\n"
+        f"-------------------------------\n"
+        f"Start time: {start_timepoint.strftime('%m/%d/%Y %I:%M %p')}\n"
+        f"End time:   {end_timepoint.strftime('%m/%d/%Y %I:%M %p')}\n"
+        f"Wall time:  {timedelta(seconds=wall_time_s)}\n"
+        f"Input: {n_files} file(s)\n"
+        f"\tTotal duration: {tot_file_duration_h:.2f} h\n"
+        f"\tMax duration (file): {max_audio_duration_min:.2f} min\n"
+        f"Memory usage:\n"
+        f"\tRingbuffer total: {ringbuffer_total_MiB:.2f} MiB\n"
+        f"\tInference result: {result.memory_usage_mb:.2f} MiB\n"
+        f"Performance audio processing (all): {pc_audio_min_per_s:.2f} min audio/s ({60 / pc_audio_min_per_s:.2f} s/h audio; {pc_chunks_per_s:.2f} chunks/s)\n"
+      )
+      print(summary)
+    elif show_stats == "benchmark":
       logger.info("Benchmarking is enabled. Collecting performance data...")
       analyzer_res: dict = analyzer_queue.get()
       file_durations_s: np.ndarray = analyzer_res["file_durations_s"]
       tot_n_chunks = analyzer_res["tot_n_chunks"]
       total_chunks_processed = tot_n_chunks
 
-      now = datetime.now()
       bm = OrderedDict()
       # Timestamp
-      bm["date"] = now.isoformat(timespec="seconds")
+      bm["date"] = start_timepoint.isoformat(timespec="seconds")
+      bm["start_time"] = start_timepoint.strftime("%m/%d/%Y %I:%M %p")
+      bm["end_time"] = end_timepoint.strftime("%m/%d/%Y %I:%M %p")
       # Hardware
       bm["host"] = platform.node()
       bm["CPU"] = platform.processor()
@@ -564,10 +608,8 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         len(custom_confidence_thresholds) if custom_confidence_thresholds else 0
       )
 
+      wall_time_s = stop - start
       pc_chunks_per_s = total_chunks_processed / wall_time_s
-      pc_audio_min_per_s = (
-        pc_chunks_per_s * AcousticModelBaseV2_4.get_chunk_size_s() / 60
-      )
       # samples_per_second = (
       #   AcousticModelBaseV2_4.get_chunk_size_samples() * pc_chunks_per_s
       # )
@@ -577,11 +619,15 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       rampup_first_line_s = start_time - parent.create_time()
       bm["rampup_first_line_s"] = rampup_first_line_s
       bm["wall_time_s"] = wall_time_s
+      bm["wall_time_readable"] = str(timedelta(seconds=wall_time_s))
       bm["cpu_time_s"] = None
       bm["rampup_time_s"] = None
       bm["model_pred_ms_per_chunk"] = None
       bm["pc_chunks_per_s"] = pc_chunks_per_s
-      bm["pc_audio_min_per_s"] = pc_audio_min_per_s
+      bm["pc_audio_min_per_s"] = (
+        pc_chunks_per_s * AcousticModelBaseV2_4.get_chunk_size_s() / 60
+      )
+      bm["pc_s_per_audio_h"] = 60 / bm["pc_audio_min_per_s"]
       bm["result_memory_usage_MiB"] = result.memory_usage_mb
       bm["bn_ring_file_indices_MiB"] = rf_file_indices.nbytes / 1024**2
       bm["bn_ring_chunk_indices_MiB"] = rf_chunk_indices.nbytes / 1024**2
@@ -603,11 +649,34 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       cpu_time_s = perf_result["summed_prediction_duration_s"]
       model_pred_ms_per_chunk = cpu_time_s / total_chunks_processed * 1000
 
+      raw_chunks_per_s = total_chunks_processed / (
+        cpu_time_s / perf_result["avg_busy_slots"]
+      )
+
       # Metrics
       bm["cpu_time_s"] = cpu_time_s
+      bm["raw_chunks_per_s"] = raw_chunks_per_s
+      bm["raw_min_per_s"] = (
+        bm["raw_chunks_per_s"] * AcousticModelBaseV2_4.get_chunk_size_s() / 60
+      )
+      bm["raw_avg_chunks_per_s_last"] = perf_result["avg_chunks_per_s_last"]
+      bm["raw_avg_raw_min_per_s_last"] = (
+        bm["raw_avg_chunks_per_s_last"] * AcousticModelBaseV2_4.get_chunk_size_s() / 60
+      )
+      bm["raw_avg_s_for_one_hour_last"] = 60 / bm["raw_avg_raw_min_per_s_last"]
+      bm["raw_s_for_one_hour"] = 60 / bm["raw_min_per_s"]
+      bm["raw_chunks_per_s_max"] = perf_result["max_raw_chunks_per_s"]
+      bm["raw_min_per_s_max"] = (
+        bm["raw_chunks_per_s_max"] * AcousticModelBaseV2_4.get_chunk_size_s() / 60
+      )
+      bm["raw_s_for_one_hour_max"] = 60 / bm["raw_min_per_s_max"]
       bm["rampup_time_s"] = perf_result["ramp_up_time_until_first_pred_s"]
       bm["n_chunks_processed"] = total_chunks_processed
+      bm["n_batches_processed"] = perf_result["total_batches_processed"]
       bm["model_pred_ms_per_chunk"] = model_pred_ms_per_chunk
+      bm["model_pred_ms_per_batch"] = (
+        bm["cpu_time_s"] / bm["n_batches_processed"] * 1000
+      )
 
       bm["n_usage_recordings"] = perf_result["n_usage_recordings"]
 
@@ -622,11 +691,18 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       bm["avg_busy_slots"] = perf_result["avg_busy_slots"]
       bm["avg_preloaded_slots"] = perf_result["avg_preloaded_slots"]
 
+      bm["avg_free_slots_last"] = perf_result["avg_free_slots_last"]
+      bm["avg_filled_slots_last"] = perf_result["avg_filled_slots_last"]
+      bm["avg_busy_slots_last"] = perf_result["avg_busy_slots_last"]
+      bm["avg_preloaded_slots_last"] = perf_result["avg_preloaded_slots_last"]
+
       benchmark_dir = get_benchmark_dir(
         model=AcousticModelBaseV2_4.get_model_type(),
         version=AcousticModelBaseV2_4.get_version(),
       )
-      stats_out = benchmark_dir / f"{now.strftime('analyze_%Y%m%dT%H%M%S')}.json"
+      stats_out = (
+        benchmark_dir / f"{end_timepoint.strftime('analyze_%Y%m%dT%H%M%S')}.json"
+      )
       with open(stats_out, "w", encoding="utf8") as f:
         json.dump(bm, f, indent=2, ensure_ascii=False)
 
@@ -636,28 +712,36 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         meta_df_out, mode="a", header=not meta_df_out.exists(), index=False
       )
 
+      file_formats = ", ".join(sorted({x.suffix[1:].upper() for x in file_paths}))
       summary = (
-        f"-------------------------\n"
-        f"--- Benchmark summary ---\n"
-        f"-------------------------\n"
-        f"Start time: {start_timepoint.strftime('%m/%d/%Y %I:%M %p')}\n"
-        f"wall time: {bm['wall_time_s']:.2f} s\n"
-        f"# Files: {bm['n_files']} ({bm['tot_file_duration_h']:.2f} h)\n"
-        f"# Producers processes: {bm['n_producers']}\n"
-        f"# Worker processes: {bm['n_workers']}\n"
-        f"Average batches:\n"
-        f"\tpreloaded: {bm['avg_preloaded_slots']:.1f} slots\n"
-        f"\tfree: {bm['avg_free_slots']:.1f} slots\n"
-        f"\tbusy: {bm['avg_busy_slots']:.1f} slots\n"
+        f"-------------------------------\n"
+        f"------ Benchmark summary ------\n"
+        f"-------------------------------\n"
+        f"Start time: {bm['start_time']}\n"
+        f"End time:   {bm['end_time']}\n"
+        f"Wall time:  {bm['wall_time_readable']}\n"
+        f"Input: {bm['n_files']} file(s) ({file_formats})\n"
+        f"\tTotal duration: {bm['tot_file_duration_h']:.2f} h\n"
+        f"\tMax duration (file): {bm['max_audio_duration_min']:.2f} min\n"
+        f"# Processes:\n"
+        f"\tProducer(s): {bm['n_producers']}\n"
+        f"\tWorker(s): {bm['n_workers']}\n"
+        f"Average amount of batches (ringbuffer: {n_slots} slots):\n"
+        f"\tBusy: {bm['avg_busy_slots']:.1f} slots\n"
+        f"\tPreloaded: {bm['avg_preloaded_slots']:.1f} slots\n"
+        f"\tFree: {bm['avg_free_slots']:.1f} slots\n"
         f"Memory usage:\n"
-        f"\tprogram max: {bm['max_memory_usages_MiB']:.2f} MiB\n"
-        f"\tringbuffer total: {bm['bn_ring_total_MiB']:.2f} MiB\n"
-        f"\tresult total: {bm['result_memory_usage_MiB']:.2f} MiB\n"
+        f"\tProgram max: {bm['max_memory_usages_MiB']:.2f} MiB\n"
+        f"\tRingbuffer total: {bm['bn_ring_total_MiB']:.2f} MiB\n"
+        f"\tInference result: {bm['result_memory_usage_MiB']:.2f} MiB\n"
         f"Performance:\n"
-        f"\tChunks per second: {bm['pc_chunks_per_s']:.2f} chunks/s\n"
-        f"\tAudio minutes per second: {bm['pc_audio_min_per_s']:.2f} min/s\n"
-        f"\tPrediction duration per chunk: {bm['model_pred_ms_per_chunk']:.2f} ms\n"
-        f"Complete output written to:\n"
+        f"\tAudio processing (all): {bm['pc_audio_min_per_s']:.2f} min audio/s ({bm['pc_s_per_audio_h']:.2f} s/h audio; {bm['pc_chunks_per_s']:.2f} chunks/s)\n"
+        f"\tAudio processing (computation):\n"
+        f"\t\tMean: {bm['raw_min_per_s']:.2f} min audio/s ({bm['raw_s_for_one_hour']:.2f} s/h audio; {bm['raw_chunks_per_s']:.2f} chunks/s)\n"
+        f"\t\tMean (last 30s): {bm['raw_avg_raw_min_per_s_last']:.2f} min audio/s ({bm['raw_avg_s_for_one_hour_last']:.2f} s/h audio; {bm['raw_avg_chunks_per_s_last']:.2f} chunks/s)\n"
+        f"\t\tMax: {bm['raw_min_per_s_max']:.2f} min audio/s ({bm['raw_s_for_one_hour_max']:.2f} s/h audio; {bm['raw_chunks_per_s_max']:.2f} chunks/s)\n"
+        f"\tPrediction speed: {bm['model_pred_ms_per_chunk']:.2f} ms/chunk ({bm['model_pred_ms_per_batch']:.2f} ms/batch)\n"
+        f"Benchmark results written to:\n"
         f"\t{stats_out.absolute()}\n"
         f"\t{meta_df_out.absolute()}\n"
       )

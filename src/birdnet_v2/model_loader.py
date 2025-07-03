@@ -265,8 +265,8 @@ if __name__ == "__main__":
     "device": "CPU",
   }
   params = {
-    "n_workers": 11,
-    "n_producers": 1,
+    "n_workers": 12,
+    "n_producers": 2,
     "batch_size": 1,
     "n_slots_factor": 2,
     "backend": "tf",
@@ -279,7 +279,6 @@ if __name__ == "__main__":
     Path("test-dataset/test_dataset_4x60min/2.wav"),
     Path("test-dataset/test_dataset_4x60min/3.wav"),
   ]
-  audio_paths = get_pow_file_paths()
   audio_paths = [
     Path("src/birdnet_tests/test_files/soundscape.wav"),
     # Path("test-dataset/test_dataset_1x60min/0.wav"),
@@ -290,28 +289,28 @@ if __name__ == "__main__":
   # model = load()
 
   audio_paths = Path("src/birdnet_tests/test_files/soundscape.wav")
+  audio_paths = get_pow_file_paths()
   audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
 
   start = time.perf_counter()
   result = model.analyze(
     audio_paths,
-    benchmark=True,
     n_workers=params["n_workers"],
     n_producers=params["n_producers"],
     batch_size=params["batch_size"],
     n_slots_factor=params["n_slots_factor"],
     apply_sigmoid=False,
-    top_k=5,
+    top_k=None,
     overlap_duration_s=0,
     sigmoid_sensitivity=1,
     default_confidence_threshold=-np.inf,
-    track_performance=True,
     half_precision=True,
     device=params["device"],
-    custom_confidence_thresholds={
-      "Junco hyemalis_Dark-eyed Junco": -np.inf,
-      "Haemorhous mexicanus_House Finch": 0.1,
-    },
+    show_stats="benchmark",
+    # custom_confidence_thresholds={
+    #   "Junco hyemalis_Dark-eyed Junco": -np.inf,
+    #   "Haemorhous mexicanus_House Finch": 0.1,
+    # },
     # custom_confidence_thresholds={
     #   model.species_list.by_scientific_name("Junco hyemalis"): -np.inf,
     #   model.species_list.by_common_name("House Finch"): -np.inf,
