@@ -62,7 +62,7 @@ def run_benchmark_from_args(args: list[str]) -> None:
     help="number of producers to use for processing",
     default=1,
   )
-  
+
   parser.add_argument(
     "-w",
     "--workers",
@@ -123,7 +123,7 @@ def run_benchmark_from_args(args: list[str]) -> None:
     "--prefetch_ratio",
     type=parse_non_negative_integer,
     metavar="RATIO",
-    help="amount of additional ring-buffer capacity to keep ahead of the workers, expressed as a ratio of the default size, which is the amount of workers.",
+    help="amount of additional ring-buffer capacity to keep ahead of the workers, expressed as a ratio of the default size (defaults to the amount of workers).",
     default=0,
   )
 
