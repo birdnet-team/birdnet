@@ -3,7 +3,7 @@ name = "birdnet"
 version = "0.1.7"
 description = "A Python library for identifying bird species by their sounds."
 readme = "README.md"
-requires-python = ">=3.9, <3.12"
+requires-python = ">=3.11, <3.12"
 license = { text = "MIT" }
 authors = [{ name = "Stefan Taubert" }]
 maintainers = [{ name = "Stefan Taubert" }]
@@ -25,8 +25,6 @@ classifiers = [
   "Operating System :: Microsoft :: Windows",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "License :: OSI Approved :: MIT License",
 ]
@@ -69,7 +67,7 @@ log_level = "DEBUG"
 testpaths = ["src/birdnet_tests"]
 
 [tool.ruff]
-src = ["src/mel_cepstral_distance"]
+src = ["src/birdnet"]
 line-length = 88
 indent-width = 2
 
@@ -106,7 +104,7 @@ known-first-party = ["birdnet*"]
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-envlist = py{39,310,311}
+envlist = py{311}
 isolated_build = True
 
 [testenv]
@@ -130,5 +128,5 @@ commands =
 """
 
 [build-system]
-requires = ["setuptools >= 40.9.0", "wheel"]
+requires = ["setuptools >= 80.9.0", "wheel"]
 build-backend = "setuptools.build_meta"

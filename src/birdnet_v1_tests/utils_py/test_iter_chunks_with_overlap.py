@@ -4,7 +4,7 @@ from itertools import islice
 import numpy as np
 import numpy.testing as npt
 
-from birdnet_v1.utils import iter_chunks_with_overlap
+from birdnet.utils import iter_chunks_with_overlap
 
 
 def test_2_0__returns_02_24():

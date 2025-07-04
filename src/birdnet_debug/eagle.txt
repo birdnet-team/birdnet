@@ -1,0 +1,12 @@
+inference speed: 1 ms/chunk; 894 chunks/s; 44.68 min/s; memory usage: 29853.50 MiB; CPU usage: 3.2%; prel: 3; free: 0; busy: 1; fill: 4; progress: 85.96%; remaining: 0:00:08
+inference speed: 1 ms/chunk; 896 chunks/s; 44.79 min/s; memory usage: 25151.78 MiB; CPU usage: 2.8%; prel: 3; free: 0; busy: 1; fill: 4; progress: 88.05%; remaining: 0:00:07
+inference speed: 1 ms/chunk; 898 chunks/s; 44.90 min/s; memory usage: 23385.31 MiB; CPU usage: 2.6%; prel: 3; free: 0; busy: 1; fill: 4; progress: 90.15%; remaining: 0:00:06
+inference speed: 1 ms/chunk; 896 chunks/s; 44.80 min/s; memory usage: 22519.31 MiB; CPU usage: 3.8%; prel: 3; free: 0; busy: 1; fill: 4; progress: 91.83%; remaining: 0:00:05
+inference speed: 1 ms/chunk; 898 chunks/s; 44.90 min/s; memory usage: 19198.25 MiB; CPU usage: 3.3%; prel: 3; free: 0; busy: 1; fill: 4; progress: 93.92%; remaining: 0:00:04
+inference speed: 1 ms/chunk; 892 chunks/s; 44.61 min/s; memory usage: 14203.91 MiB; CPU usage: 4.0%; prel: 3; free: 0; busy: 1; fill: 4; progress: 95.18%; remaining: 0:00:03
+inference speed: 1 ms/chunk; 890 chunks/s; 44.52 min/s; memory usage: 12178.01 MiB; CPU usage: 2.1%; prel: 3; free: 0; busy: 1; fill: 4; progress: 96.86%; remaining: 0:00:02
+inference speed: 1 ms/chunk; 877 chunks/s; 43.87 min/s; memory usage: 10232.31 MiB; CPU usage: 3.3%; prel: 3; free: 0; busy: 1; fill: 4; progress: 97.28%; remaining: 0:00:02
+inference speed: 1 ms/chunk; 868 chunks/s; 43.42 min/s; memory usage: 10398.05 MiB; CPU usage: 2.1%; prel: 3; free: 0; busy: 1; fill: 4; progress: 98.12%; remaining: 0:00:02
+inference speed: 1 ms/chunk; 869 chunks/s; 43.45 min/s; memory usage: 9193.73 MiB; CPU usage: 3.3%; prel: 3; free: 0; busy: 1; fill: 4; progress: 100.00%; remaining: 0:00:00
+inference speed: 1 ms/chunk; 854 chunks/s; 42.68 min/s; memory usage: 4760.99 MiB; CPU usage: 2.2%; prel: 2; free: 0; busy: 1; fill: 4; progress: 100.00%; remaining: 0:00:00
+/data/sttau/code/birdnet/.venv-py311/lib/python3.11/site-packages/numpy/core/_methods.py:48: RuntimeWarning: overflow encountered in reduce

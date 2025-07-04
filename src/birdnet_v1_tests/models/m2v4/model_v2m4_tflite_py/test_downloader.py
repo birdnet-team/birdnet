@@ -2,7 +2,7 @@ import tempfile
 from pathlib import Path
 
 from birdnet_v1.models.v2m4.model_v2m4_tflite import DOWNLOAD_URL, DownloaderTFLite
-from birdnet_v1.utils import download_file_tqdm
+from birdnet.utils import download_file_tqdm
 
 
 def get_dl_size() -> None:

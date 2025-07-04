@@ -1,5 +1,5 @@
 
-from birdnet_v1.utils import get_chunks_with_overlap
+from birdnet.utils import get_chunks_with_overlap
 
 
 def test_4_2_0__returns_float():

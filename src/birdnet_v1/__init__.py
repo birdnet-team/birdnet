@@ -9,4 +9,4 @@ from birdnet_v1.types import (
   SpeciesPredictions,
   TimeInterval,
 )
-from birdnet_v1.utils import get_species_from_file
+from birdnet.utils import get_species_from_file

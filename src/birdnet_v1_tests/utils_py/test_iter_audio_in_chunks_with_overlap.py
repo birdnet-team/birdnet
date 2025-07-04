@@ -1,7 +1,7 @@
 import numpy as np
 import numpy.testing as npt
 
-from birdnet_v1.utils import iter_audio_in_chunks_with_overlap
+from birdnet.utils import iter_audio_in_chunks_with_overlap
 from birdnet_v1_tests.helper import TEST_FILE_WAV, TEST_FILES_DIR
 
 

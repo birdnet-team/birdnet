@@ -11,7 +11,7 @@ from tqdm import tqdm
 from birdnet_v1.models.v2m4.model_v2m4_base import AudioModelBaseV2M4
 from birdnet_v1.models.v2m4.model_v2m4_protobuf import AudioModelV2M4Protobuf
 from birdnet_v1.types import Confidence, Species, SpeciesPrediction, TimeInterval
-from birdnet_v1.utils import (
+from birdnet.utils import (
   bandpass_signal,
   fillup_with_silence,
   flat_sigmoid,
