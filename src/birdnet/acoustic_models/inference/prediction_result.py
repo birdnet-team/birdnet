@@ -244,7 +244,7 @@ def fast_save_tensor_to_csv(
           e8 = end_fmt[ci]
 
           # Slice ohne Python-Loop
-          k_lim = valid.argmax() if not valid.all() else top_k
+          k_lim = valid.argmax() + 1 if not valid.all() else top_k
           sp_ids = ids[ci, :k_lim]
           sp_conf = probs[ci, :k_lim]
 
@@ -370,17 +370,3 @@ def load_prediction_data(in_path: os.PathLike | str) -> dict[str, Any]:
   with np.load(Path(in_path), allow_pickle=True) as npz:
     result = {k: npz[k] for k in npz.files}
     return result
-
-
-if __name__ == "__main__":
-  res = PredictionResult.load(
-    Path(tempfile.gettempdir()) / "predictions.npz"
-  )  # Example usage
-
-  df = res.to_csv(
-    Path(tempfile.gettempdir()) / "predictions.csv",
-    encoding="utf-8",
-  )
-
-  res = load_prediction_data(Path(tempfile.gettempdir()) / "predictions.npz")
-  print(res)

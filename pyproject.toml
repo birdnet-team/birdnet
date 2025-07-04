@@ -48,6 +48,9 @@ dev = ["pytest", "pytest-cov", "pytest-xdist", "tox", "ruff", "mypy", "rope", "b
 Homepage = "https://github.com/birdnet-team/birdnet"
 Issues = "https://github.com/birdnet-team/birdnet/issues"
 
+[project.scripts]
+birdnet-benchmark = "birdnet.benchmark_script:run_benchmark"
+
 [tool.mypy]
 python_version = "3.11"
 warn_return_any = true
