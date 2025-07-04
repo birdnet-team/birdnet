@@ -1,5 +1,3 @@
-import importlib.metadata
-from typing import Dict
 
 import soundfile as sf
 

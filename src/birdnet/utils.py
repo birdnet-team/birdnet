@@ -2,13 +2,12 @@ import os
 from collections.abc import Generator, Iterable
 from itertools import count, islice
 from pathlib import Path
-from typing import Any, Optional, Tuple, Union
+from typing import Any
 
 import numpy as np
 import numpy.typing as npt
 import requests
 import soundfile as sf
-from ordered_set import OrderedSet
 from scipy.signal import butter, lfilter, resample
 from tqdm import tqdm
 
@@ -59,7 +58,7 @@ def chunk_signal(
   chunk_size: float,
   chunk_overlap: float,
   min_chunk_size: float,
-) -> Generator[Tuple[float, float, npt.NDArray[np.float32]], None, None]:
+) -> Generator[tuple[float, float, npt.NDArray[np.float32]], None, None]:
   """Split signal with overlap.
 
   Args:
@@ -185,8 +184,8 @@ def download_file_tqdm(
   url: str,
   file_path: Path,
   *,
-  download_size: Optional[int] = None,
-  description: Optional[str] = None,
+  download_size: int | None = None,
+  description: str | None = None,
 ) -> int:
   assert file_path.parent.is_dir()
 
@@ -220,10 +219,10 @@ def itertools_batched(iterable: Iterable, n: int) -> Generator[Any, None, None]:
 
 
 def get_chunks_with_overlap(
-  total_duration_s: Union[int, float],
-  chunk_duration_s: Union[int, float],
-  overlap_duration_s: Union[int, float],
-) -> Generator[Tuple[float, float], None, None]:
+  total_duration_s: int | float,
+  chunk_duration_s: int | float,
+  overlap_duration_s: int | float,
+) -> Generator[tuple[float, float], None, None]:
   assert total_duration_s > 0
   assert chunk_duration_s > 0
   assert 0 <= overlap_duration_s < chunk_duration_s
@@ -246,12 +245,12 @@ def get_chunks_with_overlap(
 
 
 def iter_chunks_with_overlap(
-  chunk_duration_s: Union[int, float],
-  overlap_duration_s: Union[int, float],
+  chunk_duration_s: int | float,
+  overlap_duration_s: int | float,
   /,
   *,
-  start: Union[int, float] = 0.0,
-) -> Generator[Tuple[float, float], None, None]:
+  start: int | float = 0.0,
+) -> Generator[tuple[float, float], None, None]:
   assert chunk_duration_s > 0
   assert 0 <= overlap_duration_s < chunk_duration_s
 
@@ -292,7 +291,7 @@ def load_audio_in_chunks_with_overlap(
   chunk_duration_s: float = 3,
   overlap_duration_s: float = 0,
   target_sample_rate: int = 48000,
-) -> Generator[Tuple[float, float, npt.NDArray[np.float32]], None, None]:
+) -> Generator[tuple[float, float, npt.NDArray[np.float32]], None, None]:
   assert audio_path.is_file()
 
   sf_info = sf.info(audio_path)
@@ -324,7 +323,7 @@ def iter_audio_in_chunks_with_overlap(
   chunk_duration_s: float = 3,
   overlap_duration_s: float = 0,
   target_sample_rate: int = 48000,
-) -> Generator[Tuple[TimeInterval, npt.NDArray[np.float32]], None, None]:
+) -> Generator[tuple[TimeInterval, npt.NDArray[np.float32]], None, None]:
   # same method as above
   assert audio_path.is_file()
 

@@ -2,5 +2,5 @@ from birdnet.base import ModelBase
 
 
 class GeoModelBase(ModelBase):
-  def __init__(self, version: str) -> None:
-    super().__init__(version)
+  def __init__(self) -> None:
+    super().__init__()

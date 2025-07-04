@@ -1,15 +1,14 @@
 import ctypes
 import logging
 import math
+from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from multiprocessing import shared_memory
 from pathlib import Path
-from typing import Generator
 
 import numpy as np
 from numpy.typing import DTypeLike
-from ordered_set import OrderedSet
 
 from birdnet.logging_utils import get_logger
 

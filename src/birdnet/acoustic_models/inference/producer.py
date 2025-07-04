@@ -2,14 +2,12 @@ from __future__ import annotations
 
 import ctypes
 import os
-from collections import deque
 from collections.abc import Generator
 from itertools import count
 from multiprocessing import Queue, shared_memory
 from multiprocessing.sharedctypes import Synchronized
 from multiprocessing.synchronize import Event, Semaphore
 from pathlib import Path
-from typing import Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -17,13 +15,6 @@ import soundfile as sf
 from scipy.signal import resample
 
 import birdnet.logging_utils as bn_logging
-from birdnet.utils import (
-  bandpass_signal,
-  fillup_with_silence,
-  get_chunks_with_overlap,
-  itertools_batched,
-  resample_array,
-)
 from birdnet.globals import (
   DONE_FLAG,
   READABLE_FLAG,
@@ -37,13 +28,20 @@ from birdnet.helper import (
   get_max_n_chunks,
   max_value_for_uint_dtype,
 )
+from birdnet.utils import (
+  bandpass_signal,
+  fillup_with_silence,
+  get_chunks_with_overlap,
+  itertools_batched,
+  resample_array,
+)
 
 
 def get_chunks_with_overlap(
-  total_duration_s: Union[int, float],
-  chunk_duration_s: Union[int, float],
-  overlap_duration_s: Union[int, float],
-) -> Generator[Tuple[float, float], None, None]:
+  total_duration_s: int | float,
+  chunk_duration_s: int | float,
+  overlap_duration_s: int | float,
+) -> Generator[tuple[float, float], None, None]:
   assert total_duration_s > 0
   assert chunk_duration_s > 0
   assert 0 <= overlap_duration_s < chunk_duration_s
@@ -261,7 +259,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
     self._init()
     buffer_input = self.get_chunks_from_files()
     for batch in itertools_batched(buffer_input, self._batch_size):
-      file_indices, chunk_indices, audio_samples = zip(*batch)
+      file_indices, chunk_indices, audio_samples = zip(*batch, strict=False)
       max_chunk_index = max(chunk_indices)
       if max_chunk_index > self._max_supported_chunk_index:
         self._logger.error(

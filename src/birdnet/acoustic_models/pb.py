@@ -1,7 +1,8 @@
 import logging
 import os
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, final
+from typing import Any, final
 
 import absl.logging
 import numpy as np

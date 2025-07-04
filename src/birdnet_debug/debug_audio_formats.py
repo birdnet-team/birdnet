@@ -6,23 +6,16 @@ def read_audio(path: Path):
 
 from __future__ import annotations
 
-import ctypes
-import os
 from collections import deque
 from collections.abc import Generator
-from itertools import count
-from multiprocessing import Queue, shared_memory
-from multiprocessing.sharedctypes import Synchronized
-from multiprocessing.synchronize import Event, Semaphore
 from pathlib import Path
-from typing import Iterator, Tuple, Union
+from typing import Iterator, Tuple
 
 import av  # pip install av
 import av.audio.resampler
 import numpy as np
 import numpy.typing as npt
 import soundfile as sf
-from scipy.signal import resample
 
 from birdnet.acoustic_models.inference.producer import (
   SF_FORMATS,

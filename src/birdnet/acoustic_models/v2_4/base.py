@@ -4,14 +4,13 @@ from __future__ import annotations
 import ctypes
 import importlib.metadata
 import json
-import math
 import multiprocessing
 import multiprocessing as mp
 import os
 import platform
-import tempfile
 import time
 from collections import OrderedDict
+from collections.abc import Iterable
 
 # You'll need these imports in your own code
 from datetime import datetime, timedelta
@@ -19,7 +18,7 @@ from pathlib import Path
 
 # Next two import lines for this demo only
 # backend_protocol.py
-from typing import Iterable, Literal, Optional, final
+from typing import Literal, final
 
 import numpy as np
 import pandas as pd

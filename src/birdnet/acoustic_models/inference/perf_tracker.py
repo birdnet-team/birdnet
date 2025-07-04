@@ -5,7 +5,6 @@ from __future__ import annotations
 import ctypes
 import datetime
 import math
-import multiprocessing
 import multiprocessing as mp
 import sys
 import time
@@ -16,7 +15,6 @@ from multiprocessing.synchronize import Event, Semaphore
 # Next two import lines for this demo only
 import numpy as np
 import psutil
-import soundfile as sf  # pip install soundfile
 
 # try:
 #   import tflite_runtime.interpreter as tflite

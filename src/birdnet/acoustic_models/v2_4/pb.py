@@ -7,21 +7,20 @@ import zipfile
 from pathlib import Path
 from typing import final
 
-import soundfile as sf  # pip install soundfile
-
 # You'll need these imports in your own code
 # Next two import lines for this demo only
 from ordered_set import OrderedSet
 
-# try:
-#   import tflite_runtime.interpreter as tflite
-# except ImportError:  # fallback to full TF (heavier)
-from birdnet.utils import download_file_tqdm, get_species_from_file
 from birdnet.acoustic_models.base import AcousticInferenceBackend
 from birdnet.acoustic_models.pb import AcousticPBBackend
 from birdnet.acoustic_models.v2_4.base import AcousticModelBaseV2_4
 from birdnet.base import MODEL_BACKEND_PB, MODEL_BACKENDS
 from birdnet.local_data import get_local_model_root_dir
+
+# try:
+#   import tflite_runtime.interpreter as tflite
+# except ImportError:  # fallback to full TF (heavier)
+from birdnet.utils import download_file_tqdm, get_species_from_file
 
 
 def check_protobuf_model_files_exist(folder: Path) -> bool:

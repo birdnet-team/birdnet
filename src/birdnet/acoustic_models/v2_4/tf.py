@@ -17,11 +17,6 @@ from typing import (
 
 from ordered_set import OrderedSet
 
-# try:
-#   import tflite_runtime.interpreter as tflite
-# except ImportError:  # fallback to full TF (heavier)
-# from tensorflow.lite.python import interpreter as tflite
-from birdnet.utils import download_file_tqdm, get_species_from_file
 from birdnet.acoustic_models.base import AcousticInferenceBackend
 from birdnet.acoustic_models.tf import AcousticTFBackend
 from birdnet.acoustic_models.v2_4.base import AcousticModelBaseV2_4
@@ -30,6 +25,12 @@ from birdnet.base import (
   MODEL_BACKENDS,
 )
 from birdnet.local_data import get_local_model_root_dir
+
+# try:
+#   import tflite_runtime.interpreter as tflite
+# except ImportError:  # fallback to full TF (heavier)
+# from tensorflow.lite.python import interpreter as tflite
+from birdnet.utils import download_file_tqdm, get_species_from_file
 
 
 class AcousticTFDownloaderV2_4:

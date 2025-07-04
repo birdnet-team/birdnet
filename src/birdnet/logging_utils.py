@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-import multiprocessing
 import multiprocessing as mp
 from logging.handlers import QueueHandler
 from multiprocessing import Queue

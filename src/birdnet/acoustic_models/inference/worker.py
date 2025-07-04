@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import ctypes
-import multiprocessing
 import multiprocessing as mp
 import os
 import time
@@ -10,11 +9,9 @@ from multiprocessing.sharedctypes import Synchronized
 from multiprocessing.synchronize import Event, Semaphore
 
 import numpy as np
-import soundfile as sf  # pip install soundfile
 from numpy.typing import DTypeLike
 
 import birdnet.logging_utils as bn_logging
-from birdnet.utils import flat_sigmoid
 from birdnet.acoustic_models.base import AcousticInferenceBackend
 from birdnet.globals import (
   DONE_FLAG,
@@ -24,6 +21,7 @@ from birdnet.globals import (
   WRITING_FLAG,
 )
 from birdnet.helper import RingField, uint_dtype_for
+from birdnet.utils import flat_sigmoid
 
 # try:
 #   import tflite_runtime.interpreter as tflite
@@ -195,7 +193,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
   def __call__(self):
     try:
       self._init()
-    except ValueError as e:
+    except ValueError:
       self._log_debug("Failed to initialize worker. Exiting.")
       self._cancel_event.set()
       self._uninit()
