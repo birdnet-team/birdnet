@@ -3,6 +3,8 @@ import os
 import sys
 from argparse import ArgumentParser, Namespace
 
+import psutil
+
 import birdnet
 import birdnet.model_loader
 from birdnet.acoustic_models.v2_4.base import AcousticModelBaseV2_4
@@ -60,14 +62,14 @@ def run_benchmark_from_args(args: list[str]) -> None:
     help="number of producers to use for processing",
     default=1,
   )
-
+  
   parser.add_argument(
     "-w",
     "--workers",
     type=parse_positive_integer,
     metavar="WORKERS",
-    help="number of workers to use for processing",
-    default=os.cpu_count() or 4,
+    help="number of workers to use for processing (default: number of physical CPU cores)",
+    default=psutil.cpu_count(logical=False) or 4,
   )
 
   parser.add_argument(
