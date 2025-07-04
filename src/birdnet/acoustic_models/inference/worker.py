@@ -241,7 +241,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
       self._log_debug(f"Acquired READ_FLAG for slot {claimed_slot}.")
 
       n = self._ring_batch_sizes[claimed_slot]
-      audio_samples = self._ring_audio_samples[claimed_slot, :n].copy()
+      audio_samples = self._ring_audio_samples[claimed_slot, :n]
       file_indices = self._ring_file_indices[claimed_slot, :n].copy()  # copy needed
       chunk_indices = self._ring_chunk_indices[claimed_slot, :n].copy()  # copy needed
       self._log_debug(
