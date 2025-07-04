@@ -54,6 +54,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
     out_q: Queue,
     sem_free: Semaphore,
     sem_fill: Semaphore,
+    sem_active_workers: Semaphore,
     prob_dtype: DTypeLike,
     apply_sigmoid: bool,
     sigmoid_sensitivity: float | None,
@@ -62,7 +63,6 @@ class ChildWorker(bn_logging.LogableProcessBase):
     logging_queue: mp.Queue,
     logging_level: int,
     device: str,
-    num_threads: int,
     cancel_event: Event,
   ):
     super().__init__(__name__, logging_queue, logging_level)
@@ -84,6 +84,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
     self._slot_ptr: Synchronized[int] = slot_ptr  # type: ignore
     self._sem_free = sem_free
     self._sem_filled = sem_fill
+    self._sem_active_workers = sem_active_workers
     self._prediction_count = 0
     assert np.dtype(prob_dtype) in (np.float16, np.float32)
     self._prob_dtype = prob_dtype
@@ -103,7 +104,6 @@ class ChildWorker(bn_logging.LogableProcessBase):
     self._chunk_duration_samples = chunk_duration_samples
     # self._cached_shape: tuple[int, ...] | None = None
     # self._model_path = str(model_path.absolute())
-    self._num_threads = num_threads
 
     self._rf_file_indices = rf_file_indices
     self._rf_chunk_indices = rf_chunk_indices
@@ -239,15 +239,17 @@ class ChildWorker(bn_logging.LogableProcessBase):
         break
       assert claimed_flag == READABLE_FLAG
 
+      self._sem_active_workers.release()
       self._log_debug(f"Acquired READ_FLAG for slot {claimed_slot}.")
 
       n = self._ring_batch_sizes[claimed_slot]
-      audio_samples = self._ring_audio_samples[claimed_slot, :n]
-      file_indices = self._ring_file_indices[claimed_slot, :n]
-      chunk_indices = self._ring_chunk_indices[claimed_slot, :n]
+      audio_samples = self._ring_audio_samples[claimed_slot, :n].copy()
+      file_indices = self._ring_file_indices[claimed_slot, :n].copy()  # copy needed
+      chunk_indices = self._ring_chunk_indices[claimed_slot, :n].copy()  # copy needed
       self._log_debug(
         f"Received job for slot {claimed_slot} with {n} chunks: {chunk_indices}"
       )
+
       try:
         pred = self._infer(audio_samples)
       except Exception as e:
@@ -261,7 +263,15 @@ class ChildWorker(bn_logging.LogableProcessBase):
         )
         self._log_debug(f"Exiting worker {self._pid} due to error during inference.")
         self._out_q.put(None)
+        self._sem_active_workers.acquire(block=False)
         break
+
+      self._ring_flags[claimed_slot] = WRITABLE_FLAG
+      self._sem_free.release()
+
+      self._log_debug(
+        f"Released FREE. Free slots remaining: {self._sem_free}; Filled slots: {self._sem_filled}"
+      )
 
       if self._apply_sigmoid:
         assert self._sigmoid_sensitivity is not None
@@ -286,8 +296,8 @@ class ChildWorker(bn_logging.LogableProcessBase):
 
       self._out_q.put(
         (
-          file_indices.copy(),
-          chunk_indices.copy(),
+          file_indices,
+          chunk_indices,
           top_k_species,
           top_k_scores,
           top_k_mask,
@@ -298,12 +308,8 @@ class ChildWorker(bn_logging.LogableProcessBase):
         f"Prediction made. Total predictions: {self._prediction_count}. Chunks: {chunk_indices}"
       )
 
-      self._ring_flags[claimed_slot] = WRITABLE_FLAG
-      self._sem_free.release()
+      self._sem_active_workers.acquire(block=False)
 
-      self._log_debug(
-        f"Released FREE. Free slots remaining: {self._sem_free}; Filled slots: {self._sem_filled}"
-      )
     self._log_debug("Finished.")
     self._uninit()
 

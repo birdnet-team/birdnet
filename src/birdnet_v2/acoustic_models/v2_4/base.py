@@ -263,6 +263,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
 
     sem_free_slots = mp.Semaphore(n_slots)
     sem_filled_slots = mp.Semaphore(0)
+    sem_active_workers = mp.Semaphore(0)
     logger.debug(f"FILL: {sem_filled_slots}, FREE: {sem_free_slots}")
 
     rf_file_indices = RingField(
@@ -430,6 +431,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             rf_flags=rf_flags,
             tot_n_chunks_ptr=tot_n_chunks_ptr,
             cancel_event=cancel_event,
+            sem_active_workers=sem_active_workers,
           ),
           daemon=True,
         )
@@ -468,7 +470,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             pred_dur_queue=pred_dur_queue,
             track_performance=track_performance,
             cancel_event=cancel_event,
-            num_threads=1,  # more than one is not possible with multiprocessing in this tflite version
+            sem_active_workers=sem_active_workers,
           ),
           daemon=True,
         )
@@ -723,6 +725,8 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         meta_df_out, mode="a", header=not meta_df_out.exists(), index=False
       )
 
+      meta_human_readable_out = stats_out.with_suffix(".txt")
+
       file_formats = ", ".join(sorted({x.suffix[1:].upper() for x in file_paths}))
       summary = (
         f"-------------------------------\n"
@@ -750,12 +754,14 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         f"\tAudio processing (computation):\n"
         f"\t\tMean: {bm['raw_min_per_s']:.2f} min audio/s ({bm['raw_s_for_one_hour']:.2f} s/h audio; {bm['raw_chunks_per_s']:.2f} chunks/s)\n"
         f"\t\tMean (last 30s): {bm['raw_avg_raw_min_per_s_last']:.2f} min audio/s ({bm['raw_avg_s_for_one_hour_last']:.2f} s/h audio; {bm['raw_avg_chunks_per_s_last']:.2f} chunks/s)\n"
-        f"\t\tMax: {bm['raw_min_per_s_max']:.2f} min audio/s ({bm['raw_s_for_one_hour_max']:.2f} s/h audio; {bm['raw_chunks_per_s_max']:.2f} chunks/s)\n"
+        f"\t\tBest: {bm['raw_min_per_s_max']:.2f} min audio/s ({bm['raw_s_for_one_hour_max']:.2f} s/h audio; {bm['raw_chunks_per_s_max']:.2f} chunks/s)\n"
         f"\tPrediction speed: {bm['model_pred_ms_per_chunk']:.2f} ms/chunk ({bm['model_pred_ms_per_batch']:.2f} ms/batch)\n"
         f"Benchmark results written to:\n"
+        f"\t{meta_human_readable_out.absolute()}\n"
         f"\t{stats_out.absolute()}\n"
         f"\t{meta_df_out.absolute()}\n"
       )
+      meta_human_readable_out.write_text(summary, encoding="utf8")
       print(summary)
 
     logging_queue.put_nowait(None)

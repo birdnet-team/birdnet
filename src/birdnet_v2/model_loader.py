@@ -137,7 +137,7 @@ def load_custom(
 
 if __name__ == "__main__":
   # set_start_method("forkserver", force=True) # Linux, macOS
-  
+
   # set_start_method("fork", force=True)  # Linux, macOS
   # set_start_method("spawn", force=True)  # Windows
 
@@ -201,7 +201,6 @@ if __name__ == "__main__":
   audio_paths = [Path("src/birdnet_v2_debug/10min.wav")]
   audio_paths = [Path("src/birdnet_v2_debug/60min.wav")]
 
-
   audio_paths = [
     Path("src/birdnet_tests/test_files/soundscape.wav"),
     # Path("src/birdnet_tests/test_files/soundscape.flac"),
@@ -264,15 +263,6 @@ if __name__ == "__main__":
     "backend": "tf",
     "device": "CPU",
   }
-  params = {
-    "n_workers": 12,
-    "n_producers": 2,
-    "batch_size": 1,
-    "n_slots_factor": 2,
-    "backend": "tf",
-    "device": "CPU",
-  }
-
   audio_paths = [
     Path("test-dataset/test_dataset_4x60min/0.wav"),
     Path("test-dataset/test_dataset_4x60min/1.wav"),
@@ -285,16 +275,16 @@ if __name__ == "__main__":
   # model = load()
 
   audio_paths = Path("src/birdnet_tests/test_files/soundscape.wav")
-  audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
 
   audio_paths = [
     Path("src/birdnet_tests/test_files/soundscape.wav"),
     Path("test-dataset/test_dataset_1x60min/0.wav"),
   ]
-  audio_paths = get_pow_file_paths()
   audio_paths = [Path("src\\birdnet_v2_debug\\10min.wav")]
   audio_paths = [Path("src\\birdnet_v2_debug\\60min.wav")]
-  
+
+  audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
+  audio_paths = get_pow_file_paths()
   params = {
     "n_workers": 4,
     "n_producers": 1,
@@ -303,6 +293,15 @@ if __name__ == "__main__":
     "backend": "tf",
     "device": "CPU",
   }
+  params = {
+    "n_workers": 11,
+    "n_producers": 1,
+    "batch_size": 1,
+    "n_slots_factor": 1,
+    "backend": "tf",
+    "device": "CPU",
+  }
+
   start = time.perf_counter()
   result = model.analyze(
     audio_paths,
@@ -311,7 +310,7 @@ if __name__ == "__main__":
     batch_size=params["batch_size"],
     n_slots_factor=params["n_slots_factor"],
     apply_sigmoid=False,
-    top_k=None,
+    top_k=1,
     overlap_duration_s=0,
     sigmoid_sensitivity=1,
     default_confidence_threshold=-np.inf,
@@ -348,4 +347,3 @@ if __name__ == "__main__":
     #   file_df.to_csv(..)
     if len(df.index) > 0:
       print(f"Mean: {df['confidence'].mean()}, Shape: {df.shape}")
-  print(f"{output_file.absolute()} written.")

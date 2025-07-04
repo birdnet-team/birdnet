@@ -11,7 +11,7 @@ import sys
 import time
 from collections import Counter, deque
 from multiprocessing import shared_memory
-from multiprocessing.synchronize import Event
+from multiprocessing.synchronize import Event, Semaphore
 
 # Next two import lines for this demo only
 import numpy as np
@@ -41,6 +41,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     logging_queue: mp.Queue,
     logging_level: int,
     perf_res: mp.SimpleQueue,
+    sem_active_workers: Semaphore,
     chunk_size_s: float,
     parent_process_id: int,
     rf_flags: RingField,
@@ -55,6 +56,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._perf_res = perf_res
     self._pred_dur_queue = pred_dur_queue
     self._n_last = int(1 / update_interval * use_stats_from_last_seconds)
+    self._sem_active_workers = sem_active_workers
     # self._n_last = print_last_n
     self._pred_dur_deque = deque(maxlen=self._n_last)
     self._batch_sizes_deque = deque(maxlen=self._n_last)
@@ -98,6 +100,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     filled_slots = deque(maxlen=self._n_last)
     busy_slots = deque(maxlen=self._n_last)
     preloaded_slots = deque(maxlen=self._n_last)
+    active_workers = deque(maxlen=self._n_last)
 
     avg_chunks_per_s = deque(maxlen=self._n_last)
 
@@ -180,6 +183,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         filled_slots.append(n_filled)
         busy_slots.append(n_busy)
         preloaded_slots.append(n_preloaded)
+        active_workers.append(self._sem_active_workers.get_value())
 
         float_n_records += 1
         self._next_update = now + self._update_every
@@ -206,10 +210,14 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         avg_free_slots = np.mean(free_slots) if free_slots else 0
         avg_filled_slots = np.mean(filled_slots) if filled_slots else 0
         avg_busy_slots = np.mean(busy_slots) if busy_slots else 0
+        avg_active_workers = np.mean(active_workers) if active_workers else 0
 
-        raw_chunks_per_s = self._total_chunks_processed / (
-          self._summed_raw_pred_duration / avg_busy_slots
-        ) if avg_busy_slots > 0 else 0
+        raw_chunks_per_s = (
+          self._total_chunks_processed
+          / (self._summed_raw_pred_duration / avg_active_workers)
+          if avg_active_workers > 0
+          else 0
+        )
         raw_min_per_s = raw_chunks_per_s * self._chunk_size_s / 60
 
         max_raw_chunks_per_s = max(max_raw_chunks_per_s, raw_chunks_per_s)
@@ -230,6 +238,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
           f"free: {avg_free_slots:.0f}",
           f"busy: {avg_busy_slots:.0f}",
           f"fill: {avg_filled_slots:.0f}",
+          f"active: {avg_active_workers:.0f}",
         ]
 
         if self._tot_n_chunks_ptr.value > 0:
