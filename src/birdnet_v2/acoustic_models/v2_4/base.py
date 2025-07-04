@@ -129,7 +129,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     n_producers: int = 1,
     n_workers: int = 4,
     batch_size: int = 1,
-    n_slots_factor: int = 2,
+    n_slots_factor: int = 1,
     overlap_duration_s: float = 0,
     default_confidence_threshold: float | None = 0.1,
     custom_confidence_thresholds: dict[str, float] | None = None,

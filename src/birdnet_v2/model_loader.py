@@ -45,7 +45,6 @@ def load(
   model_type: Literal["acoustic"] = ...,
   version: Literal["2.4"] = ...,
   backend: Literal["pb"] = ...,
-  device: str = ...,
   lang_id: str = ...,
 ) -> AcousticPBModelV2_4: ...
 
@@ -138,7 +137,8 @@ def load_custom(
 
 if __name__ == "__main__":
   # set_start_method("forkserver", force=True) # Linux, macOS
-  set_start_method("fork", force=True)  # Linux, macOS
+  
+  # set_start_method("fork", force=True)  # Linux, macOS
   # set_start_method("spawn", force=True)  # Windows
 
   # os.environ["TF_CPP_MIN_LOG_LEVEL"] = "0"  # sämtliche TF-Logs
@@ -201,7 +201,6 @@ if __name__ == "__main__":
   audio_paths = [Path("src/birdnet_v2_debug/10min.wav")]
   audio_paths = [Path("src/birdnet_v2_debug/60min.wav")]
 
-  audio_paths = [Path("test-dataset/test_dataset_1x10min/0.wav")]
 
   audio_paths = [
     Path("src/birdnet_tests/test_files/soundscape.wav"),
@@ -293,6 +292,17 @@ if __name__ == "__main__":
     Path("test-dataset/test_dataset_1x60min/0.wav"),
   ]
   audio_paths = get_pow_file_paths()
+  audio_paths = [Path("src\\birdnet_v2_debug\\10min.wav")]
+  audio_paths = [Path("src\\birdnet_v2_debug\\60min.wav")]
+  
+  params = {
+    "n_workers": 4,
+    "n_producers": 1,
+    "batch_size": 1,
+    "n_slots_factor": 1,
+    "backend": "tf",
+    "device": "CPU",
+  }
   start = time.perf_counter()
   result = model.analyze(
     audio_paths,

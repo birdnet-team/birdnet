@@ -135,6 +135,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
             memory_usage += child.memory_full_info().uss
           except psutil.NoSuchProcess:
             continue
+          except psutil.AccessDenied:
+            continue
 
         memory_usage_MiB = memory_usage / 1024**2
         memory_usages.append(memory_usage_MiB)
@@ -194,6 +196,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
             memory_usage += child.memory_full_info().uss
           except psutil.NoSuchProcess:
             continue
+          except psutil.AccessDenied:
+            continue
         memory_usage_MiB = memory_usage / 1024**2
 
         cpu_usage = psutil.cpu_percent()
@@ -205,7 +209,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
         raw_chunks_per_s = self._total_chunks_processed / (
           self._summed_raw_pred_duration / avg_busy_slots
-        )
+        ) if avg_busy_slots > 0 else 0
         raw_min_per_s = raw_chunks_per_s * self._chunk_size_s / 60
 
         max_raw_chunks_per_s = max(max_raw_chunks_per_s, raw_chunks_per_s)
@@ -221,7 +225,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
           f"{chunks_per_s:.0f} chunks/s",
           f"{min_per_s:.2f} min/s",
           f"memory usage: {memory_usage_MiB:.2f} MiB",
-          f"CPU usage: {cpu_usage:.1f}%",
+          f"CPU usage: {cpu_usage:.1f} %",
           f"prel: {avg_preloaded_slots:.0f}",
           f"free: {avg_free_slots:.0f}",
           f"busy: {avg_busy_slots:.0f}",
@@ -230,7 +234,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
         if self._tot_n_chunks_ptr.value > 0:
           progress = self._total_chunks_processed / self._tot_n_chunks_ptr.value * 100
-          output_msg_fields.append(f"progress: {progress:.2f}%")
+          output_msg_fields.append(f"progress: {progress:.2f} %")
           est_remaining_time_s = (
             perf_duration
             * (self._tot_n_chunks_ptr.value - self._total_chunks_processed)

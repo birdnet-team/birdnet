@@ -71,7 +71,7 @@ class SpeciesTensor:
     self._species_masked[:, old_n_chunks:needed_n_chunks, :] = True
 
     self._logger.debug(
-      f"[resized] from {old_n_chunks} → {needed_n_chunks} chunks. Resulting array allocated: {self.memory_usage_mb:.2f} MB"
+      f"[resized] from {old_n_chunks} to {needed_n_chunks} chunks. Resulting array allocated: {self.memory_usage_mb:.2f} MB"
     )
 
   def write_block(
