@@ -9,37 +9,11 @@ from birdnet_v1.types import Language, Species
 from birdnet_v1.utils import get_birdnet_app_data_folder
 
 AVAILABLE_LANGUAGES: Set[Language] = {
-  "sv",
-  "da",
-  "hu",
-  "th",
-  "pt",
-  "fr",
-  "cs",
-  "af",
-  "en_uk",
-  "uk",
-  "it",
-  "ja",
-  "sl",
-  "pl",
-  "ko",
-  "es",
-  "de",
-  "tr",
-  "ru",
-  "en_us",
-  "no",
-  "sk",
-  "ar",
-  "fi",
-  "ro",
-  "nl",
-  "zh",
+    "sv", "da", "hu", "th", "pt", "fr", "cs", "af", "en_uk", "uk", "it", "ja", "sl", "pl", "ko", "es", "de", "tr", "ru", "en_us", "no", "sk", "ar", "fi", "ro", "nl", "zh"
 }
 
 
-class ModelV2M4Base:
+class ModelBaseV2M4:
   def __init__(self, species_list: OrderedSet[Species]) -> None:
     self._species_list = species_list
 
@@ -48,7 +22,7 @@ class ModelV2M4Base:
     return self._species_list
 
 
-class GeoModelV2M4Base(ModelV2M4Base):
+class MetaModelBaseV2M4(ModelBaseV2M4):
   def __init__(self, species_list: OrderedSet[Species]) -> None:
     super().__init__(species_list)
 
@@ -56,7 +30,7 @@ class GeoModelV2M4Base(ModelV2M4Base):
     raise NotImplementedError()
 
 
-class AcousticModelV2M4Base(ModelV2M4Base):
+class AudioModelBaseV2M4(ModelBaseV2M4):
   def __init__(self, species_list: OrderedSet[Species]) -> None:
     super().__init__(species_list)
 
@@ -88,8 +62,7 @@ class AcousticModelV2M4Base(ModelV2M4Base):
 def validate_language(language: Language):
   if language not in AVAILABLE_LANGUAGES:
     raise ValueError(
-      f"Language '{language}' is not available! Choose from: {', '.join(sorted(AVAILABLE_LANGUAGES))}."
-    )
+      f"Language '{language}' is not available! Choose from: {', '.join(sorted(AVAILABLE_LANGUAGES))}.")
 
 
 def get_internal_version_app_data_folder() -> Path:

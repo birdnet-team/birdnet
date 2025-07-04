@@ -17,7 +17,7 @@ import soundfile as sf
 from scipy.signal import resample
 
 import birdnet_v2.logging_utils as bn_logging
-from birdnet.utils import (
+from birdnet_v1.utils import (
   bandpass_signal,
   fillup_with_silence,
   get_chunks_with_overlap,

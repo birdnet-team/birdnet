@@ -6,23 +6,25 @@ from typing import Optional
 import numpy as np
 import numpy.typing as npt
 from ordered_set import OrderedSet
-# from tensorflow.lite.python.interpreter import Interpreter
 
-from birdnet_v1.types import Language
-from birdnet_v1.utils import download_file_tqdm, get_species_from_file
-from birdnet_v2.acoustic_models.v2m4_old.model_v2m4_base import (
+from birdnet_v1.models.v2m4.model_v2m4_base import (
   AVAILABLE_LANGUAGES,
-  AcousticModelV2M4Base,
-  GeoModelV2M4Base,
+  AudioModelBaseV2M4,
+  MetaModelBaseV2M4,
   get_internal_version_app_data_folder,
   validate_language,
 )
+from birdnet_v1.types import Language
+from birdnet_v1.utils import download_file_tqdm, get_species_from_file
+
+# from tensorflow.lite.python.interpreter import Interpreter
+
 
 DOWNLOAD_URL = "https://zenodo.org/records/15050749/files/BirdNET_v2.4_tflite.zip"
 DOWNLOAD_SIZE = 76822925
 
 
-class DownloaderTF:
+class DownloaderTFLite:
   def __init__(self, parent_folder: Path) -> None:
     self._version_path = parent_folder
     self._audio_model_path = self._version_path / "audio-model.tflite"
@@ -64,6 +66,7 @@ class DownloaderTF:
     return model_is_downloaded
 
   def _download_model_files(self) -> None:
+    dl_path = DOWNLOAD_URL
     self._version_path.mkdir(parents=True, exist_ok=True)
 
     zip_download_path = self._version_path / "download.zip"
@@ -85,7 +88,7 @@ class DownloaderTF:
       assert self._check_model_files_exist()
 
 
-class GeoTFModelV2M4Base(GeoModelV2M4Base):
+class MetaModelV2M4TFLiteBase(MetaModelBaseV2M4):
   def __init__(
     self,
     model_path: Path,
@@ -118,7 +121,7 @@ class GeoTFModelV2M4Base(GeoModelV2M4Base):
     return prediction
 
 
-class AcousticTFModelV2M4Base(AcousticModelV2M4Base):
+class AudioModelV2M4TFLiteBase(AudioModelBaseV2M4):
   def __init__(
     self,
     model_path: Path,
@@ -162,7 +165,7 @@ class AcousticTFModelV2M4Base(AcousticModelV2M4Base):
     return prediction
 
 
-class AcousticTFModelV2M4(AcousticTFModelV2M4Base):
+class AudioModelV2M4TFLite(AudioModelV2M4TFLiteBase):
   def __init__(
     self, /, *, tflite_num_threads: Optional[int] = 1, language: Language = "en_us"
   ) -> None:
@@ -192,7 +195,7 @@ class AcousticTFModelV2M4(AcousticTFModelV2M4Base):
     validate_language(language)
 
     model_folder = get_internal_version_app_data_folder() / "TFLite"
-    downloader = DownloaderTF(model_folder)
+    downloader = DownloaderTFLite(model_folder)
     downloader.ensure_model_is_available()
 
     species_list = get_species_from_file(
@@ -202,7 +205,7 @@ class AcousticTFModelV2M4(AcousticTFModelV2M4Base):
     super().__init__(downloader.audio_model_path, species_list, tflite_num_threads)
 
 
-class GeoTFModelV2M4(GeoTFModelV2M4Base):
+class MetaModelV2M4TFLite(MetaModelV2M4TFLiteBase):
   def __init__(
     self, /, *, tflite_num_threads: Optional[int] = 1, language: Language = "en_us"
   ) -> None:
@@ -232,7 +235,7 @@ class GeoTFModelV2M4(GeoTFModelV2M4Base):
     validate_language(language)
 
     model_folder = get_internal_version_app_data_folder() / "TFLite"
-    downloader = DownloaderTF(model_folder)
+    downloader = DownloaderTFLite(model_folder)
     downloader.ensure_model_is_available()
 
     species_list = get_species_from_file(

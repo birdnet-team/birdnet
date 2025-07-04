@@ -10,15 +10,15 @@ import numpy.typing as npt
 from ordered_set import OrderedSet
 # from tensorflow import Tensor
 
-from birdnet_v1.types import Language
-from birdnet_v1.utils import download_file_tqdm, get_species_from_file
-from birdnet_v2.acoustic_models.v2m4_old.model_v2m4_base import (
+from birdnet_v1.models.v2m4.model_v2m4_base import (
   AVAILABLE_LANGUAGES,
-  AcousticModelV2M4Base,
-  GeoModelV2M4Base,
+  AudioModelBaseV2M4,
+  MetaModelBaseV2M4,
   get_internal_version_app_data_folder,
   validate_language,
 )
+from birdnet_v1.types import Language
+from birdnet_v1.utils import download_file_tqdm, get_species_from_file
 
 DOWNLOAD_URL = "https://zenodo.org/records/15050749/files/BirdNET_v2.4_protobuf.zip"
 DOWNLOAD_SIZE = 124522908
@@ -70,14 +70,10 @@ class DownloaderProtobuf:
     self._version_path.mkdir(parents=True, exist_ok=True)
 
     zip_download_path = self._version_path / "download.zip"
-    download_file_tqdm(
-      DOWNLOAD_URL,
-      zip_download_path,
-      download_size=DOWNLOAD_SIZE,
-      description="Downloading models",
-    )
+    download_file_tqdm(DOWNLOAD_URL, zip_download_path, download_size=DOWNLOAD_SIZE,
+                       description="Downloading models")
 
-    with zipfile.ZipFile(zip_download_path, "r") as zip_ref:
+    with zipfile.ZipFile(zip_download_path, 'r') as zip_ref:
       zip_ref.extractall(self._version_path)
 
     os.remove(zip_download_path)
@@ -88,19 +84,19 @@ class DownloaderProtobuf:
       assert self._check_model_files_exist()
 
 
-def try_get_gpu_otherwise_return_cpu() -> Any:
-  all_gpus = tf.config.list_logical_devices("GPU")
+def try_get_gpu_otherwise_return_cpu() -> Any: #tf.config.LogicalDevice:
+  all_gpus = tf.config.list_logical_devices('GPU')
   if len(all_gpus) > 0:
     first_gpu = all_gpus[0]
     return first_gpu
-  all_cpus = tf.config.list_logical_devices("CPU")
+  all_cpus = tf.config.list_logical_devices('CPU')
   if len(all_cpus) == 0:
     raise Exception("No CPU found!")
   first_cpu = all_cpus[0]
   return first_cpu
 
 
-def get_custom_device(device_name: str) -> Any:
+def get_custom_device(device_name: str) -> Any: # tf.config.LogicalDevice:
   matched_device: tf.config.LogicalDevice = None
   available_devices: List[tf.config.LogicalDevice] = tf.config.list_logical_devices()
 
@@ -110,18 +106,12 @@ def get_custom_device(device_name: str) -> Any:
       break
   if matched_device is None:
     raise ValueError(
-      f"Device '{device_name}' doesn't exist. Please select one of the following existing device names: {', '.join(d.name for d in available_devices)}."
-    )
+      f"Device '{device_name}' doesn't exist. Please select one of the following existing device names: {', '.join(d.name for d in available_devices)}.")
   return matched_device
 
 
-class GeoPbModelV2M4Base(GeoModelV2M4Base):
-  def __init__(
-    self,
-    model_path: Path,
-    species_list: OrderedSet[str],
-    device: Any,
-  ) -> None:
+class MetaModelV2M4ProtobufBase(MetaModelBaseV2M4):
+  def __init__(self, model_path: Path, species_list: OrderedSet[str], device: Any) -> None:
     super().__init__(species_list)
     self._device = device
     logger = getLogger(__name__)
@@ -137,13 +127,8 @@ class GeoPbModelV2M4Base(GeoModelV2M4Base):
     return prediction_np
 
 
-class AcousticPbModelV2M4Base(AcousticModelV2M4Base):
-  def __init__(
-    self,
-    model_path: Path,
-    species_list: OrderedSet[str],
-    device: tf.config.LogicalDevice,
-  ) -> None:
+class AudioModelV2M4ProtobufBase(AudioModelBaseV2M4):
+  def __init__(self, model_path: Path, species_list: OrderedSet[str], device: Any) -> None:
     super().__init__(species_list)
     self._device = device
     logger = getLogger(__name__)
@@ -158,10 +143,8 @@ class AcousticPbModelV2M4Base(AcousticModelV2M4Base):
     return prediction_np
 
 
-class AcousticPbModelV2M4(AcousticPbModelV2M4Base):
-  def __init__(
-    self, /, *, language: Language = "en_us", custom_device: Optional[str] = None
-  ) -> None:
+class AudioModelV2M4Protobuf(AudioModelV2M4ProtobufBase):
+  def __init__(self, /, *, language: Language = "en_us", custom_device: Optional[str] = None) -> None:
     """
     Initializes the AudioModelV2M4Protobuf instance.
 
@@ -186,7 +169,8 @@ class AcousticPbModelV2M4(AcousticPbModelV2M4Base):
     downloader.ensure_model_is_available()
 
     species_list = get_species_from_file(
-      downloader.get_language_path(language), encoding="utf8"
+      downloader.get_language_path(language),
+      encoding="utf8"
     )
 
     device: tf.config.LogicalDevice
@@ -198,10 +182,8 @@ class AcousticPbModelV2M4(AcousticPbModelV2M4Base):
     super().__init__(downloader.audio_model_path, species_list, device)
 
 
-class GeoPbModelV2M4(GeoPbModelV2M4Base):
-  def __init__(
-    self, /, *, language: Language = "en_us", custom_device: Optional[str] = None
-  ) -> None:
+class MetaModelV2M4Protobuf(MetaModelV2M4ProtobufBase):
+  def __init__(self, /, *, language: Language = "en_us", custom_device: Optional[str] = None) -> None:
     """
     Initializes the MetaModelV2M4Protobuf instance.
 
@@ -226,7 +208,8 @@ class GeoPbModelV2M4(GeoPbModelV2M4Base):
     downloader.ensure_model_is_available()
 
     species_list = get_species_from_file(
-      downloader.get_language_path(language), encoding="utf8"
+      downloader.get_language_path(language),
+      encoding="utf8"
     )
 
     device: tf.config.LogicalDevice

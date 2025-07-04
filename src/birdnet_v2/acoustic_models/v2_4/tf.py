@@ -21,7 +21,7 @@ from ordered_set import OrderedSet
 #   import tflite_runtime.interpreter as tflite
 # except ImportError:  # fallback to full TF (heavier)
 # from tensorflow.lite.python import interpreter as tflite
-from birdnet.utils import download_file_tqdm, get_species_from_file
+from birdnet_v1.utils import download_file_tqdm, get_species_from_file
 from birdnet_v2.acoustic_models.base import AcousticInferenceBackend
 from birdnet_v2.acoustic_models.tf import AcousticTFBackend
 from birdnet_v2.acoustic_models.v2_4.base import AcousticModelBaseV2_4

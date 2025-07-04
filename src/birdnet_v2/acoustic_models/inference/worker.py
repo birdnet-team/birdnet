@@ -14,7 +14,7 @@ import soundfile as sf  # pip install soundfile
 from numpy.typing import DTypeLike
 
 import birdnet_v2.logging_utils as bn_logging
-from birdnet.utils import flat_sigmoid
+from birdnet_v1.utils import flat_sigmoid
 from birdnet_v2.acoustic_models.base import AcousticInferenceBackend
 from birdnet_v2.globals import (
   DONE_FLAG,

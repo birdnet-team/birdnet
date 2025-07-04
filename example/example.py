@@ -1,11 +1,11 @@
 from pathlib import Path
 
-from birdnet import (
+from birdnet_v1 import (
   SpeciesPredictions,
   get_species_from_file,
   predict_species_within_audio_file,
 )
-from birdnet.models.v2m4 import AudioModelV2M4Protobuf
+from birdnet_v1.models.v2m4 import AudioModelV2M4Protobuf
 
 audio_path = Path("example/soundscape.wav")
 species_path = Path("example/species_list.txt")
