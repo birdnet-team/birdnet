@@ -183,15 +183,13 @@ def fast_save_tensor_to_csv(
   result: PredictionResult,
   out_path: os.PathLike | str,
   *,
-  buf_KiB: int = 256,  # Schreibpuffer in KiB
+  buf_KiB: int = 256,
   encoding="utf-8",
   silent: bool = False,
 ) -> None:
-  """Schreibt *tensor* extrem speicherschonend & schnellen CSV‐Dump."""
-
   sid = result._species_ids
   sprob = result._species_probs
-  smask = result._species_masked
+  smask = ~result._species_masked
   top_k = result._species_probs.shape[2]
   n_files = len(result._files)
   n_segments = result._species_probs.shape[1]
@@ -214,17 +212,16 @@ def fast_save_tensor_to_csv(
 
   hdr = b"file,start,end,scientific_name,common_name,confidence\n"
 
-  # Großer roher Binär-Puffer; wir umgehen csv.writer komplett
   buf_bytes = buf_KiB * 1024
   block: list[bytes] = []
   block_size = 0
 
   with open(out_path, "wb", buffering=buf_bytes) as fh:
     fh.write(hdr)
-    non_masked_entry_count = np.count_nonzero(~smask)
+    non_masked_entry_count = np.count_nonzero(smask)
     with tqdm(
       total=non_masked_entry_count,
-      desc="Writing CSV",
+      desc="Writing predictions to CSV",
       unit="segment",
       disable=silent,
     ) as pbar:
@@ -236,7 +233,7 @@ def fast_save_tensor_to_csv(
 
         for ci in range(n_segments):
           # Bool-Maske für gültige Spezies
-          valid = ~masks[ci]
+          valid = masks[ci]
           if not valid.any():
             continue
 
@@ -244,7 +241,7 @@ def fast_save_tensor_to_csv(
           e8 = end_fmt[ci]
 
           # Slice ohne Python-Loop
-          k_lim = valid.argmax() + 1 if not valid.all() else top_k
+          k_lim = np.argmax(~valid, axis=0) if not valid.all() else top_k
           sp_ids = ids[ci, :k_lim]
           sp_conf = probs[ci, :k_lim]
 

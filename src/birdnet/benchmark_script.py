@@ -2,6 +2,7 @@ import argparse
 import os
 import sys
 from argparse import ArgumentParser, Namespace
+from pathlib import Path
 
 import psutil
 
@@ -158,5 +159,10 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
     bandpass_fmin=None,
   )
 
-  result.to_csv(ns.output, encoding="utf-8", silent=False)
-  print(f"Prediction results saved to: {ns.output.absolute()}.")
+  output_file: Path = ns.output
+
+  print("Writing result to internal format (.npz)...")
+  result.dump(output_file.with_suffix(".npz"))
+  print(f"Prediction result saved to: {output_file.with_suffix('.npz').absolute()}")
+  result.to_csv(output_file, encoding="utf-8", silent=False)
+  print(f"Prediction result saved to: {output_file.absolute()}")

@@ -8,15 +8,15 @@ from birdnet.acoustic_models.inference.prediction_result import (
 
 if __name__ == "__main__":
   res = PredictionResult.load(
-    Path(tempfile.gettempdir()) / "predictions.npz"
+    Path(tempfile.gettempdir()) / "soundscape.npz"
   )  # Example usage
 
   df = res.to_csv(
-    Path(tempfile.gettempdir()) / "predictions.csv",
+    Path(tempfile.gettempdir()) / "soundscape-out.csv",
     encoding="utf-8",
   )
 
-  print(Path(tempfile.gettempdir()) / "predictions.csv")
+  # print(Path(tempfile.gettempdir()) / "predictions.csv")
 
-  res = load_prediction_data(Path(tempfile.gettempdir()) / "predictions.npz")
+  # res = load_prediction_data(Path(tempfile.gettempdir()) / "predictions.npz")
   # print(res)
