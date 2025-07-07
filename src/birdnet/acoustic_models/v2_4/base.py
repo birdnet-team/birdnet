@@ -11,6 +11,7 @@ import platform
 import time
 from collections import OrderedDict
 from collections.abc import Iterable
+from dataclasses import asdict, dataclass, field
 
 # You'll need these imports in your own code
 from datetime import datetime, timedelta
@@ -30,7 +31,10 @@ import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.base import AcousticModelBase
 from birdnet.acoustic_models.inference.consumer import Consumer
 from birdnet.acoustic_models.inference.files_analyzer import FilesAnalyzer
-from birdnet.acoustic_models.inference.perf_tracker import PerformanceTracker
+from birdnet.acoustic_models.inference.perf_tracker import (
+  PerformanceTracker,
+  PerformanceTrackingResult,
+)
 
 # try:
 #   import tflite_runtime.interpreter as tflite
@@ -56,6 +60,174 @@ from birdnet.helper import (
 )
 from birdnet.local_data import get_benchmark_dir
 from birdnet.logging_utils import QueueFileWriter, get_package_logging_level
+
+
+@dataclass
+class BenchmarkMeta:
+  # Timestamp
+  _start_timepoint: datetime
+  _end_timepoint: datetime
+
+  @property
+  def date(self) -> str:
+    return self._start_timepoint.isoformat(timespec="seconds")
+
+  @property
+  def start_time(self) -> str:
+    return self._start_timepoint.strftime("%m/%d/%Y %I:%M %p")
+
+  @property
+  def end_time(self) -> str:
+    return self._end_timepoint.strftime("%m/%d/%Y %I:%M %p")
+
+  # Hardware
+  def host(self) -> str:
+    return platform.node()
+
+  def cpu(self) -> str:
+    return platform.processor()
+
+  def cpu_cores(self) -> int:
+    return psutil.cpu_count(logical=False) or -1
+
+  def cpu_logical_cores(self) -> int:
+    return psutil.cpu_count(logical=True) or -1
+
+  @property
+  def ram_GiB(self) -> float:
+    return psutil.virtual_memory().total / 1024**3
+
+  n_producers: int
+  n_workers: int
+
+  def start_method(self) -> str:
+    return multiprocessing.get_start_method()
+
+  devices: str
+
+  # Software
+  @property
+  def os(self) -> str:
+    return f"{platform.system()} {platform.release()}"
+
+  @property
+  def python_version(self) -> str:
+    return platform.python_version()
+
+  @property
+  def python_implementation(self) -> str:
+    return platform.python_implementation()
+
+  @property
+  def package_version(self) -> str:
+    return importlib.metadata.version(PKG_NAME)
+
+  # Model
+  model_type: str
+  model_version: str
+  custom_model: bool
+  model_path: str
+  model_n_species: int
+
+  # Dataset
+  _file_durations_s: np.ndarray
+
+  @property
+  def n_files(self) -> int:
+    return len(self._file_durations_s)
+
+  @property
+  def tot_file_duration_h(self) -> float:
+    return self._file_durations_s.sum() / 60**2
+
+  @property
+  def avg_audio_duration_min(self) -> float:
+    if len(self._file_durations_s) == 0:
+      return 0.0
+    return self._file_durations_s.mean() / 60
+
+  @property
+  def min_audio_duration_min(self) -> float:
+    if len(self._file_durations_s) == 0:
+      return 0.0
+    return self._file_durations_s.min() / 60
+
+  @property
+  def max_audio_duration_min(self) -> float:
+    if len(self._file_durations_s) == 0:
+      return 0.0
+    return self._file_durations_s.max() / 60
+
+  max_n_chunks: int
+  tot_n_chunks: int
+
+  # Parameter
+  chunk_s: float
+  overlap_s: float
+  batch_size: int
+  top_k: int
+  n_slots_factor: int
+  ringsize: int
+  apply_sigmoid: bool
+  sigmoid_sensitivity: float | None
+  use_bandpass: bool
+  bandpass_fmin: int | None
+  bandpass_fmax: int | None
+  half_precision: bool
+  default_confidence_threshold: float | None
+  n_custom_species: int
+  n_custom_confidence_thresholds: int
+
+  rampup_first_line_s: float
+  wall_time_s: float
+
+  @property
+  def wall_time_readable(self) -> str:
+    return str(timedelta(seconds=self.wall_time_s))
+
+  cpu_time_s: float
+
+  result_memory_usage_MiB: float
+
+  bn_ring_file_indices_MiB: float
+  bn_ring_chunk_indices_MiB: float
+  bn_ring_audio_samples_MiB: float
+  bn_ring_batch_sizes_MiB: float
+  bn_ring_flags_MiB: float
+
+  @property
+  def bn_ring_total_MiB(self) -> float:
+    return (
+      self.bn_ring_file_indices_MiB
+      + self.bn_ring_chunk_indices_MiB
+      + self.bn_ring_audio_samples_MiB
+      + self.bn_ring_batch_sizes_MiB
+      + self.bn_ring_flags_MiB
+    )
+
+  n_usage_recordings: int
+  max_memory_usages_MiB: float
+  avg_memory_usages_MiB: float
+  max_cpu_usages_pct: float
+  avg_cpu_usages_pct: float
+  avg_free_slots: float
+
+  @property
+  def avg_filled_slots(self) -> float:
+    return self.ringsize - self.avg_free_slots
+
+  avg_busy_slots: float
+  avg_preloaded_slots: float
+  avg_busy_workers: float
+  avg_free_slots_last: float
+  avg_filled_slots_last: float
+  avg_busy_slots_last: float
+  avg_preloaded_slots_last: float
+  avg_busy_workers_last: float
+
+  rampup_time_s: float | None
+  n_chunks_processed: int
+  n_batches_processed: int
 
 
 class AcousticModelBaseV2_4(AcousticModelBase):
@@ -330,7 +502,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
 
     pred_dur_queue = mp.SimpleQueue()
     analyzer_queue = mp.SimpleQueue()
-    perf_res: mp.SimpleQueue | None = None
+    perf_res_queue: mp.SimpleQueue | None = None
     perf_stop_event = mp.Event()
     cancel_event = mp.Event()
     tot_n_chunks_ptr = mp.RawValue(ctypes.c_uint64, 0)
@@ -456,7 +628,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
 
       perf_tracker = None
       if track_performance:
-        perf_res = mp.SimpleQueue()
+        perf_res_queue = mp.SimpleQueue()
         perf_tracker = mp.Process(
           target=PerformanceTracker(
             pred_dur_queue,
@@ -470,7 +642,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             chunk_size_s=AcousticModelBaseV2_4.get_chunk_size_s(),
             logging_queue=logging_queue,
             logging_level=logging_level,
-            perf_res=perf_res,
+            perf_res=perf_res_queue,
             parent_process_id=os.getpid(),
             rf_flags=rf_flags,
             tot_n_chunks_ptr=tot_n_chunks_ptr,
@@ -564,63 +736,81 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       )
       print(summary)
     elif show_stats == "benchmark":
+      assert track_performance
+      assert perf_res_queue is not None
+      perf_result: PerformanceTrackingResult = perf_res_queue.get()
+
       logger.info("Benchmarking is enabled. Collecting performance data...")
       analyzer_res: dict = analyzer_queue.get()
       file_durations_s: np.ndarray = analyzer_res["file_durations_s"]
       tot_n_chunks = analyzer_res["tot_n_chunks"]
       total_chunks_processed = tot_n_chunks
 
-      bm = OrderedDict()
-      # Timestamp
-      bm["date"] = start_timepoint.isoformat(timespec="seconds")
-      bm["start_time"] = start_timepoint.strftime("%m/%d/%Y %I:%M %p")
-      bm["end_time"] = end_timepoint.strftime("%m/%d/%Y %I:%M %p")
-      # Hardware
-      bm["host"] = platform.node()
-      bm["CPU"] = platform.processor()
-      bm["cpu_cores"] = psutil.cpu_count(logical=False)
-      bm["cpu_logical_cores"] = psutil.cpu_count(logical=True)
-      bm["ram_GiB"] = psutil.virtual_memory().total / 1024**3
-      bm["n_producers"] = n_producers
-      bm["n_workers"] = n_workers
-      bm["start_method"] = multiprocessing.get_start_method()
-      bm["device(s)"] = ", ".join(device) if isinstance(device, list) else device
-      # Software
-      bm["os"] = f"{platform.system()} {platform.release()}"
-      bm["python"] = platform.python_version()
-      bm["package_version"] = importlib.metadata.version(PKG_NAME)
-      # Model
-      bm["model_type"] = AcousticModelBaseV2_4.get_model_type()
-      bm["model_version"] = AcousticModelBaseV2_4.get_version()
-      bm["custom_model"] = self.use_custom_model
-      bm["model_path"] = str(self.model_path.absolute())
-      bm["model_n_species"] = self.n_species
-      # Dataset
-      bm["n_files"] = len(file_paths)
-      bm["tot_file_duration_h"] = file_durations_s.sum() / 60**2
-      bm["avg_audio_duration_min"] = file_durations_s.mean() / 60
-      bm["min_audio_duration_min"] = file_durations_s.min() / 60
-      bm["max_audio_duration_min"] = file_durations_s.max() / 60
-      bm["max_n_chunks"] = max_chunk_idx_ptr.value + 1
-      bm["tot_n_chunks"] = tot_n_chunks
-      # Parameter
-      bm["chunk_s"] = AcousticModelBaseV2_4.get_chunk_size_s()
-      bm["overlap_s"] = overlap_duration_s
-      bm["batch_size"] = batch_size
-      bm["top_k"] = top_k
-      bm["n_slots_factor"] = n_slots_factor
-      bm["ringsize"] = n_slots
-      bm["apply_sigmoid"] = apply_sigmoid
-      bm["sigmoid_sensitivity"] = sigmoid_sensitivity if apply_sigmoid else None
-      bm["use_bandpass"] = use_bandpass
-      bm["bandpass_fmin"] = bandpass_fmin
-      bm["bandpass_fmax"] = bandpass_fmax
-      bm["half_precision"] = half_precision
-      bm["default_confidence_threshold"] = default_confidence_threshold
-      bm["n_custom_species"] = len(custom_species_list) if custom_species_list else 0
-      bm["n_custom_confidence_thresholds"] = (
-        len(custom_confidence_thresholds) if custom_confidence_thresholds else 0
+      bmm = BenchmarkMeta(
+        _start_timepoint=start_timepoint,
+        _end_timepoint=end_timepoint,
+        n_producers=n_producers,
+        n_workers=n_workers,
+        devices=", ".join(device) if isinstance(device, list) else device,
+        model_type=AcousticModelBaseV2_4.get_model_type(),
+        model_version=AcousticModelBaseV2_4.get_version(),
+        custom_model=self.use_custom_model,
+        model_path=str(self.model_path.absolute()),
+        model_n_species=self.n_species,
+        _file_durations_s=file_durations_s,
+        max_n_chunks=max_chunk_idx_ptr.value + 1,
+        tot_n_chunks=analyzer_res["tot_n_chunks"],
+        n_chunks_processed=analyzer_res["tot_n_chunks"],  # TODO
+        chunk_s=AcousticModelBaseV2_4.get_chunk_size_s(),
+        overlap_s=overlap_duration_s,
+        batch_size=batch_size,
+        top_k=top_k,
+        n_slots_factor=n_slots_factor,
+        ringsize=n_slots,
+        apply_sigmoid=apply_sigmoid,
+        sigmoid_sensitivity=sigmoid_sensitivity if apply_sigmoid else None,
+        use_bandpass=use_bandpass,
+        bandpass_fmin=bandpass_fmin,
+        bandpass_fmax=bandpass_fmax,
+        half_precision=half_precision,
+        default_confidence_threshold=default_confidence_threshold,
+        n_custom_species=len(custom_species_list) if custom_species_list else 0,
+        n_custom_confidence_thresholds=(
+          len(custom_confidence_thresholds) if custom_confidence_thresholds else 0
+        ),
+        rampup_first_line_s=start_time - psutil.Process(os.getpid()).create_time(),
+        wall_time_s=stop - start,
+        cpu_time_s=perf_result.summed_prediction_duration_s,
+        result_memory_usage_MiB=res.memory_size_mb,
+        bn_ring_file_indices_MiB=rf_file_indices.nbytes / 1024**2,
+        bn_ring_chunk_indices_MiB=rf_chunk_indices.nbytes / 1024**2,
+        bn_ring_audio_samples_MiB=rf_audio_samples.nbytes / 1024**2,
+        bn_ring_batch_sizes_MiB=rf_batch_sizes.nbytes / 1024**2,
+        bn_ring_flags_MiB=rf_flags.nbytes / 1024**2,
+        n_usage_recordings=perf_result.n_usage_recordings,
+        max_memory_usages_MiB=perf_result.max_memory_usages_MiB,
+        avg_memory_usages_MiB=perf_result.avg_memory_usages_MiB,
+        max_cpu_usages_pct=perf_result.max_cpu_usages_pct,
+        avg_cpu_usages_pct=perf_result.avg_cpu_usages_pct,
+        avg_free_slots=perf_result.avg_free_slots,
+        avg_busy_slots=perf_result.avg_busy_slots,
+        avg_preloaded_slots=perf_result.avg_preloaded_slots,
+        avg_busy_workers=perf_result.avg_busy_workers,
+        avg_free_slots_last=perf_result.avg_free_slots_last,
+        avg_filled_slots_last=n_slots - perf_result.avg_free_slots_last,
+        avg_busy_slots_last=perf_result.avg_busy_slots_last,
+        avg_preloaded_slots_last=perf_result.avg_preloaded_slots_last,
+        avg_busy_workers_last=perf_result.avg_busy_workers_last,
+        rampup_time_s=perf_result.ramp_up_time_until_first_pred_s,
+        n_batches_processed=perf_result.total_batches_processed,
       )
+
+      x = asdict(bmm)
+      for k in x:
+        if k.startswith("_"):
+          del x[k]
+
+      bm = OrderedDict()
 
       wall_time_s = stop - start
       pc_chunks_per_s = total_chunks_processed / wall_time_s
@@ -628,13 +818,6 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       #   AcousticModelBaseV2_4.get_chunk_size_samples() * pc_chunks_per_s
       # )
 
-      pid = os.getpid()
-      parent = psutil.Process(pid)
-      rampup_first_line_s = start_time - parent.create_time()
-      bm["rampup_first_line_s"] = rampup_first_line_s
-      bm["wall_time_s"] = wall_time_s
-      bm["wall_time_readable"] = str(timedelta(seconds=wall_time_s))
-      bm["cpu_time_s"] = None
       bm["rampup_time_s"] = None
       bm["model_pred_ms_per_chunk"] = None
       bm["pc_chunks_per_s"] = pc_chunks_per_s
@@ -642,23 +825,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         pc_chunks_per_s * AcousticModelBaseV2_4.get_chunk_size_s() / 60
       )
       bm["pc_s_per_audio_h"] = 60 / bm["pc_audio_min_per_s"]
-      bm["result_memory_usage_MiB"] = res.memory_size_mb
-      bm["bn_ring_file_indices_MiB"] = rf_file_indices.nbytes / 1024**2
-      bm["bn_ring_chunk_indices_MiB"] = rf_chunk_indices.nbytes / 1024**2
-      bm["bn_ring_audio_samples_MiB"] = rf_audio_samples.nbytes / 1024**2
-      bm["bn_ring_batch_sizes_MiB"] = rf_batch_sizes.nbytes / 1024**2
-      bm["bn_ring_flags_MiB"] = rf_flags.nbytes / 1024**2
-      bm["bn_ring_total_MiB"] = (
-        bm["bn_ring_file_indices_MiB"]
-        + bm["bn_ring_chunk_indices_MiB"]
-        + bm["bn_ring_audio_samples_MiB"]
-        + bm["bn_ring_batch_sizes_MiB"]
-        + bm["bn_ring_flags_MiB"]
-      )
 
-      assert track_performance
-      assert perf_res is not None
-      perf_result = perf_res.get()
       total_chunks_processed = perf_result["total_chunks_processed"]
       cpu_time_s = perf_result["summed_prediction_duration_s"]
       model_pred_ms_per_chunk = cpu_time_s / total_chunks_processed * 1000
@@ -668,7 +835,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       )
 
       # Metrics
-      bm["cpu_time_s"] = cpu_time_s
+
       bm["raw_chunks_per_s"] = raw_chunks_per_s
       bm["raw_min_per_s"] = (
         bm["raw_chunks_per_s"] * AcousticModelBaseV2_4.get_chunk_size_s() / 60
@@ -684,33 +851,12 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         bm["raw_chunks_per_s_max"] * AcousticModelBaseV2_4.get_chunk_size_s() / 60
       )
       bm["raw_s_for_one_hour_max"] = 60 / bm["raw_min_per_s_max"]
-      bm["rampup_time_s"] = perf_result["ramp_up_time_until_first_pred_s"]
-      bm["n_chunks_processed"] = total_chunks_processed
-      bm["n_batches_processed"] = perf_result["total_batches_processed"]
+
       bm["model_pred_ms_per_chunk"] = model_pred_ms_per_chunk
       bm["model_pred_ms_per_batch"] = (
         bm["cpu_time_s"] / bm["n_batches_processed"] * 1000
       )
 
-      bm["n_usage_recordings"] = perf_result["n_usage_recordings"]
-
-      bm["max_memory_usages_MiB"] = perf_result["max_memory_usages_MiB"]
-      bm["avg_memory_usages_MiB"] = perf_result["avg_memory_usages_MiB"]
-
-      bm["max_cpu_usages_pct"] = perf_result["max_cpu_usages_pct"]
-      bm["avg_cpu_usages_pct"] = perf_result["avg_cpu_usages_pct"]
-
-      bm["avg_free_slots"] = perf_result["avg_free_slots"]
-      bm["avg_filled_slots"] = n_slots - perf_result["avg_free_slots"]
-      bm["avg_busy_slots"] = perf_result["avg_busy_slots"]
-      bm["avg_preloaded_slots"] = perf_result["avg_preloaded_slots"]
-      bm["avg_busy_workers"] = perf_result["avg_busy_workers"]
-
-      bm["avg_free_slots_last"] = perf_result["avg_free_slots_last"]
-      bm["avg_filled_slots_last"] = n_slots - perf_result["avg_free_slots_last"]
-      bm["avg_busy_slots_last"] = perf_result["avg_busy_slots_last"]
-      bm["avg_preloaded_slots_last"] = perf_result["avg_preloaded_slots_last"]
-      bm["avg_busy_workers_last"] = perf_result["avg_busy_workers_last"]
       bm["real_time_factor"] = 0
       bm["speed_x_real_time"] = 0
 
@@ -737,34 +883,35 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         f"-------------------------------\n"
         f"------ Benchmark summary ------\n"
         f"-------------------------------\n"
-        f"Start time: {bm['start_time']}\n"
-        f"End time:   {bm['end_time']}\n"
-        f"Wall time:  {bm['wall_time_readable']}\n"
-        f"Input: {bm['n_files']} file(s) ({file_formats})\n"
-        f"\tTotal duration: {bm['tot_file_duration_h']:.2f} h\n"
-        f"\tMax duration (file): {bm['max_audio_duration_min']:.2f} min\n"
-        f"Feeder(s): {bm['n_producers']}\n"
-        f"Busy Worker(s): {bm['avg_busy_workers']:.2f}/{bm['n_workers']} (mean)\n"
-        f"Buffer: {bm['avg_filled_slots']:.1f}/{n_slots} filled slots (mean)\n"
-        # f"\tBusy: {bm['avg_busy_slots']:.1f} slots\n"
-        # f"\tPreloaded: {bm['avg_preloaded_slots']:.1f} slots\n"
-        # f"\tFree: {bm['avg_free_slots']:.1f} slots\n"
+        f"Start time: {bmm.start_time}\n"
+        f"End time:   {bmm.end_time}\n"
+        f"Wall time:  {bmm.wall_time_readable}\n"
+        f"Input: {bmm.n_files} file(s) ({file_formats})\n"
+        f"\tTotal duration: {bmm.tot_file_duration_h:.2f} h\n"
+        f"\tMax duration (file): {bmm.max_audio_duration_min:.2f} min\n"
+        f"Feeder(s): {bmm.n_producers}\n"
+        f"Busy Worker(s): {bmm.avg_busy_workers:.1f}/{bmm.n_workers} (mean)\n"
+        f"Buffer: {bmm.avg_filled_slots:.1f}/{n_slots} filled slots (mean)\n"
+        # f"\tBusy: {bmm.avg_busy_slots:.1f} slots\n"
+        # f"\tPreloaded: {bmm.avg_preloaded_slots:.1f} slots\n"
+        # f"\tFree: {bmm.avg_free_slots:.1f} slots\n"
         f"Memory usage:\n"
-        f"\tProgram: {bm['max_memory_usages_MiB']:.2f} M (total max)\n"
-        f"\tBuffer:  {bm['bn_ring_total_MiB']:.2f} M (SharedMemory)\n"
-        f"\tResult:  {bm['result_memory_usage_MiB']:.2f} M (NumPy)\n"
-        f"Performance:\n",
-        f"\tRTF: {bm['real_time_factor']:.8f} ({bm['speed_x_real_time']:.2f}x real-time)\n",
-        f"\tAudio processing (all): {bm['pc_audio_min_per_s']:.2f} min audio/s ({bm['pc_s_per_audio_h']:.2f} s/h audio; {bm['pc_chunks_per_s']:.2f} chunks/s)\n"
+        f"\tProgram: {bmm.max_memory_usages_MiB:.2f} M (total max)\n"
+        f"\tBuffer:  {bmm.bn_ring_total_MiB:.2f} M (SharedMemory)\n"
+        f"\tResult:  {bmm.result_memory_usage_MiB:.2f} M (NumPy)\n"
+        f"Computational performance:\n"
+        f"Performance:\n"
+        f"\tRTF: {bmm.real_time_factor:.8f} ({bmm.speed_x_real_time:.2f}x real-time)\n"
+        f"\tAudio processing (all): {bmm.pc_audio_min_per_s:.2f} min audio/s ({bmm.pc_s_per_audio_h:.2f} s/h audio; {bmm.pc_chunks_per_s:.2f} chunks/s)\n"
         f"\tAudio processing (computation):\n"
-        f"\t\tMean: {bm['raw_min_per_s']:.2f} min audio/s ({bm['raw_s_for_one_hour']:.2f} s/h audio; {bm['raw_chunks_per_s']:.2f} chunks/s)\n"
-        f"\t\tMean (last 30s): {bm['raw_avg_raw_min_per_s_last']:.2f} min audio/s ({bm['raw_avg_s_for_one_hour_last']:.2f} s/h audio; {bm['raw_avg_chunks_per_s_last']:.2f} chunks/s)\n"
-        f"\t\tBest: {bm['raw_min_per_s_max']:.2f} min audio/s ({bm['raw_s_for_one_hour_max']:.2f} s/h audio; {bm['raw_chunks_per_s_max']:.2f} chunks/s)\n"
-        f"\tPrediction speed: {bm['model_pred_ms_per_chunk']:.2f} ms/chunk ({bm['model_pred_ms_per_batch']:.2f} ms/batch)\n"
+        f"\t\tMean: {bmm.raw_min_per_s:.2f} min audio/s ({bmm.raw_s_for_one_hour:.2f} s/h audio; {bmm.raw_chunks_per_s:.2f} chunks/s)\n"
+        f"\t\tMean (last 30s): {bmm.raw_avg_raw_min_per_s_last:.2f} min audio/s ({bmm.raw_avg_s_for_one_hour_last:.2f} s/h audio; {bmm.raw_avg_chunks_per_s_last:.2f} chunks/s)\n"
+        f"\t\tBest: {bmm.raw_min_per_s_max:.2f} min audio/s ({bmm.raw_s_for_one_hour_max:.2f} s/h audio; {bmm.raw_chunks_per_s_max:.2f} chunks/s)\n"
+        f"\tPrediction speed: {bmm.model_pred_ms_per_chunk:.2f} ms/chunk ({bmm.model_pred_ms_per_batch:.2f} ms/batch)\n"
         f"Benchmark results written to:\n"
         f"\t{meta_human_readable_out.absolute()}\n"
         f"\t{stats_out.absolute()}\n"
-        f"\t{meta_df_out.absolute()}\n",
+        f"\t{meta_df_out.absolute()}\n"
       )
       meta_human_readable_out.write_text(summary, encoding="utf8")
       print(summary)

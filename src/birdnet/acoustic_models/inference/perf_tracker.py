@@ -9,6 +9,7 @@ import multiprocessing as mp
 import sys
 import time
 from collections import Counter, deque
+from dataclasses import dataclass
 from multiprocessing import shared_memory
 from multiprocessing.synchronize import Event, Semaphore
 
@@ -24,6 +25,37 @@ from birdnet.globals import READABLE_FLAG, READING_FLAG, WRITABLE_FLAG
 from birdnet.helper import (
   RingField,
 )
+
+
+@dataclass
+class PerformanceTrackingResult:
+  total_chunks_processed: int
+  total_batches_processed: int
+  summed_prediction_duration_s: float
+  ramp_up_time_until_first_pred_s: float | None
+  n_usage_recordings: int
+
+  max_memory_usages_MiB: float
+  avg_memory_usages_MiB: float
+
+  max_cpu_usages_pct: float
+  avg_cpu_usages_pct: float
+
+  avg_free_slots: float
+  avg_busy_slots: float
+  avg_preloaded_slots: float
+  avg_busy_workers: float
+
+  avg_pred_dur_last_s: float
+  avg_wait_dur_last_ms: float
+  avg_free_slots_last: float
+  avg_busy_slots_last: float
+  avg_preloaded_slots_last: float
+  avg_busy_workers_last: float
+
+  max_raw_chunks_per_s: float
+
+  avg_chunks_per_s_last: float
 
 
 class PerformanceTracker(bn_logging.LogableProcessBase):
@@ -311,41 +343,30 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       self._uninit_logging()
       return
 
-    stats = {}
-    stats["total_chunks_processed"] = self._total_chunks_processed
-    stats["total_batches_processed"] = self._total_batches_processed
-    stats["summed_prediction_duration_s"] = self._summed_worker_raw_pred_duration
-    stats["ramp_up_time_until_first_pred_s"] = ramp_up_time_until_first_pred
-    stats["n_usage_recordings"] = float_n_records
-
-    stats["max_memory_usages_MiB"] = float_max_memory_usage
-    stats["avg_memory_usages_MiB"] = float_avg_memory_usage
-
-    stats["max_cpu_usages_pct"] = float_max_cpu_usage
-    stats["avg_cpu_usages_pct"] = float_avg_cpu_usage
-
-    stats["avg_free_slots"] = float_avg_free_slots
-    stats["avg_busy_slots"] = float_avg_busy_slots
-    stats["avg_preloaded_slots"] = float_avg_preloaded_slots
-    stats["avg_busy_workers"] = float_avg_busy_workers
-
-    stats["avg_pred_dur_last_s"] = (
-      np.mean(self._pred_dur_deque) if self._pred_dur_deque else 0
-    )
-    stats["avg_wait_dur_last_ms"] = (
-      np.mean(self._wait_dur_deque) * 1000 if self._wait_dur_deque else 0
-    )
-    stats["avg_free_slots_last"] = np.mean(free_slots) if free_slots else 0
-    stats["avg_busy_slots_last"] = np.mean(busy_slots) if busy_slots else 0
-    stats["avg_preloaded_slots_last"] = (
-      np.mean(preloaded_slots) if preloaded_slots else 0
-    )
-    stats["avg_busy_workers_last"] = np.mean(busy_workers) if busy_workers else 0
-
-    stats["max_raw_chunks_per_s"] = max_raw_chunks_per_s
-
-    stats["avg_chunks_per_s_last"] = (
-      np.mean(avg_chunks_per_s) if avg_chunks_per_s else 0
+    stats = PerformanceTrackingResult(
+      total_chunks_processed=self._total_chunks_processed,
+      total_batches_processed=self._total_batches_processed,
+      summed_prediction_duration_s=self._summed_worker_raw_pred_duration,
+      ramp_up_time_until_first_pred_s=ramp_up_time_until_first_pred,
+      n_usage_recordings=float_n_records,
+      max_memory_usages_MiB=float_max_memory_usage,
+      avg_memory_usages_MiB=float_avg_memory_usage,
+      max_cpu_usages_pct=float_max_cpu_usage,
+      avg_cpu_usages_pct=float_avg_cpu_usage,
+      avg_free_slots=float_avg_free_slots,
+      avg_busy_slots=float_avg_busy_slots,
+      avg_preloaded_slots=float_avg_preloaded_slots,
+      avg_busy_workers=float_avg_busy_workers,
+      avg_pred_dur_last_s=np.mean(self._pred_dur_deque) if self._pred_dur_deque else 0,
+      avg_wait_dur_last_ms=(
+        np.mean(self._wait_dur_deque) * 1000 if self._wait_dur_deque else 0
+      ),
+      avg_free_slots_last=np.mean(free_slots) if free_slots else 0,
+      avg_busy_slots_last=np.mean(busy_slots) if busy_slots else 0,
+      avg_preloaded_slots_last=np.mean(preloaded_slots) if preloaded_slots else 0,
+      avg_busy_workers_last=np.mean(busy_workers) if busy_workers else 0,
+      max_raw_chunks_per_s=max_raw_chunks_per_s,
+      avg_chunks_per_s_last=(np.mean(avg_chunks_per_s) if avg_chunks_per_s else 0),
     )
 
     self._perf_res.put(stats)
