@@ -185,6 +185,46 @@ class BenchmarkMeta:
   def wall_time_readable(self) -> str:
     return str(timedelta(seconds=self.wall_time_s))
 
+  @property
+  def speed_rtf(self) -> float:
+    if self.tot_n_chunks == 0:
+      return 0.0
+    return self.wall_time_s / (self.tot_n_chunks * self.chunk_s)
+
+  @property
+  def speed_xrt(self) -> float:
+    if self.speed_rtf == 0.0:
+      return 0.0
+    return 1 / self.speed_rtf
+
+  @property
+  def speed_seg_per_second(self) -> float:
+    if self.tot_n_chunks == 0:
+      return 0.0
+    return self.tot_n_chunks / self.wall_time_s
+
+  @property
+  def speed_audio_min_per_second(self) -> float:
+    if self.tot_n_chunks == 0:
+      return 0.0
+    return (self.tot_n_chunks * self.chunk_s) / self.wall_time_s / 60
+
+  worker_speed_xrt: float
+
+  @property
+  def _worker_speed_rtf(self) -> float:
+    if self.worker_speed_xrt == 0.0:
+      return 0.0
+    return 1 / self.worker_speed_xrt
+
+  worker_speed_xrt_max: float
+
+  @property
+  def _worker_speed_rtf_max(self) -> float:
+    if self.worker_speed_xrt_max == 0.0:
+      return 0.0
+    return 1 / self.worker_speed_xrt_max
+
   cpu_time_s: float
 
   result_memory_usage_MiB: float
@@ -803,12 +843,9 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         avg_busy_workers_last=perf_result.avg_busy_workers_last,
         rampup_time_s=perf_result.ramp_up_time_until_first_pred_s,
         n_batches_processed=perf_result.total_batches_processed,
+        worker_speed_xrt=perf_result.worker_speed_xrt,
+        worker_speed_xrt_max=perf_result.worker_speed_xrt_max,
       )
-
-      x = asdict(bmm)
-      for k in x:
-        if k.startswith("_"):
-          del x[k]
 
       bm = OrderedDict()
 
@@ -860,6 +897,11 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       bm["real_time_factor"] = 0
       bm["speed_x_real_time"] = 0
 
+      bm = asdict(bmm)
+      for k in bm:
+        if k.startswith("_"):
+          del bm[k]
+
       benchmark_dir = get_benchmark_dir(
         model=AcousticModelBaseV2_4.get_model_type(),
         version=AcousticModelBaseV2_4.get_version(),
@@ -901,7 +943,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         f"\tResult:  {bmm.result_memory_usage_MiB:.2f} M (NumPy)\n"
         f"Computational performance:\n"
         f"Performance:\n"
-        f"\tRTF: {bmm.real_time_factor:.8f} ({bmm.speed_x_real_time:.2f}x real-time)\n"
+        f"\tRTF: {bmm.real_time_factor:.8f} ({bmm.speed_xrt:.2f}x real-time)\n"
         f"\tAudio processing (all): {bmm.pc_audio_min_per_s:.2f} min audio/s ({bmm.pc_s_per_audio_h:.2f} s/h audio; {bmm.pc_chunks_per_s:.2f} chunks/s)\n"
         f"\tAudio processing (computation):\n"
         f"\t\tMean: {bmm.raw_min_per_s:.2f} min audio/s ({bmm.raw_s_for_one_hour:.2f} s/h audio; {bmm.raw_chunks_per_s:.2f} chunks/s)\n"

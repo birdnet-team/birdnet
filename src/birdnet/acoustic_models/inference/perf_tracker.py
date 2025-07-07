@@ -29,6 +29,8 @@ from birdnet.helper import (
 
 @dataclass
 class PerformanceTrackingResult:
+  worker_speed_xrt: float
+  worker_speed_xrt_max: float
   total_chunks_processed: int
   total_batches_processed: int
   summed_prediction_duration_s: float
@@ -113,7 +115,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
   def __call__(self):
     self._init_logging()
     self._shm_ring_flags, self._ring_flags = self._rf_flags.attach_and_get_array()
-    perf_duration = 0
+    wall_time = 0
     ramp_up_time_until_first_pred = None
     parent_process = psutil.Process(self._parent_process_id)
     float_n_records = 0
@@ -126,6 +128,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     float_avg_preloaded_slots = 0
     float_avg_busy_workers = 0
     max_raw_chunks_per_s = 0
+    worker_speed_xrt_max = 0
 
     cpu_usages = deque(maxlen=self._n_last)
     memory_usages = deque(maxlen=self._n_last)
@@ -220,6 +223,17 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
           float_avg_busy_workers * float_n_records + n_busy_workers
         ) / (float_n_records + 1)
 
+        _summed_worker_duration = sum(worker_wall_time.values())
+        processed_audio_duration_s = self._total_chunks_processed * self._chunk_size_s
+
+        worker_speed_xrt = (
+          processed_audio_duration_s / _summed_worker_duration * len(worker_wall_time)
+          if _summed_worker_duration > 0
+          else 0
+        )
+
+        worker_speed_xrt_max = max(worker_speed_xrt_max, worker_speed_xrt)
+
         free_slots.append(n_free)
         busy_slots.append(n_busy)
         preloaded_slots.append(n_preloaded)
@@ -230,10 +244,10 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
       if now >= self._next_print and len(self._pred_dur_deque) > 0:
         t = time.perf_counter()
-        perf_duration = t - self._start
+        wall_time = t - self._start
         perf_duration_workers = t - self._workers_start
         # avg = sum(self._pred_dur_deque) / sum(self._batch_sizes_deque)
-        chunks_per_s = self._total_chunks_processed / perf_duration
+        chunks_per_s = self._total_chunks_processed / wall_time
         # min_per_s = chunks_per_s * self._chunk_size_s / 60
 
         memory_usage = parent_process.memory_full_info().uss
@@ -246,11 +260,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
             continue
         memory_usage_MiB = memory_usage / 1024**2
 
-        cpu_usage = psutil.cpu_percent()
-
-        avg_preloaded_slots = np.mean(preloaded_slots) if preloaded_slots else 0
         avg_free_slots = np.mean(free_slots) if free_slots else 0
-        avg_busy_slots = np.mean(busy_slots) if busy_slots else 0
         avg_busy_workers = np.mean(busy_workers) if busy_workers else 0
 
         raw_chunks_per_s_old = (
@@ -260,34 +270,22 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
           else 0
         )
         processed_audio_duration_s = self._total_chunks_processed * self._chunk_size_s
-        real_time_factor_old = (
-          (self._summed_worker_raw_pred_duration / avg_busy_workers)
-          / processed_audio_duration_s
-          if avg_busy_workers > 0
-          else 0
-        )
-        speed_x_real_time_old = (
-          processed_audio_duration_s
-          / (self._summed_worker_raw_pred_duration / avg_busy_workers)
-          if avg_busy_workers > 0
-          else 0
-        )
 
         _summed_worker_duration = sum(worker_wall_time.values())
 
-        speed_x_real_time = (
+        worker_speed_xrt = (
           processed_audio_duration_s / _summed_worker_duration * len(worker_wall_time)
           if _summed_worker_duration > 0
           else 0
         )
 
-        raw_chunks_per_s = (
+        worker_speed_chunks_per_s = (
           self._total_chunks_processed / _summed_worker_duration * len(worker_wall_time)
           if _summed_worker_duration > 0
           else 0
         )
 
-        speed_x_real_time_classic = processed_audio_duration_s / perf_duration
+        speed_x_real_time_classic = processed_audio_duration_s / wall_time
 
         raw_min_per_s = raw_chunks_per_s_old * self._chunk_size_s / 60
 
@@ -302,8 +300,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
           # f"inference speed: {self._summed_raw_pred_duration / self._total_chunks_processed * 1000:.0f} ms/chunk",
           # f"last {len(self._pred_dur_deque)} predictions: {avg * 1000:.0f} ms/chunk",
           # f"RTF: {real_time_factor:.8f}x [{raw_chunks_per_s:.0f} segm/s]",
-          f"SPEED: {speed_x_real_time:.0f} xRT [{raw_chunks_per_s:.0f} seg/s]",
-          f"SPEED2: {speed_x_real_time_classic:.0f} xRT [{chunks_per_s:.0f} seg/s]",
+          f"SPEED: {worker_speed_xrt:.0f} xRT [{worker_speed_chunks_per_s:.0f} seg/s]",
+          # f"SPEED2: {speed_x_real_time_classic:.0f} xRT [{chunks_per_s:.0f} seg/s]",
           # f"{raw_min_per_s:.2f} min/s",
           f"MEM: {memory_usage_MiB:.0f} M",
           # f"CPU usage: {cpu_usage:.1f} %",
@@ -319,7 +317,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         if self._tot_n_chunks_ptr.value > 0:
           progress = self._total_chunks_processed / self._tot_n_chunks_ptr.value * 100
           est_remaining_time_s = (
-            perf_duration
+            wall_time
             * (self._tot_n_chunks_ptr.value - self._total_chunks_processed)
             / self._total_chunks_processed
           )
@@ -344,6 +342,10 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       return
 
     stats = PerformanceTrackingResult(
+      worker_speed_xrt=(self._total_chunks_processed * self._chunk_size_s)
+      / sum(worker_wall_time.values())
+      * len(worker_wall_time),
+      worker_speed_xrt_max=worker_speed_xrt_max,
       total_chunks_processed=self._total_chunks_processed,
       total_batches_processed=self._total_batches_processed,
       summed_prediction_duration_s=self._summed_worker_raw_pred_duration,
