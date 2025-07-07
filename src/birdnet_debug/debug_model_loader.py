@@ -99,7 +99,7 @@ if __name__ == "__main__":
     "n_workers": 3,
     "n_producers": 10,
     "batch_size": 1000,
-    "n_slots_factor": 4,
+    "prefetch_ratio": 4,
   }
 
   audio_paths = list(
@@ -109,7 +109,7 @@ if __name__ == "__main__":
     "n_workers": 45,
     "n_producers": 3,
     "batch_size": 1,
-    "n_slots_factor": 2,
+    "prefetch_ratio": 2,
   }
   res_100h_4cpu = "inference speed: 69 ms/chunk; 636 chunks/s; 31.81 min/s; memory usage: 27010.21 MiB; CPU usage: 50.7%; prel: 45; free: 0; busy: 45; fill: 90; progress: 99.53%; remaining: 0:00:01"
   params = params_100h_48cpu
@@ -120,14 +120,14 @@ if __name__ == "__main__":
     "n_workers": 3,
     "n_producers": 1,
     "batch_size": 1,
-    "n_slots_factor": 4,
+    "prefetch_ratio": 4,
   }
 
   params_1000h_48cpu = {
     "n_workers": 45,
     "n_producers": 3,
     "batch_size": 1,
-    "n_slots_factor": 4,
+    "prefetch_ratio": 4,
   }
   params = params_1000h_48cpu
 
@@ -135,7 +135,7 @@ if __name__ == "__main__":
     "n_workers": 1,
     "n_producers": 3,
     "batch_size": 1,
-    "n_slots_factor": 2,
+    "prefetch_ratio": 2,
     "backend": "tf",
     "device": "CPU",
   }
@@ -159,37 +159,38 @@ if __name__ == "__main__":
   audio_paths = [Path("src\\birdnet_v2_debug\\10min.wav")]
   audio_paths = [Path("src\\birdnet_v2_debug\\60min.wav")]
 
+  audio_paths = [Path("example/soundscape.wav")]
   audio_paths = get_pow_file_paths()
   audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
-  audio_paths = [Path("example/soundscape.wav")]
 
   params = {
     "n_workers": 4,
     "n_producers": 1,
     "batch_size": 1,
-    "n_slots_factor": 1,
+    "prefetch_ratio": 1,
     "backend": "tf",
     "device": "CPU",
   }
   params = {
     "n_workers": 12,
-    "n_producers": 2,
+    "n_producers": 1,
     "batch_size": 1,
-    "n_slots_factor": 2,
+    "prefetch_ratio": 1,
     "backend": "tf",
     "device": "CPU",
   }
 
   start = time.perf_counter()
+  assert isinstance(model, AcousticModelBaseV2_4)
   result = model.analyze(
     audio_paths,
-    n_workers=params["n_workers"],
-    n_producers=params["n_producers"],
+    workers=params["n_workers"],
+    feeders=params["n_producers"],
     batch_size=params["batch_size"],
-    n_slots_factor=params["n_slots_factor"],
+    prefetch_ratio=params["prefetch_ratio"],
     apply_sigmoid=False,
     top_k=1,
-    overlap_s=1,
+    overlap_duration_s=1,
     sigmoid_sensitivity=1,
     default_confidence_threshold=-np.inf,
     half_precision=True,

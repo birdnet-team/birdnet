@@ -50,16 +50,16 @@ def run_benchmark_from_args(args: list[str]) -> None:
     type=str,
     choices=["tf", "pb"],
     metavar="BACKEND",
-    help="use this backend",
+    help="use this backend (default: tf)",
     default="tf",
   )
 
   parser.add_argument(
-    "-p",
-    "--producers",
+    "-f",
+    "--feeders",
     type=parse_positive_integer,
-    metavar="PRODUCERS",
-    help="number of producers to use for processing",
+    metavar="FEEDERS",
+    help="number of feeders which will read the input files (default: 1)",
     default=1,
   )
 
@@ -77,7 +77,7 @@ def run_benchmark_from_args(args: list[str]) -> None:
     "--top-k",
     type=parse_positive_integer,
     metavar="K",
-    help="number of top K species to return for each audio segment",
+    help="number of top K species to return for each audio segment (default: 5)",
     default=5,
   )
 
@@ -86,7 +86,7 @@ def run_benchmark_from_args(args: list[str]) -> None:
     "--batch-size",
     type=parse_positive_integer,
     metavar="BATCH-SIZE",
-    help="number of top species to return for each audio segment",
+    help="number of top species to return for each audio segment (default: 1)",
     default=1,
   )
 
@@ -96,7 +96,7 @@ def run_benchmark_from_args(args: list[str]) -> None:
     type=parse_non_empty_or_whitespace,
     nargs="+",
     metavar="DEVICE",
-    help="device to use for processing (e.g., 'CPU', 'GPU', 'GPU:0', 'GPU:1', ...); either string or list of strings, latter is useful for multi-GPU setups, the first GPU will be used for the first producer, the second GPU for the second producer, etc.; GPU is only available for the Protobuf backend",
+    help="device to use for processing (e.g., 'CPU', 'GPU', 'GPU:0', 'GPU:1', ...); either string or list of strings, latter is useful for multi-GPU setups, the first GPU will be used for the first producer, the second GPU for the second producer, etc.; GPU is only available for the Protobuf backend; default: 'CPU'",
     default=["CPU"],
   )
 
@@ -119,12 +119,12 @@ def run_benchmark_from_args(args: list[str]) -> None:
   )
 
   parser.add_argument(
-    "-f",
+    "-p",
     "--prefetch_ratio",
     type=parse_non_negative_integer,
     metavar="RATIO",
-    help="amount of additional ring-buffer capacity to keep ahead of the workers, expressed as a ratio of the default size (defaults to the amount of workers).",
-    default=0,
+    help="amount of additional buffer capacity to keep ahead of the workers, expressed as a ratio of the amount of workers, i.e., 0 means no prefetching, 1 means one additional slot per worker, 2 means two additional slots per worker, etc. (default: 1)",
+    default=1,
   )
 
   ns: Namespace = parser.parse_args(args)
@@ -135,11 +135,12 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
   model: AcousticModelBaseV2_4 = birdnet.model_loader.load(
     model_type="acoustic", version="2.4", backend=ns.backend
   )
+  assert isinstance(model, AcousticModelBaseV2_4)
   result = model.analyze(
     ns.inputs,
     top_k=ns.top_k,
-    n_producers=ns.producers,
-    n_workers=ns.workers,
+    feeders=ns.feeders,
+    workers=ns.workers,
     batch_size=ns.batch_size,
     overlap_duration_s=ns.overlap,
     default_confidence_threshold=ns.confidence,
@@ -151,7 +152,7 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
     max_audio_duration_min=None,
     show_stats="benchmark",
     device=ns.devices if len(ns.devices) > 1 else ns.devices[0],
-    n_slots_factor=ns.prefetch_ratio + 1,
+    prefetch_ratio=ns.prefetch_ratio,
     use_bandpass=False,
     bandpass_fmax=None,
     bandpass_fmin=None,

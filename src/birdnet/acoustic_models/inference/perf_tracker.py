@@ -47,6 +47,7 @@ class PerformanceTrackingResult:
   avg_preloaded_slots: float
   avg_busy_workers: float
 
+  avg_wait_time_ms: float
   # avg_pred_dur_last_s: float
   # avg_wait_dur_last_ms: float
   # avg_free_slots_last: float
@@ -126,6 +127,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     float_avg_busy_slots = 0
     float_avg_preloaded_slots = 0
     float_avg_busy_workers = 0
+    float_avg_wait_time_ms = 0
     max_raw_segments_per_s = 0
     worker_speed_xrt_max = 0
 
@@ -159,9 +161,13 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
           self._pred_dur_queue.get()
         )
         worker_wall_time[worker_pid] = process_dur
-        self._total_batches_processed += 1
         summed_warm_up += warm_up_dur
         self._wait_dur_deque.append(wait_dur)
+
+        float_avg_wait_time_ms = (
+          float_avg_wait_time_ms * self._total_batches_processed + (wait_dur * 1000)
+        ) / (self._total_batches_processed + 1)
+
         self._pred_dur_deque.append(pred_dur)
         self._batch_sizes_deque.append(batch_size)
         self._total_segments_processed += batch_size
@@ -171,6 +177,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
           self._logger.info(
             f"Rampup time until first prediction: {ramp_up_time_until_first_pred:.2f}s"
           )
+        self._total_batches_processed += 1
 
       now = time.time()
 
@@ -368,6 +375,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       avg_busy_slots=float_avg_busy_slots,
       avg_preloaded_slots=float_avg_preloaded_slots,
       avg_busy_workers=float_avg_busy_workers,
+      avg_wait_time_ms=float_avg_wait_time_ms,
       # avg_pred_dur_last_s=np.mean(self._pred_dur_deque) if self._pred_dur_deque else 0,
       # avg_wait_dur_last_ms=(
       #   np.mean(self._wait_dur_deque) * 1000 if self._wait_dur_deque else 0

@@ -198,7 +198,7 @@ class BenchmarkMeta:
   param_overlap_seconds: float
   param_batch_size: int
   param_top_k: int
-  param_slots_factor: int
+  param_prefetch_ratio: int
   param_sigmoid_apply: bool
   param_sigmoid_sensitivity: float | None
   param_bandpass_use: bool
@@ -240,6 +240,7 @@ class BenchmarkMeta:
     return str(timedelta(seconds=result_s))
 
   worker_busy_average: float
+  worker_wait_time_average_milliseconds: float
 
   speed_worker_xrt: float
 
@@ -386,11 +387,11 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     /,
     *,
     top_k: int | None = 5,
-    n_producers: int = 1,
-    n_workers: int = 4,
+    feeders: int = 1,
+    workers: int = 4,
     batch_size: int = 1,
-    n_slots_factor: int = 1,
-    overlap_s: float = 0,
+    prefetch_ratio: int = 1,
+    overlap_duration_s: float = 0,
     default_confidence_threshold: float | None = 0.1,
     custom_confidence_thresholds: dict[str, float] | None = None,
     use_bandpass: bool = False,
@@ -420,9 +421,9 @@ class AcousticModelBaseV2_4(AcousticModelBase):
 
     # for i, kwargs in enumerate(backend_kwargs):
     #   kwargs["device"] =kwargs["device"].replace("0", str(i)) # Assign different CPU cores
-    if isinstance(device, list) and len(device) != n_workers:
+    if isinstance(device, list) and len(device) != workers:
       raise ValueError(
-        f"Device list length ({len(device)}) does not match number of workers ({n_workers})."
+        f"Device list length ({len(device)}) does not match number of workers ({workers})."
       )
 
     logging_level = get_package_logging_level()
@@ -461,8 +462,8 @@ class AcousticModelBaseV2_4(AcousticModelBase):
 
     logger.info(f"Got {len(file_paths)} audio files for analysis.")
 
-    n_producers = min(n_producers, n_files)
-    logger.debug(f"Using {n_producers} producer(s) for {n_files} file(s).")
+    feeders = min(feeders, n_files)
+    logger.debug(f"Using {feeders} producer(s) for {n_files} file(s).")
     logger.info("Starting analysis...")
 
     species_whitelist: np.ndarray
@@ -508,7 +509,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     segments_dtype = np.dtype(np.uint32)
     if max_audio_duration_min is not None:
       reserve_n_segments = get_max_n_segments(
-        max_audio_duration_min * 60, self.get_segment_size_s(), overlap_s
+        max_audio_duration_min * 60, self.get_segment_size_s(), overlap_duration_s
       )
       segments_dtype = uint_dtype_for(max(0, reserve_n_segments - 1))
 
@@ -521,7 +522,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
 
     n_species = self.n_species
 
-    n_slots = n_workers * n_slots_factor
+    n_slots = workers + (workers * prefetch_ratio)
 
     sem_free_slots = mp.Semaphore(n_slots)
     sem_filled_slots = mp.Semaphore(0)
@@ -600,10 +601,10 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     files_queue = mp.Queue()
     for file_idx, file_path in enumerate(file_paths):
       files_queue.put((file_idx, file_path), block=False)
-    for _ in range(n_producers):
+    for _ in range(feeders):
       files_queue.put(None, block=False)
     prod_done_ptr = mp.Value(
-      uint_ctype_from_dtype(uint_dtype_for(n_producers)),  # type: ignore
+      uint_ctype_from_dtype(uint_dtype_for(feeders)),  # type: ignore
       0,
       lock=True,
     )  # type: ignore
@@ -626,7 +627,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
           logging_level=logging_level,
           logging_queue=logging_queue,
           segment_duration_s=AcousticModelBaseV2_4.get_segment_size_s(),
-          overlap_duration_s=overlap_s,
+          overlap_duration_s=overlap_duration_s,
           max_segment_idx_ptr=max_segment_idx_ptr,
           rf_segment_indices=rf_segment_indices,
           analyzing_result=analyzer_queue,
@@ -654,7 +655,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             sem_free_slots=sem_free_slots,
             sem_filled_slots=sem_filled_slots,
             segment_duration_s=AcousticModelBaseV2_4.get_segment_size_s(),
-            overlap_duration_s=overlap_s,
+            overlap_duration_s=overlap_duration_s,
             target_sample_rate=AcousticModelBaseV2_4.get_sample_rate(),
             use_bandpass=use_bandpass,
             bandpass_fmax=bandpass_fmax,
@@ -663,19 +664,19 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             fmin=AcousticModelBaseV2_4.get_sig_fmin(),
             max_segment_idx_ptr=max_segment_idx_ptr,
             prod_done_ptr=prod_done_ptr,
-            n_prods=n_producers,
+            n_prods=feeders,
             cancel_event=cancel_event,
           ),
           daemon=True,
         )
-        for _ in range(n_producers)
+        for _ in range(feeders)
       ]
       for p in producer_processes:
         p.start()
 
-      backend_kwargs = [self.get_backend_args() for _ in range(n_workers)]
+      backend_kwargs = [self.get_backend_args() for _ in range(workers)]
 
-      devices = device if isinstance(device, list) else [device] * n_workers
+      devices = device if isinstance(device, list) else [device] * workers
 
       worker_processes = [
         mp.Process(
@@ -710,7 +711,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
           ),
           daemon=True,
         )
-        for i in range(n_workers)
+        for i in range(workers)
       ]
 
       worker_start = time.perf_counter()
@@ -727,7 +728,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             update_interval=0.5,
             print_interval=1,
             use_stats_from_last_seconds=30,
-            n_workers=n_workers,
+            n_workers=workers,
             start=start,
             workers_start=worker_start,
             segment_size_s=AcousticModelBaseV2_4.get_segment_size_s(),
@@ -745,7 +746,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         perf_tracker.start()
 
       consumer = Consumer(
-        n_workers=n_workers,
+        n_workers=workers,
         worker_queue=worker_queue,
         species_tensor=result,
         max_segment_index=max_segment_idx_ptr,
@@ -784,7 +785,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       tensor=result,
       files=file_paths,
       segment_duration_s=AcousticModelBaseV2_4.get_segment_size_s(),
-      overlap_duration_s=overlap_s,
+      overlap_duration_s=overlap_duration_s,
       species_list=self.species_list,
     )
     del result
@@ -840,8 +841,8 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       bmm = BenchmarkMeta(
         _start_timepoint=start_timepoint,
         _end_timepoint=end_timepoint,
-        param_producers=n_producers,
-        param_workers=n_workers,
+        param_producers=feeders,
+        param_workers=workers,
         param_devices=", ".join(device) if isinstance(device, list) else device,
         model_type=AcousticModelBaseV2_4.get_model_type(),
         model_version=AcousticModelBaseV2_4.get_version(),
@@ -853,10 +854,10 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         file_segments_total=tot_n_segments_ptr.value,
         file_segments_processed=analyzer_res["tot_n_segments"],
         model_segment_duration_seconds=AcousticModelBaseV2_4.get_segment_size_s(),
-        param_overlap_seconds=overlap_s,
+        param_overlap_seconds=overlap_duration_s,
         param_batch_size=batch_size,
         param_top_k=top_k,
-        param_slots_factor=n_slots_factor,
+        param_prefetch_ratio=prefetch_ratio,
         mem_shm_ringsize=n_slots,
         param_sigmoid_apply=apply_sigmoid,
         param_sigmoid_sensitivity=sigmoid_sensitivity if apply_sigmoid else None,
@@ -900,6 +901,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         model_sample_rate=AcousticModelBaseV2_4.get_sample_rate(),
         model_sig_fmin=AcousticModelBaseV2_4.get_sig_fmin(),
         model_sig_fmax=AcousticModelBaseV2_4.get_sig_fmax(),
+        worker_wait_time_average_milliseconds=perf_result.avg_wait_time_ms,
       )
 
       # bm = OrderedDict()
@@ -988,8 +990,9 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         f"  Total duration: {bmm.file_duration_total}\n"
         f"  Maximum duration (single file): {bmm.file_duration_maximum}\n"
         f"Feeder(s): {bmm.param_producers}\n"
-        f"Busy workers: {bmm.worker_busy_average:.1f}/{bmm.param_workers} (mean)\n"
         f"Buffer: {bmm.mem_shm_slots_average_filled:.1f}/{n_slots} filled slots (mean)\n"
+        f"Busy workers: {bmm.worker_busy_average:.1f}/{bmm.param_workers} (mean)\n"
+        f"  Average wait time for next batch: {bmm.worker_wait_time_average_milliseconds:.3f} ms\n"
         # f"\tBusy: {bmm.avg_busy_slots:.1f} slots\n"
         # f"\tPreloaded: {bmm.avg_preloaded_slots:.1f} slots\n"
         # f"\tFree: {bmm.avg_free_slots:.1f} slots\n"
@@ -997,12 +1000,12 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         f"  Program: {bmm.mem_memory_usage_maximum_MiB:.2f} M (total max)\n"
         f"  Buffer: {bmm.mem_shm_size_total_MiB:.2f} M (shared memory)\n"
         f"  Result: {bmm.mem_result_total_memory_usage_MiB:.2f} M (NumPy)\n"
+        f"Computational performance:\n"
+        f"  {bmm.speed_worker_xrt:.0f} x real-time (RTF: {bmm.speed_worker_rtf:.8f})\n"
         f"Total performance:\n"
         f"  {bmm.speed_total_xrt:.0f} x real-time (RTF: {bmm.speed_total_rtf:.8f})\n"
         f"  {bmm.speed_total_seg_per_second:.0f} segments/s ({bmm.speed_total_audio_per_second} audio/s)\n"
-        f"Computational performance:\n"
-        f"  {bmm.speed_worker_xrt:.0f} x real-time (RTF: {bmm.speed_worker_rtf:.8f})\n"
-        f"  {bmm.speed_worker_xrt_max:.0f} x real-time (max)\n"
+        # f"  {bmm.speed_worker_xrt_max:.0f} x real-time (max)\n"
         # f"\tAudio processing (all): {bmm.pc_audio_min_per_s:.2f} min audio/s ({bmm.pc_s_per_audio_h:.2f} s/h audio; {bmm.pc_segments_per_s:.2f} segments/s)\n"
         # f"\tAudio processing (computation):\n"
         # f"\t\tMean: {bmm.raw_min_per_s:.2f} min audio/s ({bmm.raw_s_for_one_hour:.2f} s/h audio; {bmm.raw_segments_per_s:.2f} segments/s)\n"

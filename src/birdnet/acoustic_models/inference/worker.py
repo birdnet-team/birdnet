@@ -257,6 +257,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
       )
 
       pred_start_time = time.perf_counter()
+      prediction_duration: float | None = None
 
       try:
         pred = self._infer(audio_samples)
@@ -275,20 +276,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
         break
 
       if self._track_performance:
-        now = time.perf_counter()
-        prediction_duration = now - pred_start_time
-        process_total_duration = now - start_time
-        self._pred_dur_queue.put(
-          (
-            self._pid,
-            warm_up_start,
-            process_total_duration,
-            wait_time_for_batch,
-            prediction_duration,
-            audio_samples.shape[0],
-          )
-        )
-        warm_up_start = 0  # reset warm-up start after first prediction
+        prediction_duration = time.perf_counter() - pred_start_time
 
       self._ring_flags[claimed_slot] = WRITABLE_FLAG
       self._sem_free.release()
@@ -331,6 +319,21 @@ class ChildWorker(bn_logging.LogableProcessBase):
       self._log_debug(
         f"Prediction made. Total predictions: {self._prediction_count}. Chunks: {segment_indices}"
       )
+
+      if self._track_performance:
+        assert prediction_duration is not None
+        process_total_duration = time.perf_counter() - start_time
+        self._pred_dur_queue.put(
+          (
+            self._pid,
+            warm_up_start,
+            process_total_duration,
+            wait_time_for_batch,
+            prediction_duration,
+            n,
+          )
+        )
+        warm_up_start = 0  # reset warm-up start after first prediction
 
       self._sem_active_workers.acquire(block=False)
 
