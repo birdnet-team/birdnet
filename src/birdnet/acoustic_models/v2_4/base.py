@@ -212,7 +212,7 @@ class BenchmarkMeta:
   worker_speed_xrt: float
 
   @property
-  def _worker_speed_rtf(self) -> float:
+  def worker_speed_rtf(self) -> float:
     if self.worker_speed_xrt == 0.0:
       return 0.0
     return 1 / self.worker_speed_xrt
@@ -259,11 +259,12 @@ class BenchmarkMeta:
   avg_busy_slots: float
   avg_preloaded_slots: float
   avg_busy_workers: float
-  avg_free_slots_last: float
-  avg_filled_slots_last: float
-  avg_busy_slots_last: float
-  avg_preloaded_slots_last: float
-  avg_busy_workers_last: float
+
+  # avg_free_slots_last: float
+  # avg_filled_slots_last: float
+  # avg_busy_slots_last: float
+  # avg_preloaded_slots_last: float
+  # avg_busy_workers_last: float
 
   rampup_time_s: float | None
   n_chunks_processed: int
@@ -836,71 +837,70 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         avg_busy_slots=perf_result.avg_busy_slots,
         avg_preloaded_slots=perf_result.avg_preloaded_slots,
         avg_busy_workers=perf_result.avg_busy_workers,
-        avg_free_slots_last=perf_result.avg_free_slots_last,
-        avg_filled_slots_last=n_slots - perf_result.avg_free_slots_last,
-        avg_busy_slots_last=perf_result.avg_busy_slots_last,
-        avg_preloaded_slots_last=perf_result.avg_preloaded_slots_last,
-        avg_busy_workers_last=perf_result.avg_busy_workers_last,
+        # avg_free_slots_last=perf_result.avg_free_slots_last,
+        # avg_filled_slots_last=n_slots - perf_result.avg_free_slots_last,
+        # avg_busy_slots_last=perf_result.avg_busy_slots_last,
+        # avg_preloaded_slots_last=perf_result.avg_preloaded_slots_last,
+        # avg_busy_workers_last=perf_result.avg_busy_workers_last,
         rampup_time_s=perf_result.ramp_up_time_until_first_pred_s,
         n_batches_processed=perf_result.total_batches_processed,
         worker_speed_xrt=perf_result.worker_speed_xrt,
         worker_speed_xrt_max=perf_result.worker_speed_xrt_max,
       )
 
-      bm = OrderedDict()
+      # bm = OrderedDict()
 
-      wall_time_s = stop - start
-      pc_chunks_per_s = total_chunks_processed / wall_time_s
+      # wall_time_s = stop - start
+      # pc_chunks_per_s = total_chunks_processed / wall_time_s
       # samples_per_second = (
       #   AcousticModelBaseV2_4.get_chunk_size_samples() * pc_chunks_per_s
       # )
 
-      bm["rampup_time_s"] = None
-      bm["model_pred_ms_per_chunk"] = None
-      bm["pc_chunks_per_s"] = pc_chunks_per_s
-      bm["pc_audio_min_per_s"] = (
-        pc_chunks_per_s * AcousticModelBaseV2_4.get_chunk_size_s() / 60
-      )
-      bm["pc_s_per_audio_h"] = 60 / bm["pc_audio_min_per_s"]
+      # bm["model_pred_ms_per_chunk"] = None
+      # bm["pc_chunks_per_s"] = pc_chunks_per_s
+      # bm["pc_audio_min_per_s"] = (
+      #   pc_chunks_per_s * AcousticModelBaseV2_4.get_chunk_size_s() / 60
+      # )
+      # bm["pc_s_per_audio_h"] = 60 / bm["pc_audio_min_per_s"]
 
-      total_chunks_processed = perf_result["total_chunks_processed"]
-      cpu_time_s = perf_result["summed_prediction_duration_s"]
-      model_pred_ms_per_chunk = cpu_time_s / total_chunks_processed * 1000
+      # total_chunks_processed = perf_result["total_chunks_processed"]
+      # cpu_time_s = perf_result["summed_prediction_duration_s"]
+      # model_pred_ms_per_chunk = cpu_time_s / total_chunks_processed * 1000
 
-      raw_chunks_per_s = total_chunks_processed / (
-        cpu_time_s / perf_result["avg_busy_slots"]
-      )
+      # raw_chunks_per_s = total_chunks_processed / (
+      #   cpu_time_s / perf_result["avg_busy_slots"]
+      # )
 
       # Metrics
 
-      bm["raw_chunks_per_s"] = raw_chunks_per_s
-      bm["raw_min_per_s"] = (
-        bm["raw_chunks_per_s"] * AcousticModelBaseV2_4.get_chunk_size_s() / 60
-      )
-      bm["raw_avg_chunks_per_s_last"] = perf_result["avg_chunks_per_s_last"]
-      bm["raw_avg_raw_min_per_s_last"] = (
-        bm["raw_avg_chunks_per_s_last"] * AcousticModelBaseV2_4.get_chunk_size_s() / 60
-      )
-      bm["raw_avg_s_for_one_hour_last"] = 60 / bm["raw_avg_raw_min_per_s_last"]
-      bm["raw_s_for_one_hour"] = 60 / bm["raw_min_per_s"]
-      bm["raw_chunks_per_s_max"] = perf_result["max_raw_chunks_per_s"]
-      bm["raw_min_per_s_max"] = (
-        bm["raw_chunks_per_s_max"] * AcousticModelBaseV2_4.get_chunk_size_s() / 60
-      )
-      bm["raw_s_for_one_hour_max"] = 60 / bm["raw_min_per_s_max"]
+      # bm["raw_chunks_per_s"] = raw_chunks_per_s
+      # bm["raw_min_per_s"] = (
+      #   bm["raw_chunks_per_s"] * AcousticModelBaseV2_4.get_chunk_size_s() / 60
+      # )
+      # bm["raw_avg_chunks_per_s_last"] = perf_result["avg_chunks_per_s_last"]
+      # bm["raw_avg_raw_min_per_s_last"] = (
+      #   bm["raw_avg_chunks_per_s_last"] * AcousticModelBaseV2_4.get_chunk_size_s() / 60
+      # )
+      # bm["raw_avg_s_for_one_hour_last"] = 60 / bm["raw_avg_raw_min_per_s_last"]
+      # bm["raw_s_for_one_hour"] = 60 / bm["raw_min_per_s"]
+      # bm["raw_chunks_per_s_max"] = perf_result["max_raw_chunks_per_s"]
+      # bm["raw_min_per_s_max"] = (
+      #   bm["raw_chunks_per_s_max"] * AcousticModelBaseV2_4.get_chunk_size_s() / 60
+      # )
+      # bm["raw_s_for_one_hour_max"] = 60 / bm["raw_min_per_s_max"]
 
-      bm["model_pred_ms_per_chunk"] = model_pred_ms_per_chunk
-      bm["model_pred_ms_per_batch"] = (
-        bm["cpu_time_s"] / bm["n_batches_processed"] * 1000
-      )
+      # bm["model_pred_ms_per_chunk"] = model_pred_ms_per_chunk
+      # bm["model_pred_ms_per_batch"] = (
+      #   bm["cpu_time_s"] / bm["n_batches_processed"] * 1000
+      # )
 
-      bm["real_time_factor"] = 0
-      bm["speed_x_real_time"] = 0
+      # bm["real_time_factor"] = 0
+      # bm["speed_x_real_time"] = 0
 
       bm = asdict(bmm)
-      for k in bm:
-        if k.startswith("_"):
-          del bm[k]
+      del_keys = [k for k in bm if k.startswith("_")]
+      for k in del_keys:
+        del bm[k]
 
       benchmark_dir = get_benchmark_dir(
         model=AcousticModelBaseV2_4.get_model_type(),
@@ -929,31 +929,34 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         f"End time:   {bmm.end_time}\n"
         f"Wall time:  {bmm.wall_time_readable}\n"
         f"Input: {bmm.n_files} file(s) ({file_formats})\n"
-        f"\tTotal duration: {bmm.tot_file_duration_h:.2f} h\n"
-        f"\tMax duration (file): {bmm.max_audio_duration_min:.2f} min\n"
+        f"  Total duration: {bmm.tot_file_duration_h:.2f} h\n"
+        f"  Max duration (file): {bmm.max_audio_duration_min:.2f} min\n"
         f"Feeder(s): {bmm.n_producers}\n"
-        f"Busy Worker(s): {bmm.avg_busy_workers:.1f}/{bmm.n_workers} (mean)\n"
+        f"Busy workers: {bmm.avg_busy_workers:.1f}/{bmm.n_workers} (mean)\n"
         f"Buffer: {bmm.avg_filled_slots:.1f}/{n_slots} filled slots (mean)\n"
         # f"\tBusy: {bmm.avg_busy_slots:.1f} slots\n"
         # f"\tPreloaded: {bmm.avg_preloaded_slots:.1f} slots\n"
         # f"\tFree: {bmm.avg_free_slots:.1f} slots\n"
         f"Memory usage:\n"
-        f"\tProgram: {bmm.max_memory_usages_MiB:.2f} M (total max)\n"
-        f"\tBuffer:  {bmm.bn_ring_total_MiB:.2f} M (SharedMemory)\n"
-        f"\tResult:  {bmm.result_memory_usage_MiB:.2f} M (NumPy)\n"
+        f"  Program: {bmm.max_memory_usages_MiB:.2f} M (total max)\n"
+        f"  Buffer: {bmm.bn_ring_total_MiB:.2f} M (shared memory)\n"
+        f"  Result: {bmm.result_memory_usage_MiB:.2f} M (NumPy)\n"
+        f"Total performance:\n"
+        f"  {bmm.speed_xrt:.0f} x real-time (RTF: {bmm.speed_rtf:.8f})\n"
+        f"  {bmm.speed_seg_per_second:.0f} segments/s ({bmm.speed_audio_min_per_second:.2f} min audio/s)\n"
         f"Computational performance:\n"
-        f"Performance:\n"
-        f"\tRTF: {bmm.real_time_factor:.8f} ({bmm.speed_xrt:.2f}x real-time)\n"
-        f"\tAudio processing (all): {bmm.pc_audio_min_per_s:.2f} min audio/s ({bmm.pc_s_per_audio_h:.2f} s/h audio; {bmm.pc_chunks_per_s:.2f} chunks/s)\n"
-        f"\tAudio processing (computation):\n"
-        f"\t\tMean: {bmm.raw_min_per_s:.2f} min audio/s ({bmm.raw_s_for_one_hour:.2f} s/h audio; {bmm.raw_chunks_per_s:.2f} chunks/s)\n"
-        f"\t\tMean (last 30s): {bmm.raw_avg_raw_min_per_s_last:.2f} min audio/s ({bmm.raw_avg_s_for_one_hour_last:.2f} s/h audio; {bmm.raw_avg_chunks_per_s_last:.2f} chunks/s)\n"
-        f"\t\tBest: {bmm.raw_min_per_s_max:.2f} min audio/s ({bmm.raw_s_for_one_hour_max:.2f} s/h audio; {bmm.raw_chunks_per_s_max:.2f} chunks/s)\n"
-        f"\tPrediction speed: {bmm.model_pred_ms_per_chunk:.2f} ms/chunk ({bmm.model_pred_ms_per_batch:.2f} ms/batch)\n"
+        f"  {bmm.worker_speed_xrt:.0f} x real-time (RTF: {bmm.worker_speed_rtf:.8f})\n"
+        f"  {bmm.worker_speed_xrt_max:.0f} x real-time (max)\n"
+        # f"\tAudio processing (all): {bmm.pc_audio_min_per_s:.2f} min audio/s ({bmm.pc_s_per_audio_h:.2f} s/h audio; {bmm.pc_chunks_per_s:.2f} chunks/s)\n"
+        # f"\tAudio processing (computation):\n"
+        # f"\t\tMean: {bmm.raw_min_per_s:.2f} min audio/s ({bmm.raw_s_for_one_hour:.2f} s/h audio; {bmm.raw_chunks_per_s:.2f} chunks/s)\n"
+        # f"\t\tMean (last 30s): {bmm.raw_avg_raw_min_per_s_last:.2f} min audio/s ({bmm.raw_avg_s_for_one_hour_last:.2f} s/h audio; {bmm.raw_avg_chunks_per_s_last:.2f} chunks/s)\n"
+        # f"\t\tBest: {bmm.raw_min_per_s_max:.2f} min audio/s ({bmm.raw_s_for_one_hour_max:.2f} s/h audio; {bmm.raw_chunks_per_s_max:.2f} chunks/s)\n"
+        # f"\tPrediction speed: {bmm.model_pred_ms_per_chunk:.2f} ms/chunk ({bmm.model_pred_ms_per_batch:.2f} ms/batch)\n"
         f"Benchmark results written to:\n"
-        f"\t{meta_human_readable_out.absolute()}\n"
-        f"\t{stats_out.absolute()}\n"
-        f"\t{meta_df_out.absolute()}\n"
+        f"  {meta_human_readable_out.absolute()}\n"
+        f"  {stats_out.absolute()}\n"
+        f"  {meta_df_out.absolute()}\n"
       )
       meta_human_readable_out.write_text(summary, encoding="utf8")
       print(summary)

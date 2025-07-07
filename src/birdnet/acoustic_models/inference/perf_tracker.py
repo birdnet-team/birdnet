@@ -48,16 +48,16 @@ class PerformanceTrackingResult:
   avg_preloaded_slots: float
   avg_busy_workers: float
 
-  avg_pred_dur_last_s: float
-  avg_wait_dur_last_ms: float
-  avg_free_slots_last: float
-  avg_busy_slots_last: float
-  avg_preloaded_slots_last: float
-  avg_busy_workers_last: float
+  # avg_pred_dur_last_s: float
+  # avg_wait_dur_last_ms: float
+  # avg_free_slots_last: float
+  # avg_busy_slots_last: float
+  # avg_preloaded_slots_last: float
+  # avg_busy_workers_last: float
 
-  max_raw_chunks_per_s: float
+  # max_raw_chunks_per_s: float
 
-  avg_chunks_per_s_last: float
+  # avg_chunks_per_s_last: float
 
 
 class PerformanceTracker(bn_logging.LogableProcessBase):
@@ -245,9 +245,9 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       if now >= self._next_print and len(self._pred_dur_deque) > 0:
         t = time.perf_counter()
         wall_time = t - self._start
-        perf_duration_workers = t - self._workers_start
+        # perf_duration_workers = t - self._workers_start
         # avg = sum(self._pred_dur_deque) / sum(self._batch_sizes_deque)
-        chunks_per_s = self._total_chunks_processed / wall_time
+        # chunks_per_s = self._total_chunks_processed / wall_time
         # min_per_s = chunks_per_s * self._chunk_size_s / 60
 
         memory_usage = parent_process.memory_full_info().uss
@@ -263,12 +263,14 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         avg_free_slots = np.mean(free_slots) if free_slots else 0
         avg_busy_workers = np.mean(busy_workers) if busy_workers else 0
 
-        raw_chunks_per_s_old = (
-          self._total_chunks_processed
-          / (self._summed_worker_raw_pred_duration / avg_busy_workers)
-          if avg_busy_workers > 0
-          else 0
-        )
+        # avg_busy_workers = self._sem_active_workers.get_value()
+
+        # raw_chunks_per_s_old = (
+        #   self._total_chunks_processed
+        #   / (self._summed_worker_raw_pred_duration / avg_busy_workers)
+        #   if avg_busy_workers > 0
+        #   else 0
+        # )
         processed_audio_duration_s = self._total_chunks_processed * self._chunk_size_s
 
         _summed_worker_duration = sum(worker_wall_time.values())
@@ -285,13 +287,13 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
           else 0
         )
 
-        speed_x_real_time_classic = processed_audio_duration_s / wall_time
+        # speed_x_real_time_classic = processed_audio_duration_s / wall_time
 
-        raw_min_per_s = raw_chunks_per_s_old * self._chunk_size_s / 60
+        # raw_min_per_s = raw_chunks_per_s_old * self._chunk_size_s / 60
 
-        max_raw_chunks_per_s = max(max_raw_chunks_per_s, raw_chunks_per_s_old)
+        # max_raw_chunks_per_s = max(max_raw_chunks_per_s, raw_chunks_per_s_old)
 
-        avg_chunks_per_s.append(raw_chunks_per_s_old)
+        # avg_chunks_per_s.append(raw_chunks_per_s_old)
         avg_wait_time_ms = (
           np.mean(self._wait_dur_deque) * 1000 if self._wait_dur_deque else 0
         )
@@ -359,16 +361,16 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       avg_busy_slots=float_avg_busy_slots,
       avg_preloaded_slots=float_avg_preloaded_slots,
       avg_busy_workers=float_avg_busy_workers,
-      avg_pred_dur_last_s=np.mean(self._pred_dur_deque) if self._pred_dur_deque else 0,
-      avg_wait_dur_last_ms=(
-        np.mean(self._wait_dur_deque) * 1000 if self._wait_dur_deque else 0
-      ),
-      avg_free_slots_last=np.mean(free_slots) if free_slots else 0,
-      avg_busy_slots_last=np.mean(busy_slots) if busy_slots else 0,
-      avg_preloaded_slots_last=np.mean(preloaded_slots) if preloaded_slots else 0,
-      avg_busy_workers_last=np.mean(busy_workers) if busy_workers else 0,
-      max_raw_chunks_per_s=max_raw_chunks_per_s,
-      avg_chunks_per_s_last=(np.mean(avg_chunks_per_s) if avg_chunks_per_s else 0),
+      # avg_pred_dur_last_s=np.mean(self._pred_dur_deque) if self._pred_dur_deque else 0,
+      # avg_wait_dur_last_ms=(
+      #   np.mean(self._wait_dur_deque) * 1000 if self._wait_dur_deque else 0
+      # ),
+      # avg_free_slots_last=np.mean(free_slots) if free_slots else 0,
+      # avg_busy_slots_last=np.mean(busy_slots) if busy_slots else 0,
+      # avg_preloaded_slots_last=np.mean(preloaded_slots) if preloaded_slots else 0,
+      # avg_busy_workers_last=np.mean(busy_workers) if busy_workers else 0,
+      # max_raw_chunks_per_s=max_raw_chunks_per_s,
+      # avg_chunks_per_s_last=(np.mean(avg_chunks_per_s) if avg_chunks_per_s else 0),
     )
 
     self._perf_res.put(stats)
