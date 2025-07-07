@@ -410,32 +410,6 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       for p in producer_processes:
         p.start()
 
-      perf_tracker = None
-      if track_performance:
-        perf_res = mp.SimpleQueue()
-        perf_tracker = mp.Process(
-          target=PerformanceTracker(
-            pred_dur_queue,
-            perf_stop_event,
-            update_interval=0.5,
-            print_interval=1,
-            use_stats_from_last_seconds=30,
-            n_workers=n_workers,
-            start=start,
-            chunk_size_s=AcousticModelBaseV2_4.get_chunk_size_s(),
-            logging_queue=logging_queue,
-            logging_level=logging_level,
-            perf_res=perf_res,
-            parent_process_id=os.getpid(),
-            rf_flags=rf_flags,
-            tot_n_chunks_ptr=tot_n_chunks_ptr,
-            cancel_event=cancel_event,
-            sem_active_workers=sem_active_workers,
-          ),
-          daemon=True,
-        )
-        perf_tracker.start()
-
       backend_kwargs = [self.get_backend_args() for _ in range(n_workers)]
 
       devices = device if isinstance(device, list) else [device] * n_workers
@@ -476,8 +450,36 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         for i in range(n_workers)
       ]
 
+      worker_start = time.perf_counter()
       for w in worker_processes:
         w.start()
+
+      perf_tracker = None
+      if track_performance:
+        perf_res = mp.SimpleQueue()
+        perf_tracker = mp.Process(
+          target=PerformanceTracker(
+            pred_dur_queue,
+            perf_stop_event,
+            update_interval=0.5,
+            print_interval=1,
+            use_stats_from_last_seconds=30,
+            n_workers=n_workers,
+            start=start,
+            workers_start=worker_start,
+            chunk_size_s=AcousticModelBaseV2_4.get_chunk_size_s(),
+            logging_queue=logging_queue,
+            logging_level=logging_level,
+            perf_res=perf_res,
+            parent_process_id=os.getpid(),
+            rf_flags=rf_flags,
+            tot_n_chunks_ptr=tot_n_chunks_ptr,
+            cancel_event=cancel_event,
+            sem_active_workers=sem_active_workers,
+          ),
+          daemon=True,
+        )
+        perf_tracker.start()
 
       consumer = Consumer(
         n_workers=n_workers,
@@ -699,14 +701,18 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       bm["avg_cpu_usages_pct"] = perf_result["avg_cpu_usages_pct"]
 
       bm["avg_free_slots"] = perf_result["avg_free_slots"]
-      bm["avg_filled_slots"] = perf_result["avg_filled_slots"]
+      bm["avg_filled_slots"] = n_slots - perf_result["avg_free_slots"]
       bm["avg_busy_slots"] = perf_result["avg_busy_slots"]
       bm["avg_preloaded_slots"] = perf_result["avg_preloaded_slots"]
+      bm["avg_busy_workers"] = perf_result["avg_busy_workers"]
 
       bm["avg_free_slots_last"] = perf_result["avg_free_slots_last"]
-      bm["avg_filled_slots_last"] = perf_result["avg_filled_slots_last"]
+      bm["avg_filled_slots_last"] = n_slots - perf_result["avg_free_slots_last"]
       bm["avg_busy_slots_last"] = perf_result["avg_busy_slots_last"]
       bm["avg_preloaded_slots_last"] = perf_result["avg_preloaded_slots_last"]
+      bm["avg_busy_workers_last"] = perf_result["avg_busy_workers_last"]
+      bm["real_time_factor"] = 0
+      bm["speed_x_real_time"] = 0
 
       benchmark_dir = get_benchmark_dir(
         model=AcousticModelBaseV2_4.get_model_type(),
@@ -737,18 +743,18 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         f"Input: {bm['n_files']} file(s) ({file_formats})\n"
         f"\tTotal duration: {bm['tot_file_duration_h']:.2f} h\n"
         f"\tMax duration (file): {bm['max_audio_duration_min']:.2f} min\n"
-        f"# Processes:\n"
-        f"\tProducer(s): {bm['n_producers']}\n"
-        f"\tWorker(s): {bm['n_workers']}\n"
-        f"Average amount of batches (ringbuffer: {n_slots} slots):\n"
-        f"\tBusy: {bm['avg_busy_slots']:.1f} slots\n"
-        f"\tPreloaded: {bm['avg_preloaded_slots']:.1f} slots\n"
-        f"\tFree: {bm['avg_free_slots']:.1f} slots\n"
+        f"Feeder(s): {bm['n_producers']}\n"
+        f"Busy Worker(s): {bm['avg_busy_workers']:.2f}/{bm['n_workers']} (mean)\n"
+        f"Buffer: {bm['avg_filled_slots']:.1f}/{n_slots} filled slots (mean)\n"
+        # f"\tBusy: {bm['avg_busy_slots']:.1f} slots\n"
+        # f"\tPreloaded: {bm['avg_preloaded_slots']:.1f} slots\n"
+        # f"\tFree: {bm['avg_free_slots']:.1f} slots\n"
         f"Memory usage:\n"
-        f"\tProgram max: {bm['max_memory_usages_MiB']:.2f} MiB\n"
-        f"\tRingbuffer total: {bm['bn_ring_total_MiB']:.2f} MiB\n"
-        f"\tInference result: {bm['result_memory_usage_MiB']:.2f} MiB\n"
-        f"Performance:\n"
+        f"\tProgram: {bm['max_memory_usages_MiB']:.2f} M (total max)\n"
+        f"\tBuffer:  {bm['bn_ring_total_MiB']:.2f} M (SharedMemory)\n"
+        f"\tResult:  {bm['result_memory_usage_MiB']:.2f} M (NumPy)\n"
+        f"Performance:\n",
+        f"\tRTF: {bm['real_time_factor']:.8f} ({bm['speed_x_real_time']:.2f}x real-time)\n",
         f"\tAudio processing (all): {bm['pc_audio_min_per_s']:.2f} min audio/s ({bm['pc_s_per_audio_h']:.2f} s/h audio; {bm['pc_chunks_per_s']:.2f} chunks/s)\n"
         f"\tAudio processing (computation):\n"
         f"\t\tMean: {bm['raw_min_per_s']:.2f} min audio/s ({bm['raw_s_for_one_hour']:.2f} s/h audio; {bm['raw_chunks_per_s']:.2f} chunks/s)\n"
@@ -758,7 +764,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         f"Benchmark results written to:\n"
         f"\t{meta_human_readable_out.absolute()}\n"
         f"\t{stats_out.absolute()}\n"
-        f"\t{meta_df_out.absolute()}\n"
+        f"\t{meta_df_out.absolute()}\n",
       )
       meta_human_readable_out.write_text(summary, encoding="utf8")
       print(summary)

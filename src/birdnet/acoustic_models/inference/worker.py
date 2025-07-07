@@ -140,12 +140,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
 
   def _infer(self, batch: np.ndarray) -> np.ndarray:
     assert self._backend is not None
-    start_time = time.perf_counter()
     res = self._backend.infer(batch)
-    if self._track_performance:
-      final = time.perf_counter()
-      pred_dur = final - start_time
-      self._pred_dur_queue.put((pred_dur, batch.shape[0]))
     assert res.dtype == np.float32
     res = res.astype(self._prob_dtype, copy=False)
     return res
@@ -191,6 +186,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
     self._logger.debug(f"WORKER({self._pid}) - {msg}")
 
   def __call__(self):
+    warm_up_start_time = time.perf_counter()
     try:
       self._init()
     except ValueError:
@@ -205,7 +201,12 @@ class ChildWorker(bn_logging.LogableProcessBase):
     assert self._ring_audio_samples is not None
     assert self._ring_batch_sizes is not None
 
+    start_time = time.perf_counter()
+    warm_up_start = start_time - warm_up_start_time
     while True:
+      wait_for_batch_start = time.perf_counter()
+      wait_time_for_batch: float | None = None
+
       self._sem_filled.acquire()  # TODO maybe check here too if cancel
       self._log_debug(
         f"Acquired FILL; Free slots remaining: {self._sem_free}; Filled slots: {self._sem_filled}"
@@ -217,6 +218,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
           current_slot_flag = self._ring_flags[current_slot]
           # TODO: check if all ring_size slots = DONE
           if current_slot_flag in (READABLE_FLAG, DONE_FLAG):
+            wait_time_for_batch = time.perf_counter() - wait_for_batch_start
             claimed_slot = current_slot
             claimed_flag = current_slot_flag
             if claimed_flag == READABLE_FLAG:
@@ -231,6 +233,8 @@ class ChildWorker(bn_logging.LogableProcessBase):
             )
             self._jump_to_next_slot_ptr()
 
+      assert wait_time_for_batch is not None
+
       if claimed_flag == DONE_FLAG:
         self._log_debug(f"Received DONE_FLAG for slot {claimed_slot}. Exiting.")
         self._out_q.put(None)
@@ -238,7 +242,9 @@ class ChildWorker(bn_logging.LogableProcessBase):
       assert claimed_flag == READABLE_FLAG
 
       self._sem_active_workers.release()
-      self._log_debug(f"Acquired READ_FLAG for slot {claimed_slot}.")
+      self._log_debug(
+        f"Acquired READ_FLAG for slot {claimed_slot}. Waited {wait_time_for_batch:.4f} seconds for batch."
+      )
 
       n = self._ring_batch_sizes[claimed_slot]
       audio_samples = self._ring_audio_samples[claimed_slot, :n]
@@ -247,6 +253,8 @@ class ChildWorker(bn_logging.LogableProcessBase):
       self._log_debug(
         f"Received job for slot {claimed_slot} with {n} chunks: {chunk_indices}"
       )
+
+      pred_start_time = time.perf_counter()
 
       try:
         pred = self._infer(audio_samples)
@@ -263,6 +271,22 @@ class ChildWorker(bn_logging.LogableProcessBase):
         self._out_q.put(None)
         self._sem_active_workers.acquire(block=False)
         break
+
+      if self._track_performance:
+        now = time.perf_counter()
+        prediction_duration = now - pred_start_time
+        process_total_duration = now - start_time
+        self._pred_dur_queue.put(
+          (
+            self._pid,
+            warm_up_start,
+            process_total_duration,
+            wait_time_for_batch,
+            prediction_duration,
+            audio_samples.shape[0],
+          )
+        )
+        warm_up_start = 0  # reset warm-up start after first prediction
 
       self._ring_flags[claimed_slot] = WRITABLE_FLAG
       self._sem_free.release()

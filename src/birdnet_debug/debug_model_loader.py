@@ -159,8 +159,10 @@ if __name__ == "__main__":
   audio_paths = [Path("src\\birdnet_v2_debug\\10min.wav")]
   audio_paths = [Path("src\\birdnet_v2_debug\\60min.wav")]
 
+  audio_paths = "src/birdnet_tests/test_files/soundscape.wav"
   audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
   audio_paths = get_pow_file_paths()
+
   params = {
     "n_workers": 4,
     "n_producers": 1,
@@ -170,10 +172,10 @@ if __name__ == "__main__":
     "device": "CPU",
   }
   params = {
-    "n_workers": 11,
-    "n_producers": 1,
+    "n_workers": 12,
+    "n_producers": 2,
     "batch_size": 1,
-    "n_slots_factor": 1,
+    "n_slots_factor": 2,
     "backend": "tf",
     "device": "CPU",
   }
