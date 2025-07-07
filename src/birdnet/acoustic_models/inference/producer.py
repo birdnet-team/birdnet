@@ -25,38 +25,38 @@ from birdnet.globals import (
 from birdnet.helper import (
   SF_FORMATS,
   RingField,
-  get_max_n_chunks,
+  get_max_n_segments,
   max_value_for_uint_dtype,
 )
 from birdnet.utils import (
   bandpass_signal,
   fillup_with_silence,
-  get_chunks_with_overlap,
+  get_segments_with_overlap,
   itertools_batched,
   resample_array,
 )
 
 
-def get_chunks_with_overlap(
+def get_segments_with_overlap(
   total_duration_s: int | float,
-  chunk_duration_s: int | float,
+  segment_duration_s: int | float,
   overlap_duration_s: int | float,
 ) -> Generator[tuple[float, float], None, None]:
   assert total_duration_s > 0
-  assert chunk_duration_s > 0
-  assert 0 <= overlap_duration_s < chunk_duration_s
+  assert segment_duration_s > 0
+  assert 0 <= overlap_duration_s < segment_duration_s
 
   if not isinstance(overlap_duration_s, float):
     overlap_duration_s = float(overlap_duration_s)
-  if not isinstance(chunk_duration_s, float):
-    chunk_duration_s = float(chunk_duration_s)
+  if not isinstance(segment_duration_s, float):
+    segment_duration_s = float(segment_duration_s)
   if not isinstance(total_duration_s, float):
     total_duration_s = float(total_duration_s)
 
-  step_duration = chunk_duration_s - overlap_duration_s
+  step_duration = segment_duration_s - overlap_duration_s
   for start in count(0.0, step_duration):
     assert start < total_duration_s
-    if (end := start + chunk_duration_s) < total_duration_s:
+    if (end := start + segment_duration_s) < total_duration_s:
       yield start, end
     else:
       yield start, total_duration_s
@@ -90,13 +90,13 @@ class ChildProducer(bn_logging.LogableProcessBase):
     batch_size: int,
     n_slots: int,
     rf_file_indices: RingField,
-    rf_chunk_indices: RingField,
+    rf_segment_indices: RingField,
     rf_audio_samples: RingField,
     rf_batch_sizes: RingField,
     rf_flags: RingField,
     sem_free_slots: Semaphore,
     sem_filled_slots: Semaphore,
-    max_chunk_idx_ptr: ctypes.c_uint8
+    max_segment_idx_ptr: ctypes.c_uint8
     | ctypes.c_uint16
     | ctypes.c_uint32
     | ctypes.c_uint64,
@@ -107,7 +107,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
     n_prods: int,
     logging_queue: Queue,
     logging_level: int,
-    chunk_duration_s: float,
+    segment_duration_s: float,
     overlap_duration_s: float,
     target_sample_rate: int,
     cancel_event: Event,
@@ -119,7 +119,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
   ):
     super().__init__(__name__, logging_queue, logging_level)
 
-    self.chunk_duration_s = chunk_duration_s
+    self.segment_duration_s = segment_duration_s
     self.overlap_duration_s = overlap_duration_s
     self.target_sample_rate = target_sample_rate
     self._batch_size = batch_size
@@ -129,7 +129,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
     self._slot_ptr: Synchronized[int] = slot_ptr  # type: ignore
     self._files_queue = files_queue
     self._use_bandpass = use_bandpass
-    self._max_chunk_idx_ptr = max_chunk_idx_ptr  # type: ignore
+    self._max_segment_idx_ptr = max_segment_idx_ptr  # type: ignore
     self._prod_done_ptr: Synchronized[int] = prod_done_ptr  # type: ignore
     self._n_producers = n_prods
 
@@ -147,28 +147,28 @@ class ChildProducer(bn_logging.LogableProcessBase):
       self.sig_fmin = None
       self.sig_fmax = None
 
-    self.chunk_duration_samples = target_sample_rate * int(chunk_duration_s)
+    self.segment_duration_samples = target_sample_rate * int(segment_duration_s)
 
     self._rf_file_indices = rf_file_indices
-    self._rf_chunk_indices = rf_chunk_indices
+    self._rf_segment_indices = rf_segment_indices
     self._rf_audio_samples = rf_audio_samples
     self._rf_batch_sizes = rf_batch_sizes
     self._rf_flags = rf_flags
 
     self._shm_file_indices: shared_memory.SharedMemory | None = None
-    self._shm_chunk_indices: shared_memory.SharedMemory | None = None
+    self._shm_segment_indices: shared_memory.SharedMemory | None = None
     self._shm_audio_samples: shared_memory.SharedMemory | None = None
     self._shm_batch_sizes: shared_memory.SharedMemory | None = None
     self._shm_ring_flags: shared_memory.SharedMemory | None = None
 
     self._ring_file_indices: np.ndarray | None = None
-    self._ring_chunk_indices: np.ndarray | None = None
+    self._ring_segment_indices: np.ndarray | None = None
     self._ring_audio_samples: np.ndarray | None = None
     self._ring_batch_sizes: np.ndarray | None = None
     self._ring_flags: np.ndarray | None = None
 
-    self._max_supported_chunk_index = (
-      max_value_for_uint_dtype(rf_chunk_indices.dtype) - 1
+    self._max_supported_segment_index = (
+      max_value_for_uint_dtype(rf_segment_indices.dtype) - 1
     )
 
     self._cancel_event = cancel_event
@@ -177,8 +177,8 @@ class ChildProducer(bn_logging.LogableProcessBase):
     self._shm_file_indices, self._ring_file_indices = (
       self._rf_file_indices.attach_and_get_array()
     )
-    self._shm_chunk_indices, self._ring_chunk_indices = (
-      self._rf_chunk_indices.attach_and_get_array()
+    self._shm_segment_indices, self._ring_segment_indices = (
+      self._rf_segment_indices.attach_and_get_array()
     )
     self._shm_audio_samples, self._ring_audio_samples = (
       self._rf_audio_samples.attach_and_get_array()
@@ -197,7 +197,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
     self._logger.debug(f"PRODUCER({os.getpid()}) - Uninitializing...")
     self._uninit_logging()
 
-  def get_chunks_from_files(
+  def get_segments_from_files(
     self,
   ) -> Generator[tuple[int, int, npt.NDArray[np.float32]], None, None]:
     while True:
@@ -210,28 +210,29 @@ class ChildProducer(bn_logging.LogableProcessBase):
       file_index, path = queue_entry
 
       audio_duration_s = get_audio_duration_s(path)
-      file_n_chunks = get_max_n_chunks(
-        audio_duration_s, self.chunk_duration_s, self.overlap_duration_s
+      file_n_segments = get_max_n_segments(
+        audio_duration_s, self.segment_duration_s, self.overlap_duration_s
       )
-      file_max_chunk_index = file_n_chunks - 1
+      file_max_segment_index = file_n_segments - 1
 
-      if file_max_chunk_index > self._max_chunk_idx_ptr.value:
-        if file_max_chunk_index > self._max_supported_chunk_index:
+      if file_max_segment_index > self._max_segment_idx_ptr.value:
+        if file_max_segment_index > self._max_supported_segment_index:
           self._logger.error(
-            f"File {path} has a duration of {audio_duration_s / 60:.2f} min and contains {file_n_chunks} chunks, which exceeds the maximum supported amount of chunks {self._max_supported_chunk_index + 1}. Please set maximum audio duration."
+            f"File {path} has a duration of {audio_duration_s / 60:.2f} min and contains {file_n_segments} segments, which exceeds the maximum supported amount of segments {self._max_supported_segment_index + 1}. Please set maximum audio duration."
           )
           continue
-        self._max_chunk_idx_ptr.value = file_max_chunk_index
-      chunks = load_audio_in_chunks_with_overlap(
+        self._max_segment_idx_ptr.value = file_max_segment_index
+      segments = load_audio_in_segments_with_overlap(
         path,
-        chunk_duration_s=self.chunk_duration_s,
+        segment_duration_s=self.segment_duration_s,
         overlap_duration_s=self.overlap_duration_s,
         target_sample_rate=self.target_sample_rate,
       )
 
-      # fill last chunk with silence up to chunksize if it is smaller than 3s
-      chunks = (
-        fillup_with_silence(chunk, self.chunk_duration_samples) for chunk in chunks
+      # fill last segment with silence up to segmentsize if it is smaller than 3s
+      segments = (
+        fillup_with_silence(segment, self.segment_duration_samples)
+        for segment in segments
       )
 
       if self._use_bandpass:
@@ -240,30 +241,30 @@ class ChildProducer(bn_logging.LogableProcessBase):
         assert self.sig_fmin is not None
         assert self.sig_fmax is not None
 
-        chunks = (
+        segments = (
           bandpass_signal(
-            chunk,
+            segment,
             self.target_sample_rate,
             self.bandpass_fmin,
             self.bandpass_fmax,
             self.sig_fmin,
             self.sig_fmax,
           )
-          for chunk in chunks
+          for segment in segments
         )
 
-      for chunk_index, chunk in enumerate(chunks):
-        yield file_index, chunk_index, chunk
+      for segment_index, segment in enumerate(segments):
+        yield file_index, segment_index, segment
 
   def __call__(self) -> None:
     self._init()
-    buffer_input = self.get_chunks_from_files()
+    buffer_input = self.get_segments_from_files()
     for batch in itertools_batched(buffer_input, self._batch_size):
-      file_indices, chunk_indices, audio_samples = zip(*batch, strict=False)
-      max_chunk_index = max(chunk_indices)
-      if max_chunk_index > self._max_supported_chunk_index:
+      file_indices, segment_indices, audio_samples = zip(*batch, strict=False)
+      max_segment_index = max(segment_indices)
+      if max_segment_index > self._max_supported_segment_index:
         self._logger.error(
-          f"Chunk index {max_chunk_index} exceeds maximum supported chunk index {self._max_supported_chunk_index}. Please set maximum audio duration. Cancelling proceessing."
+          f"Chunk index {max_segment_index} exceeds maximum supported segment index {self._max_supported_segment_index}. Please set maximum audio duration. Cancelling proceessing."
         )
         break
 
@@ -289,7 +290,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
         f"PRODUCER({os.getpid()}) - Producer acquired FREE. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
       )
 
-      self._flush_batch(file_indices, chunk_indices, audio_samples)
+      self._flush_batch(file_indices, segment_indices, audio_samples)
 
       self._sem_filled_slots.release()
       self._logger.debug(
@@ -339,10 +340,10 @@ class ChildProducer(bn_logging.LogableProcessBase):
     self._jump_to_next_slot_ptr()
     self._sem_filled_slots.release()
 
-  def _flush_batch(self, file_indices, chunk_indices, audio_samples) -> None:
+  def _flush_batch(self, file_indices, segment_indices, audio_samples) -> None:
     assert self._ring_audio_samples is not None
     assert self._ring_file_indices is not None
-    assert self._ring_chunk_indices is not None
+    assert self._ring_segment_indices is not None
     assert self._ring_batch_sizes is not None
     assert self._ring_flags is not None
 
@@ -358,7 +359,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
       with self._slot_ptr.get_lock():
         current_slot = self._slot_ptr.value
         current_slot_flag = self._ring_flags[current_slot]
-        # can never be DONE because this flag is set after all chunks from all files have been flushed
+        # can never be DONE because this flag is set after all segments from all files have been flushed
         assert current_slot_flag != DONE_FLAG
 
         if current_slot_flag == WRITABLE_FLAG:
@@ -395,17 +396,19 @@ class ChildProducer(bn_logging.LogableProcessBase):
 
     current_batch_size = len(audio_samples)
     assert len(file_indices) == current_batch_size
-    assert len(chunk_indices) == current_batch_size
+    assert len(segment_indices) == current_batch_size
     assert 0 <= claimed_slot < self._n_slots
     assert current_batch_size <= self._batch_size
     self._ring_file_indices[claimed_slot, :current_batch_size] = np.asarray(
       file_indices, self._ring_file_indices.dtype
     )
     # TODO könnte man noch bei den anderen auch machen
-    assert max(chunk_indices) < max_value_for_uint_dtype(self._ring_chunk_indices.dtype)
-    assert min(chunk_indices) >= 0
-    self._ring_chunk_indices[claimed_slot, :current_batch_size] = np.asarray(
-      chunk_indices, self._ring_chunk_indices.dtype
+    assert max(segment_indices) < max_value_for_uint_dtype(
+      self._ring_segment_indices.dtype
+    )
+    assert min(segment_indices) >= 0
+    self._ring_segment_indices[claimed_slot, :current_batch_size] = np.asarray(
+      segment_indices, self._ring_segment_indices.dtype
     )
 
     self._ring_audio_samples[claimed_slot, :current_batch_size] = np.asarray(
@@ -414,7 +417,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
     self._ring_batch_sizes[claimed_slot] = current_batch_size
 
     self._logger.debug(
-      f"PRODUCER({os.getpid()}) - Flushed batch to shared memory on slot {claimed_slot}, batch size {current_batch_size}. Chunk indices: {chunk_indices}"
+      f"PRODUCER({os.getpid()}) - Flushed batch to shared memory on slot {claimed_slot}, batch size {current_batch_size}. Chunk indices: {segment_indices}"
     )
 
     self._ring_flags[claimed_slot] = READABLE_FLAG
@@ -431,11 +434,11 @@ def get_audio_duration_s(audio_path: Path) -> float:
   return result
 
 
-def load_audio_in_chunks_with_overlap(
+def load_audio_in_segments_with_overlap(
   audio_path: Path,
   /,
   *,
-  chunk_duration_s: float = 3,
+  segment_duration_s: float = 3,
   overlap_duration_s: float = 0,
   # read_duration_s: Optional[float] = None,
   target_sample_rate: int = 48000,
@@ -449,9 +452,9 @@ def load_audio_in_chunks_with_overlap(
 
   sample_rate = sf_info.samplerate
 
-  timestamps = get_chunks_with_overlap(
+  timestamps = get_segments_with_overlap(
     float(sf_info.duration),
-    float(chunk_duration_s),
+    float(segment_duration_s),
     float(overlap_duration_s),
   )
 

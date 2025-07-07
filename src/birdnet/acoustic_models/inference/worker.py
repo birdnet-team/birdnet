@@ -38,13 +38,13 @@ class ChildWorker(bn_logging.LogableProcessBase):
     batch_size: int,
     n_slots: int,
     rf_file_indices: RingField,
-    rf_chunk_indices: RingField,
+    rf_segment_indices: RingField,
     rf_audio_samples: RingField,
     rf_batch_sizes: RingField,
     rf_flags: RingField,
     backend_type: type[AcousticInferenceBackend],
     backend_kwargs: dict,
-    chunk_duration_samples: int,
+    segment_duration_samples: int,
     slot_ptr: Synchronized[ctypes.c_uint8]
     | Synchronized[ctypes.c_uint16]
     | Synchronized[ctypes.c_uint32]
@@ -99,12 +99,12 @@ class ChildWorker(bn_logging.LogableProcessBase):
     # NOTE: these handlers must be created that GC does not delete the shared memory access
     self._n_slots = n_slots
     self._batch_size = batch_size
-    self._chunk_duration_samples = chunk_duration_samples
+    self._segment_duration_samples = segment_duration_samples
     # self._cached_shape: tuple[int, ...] | None = None
     # self._model_path = str(model_path.absolute())
 
     self._rf_file_indices = rf_file_indices
-    self._rf_chunk_indices = rf_chunk_indices
+    self._rf_segment_indices = rf_segment_indices
     self._rf_audio_samples = rf_audio_samples
     self._rf_batch_sizes = rf_batch_sizes
     self._rf_flags = rf_flags
@@ -113,13 +113,13 @@ class ChildWorker(bn_logging.LogableProcessBase):
     self._out_idx: int | None = None
 
     self._shm_file_indices: shared_memory.SharedMemory | None = None
-    self._shm_chunk_indices: shared_memory.SharedMemory | None = None
+    self._shm_segment_indices: shared_memory.SharedMemory | None = None
     self._shm_audio_samples: shared_memory.SharedMemory | None = None
     self._shm_batch_sizes: shared_memory.SharedMemory | None = None
     self._shm_ring_flags: shared_memory.SharedMemory | None = None
 
     self._ring_file_indices: np.ndarray | None = None
-    self._ring_chunk_indices: np.ndarray | None = None
+    self._ring_segment_indices: np.ndarray | None = None
     self._ring_audio_samples: np.ndarray | None = None
     self._ring_batch_sizes: np.ndarray | None = None
     self._ring_flags: np.ndarray | None = None
@@ -157,8 +157,8 @@ class ChildWorker(bn_logging.LogableProcessBase):
     self._shm_file_indices, self._ring_file_indices = (
       self._rf_file_indices.attach_and_get_array()
     )
-    self._shm_chunk_indices, self._ring_chunk_indices = (
-      self._rf_chunk_indices.attach_and_get_array()
+    self._shm_segment_indices, self._ring_segment_indices = (
+      self._rf_segment_indices.attach_and_get_array()
     )
     self._shm_audio_samples, self._ring_audio_samples = (
       self._rf_audio_samples.attach_and_get_array()
@@ -197,7 +197,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
 
     assert self._ring_flags is not None
     assert self._ring_file_indices is not None
-    assert self._ring_chunk_indices is not None
+    assert self._ring_segment_indices is not None
     assert self._ring_audio_samples is not None
     assert self._ring_batch_sizes is not None
 
@@ -249,9 +249,11 @@ class ChildWorker(bn_logging.LogableProcessBase):
       n = self._ring_batch_sizes[claimed_slot]
       audio_samples = self._ring_audio_samples[claimed_slot, :n]
       file_indices = self._ring_file_indices[claimed_slot, :n].copy()  # copy needed
-      chunk_indices = self._ring_chunk_indices[claimed_slot, :n].copy()  # copy needed
+      segment_indices = self._ring_segment_indices[
+        claimed_slot, :n
+      ].copy()  # copy needed
       self._log_debug(
-        f"Received job for slot {claimed_slot} with {n} chunks: {chunk_indices}"
+        f"Received job for slot {claimed_slot} with {n} segments: {segment_indices}"
       )
 
       pred_start_time = time.perf_counter()
@@ -319,7 +321,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
       self._out_q.put(
         (
           file_indices,
-          chunk_indices,
+          segment_indices,
           top_k_species,
           top_k_scores,
           top_k_mask,
@@ -327,7 +329,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
       )
       self._prediction_count += top_k_species.shape[0]
       self._log_debug(
-        f"Prediction made. Total predictions: {self._prediction_count}. Chunks: {chunk_indices}"
+        f"Prediction made. Total predictions: {self._prediction_count}. Chunks: {segment_indices}"
       )
 
       self._sem_active_workers.acquire(block=False)

@@ -14,13 +14,13 @@ class Consumer:
     n_workers: int,
     worker_queue: mp.Queue,
     species_tensor: SpeciesTensor,
-    max_chunk_index: mp.RawValue,
+    max_segment_index: mp.RawValue,
     cancel_event: Event,
   ):
     self._n_workers = n_workers
     self._queue = worker_queue
     self._tensor = species_tensor
-    self._max_chunk_index = max_chunk_index
+    self._max_segment_index = max_segment_index
     self._cancel_event = cancel_event
     self._logger = bn_logging.get_logger(__name__)
 
@@ -53,16 +53,16 @@ class Consumer:
 
       assert data is not None
 
-      file_indices, chunk_indices, top_k_species, top_k_scores, top_k_mask = data
+      file_indices, segment_indices, top_k_species, top_k_scores, top_k_mask = data
       n_received_predictions += top_k_species.shape[0]
       self._logger.debug(
-        f"CONSUMER - Received data from worker. Total received: {n_received_predictions}. Chunks: {chunk_indices}"
+        f"CONSUMER - Received data from worker. Total received: {n_received_predictions}. Chunks: {segment_indices}"
       )
       self._tensor.write_block(
         file_indices,
-        chunk_indices,
+        segment_indices,
         top_k_species,
         top_k_scores,
         top_k_mask,
-        self._max_chunk_index.value,
+        self._max_segment_index.value,
       )

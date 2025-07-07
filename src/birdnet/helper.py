@@ -139,13 +139,13 @@ def create_shm_ring(ring: RingField) -> shared_memory.SharedMemory:  # type: ign
     logger.debug(f"Shared memory {ring.name} cleaned up.")
 
 
-def get_max_n_chunks(
-  max_duration_s: float, chunk_size_s: float, overlap_duration_s: float
+def get_max_n_segments(
+  max_duration_s: float, segment_size_s: float, overlap_duration_s: float
 ) -> int:
-  effective_chunk_duration_s = chunk_size_s - overlap_duration_s
-  assert effective_chunk_duration_s > 0
-  n_chunks = math.ceil(max_duration_s / effective_chunk_duration_s)
-  return n_chunks
+  effective_segment_duration_s = segment_size_s - overlap_duration_s
+  assert effective_segment_duration_s > 0
+  n_segments = math.ceil(max_duration_s / effective_segment_duration_s)
+  return n_segments
 
 
 # ---------------- Mapping -----------------

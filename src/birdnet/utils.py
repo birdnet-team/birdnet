@@ -60,12 +60,12 @@ def bandpass_signal(
   return sig_f32
 
 
-def chunk_signal(
+def segment_signal(
   audio_signal: npt.NDArray[np.float32],
   rate: int,
-  chunk_size: float,
-  chunk_overlap: float,
-  min_chunk_size: float,
+  segment_size: float,
+  segment_overlap: float,
+  min_segment_size: float,
 ) -> Generator[Tuple[float, float, npt.NDArray[np.float32]], None, None]:
   """Split signal with overlap.
 
@@ -80,63 +80,63 @@ def chunk_signal(
       A list of splits.
   """
   assert rate > 0
-  assert min_chunk_size > 0
-  assert chunk_overlap >= 0
-  assert chunk_overlap < chunk_size
+  assert min_segment_size > 0
+  assert segment_overlap >= 0
+  assert segment_overlap < segment_size
 
-  # Number of frames per chunk, per step and per minimum signal
-  chunk_frame_count = round(rate * chunk_size)
-  chunk_step_frame_count = round(rate * (chunk_size - chunk_overlap))
-  min_chunk_frame_count = round(rate * min_chunk_size)
+  # Number of frames per segment, per step and per minimum signal
+  segment_frame_count = round(rate * segment_size)
+  segment_step_frame_count = round(rate * (segment_size - segment_overlap))
+  min_segment_frame_count = round(rate * min_segment_size)
 
-  # Start of last chunk
-  last_chunk_position = (
+  # Start of last segment
+  last_segment_position = (
     round(
-      (audio_signal.size - chunk_frame_count + chunk_step_frame_count - 1)
-      / chunk_step_frame_count
+      (audio_signal.size - segment_frame_count + segment_step_frame_count - 1)
+      / segment_step_frame_count
     )
-    * chunk_step_frame_count
+    * segment_step_frame_count
   )
-  # Make sure at least one chunk is returned
-  if last_chunk_position < 0:
-    last_chunk_position = 0
-  # Omit last chunk if minimum signal duration is underrun
-  elif audio_signal.size - last_chunk_position < min_chunk_frame_count:
-    last_chunk_position = last_chunk_position - chunk_step_frame_count
+  # Make sure at least one segment is returned
+  if last_segment_position < 0:
+    last_segment_position = 0
+  # Omit last segment if minimum signal duration is underrun
+  elif audio_signal.size - last_segment_position < min_segment_frame_count:
+    last_segment_position = last_segment_position - segment_step_frame_count
 
-  # Append empty signal of chunk duration, so the last split has the desired length in any case
+  # Append empty signal of segment duration, so the last split has the desired length in any case
   # TODO maybe add noise instead of empty signal
-  noise = np.zeros(shape=chunk_frame_count, dtype=audio_signal.dtype)
+  noise = np.zeros(shape=segment_frame_count, dtype=audio_signal.dtype)
 
   data = np.concatenate((audio_signal, noise))
   start: float = 0.0
-  end: float = chunk_size
+  end: float = segment_size
 
   # Split signal with overlap
-  for i in range(0, 1 + last_chunk_position, chunk_step_frame_count):
-    chunk = data[i : i + chunk_frame_count]
+  for i in range(0, 1 + last_segment_position, segment_step_frame_count):
+    segment = data[i : i + segment_frame_count]
 
-    yield start, end, chunk
+    yield start, end, segment
 
     # Advance start and end
-    start += chunk_size - chunk_overlap
-    end = start + chunk_size
+    start += segment_size - segment_overlap
+    end = start + segment_size
 
 
 def fillup_with_silence(
-  audio_chunk: npt.NDArray[np.float32], target_length: int
+  audio_segment: npt.NDArray[np.float32], target_length: int
 ) -> npt.NDArray[np.float32]:
-  current_length = len(audio_chunk)
+  current_length = len(audio_segment)
   assert current_length <= target_length
 
   if current_length == target_length:
-    return audio_chunk
+    return audio_segment
 
   silence_length = target_length - current_length
-  silence = np.zeros(silence_length, dtype=audio_chunk.dtype)
-  filled_chunk = np.concatenate((audio_chunk, silence))
+  silence = np.zeros(silence_length, dtype=audio_segment.dtype)
+  filled_segment = np.concatenate((audio_segment, silence))
 
-  return filled_chunk
+  return filled_segment
 
 
 def flat_sigmoid(
@@ -226,53 +226,53 @@ def itertools_batched(iterable: Iterable, n: int) -> Generator[Any, None, None]:
     yield batch
 
 
-def get_chunks_with_overlap(
+def get_segments_with_overlap(
   total_duration_s: Union[int, float],
-  chunk_duration_s: Union[int, float],
+  segment_duration_s: Union[int, float],
   overlap_duration_s: Union[int, float],
 ) -> Generator[Tuple[float, float], None, None]:
   assert total_duration_s > 0
-  assert chunk_duration_s > 0
-  assert 0 <= overlap_duration_s < chunk_duration_s
+  assert segment_duration_s > 0
+  assert 0 <= overlap_duration_s < segment_duration_s
 
   if not isinstance(overlap_duration_s, float):
     overlap_duration_s = float(overlap_duration_s)
-  if not isinstance(chunk_duration_s, float):
-    chunk_duration_s = float(chunk_duration_s)
+  if not isinstance(segment_duration_s, float):
+    segment_duration_s = float(segment_duration_s)
   if not isinstance(total_duration_s, float):
     total_duration_s = float(total_duration_s)
 
-  step_duration = chunk_duration_s - overlap_duration_s
+  step_duration = segment_duration_s - overlap_duration_s
   for start in count(0.0, step_duration):
     assert start < total_duration_s
-    if (end := start + chunk_duration_s) < total_duration_s:
+    if (end := start + segment_duration_s) < total_duration_s:
       yield start, end
     else:
       yield start, total_duration_s
       break
 
 
-def iter_chunks_with_overlap(
-  chunk_duration_s: Union[int, float],
+def iter_segments_with_overlap(
+  segment_duration_s: Union[int, float],
   overlap_duration_s: Union[int, float],
   /,
   *,
   start: Union[int, float] = 0.0,
 ) -> Generator[Tuple[float, float], None, None]:
-  assert chunk_duration_s > 0
-  assert 0 <= overlap_duration_s < chunk_duration_s
+  assert segment_duration_s > 0
+  assert 0 <= overlap_duration_s < segment_duration_s
 
   if not isinstance(overlap_duration_s, float):
     overlap_duration_s = float(overlap_duration_s)
-  if not isinstance(chunk_duration_s, float):
-    chunk_duration_s = float(chunk_duration_s)
+  if not isinstance(segment_duration_s, float):
+    segment_duration_s = float(segment_duration_s)
   if not isinstance(start, float):
     start = float(start)
 
-  step_duration = chunk_duration_s - overlap_duration_s
+  step_duration = segment_duration_s - overlap_duration_s
 
   for s in count(start, step_duration):
-    end = s + chunk_duration_s
+    end = s + segment_duration_s
     yield s, end
 
 
@@ -292,11 +292,11 @@ def resample_array(
   return x_resampled
 
 
-def load_audio_in_chunks_with_overlap(
+def load_audio_in_segments_with_overlap(
   audio_path: Path,
   /,
   *,
-  chunk_duration_s: float = 3,
+  segment_duration_s: float = 3,
   overlap_duration_s: float = 0,
   target_sample_rate: int = 48000,
 ) -> Generator[Tuple[float, float, npt.NDArray[np.float32]], None, None]:
@@ -308,9 +308,9 @@ def load_audio_in_chunks_with_overlap(
 
   sample_rate = sf_info.samplerate
 
-  timestamps = get_chunks_with_overlap(
+  timestamps = get_segments_with_overlap(
     float(sf_info.duration),
-    float(chunk_duration_s),
+    float(segment_duration_s),
     float(overlap_duration_s),
   )
 

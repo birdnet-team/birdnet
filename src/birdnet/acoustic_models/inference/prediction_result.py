@@ -21,14 +21,14 @@ class PredictionResult:
     tensor: SpeciesTensor,
     files: OrderedSet[Path],
     species_list: OrderedSet[str],
-    chunk_duration_s: int | float,
+    segment_duration_s: int | float,
     overlap_duration_s: int | float,
   ) -> None:
     all_files = [str(file.absolute()) for file in files]
     max_len = max(map(len, all_files))
     self._files = np.asarray([str(p) for p in files], dtype=f"<U{max_len}")
     # self._files = np.array([str(file.absolute()) for file in files], dtype=object)
-    self._chunk_duration_s = np.float32(chunk_duration_s)
+    self._segment_duration_s = np.float32(segment_duration_s)
     self._overlap_duration_s = np.float32(overlap_duration_s)
     self._species_list = np.array(list(species_list), dtype=object)
     self._species_probs = tensor._species_probs
@@ -42,7 +42,7 @@ class PredictionResult:
       + self._species_probs.nbytes
       + self._species_masked.nbytes
       + self._files.nbytes
-      + self._chunk_duration_s.nbytes
+      + self._segment_duration_s.nbytes
       + self._overlap_duration_s.nbytes
       + self._species_list.nbytes
     ) / 1024**2
@@ -56,14 +56,14 @@ class PredictionResult:
     result._species_probs = data["species_probs"]
     result._species_masked = data["species_masked"]
     result._files = data["files"]
-    result._chunk_duration_s = data["chunk_duration_s"]
+    result._segment_duration_s = data["segment_duration_s"]
     result._overlap_duration_s = data["overlap_duration_s"]
     result._species_list = data["species_list"]
     return result
 
   @property
-  def chunk_duration_s(self) -> float:
-    return float(self._chunk_duration_s)
+  def segment_duration_s(self) -> float:
+    return float(self._segment_duration_s)
 
   @property
   def overlap_duration_s(self) -> float:
@@ -82,7 +82,7 @@ class PredictionResult:
       species_probs=self._species_probs,
       species_masked=self._species_masked,
       files=self._files,
-      chunk_duration_s=self._chunk_duration_s,
+      segment_duration_s=self._segment_duration_s,
       overlap_duration_s=self._overlap_duration_s,
       species_list=self._species_list,
     )
@@ -93,7 +93,7 @@ class PredictionResult:
       self._species_probs,
       self._species_masked,
       self._files,
-      self.chunk_duration_s,
+      self.segment_duration_s,
       self.overlap_duration_s,
       self._species_list,
     )
@@ -109,7 +109,7 @@ def convert_tensor_to_dataframe(
   species_probs: np.ndarray,
   species_masked: np.ndarray,
   files: np.ndarray,
-  chunk_duration_s: int | float,
+  segment_duration_s: int | float,
   overlap_duration_s: int | float,
   species_list: np.ndarray,
   /,
@@ -117,23 +117,23 @@ def convert_tensor_to_dataframe(
   silent: bool = False,
 ) -> pd.DataFrame:
   top_k = species_probs.shape[2]
-  max_chunks = species_probs.shape[1]
+  max_segments = species_probs.shape[1]
   n_files = len(files)
-  chunks = []
+  segments = []
   resulting_lines = []
-  for i in range(max_chunks):
-    start = i * chunk_duration_s - (i * overlap_duration_s)
-    end = start + chunk_duration_s
-    chunks.append((start, end))
+  for i in range(max_segments):
+    start = i * segment_duration_s - (i * overlap_duration_s)
+    end = start + segment_duration_s
+    segments.append((start, end))
   non_masked_entry_count = np.count_nonzero(~species_masked)
   with tqdm(
     total=non_masked_entry_count,
     desc="Creating DataFrame",
-    unit="chunk",
+    unit="segment",
     disable=silent,
   ) as pbar:
     for i in range(n_files):
-      for j in range(max_chunks):
+      for j in range(max_segments):
         spec_ids = species_ids[i, j]
         spec_probs = species_probs[i, j]
         valid = ~species_masked[i, j]
@@ -148,8 +148,8 @@ def convert_tensor_to_dataframe(
               scientific_name = parts[0]
               common_name = parts[1]
 
-            start_sec = int(chunks[j][0])
-            end_sec = int(chunks[j][1])
+            start_sec = int(segments[j][0])
+            end_sec = int(segments[j][1])
 
             row = {
               "file": files[i],
@@ -194,17 +194,17 @@ def fast_save_tensor_to_csv(
   smask = result._species_masked
   top_k = result._species_probs.shape[2]
   n_files = len(result._files)
-  n_chunks = result._species_probs.shape[1]
-  hop = result.chunk_duration_s - result.overlap_duration_s
+  n_segments = result._species_probs.shape[1]
+  hop = result.segment_duration_s - result.overlap_duration_s
 
-  sec = np.arange(n_chunks, dtype=np.float64) * hop
+  sec = np.arange(n_segments, dtype=np.float64) * hop
   start_fmt = np.array(
     [time.strftime("%H:%M:%S", time.gmtime(int(v))).encode(encoding) for v in sec],
     dtype="S8",
   )
   end_fmt = np.array(
     [
-      time.strftime("%H:%M:%S", time.gmtime(int(v + result.chunk_duration_s))).encode(
+      time.strftime("%H:%M:%S", time.gmtime(int(v + result.segment_duration_s))).encode(
         encoding
       )
       for v in sec
@@ -225,16 +225,16 @@ def fast_save_tensor_to_csv(
     with tqdm(
       total=non_masked_entry_count,
       desc="Writing CSV",
-      unit="chunk",
+      unit="segment",
       disable=silent,
     ) as pbar:
       for fi in range(n_files):
         file_b = result._files[fi].encode(encoding)
-        ids = sid[fi]  # View [chunks, top_k]
+        ids = sid[fi]  # View [segments, top_k]
         probs = sprob[fi]
         masks = smask[fi]
 
-        for ci in range(n_chunks):
+        for ci in range(n_segments):
           # Bool-Maske für gültige Spezies
           valid = ~masks[ci]
           if not valid.any():
@@ -290,7 +290,7 @@ def save_tensor_to_csv(
   species_probs: np.ndarray,
   species_masked: np.ndarray,
   files: np.ndarray,
-  chunk_duration_s: float,
+  segment_duration_s: float,
   overlap_duration_s: float,
   species_list: np.ndarray,
   out_path: os.PathLike | str,
@@ -311,13 +311,13 @@ def save_tensor_to_csv(
   fmt_hms = time.strftime  # local binding (tight inner loop)
   gmtime = time.gmtime
   top_k = species_ids.shape[2]
-  n_chunks = species_ids.shape[1]
+  n_segments = species_ids.shape[1]
   n_files = len(files)
-  step = chunk_duration_s - overlap_duration_s  # “effective hop”
+  step = segment_duration_s - overlap_duration_s  # “effective hop”
 
   # fast pre-compute the start/end list once
-  starts = np.arange(n_chunks, dtype=np.float64) * step
-  ends = starts + chunk_duration_s
+  starts = np.arange(n_segments, dtype=np.float64) * step
+  ends = starts + segment_duration_s
 
   header = "file,start,end,scientific_name,common_name,confidence"
 
@@ -328,8 +328,8 @@ def save_tensor_to_csv(
 
     for fi in range(n_files):
       file_str = files[fi]
-      for ci in range(n_chunks):
-        # tensor already sorted per-chunk by score ↓
+      for ci in range(n_segments):
+        # tensor already sorted per-segment by score ↓
         valid_mask = ~species_masked[fi, ci]
         if not valid_mask.any():
           continue  # no detections here
