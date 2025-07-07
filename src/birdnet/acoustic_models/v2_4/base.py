@@ -800,8 +800,8 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         model_n_species=self.n_species,
         _file_durations_s=file_durations_s,
         max_n_chunks=max_chunk_idx_ptr.value + 1,
-        tot_n_chunks=analyzer_res["tot_n_chunks"],
-        n_chunks_processed=analyzer_res["tot_n_chunks"],  # TODO
+        tot_n_chunks=tot_n_chunks_ptr.value,
+        n_chunks_processed=analyzer_res["tot_n_chunks"],
         chunk_s=AcousticModelBaseV2_4.get_chunk_size_s(),
         overlap_s=overlap_duration_s,
         batch_size=batch_size,
