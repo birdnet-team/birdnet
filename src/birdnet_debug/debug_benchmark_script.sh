@@ -20,3 +20,5 @@ birdnet-benchmark example/soundscape.wav /tmp/result.csv -w 1 --prefetch-ratio 3
 
 
 birdnet-benchmark example/soundscape.wav test-dataset/test_dataset_1x10min/0.wav /tmp/result.csv --top-k 10 --confidence -100
+
+birdnet-benchmark src/birdnet_debug/audio_formats/soundscape_stereo.wav test-dataset/test_dataset_1x10min/0.wav /tmp/result.csv --top-k 10 --confidence -100
