@@ -325,7 +325,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
     # only one producer process gets into this method
 
     """Set the DONE_FLAG in the shared memory to signal that no more data will be produced."""
-    self._sem_free_slots.acquire()
+    self._sem_free_slots.acquire()  # TODO hier hängts bei GPU fail
     self._logger.debug(
       f"PRODUCER({os.getpid()}) - Producer acquired FREE. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
     )
