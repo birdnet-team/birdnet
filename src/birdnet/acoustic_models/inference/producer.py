@@ -330,7 +330,26 @@ class ChildProducer(bn_logging.LogableProcessBase):
     # only one producer process gets into this method
 
     """Set the DONE_FLAG in the shared memory to signal that no more data will be produced."""
-    self._sem_free_slots.acquire()  # TODO hier hängts bei GPU fail
+
+    cancel = False
+    while True:
+      try:
+        self._sem_free_slots.acquire(timeout=1.0)
+        break
+      except TimeoutError:
+        if self._cancel_event.is_set():
+          cancel = True
+          break
+
+    if self._cancel_event.is_set():
+      cancel = True
+
+    if cancel:
+      self._logger.debug(
+        f"PRODUCER({os.getpid()}) - Cancel event set. Exiting _set_done_flag."
+      )
+      return
+
     self._logger.debug(
       f"PRODUCER({os.getpid()}) - Producer acquired FREE. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
     )

@@ -501,6 +501,15 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         f"Value for 'device' is invalid! Device should be a name, or a list with a length that should match number of workers ({workers})."
       )
 
+    devices = device if isinstance(device, list) else [device] * workers
+
+    if self.get_backend() == "tf":
+      for d in devices:
+        if "GPU" in d:
+          raise ValueError(
+            "Value for 'device' is invalid! GPU devices are not supported for TFLite backend! Please use the 'pb' backend instead."
+          )
+
     if custom_species_list is not None:
       for i, species_name in enumerate(custom_species_list):
         if species_name not in self.species_list:
@@ -774,8 +783,6 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         p.start()
 
       backend_kwargs = [self.get_backend_args() for _ in range(workers)]
-
-      devices = device if isinstance(device, list) else [device] * workers
 
       worker_processes = [
         mp.Process(

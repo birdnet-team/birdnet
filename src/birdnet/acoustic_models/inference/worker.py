@@ -212,7 +212,25 @@ class ChildWorker(bn_logging.LogableProcessBase):
       wait_for_batch_start = time.perf_counter()
       wait_time_for_batch: float | None = None
 
-      self._sem_filled.acquire()  # TODO maybe check here too if cancel
+      cancel = False
+      while True:
+        try:
+          self._sem_filled.acquire(timeout=1.0)
+          break
+        except TimeoutError:
+          if self._cancel_event.is_set():
+            cancel = True
+            break
+
+      if self._cancel_event.is_set():
+        cancel = True
+
+      if cancel:
+        self._log_debug("Cancellation requested. Exiting worker.")
+        self._out_q.put(None)
+        self._sem_active_workers.acquire(block=False)
+        break
+
       self._log_debug(
         f"Acquired FILL; Free slots remaining: {self._sem_free}; Filled slots: {self._sem_filled}"
       )
