@@ -133,6 +133,15 @@ def run_benchmark_from_args(args: list[str]) -> None:
 
 
 def run_benchmark_from_ns(ns: Namespace) -> None:
+  print("Starting benchmark...")
+  
+  output_file: Path = ns.output
+  try:
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+  except OSError as e:
+    print(f"Error creating output directory: {e}")
+    sys.exit(1)
+
   model: AcousticModelBaseV2_4 = birdnet.model_loader.load(
     model_type="acoustic", version="2.4", backend=ns.backend
   )
@@ -158,8 +167,6 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
     bandpass_fmax=None,
     bandpass_fmin=None,
   )
-
-  output_file: Path = ns.output
 
   print("Writing result to internal format (.npz)...")
   result.dump(output_file.with_suffix(".npz"))
