@@ -489,6 +489,11 @@ def load_audio_in_segments_with_overlap_locked(
   with io_lock_handler:
     sf_info = sf.info(audio_path)
 
+  if sf_info.channels > 2:
+    raise ValueError(
+      f"Audio file {audio_path} has {sf_info.channels} channels, but only mono or stereo audio is supported."
+    )
+
   sample_rate = sf_info.samplerate
 
   timestamps = get_segments_with_overlap(
