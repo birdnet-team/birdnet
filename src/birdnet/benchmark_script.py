@@ -103,7 +103,7 @@ def run_benchmark_from_args(args: list[str]) -> None:
     type=parse_non_empty_or_whitespace,
     nargs="+",
     metavar="DEVICE",
-    help="device to use for processing (e.g., 'CPU', 'GPU', 'GPU:0', 'GPU:1', ...); either string or list of strings, latter is useful for multi-GPU setups, the first GPU will be used for the first producer, the second GPU for the second producer, etc.; GPU is only available for the Protobuf backend; default: 'CPU'",
+    help="device(s) to use for processing (e.g., 'CPU', 'GPU', 'GPU:0', 'GPU:1', ...); either string or list of strings, latter is useful for multi-GPU setups, the first GPU will be used for the first feeder, the second for the second feeder, etc.; GPU is only available for the Protobuf backend; default: 'CPU'",
     default=["CPU"],
   )
 
@@ -140,6 +140,15 @@ def run_benchmark_from_args(args: list[str]) -> None:
     help="use serial I/O (default: False, i.e., use parallel I/O)",
   )
 
+  parser.add_argument(
+    "--show-stats",
+    type=str,
+    choices=["no", "minimal", "progress", "benchmark"],
+    metavar="SHOW_STATS",
+    help="show statistics during processing; 'no' means no statistics, 'minimal' means only minimal statistics, 'progress' means progress bar and minimal statistics, 'benchmark' means progress bar and detailed statistics (default: 'benchmark')",
+    default="benchmark",
+  )
+
   ns: Namespace = parser.parse_args(args)
   run_benchmark_from_ns(ns)
 
@@ -155,8 +164,6 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
   root = get_package_logger()
   root.setLevel(logging.DEBUG)
 
-  random.seed(0)
-  np.random.seed(0)
   os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
   output_file: Path = ns.output
@@ -186,7 +193,7 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
     custom_species_list=None,
     half_precision=True,
     max_audio_duration_min=None,
-    show_stats="benchmark",
+    show_stats=ns.show_stats,
     device=ns.devices if len(ns.devices) > 1 else ns.devices[0],
     prefetch_ratio=ns.prefetch_ratio,
     use_bandpass=False,

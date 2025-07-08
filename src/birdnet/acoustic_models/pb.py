@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, final
@@ -9,6 +10,7 @@ import numpy as np
 
 from birdnet.acoustic_models.base import AcousticInferenceBackend
 from birdnet.io_lock import IOLockHandler
+from birdnet.logging_utils import get_logger
 
 
 class AcousticPBBackend(AcousticInferenceBackend):
@@ -66,7 +68,13 @@ class AcousticPBBackend(AcousticInferenceBackend):
     self._logical_device = device
 
     with io_lock_handler:
+      start = time.perf_counter()
       audio_model = tf.saved_model.load(self._model_path)
+      end = time.perf_counter()
+    logger = get_logger(__name__)
+    logger.debug(
+      f"Model loaded from {self._model_path} on device {device.name} in {end - start:.2f} seconds."
+    )
 
     absl.logging.set_verbosity(absl_verbosity_before)
     logging.getLogger("tensorflow").setLevel(tf_verbosity_before)

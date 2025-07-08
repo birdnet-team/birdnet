@@ -67,14 +67,12 @@ from birdnet.logging_utils import QueueFileWriter, get_package_logging_level
 
 
 @dataclass
-class BenchmarkMeta:
+class MinimalBenchmarkMeta:
   # Timestamp
   _start_timepoint: datetime
   _end_timepoint: datetime
 
-  @property
-  def time_iso(self) -> str:
-    return self._start_timepoint.isoformat(timespec="seconds")
+  _time_wall_time_s: float
 
   @property
   def time_begin(self) -> str:
@@ -83,6 +81,103 @@ class BenchmarkMeta:
   @property
   def time_end(self) -> str:
     return self._end_timepoint.strftime("%m/%d/%Y %I:%M %p")
+
+  @property
+  def time_wall_time(self) -> str:
+    return str(timedelta(seconds=self._time_wall_time_s))
+
+  # Dataset
+  _file_durations_s: np.ndarray
+
+  @property
+  def file_count(self) -> int:
+    return len(self._file_durations_s)
+
+  @property
+  def file_duration_total(self) -> str:
+    if len(self._file_durations_s) == 0:
+      return "N/A"
+    return str(timedelta(seconds=self._file_durations_s.sum()))
+
+  @property
+  def file_duration_average(self) -> str:
+    if len(self._file_durations_s) == 0:
+      return "N/A"
+    return str(timedelta(seconds=self._file_durations_s.mean()))
+
+  @property
+  def file_duration_minimum(self) -> str:
+    if len(self._file_durations_s) == 0:
+      return "N/A"
+    return str(timedelta(seconds=self._file_durations_s.min()))
+
+  @property
+  def file_duration_maximum(self) -> str:
+    if len(self._file_durations_s) == 0:
+      return "N/A"
+    return str(timedelta(seconds=self._file_durations_s.max()))
+
+  file_formats: str
+
+  # Memory
+  mem_result_total_memory_usage_MiB: float
+
+  mem_shm_size_file_indices_MiB: float
+  mem_shm_size_segment_indices_MiB: float
+  mem_shm_size_audio_samples_MiB: float
+  mem_shm_size_batch_sizes_MiB: float
+  mem_shm_size_flags_MiB: float
+
+  @property
+  def mem_shm_size_total_MiB(self) -> float:
+    return (
+      self.mem_shm_size_file_indices_MiB
+      + self.mem_shm_size_segment_indices_MiB
+      + self.mem_shm_size_audio_samples_MiB
+      + self.mem_shm_size_batch_sizes_MiB
+      + self.mem_shm_size_flags_MiB
+    )
+
+  # Speed
+
+  file_segments_total: int
+  model_segment_duration_seconds: float
+
+  @property
+  def speed_total_rtf(self) -> float:
+    if self.file_segments_total == 0:
+      return 0.0
+    return self._time_wall_time_s / (
+      self.file_segments_total * self.model_segment_duration_seconds
+    )
+
+  @property
+  def speed_total_xrt(self) -> float:
+    if self.speed_total_rtf == 0.0:
+      return 0.0
+    return 1 / self.speed_total_rtf
+
+  @property
+  def speed_total_seg_per_second(self) -> float:
+    if self.file_segments_total == 0:
+      return 0.0
+    return self.file_segments_total / self._time_wall_time_s
+
+  @property
+  def speed_total_audio_per_second(self) -> str:
+    if self.file_segments_total == 0:
+      return "N/A"
+    result_s = (
+      self.file_segments_total * self.model_segment_duration_seconds
+    ) / self._time_wall_time_s
+    return str(timedelta(seconds=result_s))
+
+
+@dataclass
+class FullBenchmarkMeta(MinimalBenchmarkMeta):
+  @property
+  def time_iso(self) -> str:
+    return self._start_timepoint.isoformat(timespec="seconds")
 
   _time_rampup_first_line_s: float
   _time_rampup_first_prediction_s: float | None
@@ -98,12 +193,6 @@ class BenchmarkMeta:
     if self._time_rampup_first_prediction_s is None:
       return "N/A"
     return str(timedelta(seconds=self._time_rampup_first_prediction_s))
-
-  _time_wall_time_s: float
-
-  @property
-  def time_wall_time(self) -> str:
-    return str(timedelta(seconds=self._time_wall_time_s))
 
   # Hardware
   @property
@@ -154,44 +243,11 @@ class BenchmarkMeta:
   model_is_custom: bool
   model_path: str
   model_species: int
-  model_segment_duration_seconds: float
   model_sig_fmin: int
   model_sig_fmax: int
   model_sample_rate: int
 
-  # Dataset
-  _file_durations_s: np.ndarray
-
-  @property
-  def file_count(self) -> int:
-    return len(self._file_durations_s)
-
-  @property
-  def file_duration_total(self) -> str:
-    if len(self._file_durations_s) == 0:
-      return "N/A"
-    return str(timedelta(seconds=self._file_durations_s.sum()))
-
-  @property
-  def file_duration_average(self) -> str:
-    if len(self._file_durations_s) == 0:
-      return "N/A"
-    return str(timedelta(seconds=self._file_durations_s.mean()))
-
-  @property
-  def file_duration_minimum(self) -> str:
-    if len(self._file_durations_s) == 0:
-      return "N/A"
-    return str(timedelta(seconds=self._file_durations_s.min()))
-
-  @property
-  def file_duration_maximum(self) -> str:
-    if len(self._file_durations_s) == 0:
-      return "N/A"
-    return str(timedelta(seconds=self._file_durations_s.max()))
-
   file_segments_maximum: int
-  file_segments_total: int
   file_segments_processed: int
   file_batches_processed: int
 
@@ -213,35 +269,6 @@ class BenchmarkMeta:
   param_custom_species: int
   param_devices: str
 
-  @property
-  def speed_total_rtf(self) -> float:
-    if self.file_segments_total == 0:
-      return 0.0
-    return self._time_wall_time_s / (
-      self.file_segments_total * self.model_segment_duration_seconds
-    )
-
-  @property
-  def speed_total_xrt(self) -> float:
-    if self.speed_total_rtf == 0.0:
-      return 0.0
-    return 1 / self.speed_total_rtf
-
-  @property
-  def speed_total_seg_per_second(self) -> float:
-    if self.file_segments_total == 0:
-      return 0.0
-    return self.file_segments_total / self._time_wall_time_s
-
-  @property
-  def speed_total_audio_per_second(self) -> str:
-    if self.file_segments_total == 0:
-      return "N/A"
-    result_s = (
-      self.file_segments_total * self.model_segment_duration_seconds
-    ) / self._time_wall_time_s
-    return str(timedelta(seconds=result_s))
-
   worker_busy_average: float
   worker_wait_time_average_milliseconds: float
 
@@ -262,24 +289,7 @@ class BenchmarkMeta:
     return 1 / self.speed_worker_xrt_max
 
   # Memory
-  mem_result_total_memory_usage_MiB: float
-
   mem_shm_ringsize: int
-  mem_shm_size_file_indices_MiB: float
-  mem_shm_size_segment_indices_MiB: float
-  mem_shm_size_audio_samples_MiB: float
-  mem_shm_size_batch_sizes_MiB: float
-  mem_shm_size_flags_MiB: float
-
-  @property
-  def mem_shm_size_total_MiB(self) -> float:
-    return (
-      self.mem_shm_size_file_indices_MiB
-      + self.mem_shm_size_segment_indices_MiB
-      + self.mem_shm_size_audio_samples_MiB
-      + self.mem_shm_size_batch_sizes_MiB
-      + self.mem_shm_size_flags_MiB
-    )
 
   mem_memory_usage_maximum_MiB: float
   mem_memory_usage_average_MiB: float
@@ -413,6 +423,98 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     start_time = time.time()
     start_timepoint = datetime.now()
 
+    if not batch_size >= 1:
+      raise ValueError(
+        "Value for 'batch_size' is invalid! It needs to be larger than or equal to 1."
+      )
+
+    # if (
+    #   default_confidence_threshold is not None
+    #   and not 0 <= default_confidence_threshold < 1.0
+    # ):
+    #   raise ValueError(
+    #     "Value for 'min_confidence' is invalid! It needs to be None or in interval [0.0, 1.0)."
+    #   )
+
+    if not feeders >= 1:
+      raise ValueError(
+        "Value for 'feeders' is invalid! It needs to be larger than or equal to 1."
+      )
+
+    if not workers >= 1:
+      raise ValueError(
+        "Value for 'workers' is invalid! It needs to be larger than or equal to 1."
+      )
+
+    if not prefetch_ratio >= 0:
+      raise ValueError(
+        "Value for 'prefetch_ratio' is invalid! It needs to be larger than or equal to 0."
+      )
+
+    if not 0 <= overlap_duration_s < 3:
+      raise ValueError(
+        "Value for 'overlap_duration_s' is invalid! It needs to be in interval [0.0, 3.0)."
+      )
+
+    if apply_sigmoid:
+      if sigmoid_sensitivity is None:
+        raise ValueError(
+          "Value for 'sigmoid_sensitivity' is required if 'apply_sigmoid==True'!"
+        )
+      if not 0.5 <= sigmoid_sensitivity <= 1.5:
+        raise ValueError(
+          "Value for 'sigmoid_sensitivity' is invalid! It needs to be in interval [0.5, 1.5]."
+        )
+
+    if use_bandpass:
+      if bandpass_fmin is None:
+        raise ValueError(
+          "Value for 'bandpass_fmin' is required if 'use_bandpass==True'!"
+        )
+      if bandpass_fmax is None:
+        raise ValueError(
+          "Value for 'bandpass_fmax' is required if 'use_bandpass==True'!"
+        )
+
+      if bandpass_fmin < 0:
+        raise ValueError(
+          "Value for 'bandpass_fmin' is invalid! It needs to be larger than zero."
+        )
+
+      if bandpass_fmax <= bandpass_fmin:
+        raise ValueError(
+          "Value for 'bandpass_fmax' is invalid! It needs to be larger than 'bandpass_fmin'."
+        )
+
+    if max_audio_duration_min is not None and not max_audio_duration_min > 0:
+      raise ValueError(
+        "Value for 'max_audio_duration_min' is invalid! It needs to be either None, or larger than zero."
+      )
+
+    if show_stats not in ("no", "minimal", "progress", "benchmark"):
+      raise ValueError(
+        f"Value for 'show_stats' is invalid! It needs to be one of: 'no', 'minimal', 'progress', or 'benchmark'."
+      )
+
+    if isinstance(device, list) and len(device) != workers:
+      raise ValueError(
+        f"Value for 'device' is invalid! Device should be a name, or a list with a length that should match number of workers ({workers})."
+      )
+
+    if custom_species_list is not None:
+      for i, species_name in enumerate(custom_species_list):
+        if species_name not in self.species_list:
+          raise ValueError(
+            f"Value for 'custom_species_list' is invalid! Species '{species_name}' is not in the model's species list!"
+          )
+
+    if custom_confidence_thresholds is not None and custom_confidence_thresholds:
+      for species_name, threshold in custom_confidence_thresholds.items():
+        if species_name not in self.species_list:
+          raise ValueError(
+            f"Value for 'custom_confidence_thresholds' is invalid! Species '{species_name}' is not in the model's species list!"
+          )
+
     if top_k is not None and top_k > len(self.species_list):
       raise ValueError(
         f"top_k cannot be larger than the number of species ({len(self.species_list)})."
@@ -422,13 +524,6 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       top_k = len(self.species_list)
 
     track_performance = show_stats in ("progress", "benchmark")
-
-    # for i, kwargs in enumerate(backend_kwargs):
-    #   kwargs["device"] =kwargs["device"].replace("0", str(i)) # Assign different CPU cores
-    if isinstance(device, list) and len(device) != workers:
-      raise ValueError(
-        f"Device list length ({len(device)}) does not match number of workers ({workers})."
-      )
 
     io_lock = mp.Lock() if serial_io else None
     io_lock_handler = IOLockHandler(serial_io, io_lock)
@@ -476,15 +571,10 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     logger.info("Starting analysis...")
 
     species_whitelist: np.ndarray
-    if custom_species_list is not None:
-      if len(custom_species_list) == 0:
-        raise ValueError("Custom species list is empty!")
+    if custom_species_list is not None and len(custom_species_list) > 0:
       species_ids_whitelist = np.empty(len(custom_species_list), dtype=int)
       for i, species_name in enumerate(custom_species_list):
-        if species_name not in self.species_list:
-          raise ValueError(
-            f"Species '{species_name}' is not in the model's species list!"
-          )
+        assert species_name in self.species_list
         species_id = self.species_list.index(species_name)
         species_ids_whitelist[i] = species_id
 
@@ -494,16 +584,14 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       species_whitelist = np.full(self.n_species, fill_value=True, dtype=bool)
     species_whitelist.setflags(write=False)
 
+    # Thresholds
     if default_confidence_threshold is None:
       default_confidence_threshold = -np.inf
     thresholds = np.full(self.n_species, default_confidence_threshold, np.float32)
 
     if custom_confidence_thresholds:
       for species_name, threshold in custom_confidence_thresholds.items():
-        if species_name not in self.species_list:
-          raise ValueError(
-            f"Species '{species_name}' is not in the model's species list!"
-          )
+        assert species_name in self.species_list
         species_id = self.species_list.index(species_name)
         thresholds[species_id] = threshold
     thresholds.setflags(write=False)
@@ -802,41 +890,41 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     )
     del result
 
-    if show_stats == "minimal":
+    if show_stats in ("minimal", "progress"):
       analyzer_res: dict = analyzer_queue.get()
-      file_durations_s: np.ndarray = analyzer_res["file_durations_s"]
-      tot_n_segments = analyzer_res["tot_n_segments"]
-      total_segments_processed = tot_n_segments
-      wall_time_s = stop - start
 
-      ringbuffer_total_MiB = (
-        rf_file_indices.nbytes
-        + rf_segment_indices.nbytes
-        + rf_audio_samples.nbytes
-        + rf_batch_sizes.nbytes
-        + rf_flags.nbytes
-      ) / 1024**2
-
-      pc_segments_per_s = total_segments_processed / wall_time_s
-      pc_audio_min_per_s = (
-        pc_segments_per_s * AcousticModelBaseV2_4.get_segment_size_s() / 60
+      bmm = MinimalBenchmarkMeta(
+        _start_timepoint=start_timepoint,
+        _end_timepoint=end_timepoint,
+        _time_wall_time_s=stop - start,
+        _file_durations_s=analyzer_res["file_durations_s"],
+        mem_result_total_memory_usage_MiB=res.memory_size_mb,
+        mem_shm_size_file_indices_MiB=rf_file_indices.nbytes / 1024**2,
+        mem_shm_size_segment_indices_MiB=rf_segment_indices.nbytes / 1024**2,
+        mem_shm_size_audio_samples_MiB=rf_audio_samples.nbytes / 1024**2,
+        mem_shm_size_batch_sizes_MiB=rf_batch_sizes.nbytes / 1024**2,
+        mem_shm_size_flags_MiB=rf_flags.nbytes / 1024**2,
+        file_segments_total=tot_n_segments_ptr.value,
+        model_segment_duration_seconds=AcousticModelBaseV2_4.get_segment_size_s(),
+        file_formats=", ".join(sorted({x.suffix[1:].upper() for x in file_paths})),
       )
-      tot_file_duration_h = file_durations_s.sum() / 60**2
 
       summary = (
         f"-------------------------------\n"
         f"----------- Summary -----------\n"
         f"-------------------------------\n"
-        f"Start time: {start_timepoint.strftime('%m/%d/%Y %I:%M %p')}\n"
-        f"End time:   {end_timepoint.strftime('%m/%d/%Y %I:%M %p')}\n"
-        f"Wall time:  {timedelta(seconds=wall_time_s)}\n"
-        f"Input: {n_files} file(s)\n"
-        f"\tTotal duration: {tot_file_duration_h:.2f} h\n"
-        f"\tMax duration (file): {max_audio_duration_min:.2f} min\n"
+        f"Start time: {bmm.time_begin}\n"
+        f"End time:   {bmm.time_end}\n"
+        f"Wall time:  {bmm.time_wall_time}\n"
+        f"Input: {bmm.file_count} file(s) ({bmm.file_formats})\n"
+        f"  Total duration: {bmm.file_duration_total}\n"
+        f"  Maximum duration (single file): {bmm.file_duration_maximum}\n"
         f"Memory usage:\n"
-        f"\tRingbuffer total: {ringbuffer_total_MiB:.2f} MiB\n"
-        f"\tInference result: {res.memory_size_mb:.2f} MiB\n"
-        f"Performance audio processing (all): {pc_audio_min_per_s:.2f} min audio/s ({60 / pc_audio_min_per_s:.2f} s/h audio; {pc_segments_per_s:.2f} segments/s)\n"
+        f"  Buffer: {bmm.mem_shm_size_total_MiB:.2f} M (shared memory)\n"
+        f"  Result: {bmm.mem_result_total_memory_usage_MiB:.2f} M (NumPy)\n"
+        f"Total performance:\n"
+        f"  {bmm.speed_total_xrt:.0f} x real-time (RTF: {bmm.speed_total_rtf:.8f})\n"
+        f"  {bmm.speed_total_seg_per_second:.0f} segments/s ({bmm.speed_total_audio_per_second} audio/s)\n"
       )
       print(summary)
     elif show_stats == "benchmark":
@@ -850,7 +938,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       tot_n_segments = analyzer_res["tot_n_segments"]
       total_segments_processed = tot_n_segments
 
-      bmm = BenchmarkMeta(
+      bmm = FullBenchmarkMeta(
         _start_timepoint=start_timepoint,
         _end_timepoint=end_timepoint,
         param_producers=feeders,
@@ -914,6 +1002,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         model_sig_fmin=AcousticModelBaseV2_4.get_sig_fmin(),
         model_sig_fmax=AcousticModelBaseV2_4.get_sig_fmax(),
         worker_wait_time_average_milliseconds=perf_result.avg_wait_time_ms,
+        file_formats=", ".join(sorted({x.suffix[1:].upper() for x in file_paths})),
       )
 
       # bm = OrderedDict()
@@ -990,7 +1079,6 @@ class AcousticModelBaseV2_4(AcousticModelBase):
 
       meta_human_readable_out = stats_out.with_suffix(".txt")
 
-      file_formats = ", ".join(sorted({x.suffix[1:].upper() for x in file_paths}))
       summary = (
         f"-------------------------------\n"
         f"------ Benchmark summary ------\n"
@@ -998,7 +1086,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         f"Start time: {bmm.time_begin}\n"
         f"End time:   {bmm.time_end}\n"
         f"Wall time:  {bmm.time_wall_time}\n"
-        f"Input: {bmm.file_count} file(s) ({file_formats})\n"
+        f"Input: {bmm.file_count} file(s) ({bmm.file_formats})\n"
         f"  Total duration: {bmm.file_duration_total}\n"
         f"  Maximum duration (single file): {bmm.file_duration_maximum}\n"
         f"Feeder(s): {bmm.param_producers}\n"

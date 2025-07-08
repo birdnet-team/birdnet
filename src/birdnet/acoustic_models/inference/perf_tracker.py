@@ -1,7 +1,6 @@
 # birdnet_batch_inference.py – raw‑audio version
 from __future__ import annotations
 
-# You'll need these imports in your own code
 import ctypes
 import datetime
 import math
@@ -13,13 +12,9 @@ from dataclasses import dataclass
 from multiprocessing import shared_memory
 from multiprocessing.synchronize import Event, Semaphore
 
-# Next two import lines for this demo only
 import numpy as np
 import psutil
 
-# try:
-#   import tflite_runtime.interpreter as tflite
-# except ImportError:  # fallback to full TF (heavier)
 import birdnet.logging_utils as bn_logging
 from birdnet.globals import READABLE_FLAG, READING_FLAG, WRITABLE_FLAG
 from birdnet.helper import (
