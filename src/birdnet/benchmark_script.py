@@ -125,7 +125,7 @@ def run_benchmark_from_args(args: list[str]) -> None:
 
   parser.add_argument(
     "-p",
-    "--prefetch_ratio",
+    "--prefetch-ratio",
     type=parse_non_negative_integer,
     metavar="RATIO",
     help="amount of additional buffer capacity to keep ahead of the workers, expressed as a ratio of the amount of workers, i.e., 0 means no prefetching, 1 means one additional slot per worker, 2 means two additional slots per worker, etc. (default: 1)",
