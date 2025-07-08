@@ -131,5 +131,5 @@ commands =
 """
 
 [build-system]
-requires = ["setuptools >= 80.9.0", "wheel"]
+requires = ["setuptools >= 47.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
