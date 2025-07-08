@@ -155,8 +155,6 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
   root = get_package_logger()
   root.setLevel(logging.DEBUG)
 
-  random.seed(0)
-  np.random.seed(0)
   os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
   output_file: Path = ns.output

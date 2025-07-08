@@ -5,7 +5,7 @@
 Preparation on Windows (CMD):
 
 ```cmd
-"C:\Program Files\Python311\python.exe" -m venv .venv-bn
+py -3.11 -m venv .venv-bn
 .venv-bn\\Scripts\\activate
 python.exe -m pip install --upgrade pip
 python.exe -m pip install wheel
