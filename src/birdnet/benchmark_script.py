@@ -3,6 +3,7 @@ import logging
 import os
 import random
 import sys
+import tempfile
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from birdnet.argparse_helper import (
   parse_path,
   parse_positive_integer,
 )
+from birdnet.globals import PKG_NAME
 from birdnet.logging_utils import get_package_logger
 
 
@@ -192,6 +194,9 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
     bandpass_fmin=None,
     serial_io=ns.serial_io,
   )
+
+  log_file = Path(Path(tempfile.gettempdir()) / f"{PKG_NAME}.log")
+  print(f"Log file saved to: {log_file.absolute()}")
 
   print("Writing result to internal format (.npz)...")
   result.dump(output_file.with_suffix(".npz"))

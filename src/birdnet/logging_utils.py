@@ -125,6 +125,8 @@ class QueueFileWriter:
         print("Problem:", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
 
+    mh.flush()
+
 
 class LogableProcessBase:
   def __init__(
