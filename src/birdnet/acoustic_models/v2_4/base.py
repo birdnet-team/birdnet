@@ -884,8 +884,11 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         logger.debug("Performance tracker finished.")
 
     if cancel_event.is_set():
+      logger.error("Analysis was cancelled due to an error.")
+      logging_queue.put_nowait(None)
+      logging_listener.join()
       raise RuntimeError(
-        "Analysis was cancelled due to an error. Please check the logs for details."
+        f"Analysis was cancelled due to an error. Please check the logs for details: {log_file.absolute()}"
       )
 
     res = PredictionResult(

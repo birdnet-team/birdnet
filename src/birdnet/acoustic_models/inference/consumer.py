@@ -28,23 +28,23 @@ class Consumer:
     finished_workers = 0
     n_received_predictions = 0
     while finished_workers < self._n_workers:
-      cancel = False
+      if self._cancel_event.is_set():
+        self._logger.debug("CONSUMER - Cancel event set. Exiting.")
+        return
+
       data = None
       while True:
+        if self._cancel_event.is_set():
+          self._logger.debug("CONSUMER - Cancel event set. Exiting.")
+          return
+
         try:
           data = self._queue.get(timeout=1.0)
           break
         except Empty:
           if self._cancel_event.is_set():
-            cancel = True
-            break
-
-      if self._cancel_event.is_set():
-        cancel = True
-
-      if cancel:
-        self._logger.debug("CONSUMER - Cancel event set. Exiting.")
-        break
+            self._logger.debug("CONSUMER - Cancel event set. Exiting.")
+            return
 
       got_stop_signal_from_worker = data is None
       if got_stop_signal_from_worker:

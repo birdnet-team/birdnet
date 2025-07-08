@@ -204,7 +204,10 @@ class ChildProducer(bn_logging.LogableProcessBase):
     self,
   ) -> Generator[tuple[int, int, npt.NDArray[np.float32]], None, None]:
     while True:
-      queue_entry = self._files_queue.get()
+      if self._check_cancel_event():
+        break
+
+      queue_entry = self._files_queue.get(block=True)
       poison_pill = queue_entry is None
       if poison_pill:
         self._logger.debug(f"PRODUCER({os.getpid()}) - Received poison pill. Exiting.")
@@ -264,6 +267,9 @@ class ChildProducer(bn_logging.LogableProcessBase):
   def __call__(self) -> None:
     self._init()
     buffer_input = self.get_segments_from_files()
+    if self._check_cancel_event():
+      return
+
     for batch in itertools_batched(buffer_input, self._batch_size):
       file_indices, segment_indices, audio_samples = zip(*batch, strict=False)
       max_segment_index = max(segment_indices)
@@ -273,23 +279,16 @@ class ChildProducer(bn_logging.LogableProcessBase):
         )
         break
 
-      cancel = False
       while True:
+        if self._check_cancel_event():
+          return
+
         try:
           self._sem_free_slots.acquire(timeout=1.0)
           break
         except TimeoutError:
-          if self._cancel_event.is_set():
-            cancel = True
-            break
-
-      if self._cancel_event.is_set():
-        cancel = True
-
-      if cancel:
-        self._logger.debug(f"PRODUCER({os.getpid()}) - Cancel event set. Exiting.")
-        self._uninit()
-        return
+          if self._check_cancel_event():
+            return
 
       self._logger.debug(
         f"PRODUCER({os.getpid()}) - Producer acquired FREE. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
@@ -317,8 +316,16 @@ class ChildProducer(bn_logging.LogableProcessBase):
       # can also use n_jobs here, but this is faster
       for _ in range(self._n_slots):
         self._set_done_flag()
+        if self._check_cancel_event():
+          return
 
     self._uninit()
+
+  def _check_cancel_event(self) -> bool:
+    if self._cancel_event.is_set():
+      self._logger.debug(f"PRODUCER({os.getpid()}) - Received cancel event.")
+      return True
+    return False
 
   def _jump_to_next_slot_ptr(self) -> None:
     """Increase the slot index, wrapping around if necessary."""
@@ -331,30 +338,24 @@ class ChildProducer(bn_logging.LogableProcessBase):
 
     """Set the DONE_FLAG in the shared memory to signal that no more data will be produced."""
 
-    cancel = False
     while True:
+      if self._check_cancel_event():
+        return
+
       try:
         self._sem_free_slots.acquire(timeout=1.0)
         break
       except TimeoutError:
-        if self._cancel_event.is_set():
-          cancel = True
-          break
-
-    if self._cancel_event.is_set():
-      cancel = True
-
-    if cancel:
-      self._logger.debug(
-        f"PRODUCER({os.getpid()}) - Cancel event set. Exiting _set_done_flag."
-      )
-      return
+        if self._check_cancel_event():
+          return
 
     self._logger.debug(
       f"PRODUCER({os.getpid()}) - Producer acquired FREE. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
     )
     while self._ring_flags[self._slot_ptr.value] != WRITABLE_FLAG:
       self._jump_to_next_slot_ptr()
+      if self._check_cancel_event():
+        return
 
     assert 0 <= self._slot_ptr.value < self._n_slots
     self._ring_flags[self._slot_ptr.value] = DONE_FLAG
@@ -371,14 +372,12 @@ class ChildProducer(bn_logging.LogableProcessBase):
     assert self._ring_batch_sizes is not None
     assert self._ring_flags is not None
 
-    cancel = False
     claimed_flag = None
     claimed_slot = None
 
     while True:
-      if self._cancel_event.is_set():
-        cancel = True
-        break
+      if self._check_cancel_event():
+        return
 
       with self._slot_ptr.get_lock():
         current_slot = self._slot_ptr.value
@@ -401,13 +400,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
           )
           self._jump_to_next_slot_ptr()
 
-    if self._cancel_event.is_set():
-      cancel = True
-
-    if cancel:
-      self._logger.debug(
-        f"PRODUCER({os.getpid()}) - Cancel event set. Exiting _flush_batch."
-      )
+    if self._check_cancel_event():
       return
 
     assert claimed_flag is not None

@@ -212,30 +212,28 @@ class ChildWorker(bn_logging.LogableProcessBase):
       wait_for_batch_start = time.perf_counter()
       wait_time_for_batch: float | None = None
 
-      cancel = False
       while True:
+        if self._cancel_event.is_set():
+          self._log_debug("Cancellation requested. Exiting worker.")
+          return
+
         try:
           self._sem_filled.acquire(timeout=1.0)
           break
         except TimeoutError:
           if self._cancel_event.is_set():
-            cancel = True
-            break
-
-      if self._cancel_event.is_set():
-        cancel = True
-
-      if cancel:
-        self._log_debug("Cancellation requested. Exiting worker.")
-        self._out_q.put(None)
-        self._sem_active_workers.acquire(block=False)
-        break
+            self._log_debug("Cancellation requested. Exiting worker.")
+            return
 
       self._log_debug(
         f"Acquired FILL; Free slots remaining: {self._sem_free}; Filled slots: {self._sem_filled}"
       )
 
       while True:
+        if self._cancel_event.is_set():
+          self._log_debug("Cancellation requested. Exiting worker.")
+          return
+
         with self._slot_ptr.get_lock():
           current_slot = self._slot_ptr.value
           current_slot_flag = self._ring_flags[current_slot]
@@ -287,16 +285,20 @@ class ChildWorker(bn_logging.LogableProcessBase):
       except Exception as e:
         self._log_debug(f"Error during inference: {e}")
         self._cancel_event.set()
-        # mark slot as writable again
-        self._ring_flags[claimed_slot] = WRITABLE_FLAG
-        self._sem_free.release()
         self._log_debug(
-          f"Released FREE. Free slots remaining: {self._sem_free}; Filled slots: {self._sem_filled}"
+          f"Exiting worker {self._pid} due to error during inference. Set cancel event."
         )
-        self._log_debug(f"Exiting worker {self._pid} due to error during inference.")
-        self._out_q.put(None)
-        self._sem_active_workers.acquire(block=False)
-        break
+        return
+        # mark slot as writable again
+        # self._ring_flags[claimed_slot] = WRITABLE_FLAG
+        # self._sem_free.release()
+        # self._log_debug(
+        #   f"Released FREE. Free slots remaining: {self._sem_free}; Filled slots: {self._sem_filled}"
+        # )
+        # self._log_debug(f"Exiting worker {self._pid} due to error during inference.")
+        # self._out_q.put(None)
+        # self._sem_active_workers.acquire(block=False)
+        # break
 
       prediction_duration = time.perf_counter() - pred_start_time
 
