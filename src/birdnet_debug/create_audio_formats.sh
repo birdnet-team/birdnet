@@ -3,7 +3,7 @@
 # Benötigt: FFmpeg (>= 4.x) im PATH
 
 # Aufruf:  ./convert_audio.sh [input.wav] [ausgabe-ordner]
-# src/birdnet_v2_tests/create_audio_formats.sh example/soundscape.wav src/birdnet_v2_tests/audio_formats
+# src/birdnet_debug/create_audio_formats.sh example/soundscape.wav src/birdnet_tests/audio_formats
 
 set -euo pipefail
 
@@ -32,6 +32,8 @@ encode() {
 # ------------------------------------------------------------ #
 
 cp "$INFILE" "$OUTDIR/$BASENAME.wav"
+
+ffmpeg -i "$INFILE" -filter_complex "[0:a]pan=stereo|c0=c0|c1=c0" "$OUTDIR/${BASENAME}_stereo.wav"
 
 # ------------------------------------------------------------ #
 # verlustbehaftet (komprimiert)                                #

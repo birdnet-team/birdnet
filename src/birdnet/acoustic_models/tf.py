@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Any, final
 
@@ -7,6 +8,7 @@ import numpy as np
 
 from birdnet.acoustic_models.base import AcousticInferenceBackend
 from birdnet.io_lock import IOLockHandler
+from birdnet.logging_utils import get_logger
 
 
 class AcousticTFBackend(AcousticInferenceBackend):
@@ -35,12 +37,20 @@ class AcousticTFBackend(AcousticInferenceBackend):
     os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
     from tensorflow.lite.python import interpreter as tflite
+    # import tflite_runtime.interpreter as tflite
 
     # memory_map not working for TF 2.15.1:
     # f = open(self._model_path, "rb")
     # self._mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
     with io_lock_handler:
+      start = time.perf_counter()
       interp = tflite.Interpreter(self._model_path, num_threads=1)
+      end = time.perf_counter()
+    logger = get_logger(__name__)
+    logger.debug(
+      f"Model loaded from {self._model_path} on device CPU in {end - start:.2f} seconds."
+    )
+
     interp.allocate_tensors()
 
     self._interp = interp

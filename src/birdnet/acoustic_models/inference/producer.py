@@ -228,10 +228,10 @@ class ChildProducer(bn_logging.LogableProcessBase):
         self._max_segment_idx_ptr.value = file_max_segment_index
       segments = load_audio_in_segments_with_overlap_locked(
         path,
+        self._io_lock_handler,
         segment_duration_s=self.segment_duration_s,
         overlap_duration_s=self.overlap_duration_s,
         target_sample_rate=self.target_sample_rate,
-        io_lock_handler=self._io_lock_handler,
       )
 
       # fill last segment with silence up to segmentsize if it is smaller than 3s
@@ -439,57 +439,55 @@ def get_audio_duration_s(audio_path: Path) -> float:
   return result
 
 
-def load_audio_in_segments_with_overlap(
-  audio_path: Path,
-  /,
-  *,
-  segment_duration_s: float = 3,
-  overlap_duration_s: float = 0,
-  # read_duration_s: Optional[float] = None,
-  target_sample_rate: int = 48000,
-) -> Generator[npt.NDArray[np.float32], None, None]:
-  assert audio_path.is_file()
-  assert audio_path.suffix.upper() in SF_FORMATS
+# def load_audio_in_segments_with_overlap(
+#   audio_path: Path,
+#   /,
+#   *,
+#   segment_duration_s: float = 3,
+#   overlap_duration_s: float = 0,
+#   # read_duration_s: Optional[float] = None,
+#   target_sample_rate: int = 48000,
+# ) -> Generator[npt.NDArray[np.float32], None, None]:
+#   assert audio_path.is_file()
+#   assert audio_path.suffix.upper() in SF_FORMATS
 
-  sf_info = sf.info(audio_path)
-  is_mono = sf_info.channels == 1
-  assert is_mono
+#   sf_info = sf.info(audio_path)
+#   is_mono = sf_info.channels == 1
+#   assert is_mono
 
-  sample_rate = sf_info.samplerate
+#   sample_rate = sf_info.samplerate
 
-  timestamps = get_segments_with_overlap(
-    float(sf_info.duration),
-    float(segment_duration_s),
-    float(overlap_duration_s),
-  )
+#   timestamps = get_segments_with_overlap(
+#     float(sf_info.duration),
+#     float(segment_duration_s),
+#     float(overlap_duration_s),
+#   )
 
-  for start, end in timestamps:
-    start_samples = round(start * sample_rate)
-    end_samples = round(end * sample_rate)
-    audio, _ = sf.read(
-      audio_path, start=start_samples, stop=end_samples, dtype=np.float32
-    )
-    audio = resample_array(audio, sample_rate, target_sample_rate)
-    yield audio
+#   for start, end in timestamps:
+#     start_samples = round(start * sample_rate)
+#     end_samples = round(end * sample_rate)
+#     audio, _ = sf.read(
+#       audio_path, start=start_samples, stop=end_samples, dtype=np.float32
+#     )
+#     audio = resample_array(audio, sample_rate, target_sample_rate)
+#     yield audio
 
 
 def load_audio_in_segments_with_overlap_locked(
   audio_path: Path,
+  io_lock_handler: IOLockHandler,
   /,
   *,
   segment_duration_s: float = 3,
   overlap_duration_s: float = 0,
   # read_duration_s: Optional[float] = None,
   target_sample_rate: int = 48000,
-  io_lock_handler: IOLockHandler,
 ) -> Generator[npt.NDArray[np.float32], None, None]:
   assert audio_path.is_file()
   assert audio_path.suffix.upper() in SF_FORMATS
 
   with io_lock_handler:
     sf_info = sf.info(audio_path)
-  is_mono = sf_info.channels == 1
-  assert is_mono
 
   sample_rate = sf_info.samplerate
 
@@ -506,5 +504,8 @@ def load_audio_in_segments_with_overlap_locked(
       audio, _ = sf.read(
         audio_path, start=start_samples, stop=end_samples, dtype=np.float32
       )
+
+      if audio.ndim == 2:
+        audio = np.mean(audio, axis=1, dtype=np.float32)
     audio = resample_array(audio, sample_rate, target_sample_rate)
     yield audio

@@ -140,6 +140,15 @@ def run_benchmark_from_args(args: list[str]) -> None:
     help="use serial I/O (default: False, i.e., use parallel I/O)",
   )
 
+  parser.add_argument(
+    "--show-stats",
+    type=str,
+    choices=["no", "minimal", "progress", "benchmark"],
+    metavar="SHOW_STATS",
+    help="show statistics during processing; 'no' means no statistics, 'minimal' means only minimal statistics, 'progress' means progress bar and minimal statistics, 'benchmark' means progress bar and detailed statistics (default: 'benchmark')",
+    default="benchmark",
+  )
+
   ns: Namespace = parser.parse_args(args)
   run_benchmark_from_ns(ns)
 
@@ -184,7 +193,7 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
     custom_species_list=None,
     half_precision=True,
     max_audio_duration_min=None,
-    show_stats="benchmark",
+    show_stats=ns.show_stats,
     device=ns.devices if len(ns.devices) > 1 else ns.devices[0],
     prefetch_ratio=ns.prefetch_ratio,
     use_bandpass=False,
