@@ -11,6 +11,8 @@ pip install birdnet-0.1.7-py3-none-any.whl --force-reinstall
 
 # Birdnet benchmark command line tool
 
+birdnet-benchmark example/soundscape.wav /tmp/result.csv --top-k 6522 --confidence -100
+birdnet-benchmark example/soundscape.wav /tmp/result.csv --top-k 10 --confidence -100
 
 birdnet-benchmark example/soundscape.wav /tmp/result.csv --serial-io -w 1
 birdnet-benchmark example/soundscape.wav /tmp/result.csv -w 1 --prefetch-ratio 2
