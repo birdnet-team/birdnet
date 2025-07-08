@@ -33,6 +33,7 @@ birdnet-benchmark test-dataset/test_dataset_1x1440min /tmp/soundscape.csv --devi
 birdnet-benchmark test-dataset/test_dataset_1x1440min /tmp/soundscape.csv --device GPU --backend pb -w 25
 
 birdnet-benchmark test-dataset/test_dataset_100x60min /tmp/soundscape.csv --device GPU --backend pb -w 11 -f 4
+# Wall time:  0:04:18.202865
 # Feeder(s): 4
 # Buffer: 21.7/22 filled slots (mean)
 # Busy workers: 10.3/11 (mean)
@@ -47,5 +48,19 @@ birdnet-benchmark test-dataset/test_dataset_100x60min /tmp/soundscape.csv --devi
 #   1394 x real-time (RTF: 0.00071723)
 #   465 segments/s (0:23:14.252536 audio/s)
   
-
+# Batchsize max. 1025 on Titan RTX
 birdnet-benchmark test-dataset/test_dataset_100x60min /tmp/soundscape.csv --device GPU --backend pb -w 1 -f 6 -s 1025
+# Wall time:  0:02:26.554392
+# Feeder(s): 6
+# Buffer: 1.9/2 filled slots (mean)
+# Busy workers: 1.0/1 (mean)
+#   Average wait time for next batch: 0.053 ms
+# Memory usage:
+#   Program: 10463.30 M (total max)
+#   Buffer: 1126.11 M (shared memory)
+#   Result: 2.94 M (NumPy)
+# Computational performance:
+#   2569 x real-time (RTF: 0.00038924)
+# Total performance:
+#   2456 x real-time (RTF: 0.00040710)
+#   819 segments/s (0:40:56.425866 audio/s)
