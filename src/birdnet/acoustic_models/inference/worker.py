@@ -203,6 +203,9 @@ class ChildWorker(bn_logging.LogableProcessBase):
 
     start_time = time.perf_counter()
     warm_up_start = start_time - warm_up_start_time
+    self._log_debug(
+      f"Worker {self._pid} ready to analyze. Warm-up time: {warm_up_start:.4f} seconds."
+    )
     while True:
       wait_for_batch_start = time.perf_counter()
       wait_time_for_batch: float | None = None
@@ -275,8 +278,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
         self._sem_active_workers.acquire(block=False)
         break
 
-      if self._track_performance:
-        prediction_duration = time.perf_counter() - pred_start_time
+      prediction_duration = time.perf_counter() - pred_start_time
 
       self._ring_flags[claimed_slot] = WRITABLE_FLAG
       self._sem_free.release()
@@ -317,11 +319,10 @@ class ChildWorker(bn_logging.LogableProcessBase):
       )
       self._prediction_count += top_k_species.shape[0]
       self._log_debug(
-        f"Prediction made. Total predictions: {self._prediction_count}. Chunks: {segment_indices}"
+        f"Prediction made ({prediction_duration:.4} s). Total predictions: {self._prediction_count}. Chunks: {segment_indices}"
       )
 
       if self._track_performance:
-        assert prediction_duration is not None
         process_total_duration = time.perf_counter() - start_time
         self._pred_dur_queue.put(
           (

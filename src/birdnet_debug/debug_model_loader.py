@@ -172,7 +172,7 @@ if __name__ == "__main__":
     "device": "CPU",
   }
   params = {
-    "n_workers": 12,
+    "n_workers": 2,
     "n_producers": 1,
     "batch_size": 1,
     "prefetch_ratio": 1,

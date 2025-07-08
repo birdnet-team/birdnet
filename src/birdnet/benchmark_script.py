@@ -137,6 +137,13 @@ def run_benchmark_from_args(args: list[str]) -> None:
 
 
 def run_benchmark_from_ns(ns: Namespace) -> None:
+  # faulthandler.enable(file=sys.stderr, all_threads=True)
+  logging.basicConfig(
+    level=logging.WARNING,
+    format="%(asctime)s (%(levelname)s): %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+  )
+
   root = get_package_logger()
   root.setLevel(logging.DEBUG)
 
