@@ -103,7 +103,7 @@ def run_benchmark_from_args(args: list[str]) -> None:
     type=parse_non_empty_or_whitespace,
     nargs="+",
     metavar="DEVICE",
-    help="device to use for processing (e.g., 'CPU', 'GPU', 'GPU:0', 'GPU:1', ...); either string or list of strings, latter is useful for multi-GPU setups, the first GPU will be used for the first producer, the second GPU for the second producer, etc.; GPU is only available for the Protobuf backend; default: 'CPU'",
+    help="device(s) to use for processing (e.g., 'CPU', 'GPU', 'GPU:0', 'GPU:1', ...); either string or list of strings, latter is useful for multi-GPU setups, the first GPU will be used for the first feeder, the second for the second feeder, etc.; GPU is only available for the Protobuf backend; default: 'CPU'",
     default=["CPU"],
   )
 

@@ -26,6 +26,10 @@ python -m pip install birdnet-0.2.0a0-py3-none-any.whl
 
 ## Example usage
 
+### Show benchmark options
+
+`birdnet-benchmark --help`
+
 ### Predict top 5 species for each segment using CPU und TFLite backend (single file)
 
 `birdnet-benchmark soundscape.wav result.csv`
