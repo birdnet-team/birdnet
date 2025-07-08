@@ -139,11 +139,11 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
     worker_wall_time = {}
 
-    cancel = False
     while True:
       if self._cancel_event.is_set():
-        cancel = True
-        break
+        self._logger.debug("PerformanceTracker canceled because of cancel event.")
+        self._uninit_logging()
+        return
       processing_finished = self._stop_event.is_set()
       queue_is_empty = self._pred_dur_queue.empty()
       if processing_finished:
@@ -346,11 +346,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         print(output_msg, file=sys.stdout)
 
         self._next_print = now + self._print_every
-
-    if cancel:
-      self._logger.debug("PerformanceTracker canceled because of cancel event.")
-      self._uninit_logging()
-      return
 
     stats = PerformanceTrackingResult(
       worker_speed_xrt=(self._total_segments_processed * self._segment_size_s)
