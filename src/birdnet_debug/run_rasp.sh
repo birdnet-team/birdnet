@@ -14,14 +14,16 @@ source .venv-bn/bin/activate
 pip install --upgrade pip
 pip install wheel
 
-# Install
+# Install / Update
 
-
-kubuntu$ rm -rf dist/; python3.11 -m build -o dist/
-kubuntu$ scp dist/birdnet-0.2.0a0-py3-none-any.whl pi@192.168.2.103:/home/pi/birdnet-0.2.0a0-py3-none-any.whl
+## Kubuntu
+rm -rf dist/; python3.11 -m build -o dist/
+scp dist/birdnet-0.2.0a0-py3-none-any.whl pi@192.168.2.103:/home/pi/birdnet-0.2.0a0-py3-none-any.whl
 # scp example/soundscape.wav  pi@192.168.2.103:/home/pi/soundscape.wav
 
+## Pi
 source .venv-bn/bin/activate
+pip uninstall birdnet -y
 pip install /home/pi/birdnet-0.2.0a0-py3-none-any.whl
 
 # Run benchmark

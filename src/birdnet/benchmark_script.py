@@ -1,9 +1,12 @@
 import argparse
+import logging
 import os
+import random
 import sys
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
 
+import numpy as np
 import psutil
 
 import birdnet
@@ -17,6 +20,7 @@ from birdnet.argparse_helper import (
   parse_path,
   parse_positive_integer,
 )
+from birdnet.logging_utils import get_package_logger
 
 
 def run_benchmark() -> None:
@@ -133,6 +137,13 @@ def run_benchmark_from_args(args: list[str]) -> None:
 
 
 def run_benchmark_from_ns(ns: Namespace) -> None:
+  root = get_package_logger()
+  root.setLevel(logging.DEBUG)
+
+  random.seed(0)
+  np.random.seed(0)
+  os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+
   output_file: Path = ns.output
   try:
     output_file.parent.mkdir(parents=True, exist_ok=True)
