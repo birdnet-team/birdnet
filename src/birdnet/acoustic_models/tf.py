@@ -6,6 +6,7 @@ from typing import Any, final
 import numpy as np
 
 from birdnet.acoustic_models.base import AcousticInferenceBackend
+from birdnet.io_lock import IOLockHandler
 
 
 class AcousticTFBackend(AcousticInferenceBackend):
@@ -18,7 +19,7 @@ class AcousticTFBackend(AcousticInferenceBackend):
     self._cached_shape: tuple[int, ...] | None = None
 
   @final
-  def lazy_load(self, device_name: str) -> None:
+  def lazy_load(self, device_name: str, io_lock_handler: IOLockHandler) -> None:
     assert self._interp is None
 
     if "CPU" not in device_name:
@@ -38,9 +39,10 @@ class AcousticTFBackend(AcousticInferenceBackend):
     # memory_map not working for TF 2.15.1:
     # f = open(self._model_path, "rb")
     # self._mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
-    interp = tflite.Interpreter(self._model_path, num_threads=1)
-
+    with io_lock_handler:
+      interp = tflite.Interpreter(self._model_path, num_threads=1)
     interp.allocate_tensors()
+
     self._interp = interp
     self._in_idx = interp.get_input_details()[0]["index"]
     self._out_idx = interp.get_output_details()[0]["index"]

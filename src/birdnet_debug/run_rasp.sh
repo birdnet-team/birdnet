@@ -23,13 +23,12 @@ scp dist/birdnet-0.2.0a0-py3-none-any.whl pi@192.168.2.103:/home/pi/birdnet-0.2.
 
 ## Pi
 source .venv-bn/bin/activate
-pip uninstall birdnet -y
-pip install /home/pi/birdnet-0.2.0a0-py3-none-any.whl
+pip uninstall birdnet -y; pip install /home/pi/birdnet-0.2.0a0-py3-none-any.whl
 
 # Run benchmark
 
 source .venv-bn/bin/activate
-birdnet-benchmark /home/pi/soundscape.wav /home/pi/soundscape.csv -w 1
+birdnet-benchmark /home/pi/soundscape.wav /home/pi/soundscape.csv -w 1 --serial-io
 
 
 # Sonstiges

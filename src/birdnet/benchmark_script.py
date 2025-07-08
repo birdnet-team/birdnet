@@ -132,6 +132,12 @@ def run_benchmark_from_args(args: list[str]) -> None:
     default=1,
   )
 
+  parser.add_argument(
+    "--serial-io",
+    action="store_true",
+    help="use serial I/O (default: False, i.e., use parallel I/O)",
+  )
+
   ns: Namespace = parser.parse_args(args)
   run_benchmark_from_ns(ns)
 
@@ -184,6 +190,7 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
     use_bandpass=False,
     bandpass_fmax=None,
     bandpass_fmin=None,
+    serial_io=ns.serial_io,
   )
 
   print("Writing result to internal format (.npz)...")

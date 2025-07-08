@@ -1,11 +1,13 @@
 import ctypes
 import multiprocessing as mp
+from contextlib import nullcontext
 from multiprocessing.synchronize import Event
 from pathlib import Path
 
 import numpy as np
 from ordered_set import OrderedSet
 
+from birdnet.io_lock import IOLockHandler
 import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.inference.producer import get_audio_duration_s
 from birdnet.helper import RingField, get_max_n_segments, max_value_for_uint_dtype
@@ -24,6 +26,7 @@ class FilesAnalyzer(bn_logging.LogableProcessBase):
     analyzing_result: mp.SimpleQueue,
     tot_n_segments: ctypes.c_uint64,
     cancel_event: Event,
+    io_lock_handler: IOLockHandler,
   ):
     super().__init__(__name__, logging_queue, logging_level)
     self._files = files
@@ -37,6 +40,7 @@ class FilesAnalyzer(bn_logging.LogableProcessBase):
     )
     self._analyzing_result = analyzing_result
     self._cancel_event = cancel_event
+    self._io_lock_handler = io_lock_handler
 
   def __call__(self) -> None:
     self._init_logging()
@@ -49,7 +53,8 @@ class FilesAnalyzer(bn_logging.LogableProcessBase):
         self._uninit_logging()
         return
 
-      audio_duration_s = get_audio_duration_s(path)
+      with self._io_lock_handler:
+        audio_duration_s = get_audio_duration_s(path)
       durations.append(audio_duration_s)
 
       file_n_segments = get_max_n_segments(

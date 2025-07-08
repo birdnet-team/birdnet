@@ -8,6 +8,7 @@ import absl.logging
 import numpy as np
 
 from birdnet.acoustic_models.base import AcousticInferenceBackend
+from birdnet.io_lock import IOLockHandler
 
 
 class AcousticPBBackend(AcousticInferenceBackend):
@@ -18,7 +19,7 @@ class AcousticPBBackend(AcousticInferenceBackend):
     self._infer_fn: Callable | None = None
 
   @final
-  def lazy_load(self, device_name: str) -> None:
+  def lazy_load(self, device_name: str, io_lock_handler: IOLockHandler) -> None:
     assert "GPU" in device_name or "CPU" in device_name
 
     absl_verbosity_before = absl.logging.get_verbosity()
@@ -64,7 +65,8 @@ class AcousticPBBackend(AcousticInferenceBackend):
     assert device is not None
     self._logical_device = device
 
-    audio_model = tf.saved_model.load(self._model_path)
+    with io_lock_handler:
+      audio_model = tf.saved_model.load(self._model_path)
 
     absl.logging.set_verbosity(absl_verbosity_before)
     logging.getLogger("tensorflow").setLevel(tf_verbosity_before)

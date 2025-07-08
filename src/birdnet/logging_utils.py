@@ -3,13 +3,15 @@ from __future__ import annotations
 
 import logging
 import multiprocessing as mp
+import threading
 from datetime import datetime
-from logging.handlers import QueueHandler
+from logging.handlers import MemoryHandler, QueueHandler
 from multiprocessing import Queue
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 from birdnet.globals import PKG_NAME
+from birdnet.io_lock import IOLockHandler, LockedMemoryHandler
 
 
 def get_package_logger():
@@ -74,10 +76,17 @@ init_package_logger(logging.INFO)
 
 
 class QueueFileWriter:
-  def __init__(self, log_queue: Queue, logging_level: int, log_file: Path):
+  def __init__(
+    self,
+    log_queue: Queue,
+    logging_level: int,
+    log_file: Path,
+    io_lock_handler: IOLockHandler,
+  ):
     self._logging_level = logging_level
     self._log_queue = log_queue
     self._log_file = log_file
+    self._io_log_handler = io_lock_handler
 
   def __call__(self):
     logger = logging.getLogger("birdnet-file-writer")
@@ -91,8 +100,17 @@ class QueueFileWriter:
     )
 
     h = logging.FileHandler(self._log_file, mode="w")
+    mh = LockedMemoryHandler(
+      capacity=100000,
+      io_lock_handler=self._io_log_handler,
+      flush_interval_s=30,
+      flushLevel=logging.WARNING,
+      target=h,
+      flushOnClose=True,
+    )
+
     h.setFormatter(f)
-    logger.addHandler(h)
+    logger.addHandler(mh)
 
     while True:
       try:

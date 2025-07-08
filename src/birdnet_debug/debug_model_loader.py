@@ -159,9 +159,9 @@ if __name__ == "__main__":
   audio_paths = [Path("src\\birdnet_v2_debug\\10min.wav")]
   audio_paths = [Path("src\\birdnet_v2_debug\\60min.wav")]
 
-  audio_paths = get_pow_file_paths()
   audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
   audio_paths = [Path("example/soundscape.wav")]
+  audio_paths = get_pow_file_paths()
 
   params = {
     "n_workers": 4,
@@ -172,8 +172,8 @@ if __name__ == "__main__":
     "device": "CPU",
   }
   params = {
-    "n_workers": 2,
-    "n_producers": 1,
+    "n_workers": 11,
+    "n_producers": 2,
     "batch_size": 1,
     "prefetch_ratio": 1,
     "backend": "tf",
@@ -196,6 +196,7 @@ if __name__ == "__main__":
     half_precision=True,
     device=params["device"],
     show_stats="benchmark",
+    serial_io=False,
     # custom_confidence_thresholds={
     #   "Junco hyemalis_Dark-eyed Junco": -np.inf,
     #   "Haemorhous mexicanus_House Finch": 0.1,

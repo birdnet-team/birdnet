@@ -21,6 +21,7 @@ from birdnet.globals import (
   WRITING_FLAG,
 )
 from birdnet.helper import RingField, uint_dtype_for
+from birdnet.io_lock import IOLockHandler
 from birdnet.utils import flat_sigmoid
 
 # try:
@@ -62,6 +63,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
     logging_level: int,
     device: str,
     cancel_event: Event,
+    io_lock_handler: IOLockHandler,
   ):
     super().__init__(__name__, logging_queue, logging_level)
 
@@ -91,7 +93,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
     if apply_sigmoid:
       assert sigmoid_sensitivity is not None
       self._sigmoid_sensitivity = sigmoid_sensitivity
-
+    self._io_lock_handler = io_lock_handler
     # Interpreter
     self._slot = 0
 
@@ -132,7 +134,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
     self._log_debug("Loading model...")
     try:
       self._backend = self._backend_type(**self._backend_kwargs)
-      self._backend.lazy_load(self._device_name)
+      self._backend.lazy_load(self._device_name, self._io_lock_handler)
     except ValueError as e:
       self._log_debug(f"Failed to load model: {e}")
       raise e

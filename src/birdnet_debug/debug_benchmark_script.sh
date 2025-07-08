@@ -35,3 +35,7 @@ birdnet-benchmark test-dataset/test_dataset_4x60min /tmp/result.csv --backend "p
 
 ## Run on multiple GPUs
 birdnet-benchmark test-dataset/test_dataset_4x60min /tmp/result.csv --backend "pb" --worker 3 --device "GPU:0" "GPU:1" "GPU:2" --batch-size 1000
+
+
+birdnet-benchmark example/soundscape.wav /tmp/result.csv --serial-io -w 1
+birdnet-benchmark example/soundscape.wav /tmp/result.csv -w 1

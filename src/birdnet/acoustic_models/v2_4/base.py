@@ -61,6 +61,7 @@ from birdnet.helper import (
   uint_ctype_from_dtype,
   uint_dtype_for,
 )
+from birdnet.io_lock import IOLockHandler
 from birdnet.local_data import get_benchmark_dir
 from birdnet.logging_utils import QueueFileWriter, get_package_logging_level
 
@@ -406,6 +407,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     max_audio_duration_min: float | None = None,
     show_stats: Literal["no", "minimal", "progress", "benchmark"] = "progress",
     device: str | list[str] = "CPU",
+    serial_io: bool = False,
   ):
     start = time.perf_counter()
     start_time = time.time()
@@ -428,11 +430,15 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         f"Device list length ({len(device)}) does not match number of workers ({workers})."
       )
 
+    io_lock = mp.Lock() if serial_io else None
+    io_lock_handler = IOLockHandler(serial_io, io_lock)
+
     log_file = Path(Path(tempfile.gettempdir()) / f"{PKG_NAME}.log")
     logging_level = get_package_logging_level()
     logging_queue = multiprocessing.Queue()
     logging_listener = multiprocessing.Process(
-      target=QueueFileWriter(logging_queue, logging_level, log_file), daemon=True
+      target=QueueFileWriter(logging_queue, logging_level, log_file, io_lock_handler),
+      daemon=True,
     )
     logging_listener.start()
 
@@ -636,6 +642,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
           analyzing_result=analyzer_queue,
           tot_n_segments=tot_n_segments_ptr,
           cancel_event=cancel_event,
+          io_lock_handler=io_lock_handler,
         ),
         daemon=True,
       )
@@ -669,6 +676,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             prod_done_ptr=prod_done_ptr,
             n_prods=feeders,
             cancel_event=cancel_event,
+            io_lock_handler=io_lock_handler,
           ),
           daemon=True,
         )
@@ -711,6 +719,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             track_performance=track_performance,
             cancel_event=cancel_event,
             sem_active_workers=sem_active_workers,
+            io_lock_handler=io_lock_handler,
           ),
           daemon=True,
         )

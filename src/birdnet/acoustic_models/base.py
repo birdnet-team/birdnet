@@ -3,11 +3,12 @@ from abc import ABC, abstractmethod
 import numpy as np
 
 from birdnet.base import ModelBase
+from birdnet.io_lock import IOLockHandler
 
 
 class AcousticInferenceBackend(ABC):
   @abstractmethod
-  def lazy_load(self, device_name: str) -> None: ...
+  def lazy_load(self, device_name: str, io_lock_handler: IOLockHandler) -> None: ...
 
   @abstractmethod
   def infer(self, batch: np.ndarray) -> np.ndarray: ...
