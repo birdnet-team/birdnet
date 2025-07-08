@@ -9,13 +9,13 @@ from tqdm import tqdm
 # Load the audio file
 INPUT_FILE = Path("example/soundscape.wav")
 INPUT_FILE_DUR = 2
-DURATION_PER_FILE = 60 # min
+DURATION_PER_FILE = 60  # min
 N_FILES = 100
+DTYPE = ".flac"
 
-OUTPUT_FOLDER_BASE = Path("/data/tmp")
+OUTPUT_FOLDER_BASE = Path("/data/test-dataset")
 OUTPUT_FOLDER_BASE = Path("/home/mi/tmp")
 OUTPUT_FOLDER_BASE = Path("test-dataset")
-OUTPUT_FOLDER_BASE = Path("/home/mi/sttau/test-datasets")
 
 REPS = round(DURATION_PER_FILE / INPUT_FILE_DUR)
 OUTPUT_FOLDER = OUTPUT_FOLDER_BASE / f"test_dataset_{N_FILES}x{DURATION_PER_FILE}min"
@@ -29,7 +29,7 @@ data, samplerate = sf.read(INPUT_FILE)
 
 repeated_data = np.tile(data, REPS)
 
-with NamedTemporaryFile("w", suffix=".wav") as f:
+with NamedTemporaryFile("w", suffix=DTYPE) as f:
   ref = Path(f.name)
   sf.write(ref, repeated_data, samplerate)
   del repeated_data
