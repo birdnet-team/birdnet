@@ -40,3 +40,4 @@ birdnet-benchmark test-dataset/test_dataset_4x60min /tmp/result.csv --backend "p
 birdnet-benchmark example/soundscape.wav /tmp/result.csv --serial-io -w 1
 birdnet-benchmark example/soundscape.wav /tmp/result.csv -w 1 --prefetch-ratio 2
 birdnet-benchmark example/soundscape.wav /tmp/result.csv -w 1 --prefetch-ratio 3 -p 1
+

@@ -28,8 +28,7 @@ pip uninstall birdnet -y; pip install /home/pi/birdnet-0.2.0a0-py3-none-any.whl
 # Run benchmark
 
 source .venv-bn/bin/activate
-birdnet-benchmark /home/pi/soundscape.wav /home/pi/soundscape.csv -w 1 --serial-io
-
+birdnet-benchmark /home/pi/soundscape.wav /home/pi/soundscape.csv -w 1 --serial-io --prefetch-ratio 2 --feeders 1
 
 # Sonstiges
 
@@ -51,3 +50,4 @@ git checkout refactor-the-whole-project
 
 
 source .venv-py311/bin/activate
+
