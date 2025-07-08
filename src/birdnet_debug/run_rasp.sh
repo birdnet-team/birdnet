@@ -26,7 +26,8 @@ pip install /home/pi/birdnet-0.2.0a0-py3-none-any.whl
 
 # Run benchmark
 
-birdnet-benchmark /home/pi/soundscape.wav /home/pi/soundscape.csv
+source .venv-bn/bin/activate
+birdnet-benchmark /home/pi/soundscape.wav /home/pi/soundscape.csv -w 1
 
 
 # Sonstiges

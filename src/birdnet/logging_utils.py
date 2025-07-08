@@ -3,8 +3,11 @@ from __future__ import annotations
 
 import logging
 import multiprocessing as mp
+from datetime import datetime
 from logging.handlers import QueueHandler
 from multiprocessing import Queue
+from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 from birdnet.globals import PKG_NAME
 
@@ -71,9 +74,10 @@ init_package_logger(logging.INFO)
 
 
 class QueueFileWriter:
-  def __init__(self, log_queue: Queue, logging_level: int):
+  def __init__(self, log_queue: Queue, logging_level: int, log_file: Path):
     self._logging_level = logging_level
     self._log_queue = log_queue
+    self._log_file = log_file
 
   def __call__(self):
     logger = logging.getLogger("birdnet-file-writer")
@@ -81,10 +85,12 @@ class QueueFileWriter:
     logger.propagate = False
     assert len(logger.handlers) == 0
 
-    h = logging.FileHandler("mptest.log", mode="w")
+    # log to temp
     f = logging.Formatter(
       "%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s"
     )
+
+    h = logging.FileHandler(self._log_file, mode="w")
     h.setFormatter(f)
     logger.addHandler(h)
 

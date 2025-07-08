@@ -105,6 +105,7 @@ class AcousticPBDownloaderV2_4:
         description="Downloading models",
       )
 
+      print("Extracting models...")
       extract_dir = Path(temp_dir) / "extracted"
 
       with zipfile.ZipFile(zip_download_path, "r") as zip_ref:
@@ -119,6 +120,7 @@ class AcousticPBDownloaderV2_4:
 
       acoustic_lang_dir.parent.mkdir(parents=True, exist_ok=True)
       shutil.move(species_dl_dir, acoustic_lang_dir)
+      print("Models extracted.")
 
   @classmethod
   def get_model_path_and_labels(

@@ -133,8 +133,6 @@ def run_benchmark_from_args(args: list[str]) -> None:
 
 
 def run_benchmark_from_ns(ns: Namespace) -> None:
-  print("Starting benchmark...")
-  
   output_file: Path = ns.output
   try:
     output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -145,6 +143,8 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
   model: AcousticModelBaseV2_4 = birdnet.model_loader.load(
     model_type="acoustic", version="2.4", backend=ns.backend
   )
+
+  print("Starting benchmark...")
   assert isinstance(model, AcousticModelBaseV2_4)
   result = model.analyze(
     ns.inputs,

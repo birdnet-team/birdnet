@@ -9,6 +9,8 @@ import multiprocessing
 import multiprocessing as mp
 import os
 import platform
+import shutil
+import tempfile
 import time
 from collections import OrderedDict
 from collections.abc import Iterable
@@ -426,10 +428,11 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         f"Device list length ({len(device)}) does not match number of workers ({workers})."
       )
 
+    log_file = Path(Path(tempfile.gettempdir()) / f"{PKG_NAME}.log")
     logging_level = get_package_logging_level()
     logging_queue = multiprocessing.Queue()
     logging_listener = multiprocessing.Process(
-      target=QueueFileWriter(logging_queue, logging_level), daemon=True
+      target=QueueFileWriter(logging_queue, logging_level, log_file), daemon=True
     )
     logging_listener.start()
 
@@ -1023,5 +1026,11 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     logging_queue.put_nowait(None)
     logging_listener.join()
     bn_logging.remove_queue_handler(queue_handler)
+
+    log_file_iso = log_file.with_stem(
+      f"{PKG_NAME}-{start_timepoint.strftime('%Y%m%dT%H%M%S')}"
+    )
+    shutil.copyfile(log_file, log_file_iso)
+    # print(f"Log file written to: {log_file.absolute()}")
 
     return res
