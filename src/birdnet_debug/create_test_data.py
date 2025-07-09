@@ -18,7 +18,9 @@ OUTPUT_FOLDER_BASE = Path("/home/mi/tmp")
 OUTPUT_FOLDER_BASE = Path("test-dataset")
 
 REPS = round(DURATION_PER_FILE / INPUT_FILE_DUR)
-OUTPUT_FOLDER = OUTPUT_FOLDER_BASE / f"test_dataset_{N_FILES}x{DURATION_PER_FILE}min"
+OUTPUT_FOLDER = (
+  OUTPUT_FOLDER_BASE / f"test_dataset_{N_FILES}x{DURATION_PER_FILE}min_{DTYPE[1:]}"
+)
 if OUTPUT_FOLDER.is_dir():
   shutil.rmtree(OUTPUT_FOLDER)
 OUTPUT_FOLDER.mkdir(parents=True, exist_ok=True)
@@ -34,6 +36,6 @@ with NamedTemporaryFile("w", suffix=DTYPE) as f:
   sf.write(ref, repeated_data, samplerate)
   del repeated_data
   for file_nr in tqdm(range(N_FILES)):
-    output_file = OUTPUT_FOLDER / f"{file_nr:0{len(str(N_FILES))}d}.wav"
+    output_file = OUTPUT_FOLDER / f"{file_nr:0{len(str(N_FILES))}d}{DTYPE}"
     shutil.copyfile(ref, output_file)
 print(OUTPUT_FOLDER)

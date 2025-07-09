@@ -49,20 +49,54 @@ birdnet-benchmark test-dataset/test_dataset_100x60min /tmp/soundscape.csv --devi
 #   465 segments/s (0:23:14.252536 audio/s)
   
 # Batchsize max. 1025 on Titan RTX
-birdnet-benchmark test-dataset/test_dataset_100x60min /tmp/soundscape.csv --device GPU --backend pb -w 1 -f 6 -s 1025
-# Wall time:  0:02:26.554392
-# Feeder(s): 6
-# Buffer: 1.9/2 filled slots (mean)
-# Busy workers: 1.0/1 (mean)
-#   Average wait time for next batch: 0.053 ms
-# Memory usage:
-#   Program: 10463.30 M (total max)
-#   Buffer: 1126.11 M (shared memory)
-#   Result: 2.94 M (NumPy)
-# Computational performance:
-#   2569 x real-time (RTF: 0.00038924)
-# Total performance:
-#   2456 x real-time (RTF: 0.00040710)
-#   819 segments/s (0:40:56.425866 audio/s)
+birdnet-benchmark test-dataset/test_dataset_100x60min /tmp/result.csv --device GPU --backend pb -w 1 -f 5 -s 1025
+
+birdnet-benchmark test-dataset/test_dataset_100x60min_flac /tmp/result.csv --device GPU --backend pb -w 1 -f 5 -s 1025
+
+
+birdnet-benchmark test-dataset/test_dataset_100x60min /tmp/result.csv -w 8 -f 5
+
+birdnet-benchmark test-dataset/test_dataset_100x60min /tmp/result.csv --device GPU --backend pb -w 8 -f 5
+
 
 birdnet-benchmark /data/datasets/l2arctic /tmp/l2arctic.csv --device GPU --backend pb -w 1 -f 6 -s 1025
+# Wall time:  0:01:28.809129
+# Input: 26889 file(s) (WAV)
+#   Total duration: 1 day, 3:30:31.551406
+#   Average duration: 0:00:03.682976
+#   Minimum duration (single file): 0:00:00.680000
+#   Maximum duration (single file): 0:03:55.036417
+# Feeder(s): 6
+# Buffer: 1.7/2 filled slots (mean)
+# Busy workers: 0.9/1 (mean)
+#   Average wait time for next batch: 50.601 ms
+# Memory usage:
+#   Program: 11860.31 M (total max)
+#   Buffer: 1126.11 M (shared memory)
+#   Result: 56.13 M (NumPy)
+# Computational performance:
+#   1742 x real-time (RTF: 0.00057389)
+# Total performance:
+#   1561 x real-time (RTF: 0.00064069)
+#   520 segments/s (0:26:00.819273 audio/s)
+  
+birdnet-benchmark /data/datasets/LJSpeech-1.1 /tmp/ljs.csv --device GPU --backend pb -w 1 -f 6 -s 1025
+# Wall time:  0:03:19.381935
+# Input: 13100 file(s) (WAV)
+#   Total duration: 23:55:17.076281
+#   Average duration: 0:00:06.573823
+#   Minimum duration (single file): 0:00:01.110068
+#   Maximum duration (single file): 0:00:10.096190
+# Feeder(s): 6
+# Buffer: 0.6/2 filled slots (mean)
+# Busy workers: 0.3/1 (mean)
+#   Average wait time for next batch: 3481.062 ms
+# Memory usage:
+#   Program: 11117.34 M (total max)
+#   Buffer: 1126.11 M (shared memory)
+#   Result: 3.65 M (NumPy)
+# Computational performance:
+#   551 x real-time (RTF: 0.00181538)
+# Total performance:
+#   532 x real-time (RTF: 0.00187795)
+#   177 segments/s (0:08:52.495585 audio/s)
