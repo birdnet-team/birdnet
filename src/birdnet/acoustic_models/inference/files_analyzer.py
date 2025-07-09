@@ -1,6 +1,7 @@
 import ctypes
 import multiprocessing as mp
 from contextlib import nullcontext
+from dataclasses import dataclass
 from multiprocessing.synchronize import Event
 from pathlib import Path
 
@@ -11,6 +12,14 @@ import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.inference.producer import get_audio_duration_s
 from birdnet.helper import RingField, get_max_n_segments, max_value_for_uint_dtype
 from birdnet.io_lock import IOLockHandler
+
+
+@dataclass
+class FilesAnalyzerMeta:
+  file_min_durations_s: float
+  file_max_durations_s: float
+  file_mean_durations_s: float
+  file_sum_durations_s: float
 
 
 class FilesAnalyzer(bn_logging.LogableProcessBase):
@@ -72,11 +81,16 @@ class FilesAnalyzer(bn_logging.LogableProcessBase):
         current_max_segment_index = file_max_segment_index
         self._max_segment_idx_ptr.value = current_max_segment_index
     self._tot_n_segments.value = n_segments
-    res = {}
-    res["file_durations_s"] = np.array(durations)  # TODO
-    res["tot_n_segments"] = n_segments
+    res = FilesAnalyzerMeta(
+      file_min_durations_s=np.min(durations),
+      file_max_durations_s=np.max(durations),
+      file_mean_durations_s=np.mean(durations),
+      file_sum_durations_s=np.sum(durations),
+    )
     self._logger.debug("Putting analyzing result into queue.")
     self._analyzing_result.put(res)
     self._logger.debug("Done putting analyzing result into queue.")
-    self._logger.info(f"Total duration of all files: {sum(durations) / 60**2:.2f} h.")
+    self._logger.info(
+      f"Total duration of all files: {res.file_sum_durations_s / 60**2:.2f} h."
+    )
     self._uninit_logging()

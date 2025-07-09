@@ -33,7 +33,10 @@ from ordered_set import OrderedSet
 import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.base import AcousticModelBase
 from birdnet.acoustic_models.inference.consumer import Consumer
-from birdnet.acoustic_models.inference.files_analyzer import FilesAnalyzer
+from birdnet.acoustic_models.inference.files_analyzer import (
+  FilesAnalyzer,
+  FilesAnalyzerMeta,
+)
 from birdnet.acoustic_models.inference.perf_tracker import (
   PerformanceTracker,
   PerformanceTrackingResult,
@@ -87,35 +90,35 @@ class MinimalBenchmarkMeta:
     return str(timedelta(seconds=self._time_wall_time_s))
 
   # Dataset
-  _file_durations_s: np.ndarray
+  file_count: int
+  _file_durations_total: float
+  _file_durations_average: float
+  _file_durations_minimum: float
+  _file_durations_maximum: float
 
   @property
-  def file_count(self) -> int:
-    return len(self._file_durations_s)
-
-  @property
-  def file_duration_total(self) -> str:
-    if len(self._file_durations_s) == 0:
+  def file_duration_sum(self) -> str:
+    if self.file_count == 0:
       return "N/A"
-    return str(timedelta(seconds=self._file_durations_s.sum()))
+    return str(timedelta(seconds=self._file_durations_total))
 
   @property
   def file_duration_average(self) -> str:
-    if len(self._file_durations_s) == 0:
+    if self.file_count == 0:
       return "N/A"
-    return str(timedelta(seconds=self._file_durations_s.mean()))
+    return str(timedelta(seconds=self._file_durations_average))
 
   @property
   def file_duration_minimum(self) -> str:
-    if len(self._file_durations_s) == 0:
+    if self.file_count == 0:
       return "N/A"
-    return str(timedelta(seconds=self._file_durations_s.min()))
+    return str(timedelta(seconds=self._file_durations_minimum))
 
   @property
   def file_duration_maximum(self) -> str:
-    if len(self._file_durations_s) == 0:
+    if self.file_count == 0:
       return "N/A"
-    return str(timedelta(seconds=self._file_durations_s.max()))
+    return str(timedelta(seconds=self._file_durations_maximum))
 
   file_formats: str
 
@@ -248,7 +251,6 @@ class FullBenchmarkMeta(MinimalBenchmarkMeta):
   model_sample_rate: int
 
   file_segments_maximum: int
-  file_segments_processed: int
   file_batches_processed: int
 
   # Parameter
@@ -901,13 +903,17 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     del result
 
     if show_stats in ("minimal", "progress"):
-      analyzer_res: dict = analyzer_queue.get()
+      analyzer_res: FilesAnalyzerMeta = analyzer_queue.get()
 
       bmm = MinimalBenchmarkMeta(
         _start_timepoint=start_timepoint,
         _end_timepoint=end_timepoint,
         _time_wall_time_s=stop - start,
-        _file_durations_s=analyzer_res["file_durations_s"],
+        file_count=n_files,
+        _file_durations_total=analyzer_res.file_sum_durations_s,
+        _file_durations_average=analyzer_res.file_mean_durations_s,
+        _file_durations_minimum=analyzer_res.file_min_durations_s,
+        _file_durations_maximum=analyzer_res.file_max_durations_s,
         mem_result_total_memory_usage_MiB=res.memory_size_mb,
         mem_shm_size_file_indices_MiB=rf_file_indices.nbytes / 1024**2,
         mem_shm_size_segment_indices_MiB=rf_segment_indices.nbytes / 1024**2,
@@ -927,7 +933,9 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         f"End time:   {bmm.time_end}\n"
         f"Wall time:  {bmm.time_wall_time}\n"
         f"Input: {bmm.file_count} file(s) ({bmm.file_formats})\n"
-        f"  Total duration: {bmm.file_duration_total}\n"
+        f"  Total duration: {bmm.file_duration_sum}\n"
+        f"  Average duration: {bmm.file_duration_average}\n"
+        f"  Minimum duration (single file): {bmm.file_duration_minimum}\n"
         f"  Maximum duration (single file): {bmm.file_duration_maximum}\n"
         f"Memory usage:\n"
         f"  Buffer: {bmm.mem_shm_size_total_MiB:.2f} M (shared memory)\n"
@@ -943,10 +951,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       perf_result: PerformanceTrackingResult = perf_res_queue.get()
 
       logger.info("Benchmarking is enabled. Collecting performance data...")
-      analyzer_res: dict = analyzer_queue.get()
-      file_durations_s: np.ndarray = analyzer_res["file_durations_s"]
-      tot_n_segments = analyzer_res["tot_n_segments"]
-      total_segments_processed = tot_n_segments
+      analyzer_res: FilesAnalyzerMeta = analyzer_queue.get()
 
       bmm = FullBenchmarkMeta(
         _start_timepoint=start_timepoint,
@@ -959,10 +964,13 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         model_is_custom=self.use_custom_model,
         model_path=str(self.model_path.absolute()),
         model_species=self.n_species,
-        _file_durations_s=file_durations_s,
+        file_count=n_files,
+        _file_durations_total=analyzer_res.file_sum_durations_s,
+        _file_durations_average=analyzer_res.file_mean_durations_s,
+        _file_durations_minimum=analyzer_res.file_min_durations_s,
+        _file_durations_maximum=analyzer_res.file_max_durations_s,
         file_segments_maximum=max_segment_idx_ptr.value + 1,
         file_segments_total=tot_n_segments_ptr.value,
-        file_segments_processed=analyzer_res["tot_n_segments"],
         model_segment_duration_seconds=AcousticModelBaseV2_4.get_segment_size_s(),
         param_overlap_seconds=overlap_duration_s,
         param_batch_size=batch_size,
@@ -1097,7 +1105,9 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         f"End time:   {bmm.time_end}\n"
         f"Wall time:  {bmm.time_wall_time}\n"
         f"Input: {bmm.file_count} file(s) ({bmm.file_formats})\n"
-        f"  Total duration: {bmm.file_duration_total}\n"
+        f"  Total duration: {bmm.file_duration_sum}\n"
+        f"  Average duration: {bmm.file_duration_average}\n"
+        f"  Minimum duration (single file): {bmm.file_duration_minimum}\n"
         f"  Maximum duration (single file): {bmm.file_duration_maximum}\n"
         f"Feeder(s): {bmm.param_producers}\n"
         f"Buffer: {bmm.mem_shm_slots_average_filled:.1f}/{n_slots} filled slots (mean)\n"
@@ -1138,6 +1148,9 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       f"{PKG_NAME}-{start_timepoint.strftime('%Y%m%dT%H%M%S')}"
     )
     shutil.copyfile(log_file, log_file_iso)
+    # print(f"Log file written to: {log_file.absolute()}")
+
+    return res
     # print(f"Log file written to: {log_file.absolute()}")
 
     return res
