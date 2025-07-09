@@ -1,4 +1,4 @@
-# Birdnet benchmark command line tool
+# Birdnet Benchmark Command-line Tool
 
 ## Install
 
@@ -26,15 +26,15 @@ python -m pip install wheel
 python -m pip install birdnet-0.2.0a0-py3-none-any.whl
 ```
 
-### Install with GPU support
+### Install with GPU Support
 
 Use the suffix `[and-cuda]` while installing, i.e., `... pip install birdnet-0.2.0a0-py3-none-any.whl[and-cuda]` to support running the benchmark on a GPU with CUDA support.
 
-### Upgrade version
+### Upgrade Version
 
 Just install the new version in the activated environment.
 
-## Example usage
+## Example Usage
 
 - Show benchmark options: `birdnet-benchmark --help`
 - Predict top 5 species for each segment using CPU und TFLite backend (single file): `birdnet-benchmark soundscape.wav result.csv`
@@ -97,7 +97,7 @@ SPEED: 51 xRT [17 seg/s]; MEM: 1590 M; BUF: 8/8; WAIT: 0.17 ms; BUSY: 4/4; PROG:
 
 * **Cache effect**: Because operating systems cache files in RAM, SPEED often increases markedly on a second pass over the same audio data. For benchmarking, evaluate only runs from the second attempt onwards.
 
-## Comparative results
+## Comparative Results
 
 ### Run 10 h WAV-files on Intel i7-8565U 4-Core with 16 GB RAM (Windows)
 
