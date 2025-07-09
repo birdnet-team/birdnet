@@ -64,3 +64,5 @@ birdnet-benchmark test-dataset/test_dataset_100x60min /tmp/soundscape.csv --devi
 # Total performance:
 #   2456 x real-time (RTF: 0.00040710)
 #   819 segments/s (0:40:56.425866 audio/s)
+
+birdnet-benchmark /data/datasets/l2arctic /tmp/l2arctic.csv --device GPU --backend pb -w 1 -f 6 -s 1025

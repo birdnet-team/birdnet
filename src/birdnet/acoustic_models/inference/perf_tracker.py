@@ -17,9 +17,7 @@ import psutil
 
 import birdnet.logging_utils as bn_logging
 from birdnet.globals import READABLE_FLAG, READING_FLAG, WRITABLE_FLAG
-from birdnet.helper import (
-  RingField,
-)
+from birdnet.helper import RingField
 
 
 @dataclass
@@ -154,6 +152,10 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       while not self._pred_dur_queue.empty():
         worker_pid, warm_up_dur, process_dur, wait_dur, pred_dur, batch_size = (
           self._pred_dur_queue.get()
+        )
+        self._logger.debug(
+          f"PerformanceTracker received prediction duration from worker {worker_pid}: "
+          f"warm-up: {warm_up_dur:.3f}s, process: {process_dur:.3f}s, wait: {wait_dur:.3f}s, pred: {pred_dur:.3f}s, batch size: {batch_size}"
         )
         worker_wall_time[worker_pid] = process_dur
         summed_warm_up += warm_up_dur
