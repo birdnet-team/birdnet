@@ -44,92 +44,58 @@ Just install the new version in the activated environment.
 - Run on GPU: `birdnet-benchmark soundscape.wav /tmp/result.csv --backend "pb" --worker 1 --device "GPU" --batch-size 1000`
 - Run on multiple GPUs: `birdnet-benchmark soundscape.wav /tmp/result.csv --backend "pb" --worker 3 --device "GPU:0" "GPU:1" "GPU:2" --batch-size 1000`
 - Increase amount of data feeders: `birdnet-benchmark soundscape.wav /tmp/result.csv --feeders 2`
+## General Functionality of the Python Library
 
-## Allgemeine Funktionsweise der Python‑Bibliothek
+The analysis pipeline is divided into five logically distinct components:
 
-Die Analysepipeline besteht aus fünf logisch getrennten Komponenten:
+1. **Result Array**: A three-dimensional matrix in which
+     - **Dimension 1** represents the input files,
+     - **Dimension 2** the consecutive 3-second segments, and
+     - **Dimension 3** the species covered by the model.\
+  Each matrix cell stores the predicted probability for a given species in the corresponding segment of the file.
+2. **Buffer**: An intermediate store that holds batches of 3-second audio segments.
+3. **Feeder Process(es)**: Read the input files, split them into 3-second segments, group them to batches, and fill the buffer.
+4. **Worker Process(es)**: Take batches from the buffer and perform inference with the model.
+5. **Consumer**:    Receives the probabilities calculated by the workers and writes them to the result array.
 
-1. **Ergebnisarray**  
-   Eine dreidimensionale Matrix, in der  
-   • **Dimension 1** die Eingabedateien,  
-   • **Dimension 2** die aufeinanderfolgenden 3‑Sekunden‑Segmente und  
-   • **Dimension 3** die im Modell abgebildeten Arten (Spezies)  
-   repräsentiert. Jede Matrixzelle enthält die vorhergesagte Wahrscheinlichkeit für die jeweilige Art in dem entsprechenden Segment der Datei.
+### Parallelisation and Resource Management
 
-2. **Buffer**  
-   Zwischenspeicher, der Batches von 3‑s‑Audiosegmenten vorhält.
+* **Number of Processes**: The numbers of feeder and worker processes are configurable. By default, one (1) feeder is launched, while the number of workers equals the count of *physical* CPU cores in the system.
 
-3. **Feeder‑Prozess(e)**  
-   Lesen die Eingabedateien, zerlegen sie in 3‑s‑Segmente und füllen den Buffer.
+* **Buffer Size**: By default, the buffer is set to twice the worker count, ensuring that every worker always has a pre-loaded batch to process and thus avoids idle time.
 
-4. **Worker‑Prozess(e)**  
-   Entnehmen Batches aus dem Buffer und führen die Inferenz mittels des ML‑Modells aus.
+* **Model Backends**: Each worker loads its own instance of the inference model. On the CPU, both **TFLite** and **Protocol Buffers** (Protobuf) models can be used; Protobuf models can optionally run on the GPU.
 
-5. **Consumer**  
-   Empfängt die von den Workern berechneten Wahrscheinlichkeiten und schreibt sie in das Ergebnisarray.
+* **Best Practice for CPU Inference**
+  For CPU-only execution, the number of worker processes should not exceed the number of physical cores, as oversubscription typically leads to reduced performance.
 
-### Parallelisierung und Ressourcenmanagement
+## Interpretation of Runtime Metrics
 
-* **Prozessanzahl**  
-  Die Anzahl der Feeder‑ und Worker‑Prozesse ist konfigurierbar. Standardmäßig wird ein (1) Feeder gestartet, während die Worker‑Anzahl der Zahl der _physischen_ CPU‑Kerne des Systems entspricht.
+During analysis, the key performance indicators are updated and printed once per second.
 
-* **Buffergröße**  
-  Per Default ist der Buffer doppelt so groß wie die Worker‑Anzahl, sodass jeder Worker stets einen vorab geladenen Batch verarbeiten kann und keine Leerlaufzeit entsteht.
-
-* **Modell‑Backends**  
-  Jeder Worker lädt das Inferenzmodell separat in seinen Prozess. Auf der CPU können sowohl **TFLite‑** als auch **Protocol‑Buffers‑**Modelle (Protobuf-Modelle) genutzt werden; Protobuf‑Modelle lassen sich optional auch auf der GPU ausführen.
-
-* **Best‑Practice für CPU‑Inferenz**  
-  Für reine CPU‑Ausführung sollte die Zahl der Worker‑Prozesse die physische Kernzahl nicht überschreiten, da Oversubscription typischerweise zu einem Leistungsabfall führt.
-
-## Interpreting the numbers while analysis
-
-Every second there will be an update with the progress of the analysis. It will display following values:
-
-- SPEED: the computation speed expressed as speed times real-time, e.g., a value of 2 will say, the computation can process ten minutes of audio in five minutes. Hierbei wird der Programmstart und die Zeit für das Laden des Modells pro Prozess herausgerechnet. Der Wert ist also höher als wenn die gesamte Laufzeit berechnen würde. Der Wert berechnet sich aus der durchschnittlichen Laufzeit aller Arbeiterprozesse und der Gesamtdauer des verarbeiteten Audios. There will be also the amount of three second segments of the input file(s), that are processed per second.
-- MEM: this value will display the total memory consumption of the whole process in MB, including all subprocesses and used shared memory.
-- BUF: gibt an, wieviele Batches sich durchschnittlich im Buffer befinden.
-- WAIT: gibt an, wie lange die Arbeiter durchschnittlich auf einen neuen Batch warten müssen.
-- BUSY: gibt an, wie viele Arbeiter druchschnittlich gleichzeitig aktiv sind und nicht auf einen Batch warten.
-- PROG: gibt den gesamten Fortschritt der Analyse an
-- ETA: gibt die geschätze Restzeit für die Analyse an
-
-Der Wert für WAIT sollte so niedrig wie möglich sein (NVMe <=0.05 ms) und der Buffer sollte durchschnittlich immer gefüllt sein, also z.B. für 4 Worker `BUF: 8/8` anzeigen. Falls dies nicht der Fall ist, dann sollte die Anzahl an Feedern erhöht werden und falls dies nicht hilft, dann sollten die Daten auf ein schnelleres Speichermedium kopiert und von dort gelesen werden. Man kann alternativ auch die Anzahl an Arbeitern verringern, aber verliert dadurch an Geschwindigkeit, denn je mehr Feeder aktiv sind, desto mehr könnten die Arbeiter auch beeinträchtigt werden.
-
-Die aktiven Arbeiter erhöhen sich anfangs allmälig und sollten immer alle aktiv sein, also z.B. für 4 Worker `BUSY: 4/4` anzeigen. Wenn es nicht der Fall sein sollte, ist die Datengrundlage wieder das Problem, und es sollten die gleichen Schritte wie soeben erwähnt unternommen werden.
-
-Es ist noch zu beachten, dass das die Audiodaten vom Computer gecached werden, und die Analyse daher schneller ist, wenn man sie mehrfach hintereinander laufen lässt, daher sollte der erste Versuch nicht gezählt werden.
-
-## Interpretation der Laufzeitmetriken
-
-Während der Analyse werden die wichtigsten Leistungskennzahlen einmal pro Sekunde aktualisiert und ausgegeben.
-
-| Kürzel | Bedeutung | Zielwert / Empfehlung |
-|--------|-----------|-----------------------|
-| **SPEED** | *Beschleunigungsfaktor* relativ zur Echtzeit (real-time, RT). Ein Wert von `2 xRT` bedeutet, dass zehn Minuten Audio in fünf Minuten verarbeitet werden können. Für seine Berechnung werden der Programmstart und das einmalige Modell‑Laden pro Prozess herausgerechnet. Der SPEED‑Wert ergibt sich aus der mittleren Laufzeit aller Worker‑Prozesse im Verhältnis zur Gesamtdauer des bereits verarbeiteten Audios. Zusätzlich wird die Anzahl der 3‑Sekunden‑Segmente pro Sekunde angegeben. | Möglichst hoch; typischerweise ≥ 50 xRT |
-| **MEM** | Gesamter Hauptspeicherverbrauch des Python‑Hauptprozesses *plus* aller Subprozesse sowie des genutzten Shared Memory (in MB). | Unterhalb der verfügbaren RAM‑Kapazität halten |
-| **BUF** | Durchschnittliche Zahl der Batches im Buffer, dargestellt als *aktuell / maximal*. | Für `W` Worker: `BUF ≈ 2W/2W` |
-| **WAIT** | Mittlere Wartezeit (in ms), die Worker auf einen neuen Batch im Buffer warten. | NVMe‑SSDs: ≤ 1 ms |
-| **BUSY** | Durchschnittliche Anzahl gleichzeitig ausgelasteter Worker, dargestellt als *aktiv / insgesamt*. | Möglichst `W/W` |
-| **PROG** | Gesamtfortschritt der Analyse in %. | Steigt linear von 0 % → 100 % |
-| **ETA** | Geschätzte verbleibende Laufzeit bis Abschluss. | möglichst klein |
+| Abbr. | Meaning | Target / Recommendation |
+|-------|---------|-------------------------|
+| **SPEED** | *Acceleration factor* relative to real time (RT). A value of `2 xRT` means that ten minutes of audio can be processed in five minutes. The calculation excludes programme start-up and the one-time model loading per process. SPEED is derived from the mean runtime of all worker processes in relation to the total duration of audio already processed. The number of 3-second segments per second is also reported. | As high as possible; typically ≥ 50 xRT |
+| **MEM** | Total main-memory usage of the Python parent process *plus* all subprocesses, including shared memory (in MB). | Keep below the available RAM capacity |
+| **BUF** | Average number of batches in the buffer, shown as *current / maximum*. | For `W` workers: `BUF ≈ 2W / 2W` |
+| **WAIT** | Mean waiting time (in ms) that workers spend waiting for a new batch in the buffer. | NVMe SSDs: ≤ 1 ms |
+| **BUSY** | Average number of simultaneously busy workers, shown as *active / total*. | Aim for `W / W` |
+| **PROG** | Overall analysis progress in %. | Increases linearly from 0 % → 100 % |
+| **ETA** | Estimated time remaining until completion. | As small as possible |
 
 ```text
-Beispiel‑Log‑Zeile
-------------------
+Example log line
+----------------
 SPEED: 51 xRT [17 seg/s]; MEM: 1590 M; BUF: 8/8; WAIT: 0.17 ms; BUSY: 4/4; PROG: 93.5 %; ETA 0:00:48
 ```
 
-### Typische Engpässe und Gegenmaßnahmen
+### Typical Bottlenecks and Mitigation Measures
 
-* **Hohe WAIT‑Werte oder leerer Buffer**  
-  → Anzahl der Feeder erhöhen. Reicht dies nicht, Audiodaten auf ein schnelleres Speichermedium (NVMe/SSD) kopieren oder Worker‑Zahl reduzieren.
+* **High WAIT values or an empty buffer**: Increase the number of feeders. If that is not sufficient, copy the audio data to faster storage (NVMe/SSD) or reduce the number of workers.
 
-* **BUSY kleiner als Worker‑Zahl**  
-  → Meist derselbe Engpass wie oben (I/O‑Flaschenhals). Schritte wie oben durchführen.
+* **BUSY lower than the worker count**: Usually the same bottleneck as above (I/O constraint). Apply the steps listed above.
 
-* **Cache‑Effekt**  
-  Da Betriebssysteme gelesene Dateien im RAM zwischenspeichern, steigt SPEED bei einem zweiten Lauf derselben Audiodaten oft deutlich. Zum Benchmarken nur Durchläufe ab dem zweiten Versuch werten.
+* **Cache effect**: Because operating systems cache files in RAM, SPEED often increases markedly on a second pass over the same audio data. For benchmarking, evaluate only runs from the second attempt onwards.
 
 ## Comparative results
 
