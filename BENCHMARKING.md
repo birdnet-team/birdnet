@@ -121,7 +121,7 @@ During analysis, the key performance indicators are updated and printed once per
 
 | Abbr. | Meaning | Target / Recommendation |
 |-------|---------|-------------------------|
-| **SPEED** | *Acceleration factor* relative to real time (RT). A value of `2 xRT` means that ten minutes of audio can be processed in five minutes. The calculation excludes programme start-up and the one-time model loading per process. SPEED is derived from the mean runtime of all *Worker* processes in relation to the total duration of audio already processed. The number of 3-second segments per second is also reported. | As high as possible; typically ≥ 50 xRT |
+| **SPEED** | *Acceleration factor* relative to real-time (RT). A value of `2 xRT` means that ten minutes of audio can be processed in five minutes. The calculation excludes programme start-up and the one-time model loading per process. SPEED is derived from the mean runtime of all *Worker* processes in relation to the total duration of audio already processed. The number of 3-second segments per second is also reported. | As high as possible; typically ≥ 50 xRT |
 | **MEM** | Total main-memory usage of the Python parent process *plus* all subprocesses, including shared memory (in MB). | Keep below the available RAM capacity |
 | **BUF** | Average number of batches in the buffer, shown as *current / maximum*. | For `W` *Workers*: `BUF ≈ 2W / 2W` |
 | **WAIT** | Mean waiting time (in ms) that *Workers* spend waiting for a new batch in the buffer. | NVMe SSDs: ≤ 1 ms |
@@ -150,7 +150,7 @@ After the analysis has completed, the benchmark tool reports the following key f
 * **Average Buffer Size (*Buffer*)** – The mean number of batches simultaneously present in the working buffer.
 * **Worker Utilisation (*Busy Workers*)** – The average number of *Workers* active in parallel. The mean waiting time until a new batch became available is shown in parentheses.
 * **Memory Utilisation (*Memory Usage*)** – The peak main-memory consumption of the process together with the sizes of the buffer and the result array.
-* **Processing Throughput (*Performance*)** – **This is the most informative metric for estimating overall processing speed.** It is expressed as a multiple of real time, calculated by dividing the cumulative hours of audio processed by the total execution time. The report also lists the mean number of 3-second segments processed per second and the corresponding audio duration handled per second.
+* **Processing Throughput (*Performance*)** – **This is the most informative metric for estimating overall processing speed.** It is expressed as a multiple of real-time, calculated by dividing the cumulative hours of audio processed by the total execution time. The report also lists the mean number of 3-second segments processed per second and the corresponding audio duration handled per second.
 * **Computational Performance (*Worker Performance*)** – The final compute speed, identical to the SPEED value after all *Workers* have finished.
 
 ## Comparative Results
