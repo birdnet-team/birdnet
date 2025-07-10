@@ -64,7 +64,7 @@ from birdnet.helper import (
   uint_dtype_for,
 )
 from birdnet.io_lock import IOLockHandler
-from birdnet.local_data import get_benchmark_dir
+from birdnet.local_data import get_benchmark_dir, get_package_version
 from birdnet.logging_utils import QueueFileWriter, get_package_logging_level
 
 
@@ -236,7 +236,7 @@ class FullBenchmarkMeta(MinimalBenchmarkMeta):
 
   @property
   def sw_package_version(self) -> str:
-    return importlib.metadata.version(PKG_NAME)
+    return get_package_version()
 
   # Model
   model_type: str

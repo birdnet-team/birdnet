@@ -189,8 +189,15 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     if not species_list.is_file():
       raise ValueError(f"Species list file '{species_list.absolute()}' does not exist!")
 
+    from tensorflow.lite.python import interpreter as tflite
+    from tensorflow.lite.python.interpreter import OpResolverType
+
     try:
-      interp = tflite.Interpreter(str(model_path.absolute()), num_threads=1)
+      interp = tflite.Interpreter(
+        str(model_path.absolute()),
+        num_threads=1,
+        experimental_op_resolver_type=OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,  # tensor#187 is a dynamic-sized tensor
+      )
     except ValueError as e:
       raise ValueError(
         f"Failed to load model '{model_path.absolute()}'. Ensure it is a valid TFLite model."

@@ -24,7 +24,7 @@ The analysis pipeline processes **recordings** with five logically distinct comp
 
 * **Model Backends** – Each worker loads its own instance of the inference model. On the CPU, both **TFLite** and **Protocol Buffers** (Protobuf) models can be used; Protobuf models can optionally run on the GPU.
 
-* **Best Practice for CPU Inference** – For CPU-only execution, the number of *Worker* processes should not exceed the number of physical cores, as oversubscription typically leads to reduced performance.
+* **Best Practice for CPU Inference** – For CPU-only execution, the number of *Worker* processes should not exceed the number of physical cores, as oversubscription typically leads to reduced performance. When running TFLite, keep the batch size to one (1); larger batches offer no throughput benefit.
 
 ## Setup
 
@@ -69,36 +69,49 @@ Just install the new version in the activated environment.
 - Use Protobuf backend: `birdnet-benchmark soundscape.wav -b "pb"`
 - Output predictions for top 10 species: `birdnet-benchmark soundscape.wav --top-k 10 --confidence -100`
 - Run on GPU: `birdnet-benchmark soundscape.wav --backend "pb" --worker 1 --device "GPU" --batch-size 1000`
+  - To determine the largest possible batch size, you must experiment with several values. On a GPU with 24 GB of VRAM, a batch size of roughly 1,000 usually works well. If the batch size is set too high, the pipeline will abort with a runtime error ("Analysis was cancelled due to an error."), and the log will state that the GPU ran out of memory.
 - Run on three GPUs: `birdnet-benchmark soundscape.wav --backend "pb" --worker 3 --device "GPU:0" "GPU:1" "GPU:2" --batch-size 1000`
 - Increase amount of *Feeders*: `birdnet-benchmark soundscape.wav --feeders 2`
 - Increase *Buffer* size to 3 * *Worker*: `birdnet-benchmark soundscape.wav --prefetch-ratio 2`
 
-### Result Files
+## Result Files
 
-The benchmark results are stored in three formats:
+All BirdNET data is stored in the application-data directory, whose location is platform-specific:
 
-* **Text Report** - Provides a concise summary of the key metrics from the most recent run.
-* **JSON File** - Stores the complete set of metrics from the last run in JSON format.
-* **CSV File** - Lists the results of *all* benchmark runs in tabular form.
+- **Windows:** `%APPDATA%/birdnet`
+- **Linux:** `~/.local/share/birdnet`
+- **macOS:** `~/Library/Application Support/birdnet`
 
-The species identified and their associated probabilities are first written to a compact internal binary format that is highly space‑efficient and quick to write. In addition, a conventional CSV file is generated in which the first column contains the full path to the recording.
+Benchmark results for each run are stored in a dedicated sub-folder `birdnet/acoustic-benchmarks/v2.4/lib-v0.2.0a0/run-{timestamp}`.
+
+### File Types within the Run Folder
+
+| Category | Filename | Contents |
+|----------|----------|----------|
+| **Runtime Statistics** | `stats-{timestamp}.txt` | Summary of the key metrics for the run. |
+|  | `stats-{timestamp}.json` | Complete metric set in JSON format. |
+| **Inference Results** | `result-{timestamp}.npz` | Space-efficient, fast-savable binary file containing per-segment probabilities for all species—serves as the source for all other formats. |
+|  | `result-{timestamp}.csv` | Tabular view of the probabilities; the first column holds the full path of the recording. |
+| **Log** | `log-{timestamp}.log` | Full log of the benchmark run. |
+
+**Cross-Run Overview** - The parent directory also maintains a file named `runs.csv`, which contains the metrics of **all** benchmark runs in chronological order and thus enables comparative analyses.
 
 <details>
 
-<summary><b>Example output</b></summary>
+<summary><b>Example output on Linux</b></summary>
 
 ```txt
 Benchmark folder:
-  /tmp/birdnet-benchmarks/acoustic-v2.4/run-20250710T103748
-Statistics results written to: /tmp/birdnet-benchmarks/acoustic-v2.4/run-20250710T103748
-  /tmp/birdnet-benchmarks/acoustic-v2.4/run-20250710T103748/stats-20250710T103748.txt
-  /tmp/birdnet-benchmarks/acoustic-v2.4/run-20250710T103748/stats-20250710T103748.json
-  /tmp/birdnet-benchmarks/acoustic-v2.4/runs.csv
+  /home/user/.local/share/birdnet/acoustic-benchmarks/v2.4/lib-v0.2.0a0/run-20250710T143348
+Statistics results written to:
+  /home/user/.local/share/birdnet/acoustic-benchmarks/v2.4/lib-v0.2.0a0/run-20250710T143348/stats-20250710T143348.txt
+  /home/user/.local/share/birdnet/acoustic-benchmarks/v2.4/lib-v0.2.0a0/run-20250710T143348/stats-20250710T143348.json
+  /home/user/.local/share/birdnet/acoustic-benchmarks/v2.4/lib-v0.2.0a0/runs.csv
 Prediction results written to:
-  /tmp/birdnet-benchmarks/acoustic-v2.4/run-20250710T103748/result-20250710T103748.npz
-  /tmp/birdnet-benchmarks/acoustic-v2.4/run-20250710T103748/result-20250710T103748.csv
+  /home/user/.local/share/birdnet/acoustic-benchmarks/v2.4/lib-v0.2.0a0/run-20250710T143348/result-20250710T143348.npz
+  /home/user/.local/share/birdnet/acoustic-benchmarks/v2.4/lib-v0.2.0a0/run-20250710T143348/result-20250710T143348.csv
 Log file written to:
-  /tmp/birdnet-benchmarks/acoustic-v2.4/run-20250710T103748/log-20250710T103748.log
+  /home/user/.local/share/birdnet/acoustic-benchmarks/v2.4/lib-v0.2.0a0/run-20250710T143348/log-20250710T143348.log
 ```
 </details>
 
@@ -136,7 +149,7 @@ After the analysis has completed, the benchmark tool reports the following key f
 * **Total Execution Time (*Wall Time*)** – The total time in seconds from program start to completion.
 * **Average Buffer Size (*Buffer*)** – The mean number of batches simultaneously present in the working buffer.
 * **Worker Utilisation (*Busy Workers*)** – The average number of *Workers* active in parallel. The mean waiting time until a new batch became available is shown in parentheses.
-* **Memory Utilisation (*Memory Usage*)** – The peak main‑memory consumption of the process together with the sizes of the buffer and the result array.
+* **Memory Utilisation (*Memory Usage*)** – The peak main-memory consumption of the process together with the sizes of the buffer and the result array.
 * **Processing Throughput (*Performance*)** – **This is the most informative metric for estimating overall processing speed.** It is expressed as a multiple of real time, calculated by dividing the cumulative hours of audio processed by the total execution time. The report also lists the mean number of 3-second segments processed per second and the corresponding audio duration handled per second.
 * **Computational Performance (*Worker Performance*)** – The final compute speed, identical to the SPEED value after all *Workers* have finished.
 

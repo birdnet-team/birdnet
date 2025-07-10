@@ -1,9 +1,14 @@
+import importlib.metadata
 import os
 import tempfile
 from pathlib import Path
 
 from birdnet.base import MODEL_BACKENDS, MODEL_TYPES, MODEL_VERSIONS
 from birdnet.globals import PKG_NAME
+
+
+def get_package_version() -> str:
+  return importlib.metadata.version(PKG_NAME)
 
 
 def get_app_data_path() -> Path:
@@ -37,7 +42,8 @@ def get_benchmark_dir(
   version: MODEL_VERSIONS,
 ) -> Path:
   result = (
-    Path(tempfile.gettempdir()) / f"{PKG_NAME}-benchmarks" / f"{model}-v{version}"
+    # Path(tempfile.gettempdir()) / f"{PKG_NAME}-benchmarks" / f"{model}-v{version}"
+    APP_DIR / f"{model}-benchmarks" / f"v{version}" / f"lib-v{get_package_version()}"
   )
   result.mkdir(parents=True, exist_ok=True)
   return result

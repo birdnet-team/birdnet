@@ -193,7 +193,7 @@ if __name__ == "__main__":
     overlap_duration_s=1,
     sigmoid_sensitivity=1,
     default_confidence_threshold=-np.inf,
-    half_precision=True,
+    half_precision=False,
     device=params["device"],
     show_stats="benchmark",
     serial_io=True,
