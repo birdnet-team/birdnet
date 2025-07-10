@@ -3,7 +3,6 @@ from pathlib import Path
 
 from birdnet.acoustic_models.inference.prediction_result import (
   PredictionResult,
-  load_prediction_data,
 )
 
 if __name__ == "__main__":

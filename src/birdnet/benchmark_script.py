@@ -1,13 +1,8 @@
-import argparse
 import logging
 import os
-import random
 import sys
-import tempfile
 from argparse import ArgumentParser, Namespace
-from pathlib import Path
 
-import numpy as np
 import psutil
 
 import birdnet
@@ -21,7 +16,6 @@ from birdnet.argparse_helper import (
   parse_path,
   parse_positive_integer,
 )
-from birdnet.globals import PKG_NAME
 from birdnet.logging_utils import get_package_logger
 
 

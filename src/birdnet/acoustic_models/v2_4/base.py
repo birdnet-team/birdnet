@@ -14,7 +14,7 @@ import tempfile
 import time
 from collections import OrderedDict
 from collections.abc import Iterable
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 
 # You'll need these imports in your own code
 from datetime import datetime, timedelta
@@ -22,7 +22,7 @@ from pathlib import Path
 
 # Next two import lines for this demo only
 # backend_protocol.py
-from typing import Any, Dict, Literal, final
+from typing import Any, Literal, final
 
 import numpy as np
 import psutil

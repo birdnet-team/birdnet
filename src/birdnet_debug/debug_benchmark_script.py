@@ -1,11 +1,9 @@
-from argparse import Namespace
 
-from birdnet.benchmark_script import run_benchmark_from_args, run_benchmark_from_ns
+from birdnet.benchmark_script import run_benchmark_from_args
 
 if __name__ == "__main__":
   import logging
 
-  from birdnet.benchmark_script import run_benchmark
 
   # Set up logging
   logging.basicConfig(level=logging.INFO)

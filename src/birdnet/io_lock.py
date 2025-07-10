@@ -1,5 +1,4 @@
 import logging
-import multiprocessing as mp
 import multiprocessing.synchronize
 import threading
 from contextlib import nullcontext

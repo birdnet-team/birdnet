@@ -14,7 +14,7 @@ pip install birdnet-0.1.7-py3-none-any.whl --force-reinstall
 # das geht nicht
 # python -m cProfile -o src/birdnet_debug/benchmark_script.prof src/birdnet/benchmark_script.py example/soundscape.wav
 
-python -X importtime src/birdnet/benchmark_script.py 2> src/birdnet_debug/benchmark_script.prof; tuna src/birdnet_debug/benchmark_script.prof
+python -X importtime src/birdnet/benchmark_script.py example/soundscape.wav 2> src/birdnet_debug/benchmark_script.prof; tuna src/birdnet_debug/benchmark_script.prof
 
 birdnet-benchmark example/soundscape.wav --top-k 6522 --confidence -100
 birdnet-benchmark example/soundscape.wav --top-k 10 --confidence -100

@@ -5,7 +5,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, final
 
-import absl.logging
 import numpy as np
 
 from birdnet.acoustic_models.base import AcousticInferenceBackend
@@ -23,6 +22,7 @@ class AcousticPBBackend(AcousticInferenceBackend):
   @final
   def lazy_load(self, device_name: str, io_lock_handler: IOLockHandler) -> None:
     assert "GPU" in device_name or "CPU" in device_name
+    import absl.logging
 
     absl_verbosity_before = absl.logging.get_verbosity()
     absl.logging.set_verbosity(absl.logging.ERROR)

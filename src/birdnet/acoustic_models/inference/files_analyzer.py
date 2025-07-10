@@ -1,6 +1,5 @@
 import ctypes
 import multiprocessing as mp
-from contextlib import nullcontext
 from dataclasses import dataclass
 from multiprocessing.synchronize import Event
 from pathlib import Path

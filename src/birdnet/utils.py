@@ -6,7 +6,6 @@ from typing import Any, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
-import soundfile as sf
 from ordered_set import OrderedSet
 from tqdm import tqdm
 

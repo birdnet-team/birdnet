@@ -33,7 +33,6 @@ from birdnet.utils import (
   fillup_with_silence,
   get_segments_with_overlap,
   itertools_batched,
-  resample_array,
 )
 
 
