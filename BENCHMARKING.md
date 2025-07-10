@@ -18,12 +18,9 @@ The analysis pipeline processes **recordings** with five logically distinct comp
   
 ### Parallelisation and Resource Management
 
-* **Number of Processes** – The numbers of *Feeder* and *Worker* processes are configurable. By default, one (1) *Feeder* is launched, while the number of *Workers* equals the count of *physical* CPU cores in the system.
-
+* **Number of Processes** – The numbers of *Feeder* and *Worker* processes are configurable. By default, one (1) *Feeder* is launched, while the number of *Workers* equals the count of *physical* CPU cores in the system. *Feeders* and *Workers* run concurrently: *Feeders* preload batches into the buffer, and *Workers* consume those batches for inference. A *Feeder* loads only as much audio as the buffer can hold, keeping RAM usage low because at any moment only the required 3-second segments are in memory.
 * **Buffer Size** – By default, the buffer is set to twice the *Worker* count, ensuring that every *Worker* always has a pre-loaded batch to process and thus avoids idle time.
-
 * **Model Backends** – Each worker loads its own instance of the inference model. On the CPU, both **TFLite** and **Protocol Buffers** (Protobuf) models can be used; Protobuf models can optionally run on the GPU.
-
 * **Best Practice for CPU Inference** – For CPU-only execution, the number of *Worker* processes should not exceed the number of physical cores, as oversubscription typically leads to reduced performance. When running TFLite, keep the batch size to one (1); larger batches offer no throughput benefit.
 
 ## Setup
@@ -94,7 +91,7 @@ Benchmark results for each run are stored in a dedicated sub-folder `birdnet/aco
 |  | `result-{timestamp}.csv` | Tabular view of the probabilities; the first column holds the full path of the recording. |
 | **Log** | `log-{timestamp}.log` | Full log of the benchmark run. |
 
-**Cross-Run Overview** - The parent directory also maintains a file named `runs.csv`, which contains the metrics of **all** benchmark runs in chronological order and thus enables comparative analyses.
+**Cross-Run Overview** – The parent directory also maintains a file named `runs.csv`, which contains the metrics of **all** benchmark runs in chronological order and thus enables comparative analyses.
 
 <details>
 
