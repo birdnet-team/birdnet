@@ -1109,6 +1109,8 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       with open(stats_out_json, "w", encoding="utf8") as f:
         json.dump(bm, f, indent=2, ensure_ascii=False)
 
+      import pandas as pd
+
       meta_df = pd.DataFrame.from_records([bm])
       meta_df.to_csv(
         meta_df_out, mode="a", header=not meta_df_out.exists(), index=False
@@ -1161,7 +1163,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         f"-------------------------------\n"
         f"Benchmark folder:\n"
         f"  {benchmark_run_out_dir.absolute()}\n"
-        f"Statistics results written to: {benchmark_run_out_dir.absolute()}\n"
+        f"Statistics results written to:\n"
         f"  {stats_human_readable_out.absolute()}\n"
         f"  {stats_out_json.absolute()}\n"
         f"  {meta_df_out.absolute()}\n"
