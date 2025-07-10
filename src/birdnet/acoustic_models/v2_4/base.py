@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import ctypes
-import importlib.metadata
 import inspect
 import json
 import multiprocessing

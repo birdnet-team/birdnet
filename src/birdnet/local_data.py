@@ -1,6 +1,5 @@
 import importlib.metadata
 import os
-import tempfile
 from pathlib import Path
 
 from birdnet.base import MODEL_BACKENDS, MODEL_TYPES, MODEL_VERSIONS
