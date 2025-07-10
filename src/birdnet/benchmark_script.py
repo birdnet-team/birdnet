@@ -31,6 +31,18 @@ def run_benchmark() -> None:
 
 
 def run_benchmark_from_args(args: list[str]) -> None:
+  # faulthandler.enable(file=sys.stderr, all_threads=True)
+  logging.basicConfig(
+    level=logging.WARNING,
+    format="%(asctime)s (%(levelname)s): %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+  )
+
+  root = get_package_logger()
+  root.setLevel(logging.DEBUG)
+
+  os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+
   parser = ArgumentParser(
     # formatter_class=argparse.ArgumentDefaultsHelpFormatter(prod, max_help_position=40)
   )
@@ -42,13 +54,6 @@ def run_benchmark_from_args(args: list[str]) -> None:
     metavar="FILE_OR_FOLDER",
     help="input files/folders",
     action=ConvertToSetAction,
-  )
-
-  parser.add_argument(
-    "output",
-    type=parse_path,
-    metavar="OUTPUT_CSV",
-    help="output CSV file for the prediction results",
   )
 
   parser.add_argument(
@@ -154,32 +159,12 @@ def run_benchmark_from_args(args: list[str]) -> None:
 
 
 def run_benchmark_from_ns(ns: Namespace) -> None:
-  # faulthandler.enable(file=sys.stderr, all_threads=True)
-  logging.basicConfig(
-    level=logging.WARNING,
-    format="%(asctime)s (%(levelname)s): %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-  )
-
-  root = get_package_logger()
-  root.setLevel(logging.DEBUG)
-
-  os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-
-  output_file: Path = ns.output
-  try:
-    output_file.parent.mkdir(parents=True, exist_ok=True)
-  except OSError as e:
-    print(f"Error creating output directory: {e}")
-    sys.exit(1)
-
   model: AcousticModelBaseV2_4 = birdnet.model_loader.load(
     model_type="acoustic", version="2.4", backend=ns.backend
   )
 
-  print("Starting benchmark...")
   assert isinstance(model, AcousticModelBaseV2_4)
-  result = model.analyze(
+  model.analyze(
     ns.inputs,
     top_k=ns.top_k,
     feeders=ns.feeders,
@@ -201,12 +186,3 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
     bandpass_fmin=None,
     serial_io=ns.serial_io,
   )
-
-  log_file = Path(Path(tempfile.gettempdir()) / f"{PKG_NAME}.log")
-  print(f"Log file saved to: {log_file.absolute()}")
-
-  print("Writing result to internal format (.npz)...")
-  result.dump(output_file.with_suffix(".npz"))
-  print(f"Prediction result saved to: {output_file.with_suffix('.npz').absolute()}")
-  result.to_csv(output_file, encoding="utf-8", silent=False)
-  print(f"Prediction result saved to: {output_file.absolute()}")

@@ -7,7 +7,6 @@ from functools import partial
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, TypeVar
 
-import pandas as pd
 from ordered_set import OrderedSet
 
 T = TypeVar("T")
@@ -37,15 +36,6 @@ class ConvertToSetAction(argparse._StoreAction):
     if values is not None:
       values = set(values)
     super().__call__(parser, namespace, values, option_string)
-
-
-def parse_data_frame(value: str) -> pd.DataFrame:
-  path = parse_path(value)
-  try:
-    df = pd.read_csv(path)
-  except Exception as ex:
-    raise ArgumentTypeError("CSV couldn't be parsed!") from ex
-  return df
 
 
 def parse_json(value: str) -> Dict:

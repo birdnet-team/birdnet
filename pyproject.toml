@@ -42,7 +42,7 @@ dependencies = [
 
 [project.optional-dependencies]
 and-cuda = ["tensorflow[and-cuda]==2.15.1"]
-dev = ["pytest", "pytest-cov", "pytest-xdist", "tox", "ruff", "mypy", "rope", "build", "twine", "scipy-stubs"]
+dev = ["pytest", "pytest-cov", "pytest-xdist", "tox", "ruff", "mypy", "rope", "build", "twine", "scipy-stubs", "tuna"]
 
 [project.urls]
 Homepage = "https://github.com/birdnet-team/birdnet"

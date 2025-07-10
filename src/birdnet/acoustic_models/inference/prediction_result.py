@@ -1,18 +1,19 @@
-from __future__ import annotations
+from __future__ import annotations  # seit Py 3.7, ab Py 3.11 Standard
 
 import csv
 import os
-import tempfile
 import time
 from pathlib import Path
-from typing import Any, Self
+from typing import TYPE_CHECKING, Any, Self
 
-import numpy as np
-import pandas as pd
+import numpy as np  # alles, was du ohnehin brauchst
 from ordered_set import OrderedSet
 from tqdm import tqdm
 
 from birdnet.acoustic_models.inference.species_tensor import SpeciesTensor
+
+if TYPE_CHECKING:
+  import pandas as pd
 
 
 class PredictionResult:
@@ -116,6 +117,8 @@ def convert_tensor_to_dataframe(
   *,
   silent: bool = False,
 ) -> pd.DataFrame:
+  import pandas as pd
+
   top_k = species_probs.shape[2]
   max_segments = species_probs.shape[1]
   n_files = len(files)

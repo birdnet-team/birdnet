@@ -25,7 +25,6 @@ from pathlib import Path
 from typing import Any, Dict, Literal, final
 
 import numpy as np
-import pandas as pd
 import psutil
 from numpy.typing import DTypeLike
 from ordered_set import OrderedSet
@@ -534,12 +533,31 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     if top_k is None:
       top_k = len(self.species_list)
 
+    if show_stats == "benchmark":
+      print("Starting benchmark...")
+
     track_performance = show_stats in ("progress", "benchmark")
 
     io_lock = mp.Lock() if serial_io else None
     io_lock_handler = IOLockHandler(serial_io, io_lock)
 
     log_file = Path(Path(tempfile.gettempdir()) / f"{PKG_NAME}.log")
+
+    benchmark_dir: Path | None = None
+    benchmark_run_out_dir: Path | None = None
+    iso_time = start_timepoint.strftime("%Y%m%dT%H%M%S")
+    if show_stats == "benchmark":
+      benchmark_dir = get_benchmark_dir(
+        model=AcousticModelBaseV2_4.get_model_type(),
+        version=AcousticModelBaseV2_4.get_version(),
+      )
+
+      benchmark_run_out_dir = benchmark_dir / f"run-{iso_time}"
+      benchmark_run_out_dir.mkdir(parents=True, exist_ok=True)
+
+      log_file = benchmark_run_out_dir / f"log-{iso_time}.log"
+      print(f"Writing logs to: {log_file.absolute()}")
+
     logging_level = get_package_logging_level()
     logging_queue = multiprocessing.Queue()
     logging_listener = multiprocessing.Process(
@@ -1079,23 +1097,22 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       bm = bmm.to_dict()
       # print(bm.items())
 
-      benchmark_dir = get_benchmark_dir(
-        model=AcousticModelBaseV2_4.get_model_type(),
-        version=AcousticModelBaseV2_4.get_version(),
-      )
-      stats_out = (
-        benchmark_dir / f"{end_timepoint.strftime('analyze_%Y%m%dT%H%M%S')}.json"
-      )
-      with open(stats_out, "w", encoding="utf8") as f:
+      assert benchmark_dir is not None
+      assert benchmark_run_out_dir is not None
+
+      meta_df_out = benchmark_dir / "runs.csv"
+      stats_out_json = benchmark_run_out_dir / f"stats-{iso_time}.json"
+      stats_human_readable_out = benchmark_run_out_dir / f"stats-{iso_time}.txt"
+      result_csv = benchmark_run_out_dir / f"result-{iso_time}.csv"
+      result_npz = benchmark_run_out_dir / f"result-{iso_time}.npz"
+
+      with open(stats_out_json, "w", encoding="utf8") as f:
         json.dump(bm, f, indent=2, ensure_ascii=False)
 
-      meta_df_out = benchmark_dir / "analyze.csv"
       meta_df = pd.DataFrame.from_records([bm])
       meta_df.to_csv(
         meta_df_out, mode="a", header=not meta_df_out.exists(), index=False
       )
-
-      meta_human_readable_out = stats_out.with_suffix(".txt")
 
       summary = (
         f"-------------------------------\n"
@@ -1123,7 +1140,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         f"Performance:\n"
         f"  {bmm.speed_total_xrt:.0f} x real-time (RTF: {bmm.speed_total_rtf:.8f})\n"
         f"  {bmm.speed_total_seg_per_second:.0f} segments/s ({bmm.speed_total_audio_per_second} audio/s)\n"
-        f"Computational performance:\n"
+        f"Worker performance:\n"
         f"  {bmm.speed_worker_xrt:.0f} x real-time (RTF: {bmm.speed_worker_rtf:.8f})\n"
         # f"  {bmm.speed_worker_xrt_max:.0f} x real-time (max)\n"
         # f"\tAudio processing (all): {bmm.pc_audio_min_per_s:.2f} min audio/s ({bmm.pc_s_per_audio_h:.2f} s/h audio; {bmm.pc_segments_per_s:.2f} segments/s)\n"
@@ -1132,25 +1149,36 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         # f"\t\tMean (last 30s): {bmm.raw_avg_raw_min_per_s_last:.2f} min audio/s ({bmm.raw_avg_s_for_one_hour_last:.2f} s/h audio; {bmm.raw_avg_segments_per_s_last:.2f} segments/s)\n"
         # f"\t\tBest: {bmm.raw_min_per_s_max:.2f} min audio/s ({bmm.raw_s_for_one_hour_max:.2f} s/h audio; {bmm.raw_segments_per_s_max:.2f} segments/s)\n"
         # f"\tPrediction speed: {bmm.model_pred_ms_per_segment:.2f} ms/segment ({bmm.model_pred_ms_per_batch:.2f} ms/batch)\n"
-        f"Benchmark results written to:\n"
-        f"  {meta_human_readable_out.absolute()}\n"
-        f"  {stats_out.absolute()}\n"
-        f"  {meta_df_out.absolute()}\n"
       )
-      meta_human_readable_out.write_text(summary, encoding="utf8")
+      stats_human_readable_out.write_text(summary, encoding="utf8")
+
+      print("Saving result using internal format (.npz)...")
+      res.dump(result_npz)
+      print("Saving result using CSV format (.csv)...")
+      res.to_csv(result_csv, encoding="utf-8", silent=False)
+
+      summary += (
+        f"-------------------------------\n"
+        f"Benchmark folder:\n"
+        f"  {benchmark_run_out_dir.absolute()}\n"
+        f"Statistics results written to: {benchmark_run_out_dir.absolute()}\n"
+        f"  {stats_human_readable_out.absolute()}\n"
+        f"  {stats_out_json.absolute()}\n"
+        f"  {meta_df_out.absolute()}\n"
+        f"Prediction results written to:\n"
+        f"  {result_npz.absolute()}\n"
+        f"  {result_csv.absolute()}\n"
+        f"Log file written to:\n"
+        f"  {log_file.absolute()}\n"
+      )
       print(summary)
 
     logging_queue.put_nowait(None)
     logging_listener.join()
     bn_logging.remove_queue_handler(queue_handler)
 
-    log_file_iso = log_file.with_stem(
-      f"{PKG_NAME}-{start_timepoint.strftime('%Y%m%dT%H%M%S')}"
+    global_log_file_iso = Path(
+      Path(tempfile.gettempdir()) / f"{PKG_NAME}-{iso_time}.log"
     )
-    shutil.copyfile(log_file, log_file_iso)
-    # print(f"Log file written to: {log_file.absolute()}")
-
-    return res
-    # print(f"Log file written to: {log_file.absolute()}")
-
+    shutil.copyfile(log_file, global_log_file_iso)
     return res

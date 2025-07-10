@@ -6,10 +6,8 @@ from typing import Any, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
-import requests
 import soundfile as sf
 from ordered_set import OrderedSet
-from scipy.signal import butter, lfilter, resample
 from tqdm import tqdm
 
 
@@ -33,6 +31,8 @@ def bandpass_signal(
   assert fmin < fmax
   assert new_fmin >= 0
   assert new_fmin < new_fmax
+
+  from scipy.signal import butter, lfilter
 
   nth_order = 5
   nyquist = rate // 2
@@ -177,6 +177,7 @@ def get_birdnet_app_data_folder() -> Path:
 
 def download_file(url: str, file_path: Path) -> None:
   assert file_path.parent.is_dir()
+  import requests
 
   response = requests.get(url, timeout=30)
   if response.status_code == 200:
@@ -196,6 +197,7 @@ def download_file_tqdm(
   description: Optional[str] = None,
 ) -> int:
   assert file_path.parent.is_dir()
+  import requests
 
   response = requests.get(url, stream=True, timeout=30)
   total_size = int(response.headers.get("content-length", 0))
@@ -274,51 +276,3 @@ def iter_segments_with_overlap(
   for s in count(start, step_duration):
     end = s + segment_duration_s
     yield s, end
-
-
-def resample_array(
-  x: npt.NDArray, sample_rate: int, target_sample_rate: int
-) -> npt.NDArray:
-  assert len(x.shape) == 1
-  assert sample_rate > 0
-  assert target_sample_rate > 0
-
-  if sample_rate == target_sample_rate:
-    return x
-
-  target_sample_count = round(len(x) / sample_rate * target_sample_rate)
-  x_resampled: npt.NDArray = resample(x, target_sample_count)
-  assert x_resampled.dtype == x.dtype
-  return x_resampled
-
-
-def load_audio_in_segments_with_overlap(
-  audio_path: Path,
-  /,
-  *,
-  segment_duration_s: float = 3,
-  overlap_duration_s: float = 0,
-  target_sample_rate: int = 48000,
-) -> Generator[Tuple[float, float, npt.NDArray[np.float32]], None, None]:
-  assert audio_path.is_file()
-
-  sf_info = sf.info(audio_path)
-  is_mono = sf_info.channels == 1
-  assert is_mono
-
-  sample_rate = sf_info.samplerate
-
-  timestamps = get_segments_with_overlap(
-    float(sf_info.duration),
-    float(segment_duration_s),
-    float(overlap_duration_s),
-  )
-
-  for start, end in timestamps:
-    start_samples = round(start * sample_rate)
-    end_samples = round(end * sample_rate)
-    audio, _ = sf.read(
-      audio_path, start=start_samples, stop=end_samples, dtype=np.float32
-    )
-    audio = resample_array(audio, sample_rate, target_sample_rate)
-    yield start, end, audio

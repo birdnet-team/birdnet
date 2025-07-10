@@ -2,32 +2,31 @@
 
 ## General Functionality of the Python Library
 
-The analysis pipeline is divided into five logically distinct components:
+![Birdnet Structure](./img/birdnet-structure.svg)
 
-1. **Result Array** – A three-dimensional matrix in which
-     - **Dimension 1** represents the input files,
-     - **Dimension 2** the consecutive 3-second segments, and
-     - **Dimension 3** the species covered by the model.\
-  Each matrix cell stores the predicted probability for a given species in the corresponding segment of the file.
+The analysis pipeline processes **recordings** with five logically distinct components:
+
+1. **Feeder** – Read the recordings, split them into 3-second segments, group them to batches, and fill the buffer.
 2. **Buffer** – An intermediate store that holds batches of 3-second audio segments.
-3. **Feeder Process(es)** – Read the input files, split them into 3-second segments, group them to batches, and fill the buffer.
-4. **Worker Process(es)** – Take batches from the buffer and perform inference with the model.
-5. **Consumer** – Receives the probabilities calculated by the workers and writes them to the result array.
-
-![Alt text](./img/birdnet-structure.svg)
-<img src="./img/birdnet-structure.svg">
-
+3. **Worker** – Take batches from the buffer and perform inference with the model.
+4. **Consumer** – Receives the probabilities calculated by the *Workers* and writes them to the result array.
+5. **Result** – A three-dimensional matrix in which
+     - **Dimension 1** represents the recordings,
+     - **Dimension 2** the consecutive 3-second segments, and
+     - **Dimension 3** the species covered by the model.
+    - Each matrix cell stores the predicted probability for a given species in the corresponding segment of the file.
+  
 ### Parallelisation and Resource Management
 
-* **Number of Processes** – The numbers of feeder and worker processes are configurable. By default, one (1) feeder is launched, while the number of workers equals the count of *physical* CPU cores in the system.
+* **Number of Processes** – The numbers of *Feeder* and *Worker* processes are configurable. By default, one (1) *Feeder* is launched, while the number of *Workers* equals the count of *physical* CPU cores in the system.
 
-* **Buffer Size** – By default, the buffer is set to twice the worker count, ensuring that every worker always has a pre-loaded batch to process and thus avoids idle time.
+* **Buffer Size** – By default, the buffer is set to twice the *Worker* count, ensuring that every *Worker* always has a pre-loaded batch to process and thus avoids idle time.
 
 * **Model Backends** – Each worker loads its own instance of the inference model. On the CPU, both **TFLite** and **Protocol Buffers** (Protobuf) models can be used; Protobuf models can optionally run on the GPU.
 
-* **Best Practice for CPU Inference** – For CPU-only execution, the number of worker processes should not exceed the number of physical cores, as oversubscription typically leads to reduced performance.
+* **Best Practice for CPU Inference** – For CPU-only execution, the number of *Worker* processes should not exceed the number of physical cores, as oversubscription typically leads to reduced performance.
 
-## Install
+## Setup
 
 A Python 3.11 installation is required. If you don't have it, you can install it from [python.org](https://www.python.org/downloads/release/python-3119/).
 After Python is installed, you can install the `birdnet` package via the provided wheel file. Get newest `birdnet` version via TUCcloud: [https://tuc.cloud/index.php/s/Qtace7JWnTKAe88](https://tuc.cloud/index.php/s/Qtace7JWnTKAe88)
@@ -65,13 +64,43 @@ Just install the new version in the activated environment.
 ## Example Usage
 
 - Show benchmark options: `birdnet-benchmark --help`
-- Predict top 5 species for each segment using CPU und TFLite backend (single file): `birdnet-benchmark soundscape.wav result.csv`
-- Predict all audio files in a directory: `birdnet-benchmark path/to/audio/files/ result.csv`
-- Use Protobuf backend: `birdnet-benchmark soundscape.wav result.csv -b "pb"`
-- Output predictions for top 10 species: `birdnet-benchmark soundscape.wav result.csv --top-k 10 --confidence -100`
-- Run on GPU: `birdnet-benchmark soundscape.wav /tmp/result.csv --backend "pb" --worker 1 --device "GPU" --batch-size 1000`
-- Run on multiple GPUs: `birdnet-benchmark soundscape.wav /tmp/result.csv --backend "pb" --worker 3 --device "GPU:0" "GPU:1" "GPU:2" --batch-size 1000`
-- Increase amount of feeders: `birdnet-benchmark soundscape.wav /tmp/result.csv --feeders 2`
+- Predict top 5 species for each segment using CPU und TFLite backend (single file): `birdnet-benchmark soundscape.wav`
+- Predict all audio files in a directory: `birdnet-benchmark path/to/audio/files/`
+- Use Protobuf backend: `birdnet-benchmark soundscape.wav -b "pb"`
+- Output predictions for top 10 species: `birdnet-benchmark soundscape.wav --top-k 10 --confidence -100`
+- Run on GPU: `birdnet-benchmark soundscape.wav --backend "pb" --worker 1 --device "GPU" --batch-size 1000`
+- Run on three GPUs: `birdnet-benchmark soundscape.wav --backend "pb" --worker 3 --device "GPU:0" "GPU:1" "GPU:2" --batch-size 1000`
+- Increase amount of *Feeders*: `birdnet-benchmark soundscape.wav --feeders 2`
+- Increase *Buffer* size to 3 * *Worker*: `birdnet-benchmark soundscape.wav --prefetch-ratio 2`
+
+### Result Files
+
+The benchmark results are stored in three formats:
+
+* **Text Report** - Provides a concise summary of the key metrics from the most recent run.
+* **JSON File** - Stores the complete set of metrics from the last run in JSON format.
+* **CSV File** - Lists the results of *all* benchmark runs in tabular form.
+
+The species identified and their associated probabilities are first written to a compact internal binary format that is highly space‑efficient and quick to write. In addition, a conventional CSV file is generated in which the first column contains the full path to the recording.
+
+<details>
+
+<summary><b>Example output</b></summary>
+
+```txt
+Benchmark folder:
+  /tmp/birdnet-benchmarks/acoustic-v2.4/run-20250710T103748
+Statistics results written to: /tmp/birdnet-benchmarks/acoustic-v2.4/run-20250710T103748
+  /tmp/birdnet-benchmarks/acoustic-v2.4/run-20250710T103748/stats-20250710T103748.txt
+  /tmp/birdnet-benchmarks/acoustic-v2.4/run-20250710T103748/stats-20250710T103748.json
+  /tmp/birdnet-benchmarks/acoustic-v2.4/runs.csv
+Prediction results written to:
+  /tmp/birdnet-benchmarks/acoustic-v2.4/run-20250710T103748/result-20250710T103748.npz
+  /tmp/birdnet-benchmarks/acoustic-v2.4/run-20250710T103748/result-20250710T103748.csv
+Log file written to:
+  /tmp/birdnet-benchmarks/acoustic-v2.4/run-20250710T103748/log-20250710T103748.log
+```
+</details>
 
 ## Interpretation of Runtime Metrics
 
@@ -79,13 +108,14 @@ During analysis, the key performance indicators are updated and printed once per
 
 | Abbr. | Meaning | Target / Recommendation |
 |-------|---------|-------------------------|
-| **SPEED** | *Acceleration factor* relative to real time (RT). A value of `2 xRT` means that ten minutes of audio can be processed in five minutes. The calculation excludes programme start-up and the one-time model loading per process. SPEED is derived from the mean runtime of all worker processes in relation to the total duration of audio already processed. The number of 3-second segments per second is also reported. | As high as possible; typically ≥ 50 xRT |
+| **SPEED** | *Acceleration factor* relative to real time (RT). A value of `2 xRT` means that ten minutes of audio can be processed in five minutes. The calculation excludes programme start-up and the one-time model loading per process. SPEED is derived from the mean runtime of all *Worker* processes in relation to the total duration of audio already processed. The number of 3-second segments per second is also reported. | As high as possible; typically ≥ 50 xRT |
 | **MEM** | Total main-memory usage of the Python parent process *plus* all subprocesses, including shared memory (in MB). | Keep below the available RAM capacity |
-| **BUF** | Average number of batches in the buffer, shown as *current / maximum*. | For `W` workers: `BUF ≈ 2W / 2W` |
-| **WAIT** | Mean waiting time (in ms) that workers spend waiting for a new batch in the buffer. | NVMe SSDs: ≤ 1 ms |
-| **BUSY** | Average number of simultaneously busy workers, shown as *active / total*. | Aim for `W / W` |
+| **BUF** | Average number of batches in the buffer, shown as *current / maximum*. | For `W` *Workers*: `BUF ≈ 2W / 2W` |
+| **WAIT** | Mean waiting time (in ms) that *Workers* spend waiting for a new batch in the buffer. | NVMe SSDs: ≤ 1 ms |
+| **BUSY** | Average number of simultaneously busy *Workers*, shown as *active / total*. | Aim for `W / W` |
 | **PROG** | Overall analysis progress in %. | Increases linearly from 0 % → 100 % |
 | **ETA** | Estimated time remaining until completion. | As small as possible |
+
 
 ```text
 Example log line
@@ -95,8 +125,8 @@ SPEED: 51 xRT [17 seg/s]; MEM: 1590 M; BUF: 8/8; WAIT: 0.17 ms; BUSY: 4/4; PROG:
 
 ### Typical Bottlenecks and Mitigation Measures
 
-* **High WAIT values or an empty buffer** – Increase the number of feeders. If that is not sufficient, copy the audio data to faster storage (NVMe/SSD) or reduce the number of workers.
-* **BUSY lower than the worker count** – Usually the same bottleneck as above (I/O constraint). Apply the steps listed above.
+* **High WAIT values or an empty buffer** – Increase the number of *Feeders*. If that is not sufficient, copy the audio data to faster storage (NVMe/SSD) or reduce the number of *Workers*.
+* **BUSY lower than the Worker count** – Usually the same bottleneck as above (I/O constraint). Apply the steps listed above.
 * **Cache effect** – Because operating systems cache files in RAM, SPEED often increases markedly on a second pass over the same audio data. For benchmarking, evaluate only runs from the second attempt onwards.
 
 ## Interpretation of Metrics After Analysis
@@ -105,20 +135,25 @@ After the analysis has completed, the benchmark tool reports the following key f
 
 * **Total Execution Time (*Wall Time*)** – The total time in seconds from program start to completion.
 * **Average Buffer Size (*Buffer*)** – The mean number of batches simultaneously present in the working buffer.
-* **Worker Utilisation (*Busy Workers*)** – The average number of workers active in parallel. The mean waiting time until a new batch became available is shown in parentheses.
+* **Worker Utilisation (*Busy Workers*)** – The average number of *Workers* active in parallel. The mean waiting time until a new batch became available is shown in parentheses.
 * **Memory Utilisation (*Memory Usage*)** – The peak main‑memory consumption of the process together with the sizes of the buffer and the result array.
-* **Processing Throughput (*Performance*)** – The speed expressed as a multiple of real time, calculated from the total execution time and the cumulative hours of audio processed. The mean number of segments per second and the audio duration processed per second are also reported.
-* **Computational Performance (*Computational Performance*)** – The final compute speed, identical to the SPEED value after all workers have finished.
+* **Processing Throughput (*Performance*)** – **This is the most informative metric for estimating overall processing speed.** It is expressed as a multiple of real time, calculated by dividing the cumulative hours of audio processed by the total execution time. The report also lists the mean number of 3-second segments processed per second and the corresponding audio duration handled per second.
+* **Computational Performance (*Worker Performance*)** – The final compute speed, identical to the SPEED value after all *Workers* have finished.
 
 ## Comparative Results
 
-### Run 10 h WAV-files on Intel i7-8565U 4-Core with 16 GB RAM (Windows)
+### Run 10 h WAV-files on Intel i7-8565U 4-Core with 16 GB RAM (Windows 10)
 
 - Input: 10x 60 minute WAV-files
 - Disk: NVMe SSD (Intel SSDPEKKF010T8L)
-- CMD: `birdnet-benchmark test-dataset/test_dataset_100x60min /tmp/result.csv -f 5`
+- Device: Lenovo ThinkPad X1 Carbon 7th Gen
 
-```txt
+<details open>
+<summary><b>Result:</b> 49 x real-time (RTF: 0.02047110)</summary>
+
+```sh
+$ birdnet-benchmark test-dataset/test_dataset_100x60min -f 5
+
 -------------------------------
 ------ Benchmark summary ------
 -------------------------------
@@ -141,17 +176,22 @@ Memory usage:
 Performance:
   49 x real-time (RTF: 0.02047110)
   16 segments/s (0:00:48.849346 audio/s)
-Computational performance:
+Worker performance:
   50 x real-time (RTF: 0.01992776)
 ```
+</details>
 
 ### Run 100 h WAV-files on AMD Ryzen 7 3800X 8-Core with 64 GB RAM (Linux)
 
 - Input: 100x 60 minute WAV-files
 - Disk: NVMe SSD (Samsung MZVLB1T0HBLR-00000)
-- CMD: `birdnet-benchmark test-dataset/test_dataset_100x60min /tmp/result.csv -f 5`
 
-```txt
+<details>
+<summary><b>Result:</b> 416 x real-time (RTF: 0.00240288)</summary>
+
+```sh
+$ birdnet-benchmark test-dataset/test_dataset_100x60min -f
+
 -------------------------------
 ------ Benchmark summary ------
 -------------------------------
@@ -174,17 +214,22 @@ Memory usage:
 Performance:
   416 x real-time (RTF: 0.00240288)
   139 segments/s (0:06:56.167916 audio/s)
-Computational performance:
+Worker performance:
   417 x real-time (RTF: 0.00239808)
 ```
+</details>
 
 ### Run 100 h WAV-files on NVIDIA Titan RTX with 24 GB (Linux)
 
 - Input: 100x 60 minute WAV-files
 - Disk: NVMe SSD (Samsung MZVLB1T0HBLR-00000)
-- CMD: `birdnet-benchmark test-dataset/test_dataset_100x60min /tmp/result.csv --device GPU --backend pb -w 1 -f 5 -s 1025`
 
-```txt
+<details>
+<summary><b>Result:</b> 2494 x real-time (RTF: 0.00040099)</summary>
+
+```sh
+$ birdnet-benchmark test-dataset/test_dataset_100x60min --device GPU --backend pb -w 1 -f 5 -s 1025
+
 -------------------------------
 ------ Benchmark summary ------
 -------------------------------
@@ -207,17 +252,22 @@ Memory usage:
 Performance:
   2494 x real-time (RTF: 0.00040099)
   831 segments/s (0:41:33.802132 audio/s)
-Computational performance:
+Worker performance:
   2614 x real-time (RTF: 0.00038252)
 ```
+</details>
 
 ### Run 100 h FLAC-files on NVIDIA Titan RTX with 24 GB (Linux)
 
 - Input: 100x 60 minute FLAC-files
 - Disk: NVMe SSD (Samsung MZVLB1T0HBLR-00000)
-- CMD: `birdnet-benchmark test-dataset/test_dataset_100x60min_flac /tmp/result.csv --device GPU --backend pb -w 1 -f 5 -s 1025`
 
-```txt
+<details>
+<summary><b>Result:</b> 2487 x real-time (RTF: 0.00040214)</summary>
+
+```sh
+$ birdnet-benchmark test-dataset/test_dataset_100x60min_flac --device GPU --backend pb -w 1 -f 5 -s 1025
+
 -------------------------------
 ------ Benchmark summary ------
 -------------------------------
@@ -240,12 +290,7 @@ Memory usage:
 Performance:
   2487 x real-time (RTF: 0.00040214)
   829 segments/s (0:41:26.688317 audio/s)
-Computational performance:
+Worker performance:
   2602 x real-time (RTF: 0.00038431)
 ```
-
-## Benchmarking
-
-- Location of log file:
-  - Windows: `C:\Users\{user}\AppData\Local\Temp\birdnet.log`
-  - Linux/MacOS: `/tmp/birdnet.log`
+</details>

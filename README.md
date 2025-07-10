@@ -53,6 +53,13 @@ pip install birdnet[and-cuda] --user
 - WVE
 - XI
 
+## Location of Log File
+
+If something goes wrong, you can find the log file in the following locations:
+
+- Windows: `C:\Users\{user}\AppData\Local\Temp\birdnet.log`
+- Linux/MacOS: `/tmp/birdnet.log`
+
 ## Example usage
 
 ### Identify species within an audio file

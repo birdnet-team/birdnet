@@ -12,7 +12,6 @@ from pathlib import Path
 import numpy as np
 import numpy.typing as npt
 import soundfile as sf
-from scipy.signal import resample
 
 import birdnet.logging_utils as bn_logging
 from birdnet.globals import (
@@ -75,6 +74,9 @@ def resample_array(
     return x
 
   target_sample_count = round(len(x) / sample_rate * target_sample_rate)
+
+  from scipy.signal import resample
+
   x_resampled: npt.NDArray = resample(x, target_sample_count)
   assert x_resampled.dtype == x.dtype
   return x_resampled
