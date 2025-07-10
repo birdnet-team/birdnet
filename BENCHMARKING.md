@@ -1,12 +1,40 @@
 # Birdnet Benchmark Command-line Tool
 
+## General Functionality of the Python Library
+
+The analysis pipeline is divided into five logically distinct components:
+
+1. **Result Array** – A three-dimensional matrix in which
+     - **Dimension 1** represents the input files,
+     - **Dimension 2** the consecutive 3-second segments, and
+     - **Dimension 3** the species covered by the model.\
+  Each matrix cell stores the predicted probability for a given species in the corresponding segment of the file.
+2. **Buffer** – An intermediate store that holds batches of 3-second audio segments.
+3. **Feeder Process(es)** – Read the input files, split them into 3-second segments, group them to batches, and fill the buffer.
+4. **Worker Process(es)** – Take batches from the buffer and perform inference with the model.
+5. **Consumer** – Receives the probabilities calculated by the workers and writes them to the result array.
+
+![Alt text](./img/birdnet-structure.svg)
+<img src="./img/birdnet-structure.svg">
+
+### Parallelisation and Resource Management
+
+* **Number of Processes** – The numbers of feeder and worker processes are configurable. By default, one (1) feeder is launched, while the number of workers equals the count of *physical* CPU cores in the system.
+
+* **Buffer Size** – By default, the buffer is set to twice the worker count, ensuring that every worker always has a pre-loaded batch to process and thus avoids idle time.
+
+* **Model Backends** – Each worker loads its own instance of the inference model. On the CPU, both **TFLite** and **Protocol Buffers** (Protobuf) models can be used; Protobuf models can optionally run on the GPU.
+
+* **Best Practice for CPU Inference** – For CPU-only execution, the number of worker processes should not exceed the number of physical cores, as oversubscription typically leads to reduced performance.
+
 ## Install
 
-Get newest `birdnet` version via TUCcloud: [https://tuc.cloud/index.php/s/Qtace7JWnTKAe88](https://tuc.cloud/index.php/s/Qtace7JWnTKAe88)
-
 A Python 3.11 installation is required. If you don't have it, you can install it from [python.org](https://www.python.org/downloads/release/python-3119/).
+After Python is installed, you can install the `birdnet` package via the provided wheel file. Get newest `birdnet` version via TUCcloud: [https://tuc.cloud/index.php/s/Qtace7JWnTKAe88](https://tuc.cloud/index.php/s/Qtace7JWnTKAe88)
 
-### Preparation on Windows (CMD)
+The installation process creates a virtual Python environment called `.venv-bn` and installs the `birdnet` package into it. This is recommended to avoid conflicts with other Python packages.
+
+### Install on Windows (CMD)
 
 ```cmd
 py -3.11 -m venv .venv-bn
@@ -16,7 +44,7 @@ python.exe -m pip install wheel
 python.exe -m pip install birdnet-0.2.0a0-py3-none-any.whl
 ```
 
-### Preparation on Linux (Bash)
+### Install on Linux (Bash)
 
 ```sh
 python3.11 -m venv .venv-bn
@@ -43,31 +71,7 @@ Just install the new version in the activated environment.
 - Output predictions for top 10 species: `birdnet-benchmark soundscape.wav result.csv --top-k 10 --confidence -100`
 - Run on GPU: `birdnet-benchmark soundscape.wav /tmp/result.csv --backend "pb" --worker 1 --device "GPU" --batch-size 1000`
 - Run on multiple GPUs: `birdnet-benchmark soundscape.wav /tmp/result.csv --backend "pb" --worker 3 --device "GPU:0" "GPU:1" "GPU:2" --batch-size 1000`
-- Increase amount of data feeders: `birdnet-benchmark soundscape.wav /tmp/result.csv --feeders 2`
-## General Functionality of the Python Library
-
-The analysis pipeline is divided into five logically distinct components:
-
-1. **Result Array**: A three-dimensional matrix in which
-     - **Dimension 1** represents the input files,
-     - **Dimension 2** the consecutive 3-second segments, and
-     - **Dimension 3** the species covered by the model.\
-  Each matrix cell stores the predicted probability for a given species in the corresponding segment of the file.
-2. **Buffer**: An intermediate store that holds batches of 3-second audio segments.
-3. **Feeder Process(es)**: Read the input files, split them into 3-second segments, group them to batches, and fill the buffer.
-4. **Worker Process(es)**: Take batches from the buffer and perform inference with the model.
-5. **Consumer**:    Receives the probabilities calculated by the workers and writes them to the result array.
-
-### Parallelisation and Resource Management
-
-* **Number of Processes**: The numbers of feeder and worker processes are configurable. By default, one (1) feeder is launched, while the number of workers equals the count of *physical* CPU cores in the system.
-
-* **Buffer Size**: By default, the buffer is set to twice the worker count, ensuring that every worker always has a pre-loaded batch to process and thus avoids idle time.
-
-* **Model Backends**: Each worker loads its own instance of the inference model. On the CPU, both **TFLite** and **Protocol Buffers** (Protobuf) models can be used; Protobuf models can optionally run on the GPU.
-
-* **Best Practice for CPU Inference**
-  For CPU-only execution, the number of worker processes should not exceed the number of physical cores, as oversubscription typically leads to reduced performance.
+- Increase amount of feeders: `birdnet-benchmark soundscape.wav /tmp/result.csv --feeders 2`
 
 ## Interpretation of Runtime Metrics
 
@@ -91,11 +95,20 @@ SPEED: 51 xRT [17 seg/s]; MEM: 1590 M; BUF: 8/8; WAIT: 0.17 ms; BUSY: 4/4; PROG:
 
 ### Typical Bottlenecks and Mitigation Measures
 
-* **High WAIT values or an empty buffer**: Increase the number of feeders. If that is not sufficient, copy the audio data to faster storage (NVMe/SSD) or reduce the number of workers.
+* **High WAIT values or an empty buffer** – Increase the number of feeders. If that is not sufficient, copy the audio data to faster storage (NVMe/SSD) or reduce the number of workers.
+* **BUSY lower than the worker count** – Usually the same bottleneck as above (I/O constraint). Apply the steps listed above.
+* **Cache effect** – Because operating systems cache files in RAM, SPEED often increases markedly on a second pass over the same audio data. For benchmarking, evaluate only runs from the second attempt onwards.
 
-* **BUSY lower than the worker count**: Usually the same bottleneck as above (I/O constraint). Apply the steps listed above.
+## Interpretation of Metrics After Analysis
 
-* **Cache effect**: Because operating systems cache files in RAM, SPEED often increases markedly on a second pass over the same audio data. For benchmarking, evaluate only runs from the second attempt onwards.
+After the analysis has completed, the benchmark tool reports the following key figures:
+
+* **Total Execution Time (*Wall Time*)** – The total time in seconds from program start to completion.
+* **Average Buffer Size (*Buffer*)** – The mean number of batches simultaneously present in the working buffer.
+* **Worker Utilisation (*Busy Workers*)** – The average number of workers active in parallel. The mean waiting time until a new batch became available is shown in parentheses.
+* **Memory Utilisation (*Memory Usage*)** – The peak main‑memory consumption of the process together with the sizes of the buffer and the result array.
+* **Processing Throughput (*Performance*)** – The speed expressed as a multiple of real time, calculated from the total execution time and the cumulative hours of audio processed. The mean number of segments per second and the audio duration processed per second are also reported.
+* **Computational Performance (*Computational Performance*)** – The final compute speed, identical to the SPEED value after all workers have finished.
 
 ## Comparative Results
 
