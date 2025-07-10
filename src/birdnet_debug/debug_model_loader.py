@@ -188,7 +188,7 @@ if __name__ == "__main__":
     feeders=params["n_producers"],
     batch_size=params["batch_size"],
     prefetch_ratio=params["prefetch_ratio"],
-    apply_sigmoid=False,
+    apply_sigmoid=True,
     top_k=1,
     overlap_duration_s=1,
     sigmoid_sensitivity=1,
@@ -196,7 +196,7 @@ if __name__ == "__main__":
     half_precision=True,
     device=params["device"],
     show_stats="benchmark",
-    serial_io=False,
+    serial_io=True,
     # custom_confidence_thresholds={
     #   "Junco hyemalis_Dark-eyed Junco": -np.inf,
     #   "Haemorhous mexicanus_House Finch": 0.1,
