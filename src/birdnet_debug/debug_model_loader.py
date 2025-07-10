@@ -159,9 +159,9 @@ if __name__ == "__main__":
   audio_paths = [Path("src\\birdnet_v2_debug\\10min.wav")]
   audio_paths = [Path("src\\birdnet_v2_debug\\60min.wav")]
 
-  audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
   audio_paths = get_pow_file_paths()
   audio_paths = [Path("example/soundscape.wav")]
+  audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
 
   params = {
     "n_workers": 4,
@@ -189,7 +189,7 @@ if __name__ == "__main__":
     batch_size=params["batch_size"],
     prefetch_ratio=params["prefetch_ratio"],
     apply_sigmoid=True,
-    top_k=1,
+    top_k=5,
     overlap_duration_s=1,
     sigmoid_sensitivity=1,
     default_confidence_threshold=-np.inf,

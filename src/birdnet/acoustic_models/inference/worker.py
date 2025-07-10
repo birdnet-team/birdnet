@@ -22,7 +22,7 @@ from birdnet.globals import (
 )
 from birdnet.helper import RingField, uint_dtype_for
 from birdnet.io_lock import IOLockHandler
-from birdnet.utils import flat_sigmoid
+from birdnet.utils import flat_sigmoid_logaddexp
 
 # try:
 #   import tflite_runtime.interpreter as tflite
@@ -311,7 +311,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
 
       if self._apply_sigmoid:
         assert self._sigmoid_sensitivity is not None
-        pred = flat_sigmoid(
+        pred = flat_sigmoid_logaddexp(
           pred,
           sensitivity=-self._sigmoid_sensitivity,
         )

@@ -141,10 +141,22 @@ def fillup_with_silence(
 def flat_sigmoid(
   x: npt.NDArray[np.float32], sensitivity: float
 ) -> npt.NDArray[np.float32]:
+  # DON'T Use because -> RuntimeWarning: overflow encountered in exp 1.0 + np.exp(sensitivity * np.clip(x, -15, 15))
   result: npt.NDArray[np.float32] = 1.0 / (
     1.0 + np.exp(sensitivity * np.clip(x, -15, 15))
   )
   return result
+
+
+def flat_sigmoid_logaddexp(x: npt.NDArray, sensitivity: float, clip_val=15.0):
+  y = sensitivity * np.clip(x, -clip_val, clip_val)
+  exp_neg = np.exp(-np.abs(y), dtype=x.dtype)
+  out = np.where(
+    y >= 0,
+    exp_neg / (1.0 + exp_neg),  # y ≥ 0  →  exp(-y) / (1 + exp(-y))
+    1.0 / (1.0 + exp_neg),  # y < 0  →  1 / (1 + exp(|y|))
+  )
+  return out
 
 
 def sigmoid_inverse(x: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:

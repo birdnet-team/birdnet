@@ -36,15 +36,20 @@ class AcousticTFBackend(AcousticInferenceBackend):
     logging.getLogger("tensorflow").setLevel(logging.WARNING)
     os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
-    from tensorflow.lite.python import interpreter as tflite
     # import tflite_runtime.interpreter as tflite
+    from tensorflow.lite.python import interpreter as tflite
+    from tensorflow.lite.python.interpreter import OpResolverType
 
     # memory_map not working for TF 2.15.1:
     # f = open(self._model_path, "rb")
     # self._mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
     with io_lock_handler:
       start = time.perf_counter()
-      interp = tflite.Interpreter(self._model_path, num_threads=1)
+      interp = tflite.Interpreter(
+        self._model_path,
+        num_threads=1,
+        experimental_op_resolver_type=OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,  # tensor#187 is a dynamic-sized tensor
+      )
       end = time.perf_counter()
     logger = get_logger(__name__)
     logger.debug(
