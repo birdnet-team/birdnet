@@ -30,9 +30,9 @@ birdnet-benchmark test-dataset/test_dataset_4x60min /tmp/soundscape.csv --device
 birdnet-benchmark test-dataset/test_dataset_1x1440min /tmp/soundscape.csv --device GPU --backend pb -w 12
 
 # Error
-birdnet-benchmark test-dataset/test_dataset_1x1440min /tmp/soundscape.csv --device GPU --backend pb -w 25
+birdnet-benchmark test-dataset/test_dataset_1x1440min --device GPU --backend pb -w 25
 
-birdnet-benchmark test-dataset/test_dataset_100x60min /tmp/soundscape.csv --device GPU --backend pb -w 11 -f 4
+birdnet-benchmark test-dataset/test_dataset_100x60min --device GPU --backend pb -w 11 -f 4
 # Wall time:  0:04:18.202865
 # Feeder(s): 4
 # Buffer: 21.7/22 filled slots (mean)
