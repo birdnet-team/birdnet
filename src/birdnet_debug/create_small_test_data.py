@@ -9,7 +9,7 @@ from tqdm import tqdm
 # Load the audio file
 INPUT_FILE = Path("example/soundscape.wav")
 INPUT_FILE_DUR_S = 0.2
-N_FILES = 100000
+N_FILES = 1000
 DTYPE = ".flac"
 
 OUTPUT_FOLDER_BASE = Path("/data/test-dataset")

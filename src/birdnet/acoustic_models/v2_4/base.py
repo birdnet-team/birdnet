@@ -21,7 +21,7 @@ from pathlib import Path
 
 # Next two import lines for this demo only
 # backend_protocol.py
-from typing import Any, Literal, final
+from typing import Any, Literal, cast, final
 
 import numpy as np
 import psutil
@@ -88,35 +88,35 @@ class MinimalBenchmarkMeta:
     return str(timedelta(seconds=self._time_wall_time_s))
 
   # Dataset
-  file_count: int
-  _file_durations_total: float
-  _file_durations_average: float
-  _file_durations_minimum: float
-  _file_durations_maximum: float
+  _file_durations: np.ndarray
+
+  @property
+  def file_count(self) -> int:
+    return len(self._file_durations)
 
   @property
   def file_duration_sum(self) -> str:
     if self.file_count == 0:
       return "N/A"
-    return str(timedelta(seconds=self._file_durations_total))
+    return str(timedelta(seconds=float(self._file_durations.sum())))
 
   @property
   def file_duration_average(self) -> str:
     if self.file_count == 0:
       return "N/A"
-    return str(timedelta(seconds=self._file_durations_average))
+    return str(timedelta(seconds=float(self._file_durations.mean())))
 
   @property
   def file_duration_minimum(self) -> str:
     if self.file_count == 0:
       return "N/A"
-    return str(timedelta(seconds=self._file_durations_minimum))
+    return str(timedelta(seconds=float(self._file_durations.min())))
 
   @property
   def file_duration_maximum(self) -> str:
     if self.file_count == 0:
       return "N/A"
-    return str(timedelta(seconds=self._file_durations_maximum))
+    return str(timedelta(seconds=float(self._file_durations.max())))
 
   file_formats: str
 
@@ -717,13 +717,16 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       lock=True,
     )  # type: ignore
 
-    pred_dur_queue = mp.SimpleQueue()
-    analyzer_queue = mp.SimpleQueue()
-    perf_res_queue: mp.SimpleQueue | None = None
+    pred_dur_queue = mp.Queue()
+    analyzer_queue = mp.Queue()
+    perf_res_queue: mp.Queue | None = None
+    perf_result: PerformanceTrackingResult | None = None
     perf_stop_event = mp.Event()
     cancel_event = mp.Event()
     tot_n_segments_ptr = mp.RawValue(ctypes.c_uint64, 0)
-    files_queue = mp.Queue()
+    files_queue = mp.Queue(
+      len(file_paths) + feeders
+    )  # SimpleQueue would block on put() after few items, but Queue need to be filled before
     for file_idx, file_path in enumerate(file_paths):
       files_queue.put((file_idx, file_path), block=False)
     for _ in range(feeders):
@@ -846,7 +849,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
 
       perf_tracker = None
       if track_performance:
-        perf_res_queue = mp.SimpleQueue()
+        perf_res_queue = mp.Queue()
         perf_tracker = mp.Process(
           target=PerformanceTracker(
             pred_dur_queue,
@@ -880,6 +883,10 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       )
       consumer()
 
+      file_durations = np.array(
+        cast(list[float], analyzer_queue.get()), dtype=np.float16
+      )
+      analyzer_queue.close()
       file_analyzer_proc.join()
       logger.debug("File analyzer finished.")
 
@@ -898,7 +905,9 @@ class AcousticModelBaseV2_4(AcousticModelBase):
 
       if track_performance:
         assert perf_tracker is not None
+        assert perf_res_queue is not None
         perf_stop_event.set()
+        perf_result = cast(PerformanceTrackingResult, perf_res_queue.get())
         perf_tracker.join()
         logger.debug("Performance tracker finished.")
 
@@ -920,17 +929,11 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     del result
 
     if show_stats in ("minimal", "progress"):
-      analyzer_res: FilesAnalyzerMeta = analyzer_queue.get()
-
       bmm = MinimalBenchmarkMeta(
         _start_timepoint=start_timepoint,
         _end_timepoint=end_timepoint,
         _time_wall_time_s=stop - start,
-        file_count=n_files,
-        _file_durations_total=analyzer_res.file_sum_durations_s,
-        _file_durations_average=analyzer_res.file_mean_durations_s,
-        _file_durations_minimum=analyzer_res.file_min_durations_s,
-        _file_durations_maximum=analyzer_res.file_max_durations_s,
+        _file_durations=file_durations,
         mem_result_total_memory_usage_MiB=res.memory_size_mb,
         mem_shm_size_file_indices_MiB=rf_file_indices.nbytes / 1024**2,
         mem_shm_size_segment_indices_MiB=rf_segment_indices.nbytes / 1024**2,
@@ -963,12 +966,9 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       )
       print(summary)
     elif show_stats == "benchmark":
-      assert track_performance
-      assert perf_res_queue is not None
-      perf_result: PerformanceTrackingResult = perf_res_queue.get()
+      assert perf_result is not None
 
       logger.info("Benchmarking is enabled. Collecting performance data...")
-      analyzer_res: FilesAnalyzerMeta = analyzer_queue.get()
 
       bmm = FullBenchmarkMeta(
         _start_timepoint=start_timepoint,
@@ -981,11 +981,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         model_is_custom=self.use_custom_model,
         model_path=str(self.model_path.absolute()),
         model_species=self.n_species,
-        file_count=n_files,
-        _file_durations_total=analyzer_res.file_sum_durations_s,
-        _file_durations_average=analyzer_res.file_mean_durations_s,
-        _file_durations_minimum=analyzer_res.file_min_durations_s,
-        _file_durations_maximum=analyzer_res.file_max_durations_s,
+        _file_durations=file_durations,
         file_segments_maximum=max_segment_idx_ptr.value + 1,
         file_segments_total=tot_n_segments_ptr.value,
         model_segment_duration_seconds=AcousticModelBaseV2_4.get_segment_size_s(),

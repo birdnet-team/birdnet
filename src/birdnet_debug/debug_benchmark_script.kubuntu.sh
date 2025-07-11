@@ -37,3 +37,4 @@ birdnet-benchmark test-dataset/test_dataset_10000x2min_flac
 
 birdnet-benchmark test-dataset/test_dataset_100000x4s_flac
 birdnet-benchmark test-dataset/test_dataset_100000x0.2s_flac
+birdnet-benchmark test-dataset/test_dataset_10000x0.2s_flac

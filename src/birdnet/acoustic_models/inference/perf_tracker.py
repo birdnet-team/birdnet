@@ -66,7 +66,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     workers_start: float,
     logging_queue: mp.Queue,
     logging_level: int,
-    perf_res: mp.SimpleQueue,
+    perf_res: mp.Queue,
     sem_active_workers: Semaphore,
     segment_size_s: float,
     parent_process_id: int,
@@ -380,6 +380,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       # avg_segments_per_s_last=(np.mean(avg_segments_per_s) if avg_segments_per_s else 0),
     )
 
-    self._perf_res.put(stats)
+    self._perf_res.put(stats, block=False)
 
     self._uninit_logging()

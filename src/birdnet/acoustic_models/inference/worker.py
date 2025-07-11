@@ -57,7 +57,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
     prob_dtype: DTypeLike,
     apply_sigmoid: bool,
     sigmoid_sensitivity: float | None,
-    pred_dur_queue: mp.SimpleQueue,
+    pred_dur_queue: mp.Queue,
     track_performance: bool,
     logging_queue: mp.Queue,
     logging_level: int,
@@ -354,7 +354,8 @@ class ChildWorker(bn_logging.LogableProcessBase):
             wait_time_for_batch,
             prediction_duration,
             n,
-          )
+          ),
+          block=False,
         )
         warm_up_start = 0  # reset warm-up start after first prediction
 

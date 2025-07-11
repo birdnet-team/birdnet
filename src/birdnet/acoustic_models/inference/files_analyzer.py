@@ -31,7 +31,7 @@ class FilesAnalyzer(bn_logging.LogableProcessBase):
     overlap_duration_s: float,
     rf_segment_indices: RingField,
     max_segment_idx_ptr: mp.RawValue,
-    analyzing_result: mp.SimpleQueue,
+    analyzing_result: mp.Queue,
     tot_n_segments: ctypes.c_uint64,
     cancel_event: Event,
     io_lock_handler: IOLockHandler,
@@ -89,7 +89,7 @@ class FilesAnalyzer(bn_logging.LogableProcessBase):
       file_sum_durations_s=np.sum(durations),
     )
     self._logger.debug("Putting analyzing result into queue.")
-    self._analyzing_result.put(res)
+    self._analyzing_result.put(durations, block=False)
     self._logger.debug("Done putting analyzing result into queue.")
     self._logger.info(
       f"Total duration of all files: {res.file_sum_durations_s / 60**2:.2f} h."
