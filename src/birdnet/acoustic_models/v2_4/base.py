@@ -51,6 +51,7 @@ from birdnet.base import (
 )
 from birdnet.globals import PKG_NAME, WRITABLE_FLAG
 from birdnet.helper import (
+  SF_FORMATS,
   RingField,
   create_shm_ring,
   get_max_n_segments,
@@ -585,15 +586,20 @@ class AcousticModelBaseV2_4(AcousticModelBase):
 
     logger.info("Getting input files...")
     parsed_audio_paths = set()
-    if isinstance(inp, (Path, str)):
+    if isinstance(inp, Path | str):
       inp = (Path(inp),)
 
     if isinstance(inp, Iterable):
       for inp_audio in inp:
-        if isinstance(inp_audio, (Path, str)):
+        if isinstance(inp_audio, Path | str):
           inp_path = Path(inp_audio)
           if inp_path.is_file():
-            parsed_audio_paths.add(inp_path.absolute())
+            if inp_path.suffix.upper() in SF_FORMATS:
+              parsed_audio_paths.add(inp_path.absolute())
+            else:
+              raise ValueError(
+                f"Input file '{inp_path}' is not a supported audio format! Supported formats: {sorted(SF_FORMATS)}."
+              )
           elif inp_path.is_dir():
             parsed_audio_paths.update(get_supported_audio_files(inp_path))
           else:
@@ -1195,4 +1201,5 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       Path(tempfile.gettempdir()) / f"{PKG_NAME}-{iso_time}.log"
     )
     shutil.copyfile(log_file, global_log_file_iso)
+    return res
     return res

@@ -11,17 +11,17 @@ pip install birdnet-0.1.7-py3-none-any.whl --force-reinstall
 
 # Birdnet benchmark command line tool
 
-birdnet-benchmark example/soundscape.wav /tmp/result.csv --top-k 6522 --confidence -100
-birdnet-benchmark example/soundscape.wav /tmp/result.csv --top-k 10 --confidence -100
+birdnet-benchmark example/soundscape.wav --top-k 6522 --confidence -100
+birdnet-benchmark example/soundscape.wav --top-k 10 --confidence -100
 
-birdnet-benchmark example/soundscape.wav /tmp/result.csv --serial-io -w 1
-birdnet-benchmark example/soundscape.wav /tmp/result.csv -w 1 --prefetch-ratio 2
-birdnet-benchmark example/soundscape.wav /tmp/result.csv -w 1 --prefetch-ratio 3 -p 1
+birdnet-benchmark example/soundscape.wav --serial-io -w 1
+birdnet-benchmark example/soundscape.wav -w 1 --prefetch-ratio 2
+birdnet-benchmark example/soundscape.wav -w 1 --prefetch-ratio 3 -p 1
 
 
-birdnet-benchmark example/soundscape.wav test-dataset/test_dataset_1x10min/0.wav /tmp/result.csv --top-k 10 --confidence -100
+birdnet-benchmark example/soundscape.wav test-dataset/test_dataset_1x10min/0.wav --top-k 10 --confidence -100
 
-birdnet-benchmark src/birdnet_debug/audio_formats/soundscape_stereo.wav test-dataset/test_dataset_1x10min/0.wav /tmp/result.csv --top-k 10 --confidence -100
+birdnet-benchmark src/birdnet_debug/audio_formats/soundscape_stereo.wav test-dataset/test_dataset_1x10min/0.wav --top-k 10 --confidence -100
 
 birdnet-benchmark example/soundscape.wav /tmp/soundscape.csv --device GPU --backend pb
 
@@ -49,17 +49,18 @@ birdnet-benchmark test-dataset/test_dataset_100x60min /tmp/soundscape.csv --devi
 #   465 segments/s (0:23:14.252536 audio/s)
   
 # Batchsize max. 1025 on Titan RTX
-birdnet-benchmark test-dataset/test_dataset_100x60min /tmp/result.csv --device GPU --backend pb -w 1 -f 5 -s 1025
+birdnet-benchmark test-dataset/test_dataset_100x60min --device GPU --backend pb -w 1 -f 5 -s 1025
 
-birdnet-benchmark test-dataset/test_dataset_100x60min_flac /tmp/result.csv --device GPU --backend pb -w 1 -f 5 -s 1025
-
-
-birdnet-benchmark test-dataset/test_dataset_100x60min /tmp/result.csv -w 8 -f 5
-
-birdnet-benchmark test-dataset/test_dataset_100x60min /tmp/result.csv --device GPU --backend pb -w 8 -f 5
+birdnet-benchmark test-dataset/test_dataset_100x60min_flac --device GPU --backend pb -w 1 -f 5 -s 1025
 
 
-birdnet-benchmark /data/datasets/l2arctic --device GPU --backend pb -w 1 -f 6 -s 1025
+birdnet-benchmark test-dataset/test_dataset_100x60min -w 8 -f 5
+
+birdnet-benchmark test-dataset/test_dataset_100x60min --device GPU --backend pb -w 8 -f 5 --confidence "-1" --top-k 1
+
+
+birdnet-benchmark /data/datasets/l2arctic --device GPU --backend pb -w 1 -f 6 -s 1025 --confidence "-1" --top-k 1
+
 # Wall time:  0:01:28.809129
 # Input: 26889 file(s) (WAV)
 #   Total duration: 1 day, 3:30:31.551406
