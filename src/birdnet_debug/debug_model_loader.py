@@ -196,7 +196,7 @@ if __name__ == "__main__":
     prefetch_ratio=params["prefetch_ratio"],
     apply_sigmoid=True,
     top_k=1,
-    overlap_duration_s=0.33,
+    overlap_duration_s=0,
     sigmoid_sensitivity=1,
     default_confidence_threshold=-np.inf,
     half_precision=False,

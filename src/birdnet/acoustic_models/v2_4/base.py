@@ -279,12 +279,28 @@ class FullBenchmarkMeta(MinimalBenchmarkMeta):
     return 1 / self.speed_worker_xrt
 
   speed_worker_xrt_max: float
+  _worker_avg_wall_time_s: float
 
   @property
   def _speed_worker_rtf_max(self) -> float:
     if self.speed_worker_xrt_max == 0.0:
       return 0.0
     return 1 / self.speed_worker_xrt_max
+
+  @property
+  def speed_worker_total_seg_per_second(self) -> float:
+    if self.file_segments_total == 0:
+      return 0.0
+    return self.file_segments_total / self._worker_avg_wall_time_s
+
+  @property
+  def speed_worker_total_audio_per_second(self) -> str:
+    if self.file_segments_total == 0:
+      return "N/A"
+    result_s = (
+      self.file_segments_total * self.model_segment_duration_seconds
+    ) / self._worker_avg_wall_time_s
+    return str(timedelta(seconds=result_s))
 
   # Memory
   mem_shm_ringsize: int
@@ -974,6 +990,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         _end_timepoint=end_timepoint,
         param_producers=feeders,
         param_workers=workers,
+        _worker_avg_wall_time_s=perf_result.worker_avg_wall_time_s,
         param_devices=", ".join(device) if isinstance(device, list) else device,
         model_type=AcousticModelBaseV2_4.get_model_type(),
         model_version=AcousticModelBaseV2_4.get_version(),
@@ -1138,6 +1155,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         f"  {bmm.speed_total_seg_per_second:.0f} segments/s ({bmm.speed_total_audio_per_second} audio/s)\n"
         f"Worker performance:\n"
         f"  {bmm.speed_worker_xrt:.0f} x real-time (RTF: {bmm.speed_worker_rtf:.8f})\n"
+        f"  {bmm.speed_worker_total_seg_per_second:.0f} segments/s ({bmm.speed_worker_total_audio_per_second} audio/s)\n"
         # f"  {bmm.speed_worker_xrt_max:.0f} x real-time (max)\n"
         # f"\tAudio processing (all): {bmm.pc_audio_min_per_s:.2f} min audio/s ({bmm.pc_s_per_audio_h:.2f} s/h audio; {bmm.pc_segments_per_s:.2f} segments/s)\n"
         # f"\tAudio processing (computation):\n"

@@ -24,6 +24,7 @@ from birdnet.helper import RingField
 class PerformanceTrackingResult:
   worker_speed_xrt: float
   worker_speed_xrt_max: float
+  worker_avg_wall_time_s: float
   total_segments_processed: int
   total_batches_processed: int
   ramp_up_time_until_first_pred_s: float | None
@@ -353,6 +354,11 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       worker_speed_xrt=(self._total_segments_processed * self._segment_size_s)
       / sum(worker_wall_time.values())
       * len(worker_wall_time),
+      worker_avg_wall_time_s=(
+        sum(worker_wall_time.values()) / len(worker_wall_time)
+        if len(worker_wall_time) > 0
+        else 0
+      ),
       worker_speed_xrt_max=worker_speed_xrt_max,
       total_segments_processed=self._total_segments_processed,
       total_batches_processed=self._total_batches_processed,
