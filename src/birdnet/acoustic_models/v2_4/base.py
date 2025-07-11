@@ -923,6 +923,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       segment_duration_s=AcousticModelBaseV2_4.get_segment_size_s(),
       overlap_duration_s=overlap_duration_s,
       species_list=self.species_list,
+      file_durations=file_durations,
     )
     del result
 

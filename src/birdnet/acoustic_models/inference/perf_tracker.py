@@ -56,7 +56,7 @@ class PerformanceTrackingResult:
 class PerformanceTracker(bn_logging.LogableProcessBase):
   def __init__(
     self,
-    pred_dur_queue: mp.SimpleQueue,
+    pred_dur_queue: mp.Queue,
     stop_event: Event,
     update_interval: float,
     print_interval: float,
@@ -151,7 +151,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
       while not self._pred_dur_queue.empty():
         worker_pid, warm_up_dur, process_dur, wait_dur, pred_dur, batch_size = (
-          self._pred_dur_queue.get()
+          self._pred_dur_queue.get(block=False)
         )
         self._logger.debug(
           f"PerformanceTracker received prediction duration from worker {worker_pid}: "

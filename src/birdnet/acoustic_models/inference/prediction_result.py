@@ -3,6 +3,7 @@ from __future__ import annotations  # seit Py 3.7, ab Py 3.11 Standard
 import csv
 import os
 import time
+from math import ceil, floor
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 
@@ -11,6 +12,7 @@ from ordered_set import OrderedSet
 from tqdm import tqdm
 
 from birdnet.acoustic_models.inference.species_tensor import SpeciesTensor
+from birdnet.helper import get_max_n_segments, get_max_n_segments_array
 
 if TYPE_CHECKING:
   import pandas as pd
@@ -22,6 +24,7 @@ class PredictionResult:
     tensor: SpeciesTensor,
     files: OrderedSet[Path],
     species_list: OrderedSet[str],
+    file_durations: np.ndarray,
     segment_duration_s: int | float,
     overlap_duration_s: int | float,
   ) -> None:
@@ -35,6 +38,7 @@ class PredictionResult:
     self._species_probs = tensor._species_probs
     self._species_ids = tensor._species_ids
     self._species_masked = tensor._species_masked
+    self._file_durations = file_durations
 
   @property
   def memory_size_mb(self) -> float:
@@ -46,6 +50,7 @@ class PredictionResult:
       + self._segment_duration_s.nbytes
       + self._overlap_duration_s.nbytes
       + self._species_list.nbytes
+      + self._file_durations.nbytes
     ) / 1024**2
 
   @classmethod
@@ -60,6 +65,7 @@ class PredictionResult:
     result._segment_duration_s = data["segment_duration_s"]
     result._overlap_duration_s = data["overlap_duration_s"]
     result._species_list = data["species_list"]
+    result._file_durations = data["file_durations"]
     return result
 
   @property
@@ -69,6 +75,42 @@ class PredictionResult:
   @property
   def overlap_duration_s(self) -> float:
     return float(self._overlap_duration_s)
+
+  @property
+  def file_durations(self) -> np.ndarray:
+    return self._file_durations
+
+  @property
+  def species_list(self) -> np.ndarray:
+    return self._species_list
+
+  @property
+  def species_ids(self) -> np.ndarray:
+    return self._species_ids
+
+  @property
+  def species_probs(self) -> np.ndarray:
+    return self._species_probs
+
+  @property
+  def species_masked(self) -> np.ndarray:
+    return self._species_masked
+
+  @property
+  def files(self) -> np.ndarray:
+    return self._files
+
+  @property
+  def n_files(self) -> int:
+    return len(self._files)
+
+  @property
+  def n_segments(self) -> int:
+    return self._species_ids.shape[1]
+
+  @property
+  def n_species(self) -> int:
+    return self._species_ids.shape[2]
 
   def dump(self, npz_out_path: os.PathLike | str, /, *, compress: bool = True) -> None:
     npz_out_path = Path(npz_out_path)
@@ -86,6 +128,7 @@ class PredictionResult:
       segment_duration_s=self._segment_duration_s,
       overlap_duration_s=self._overlap_duration_s,
       species_list=self._species_list,
+      file_durations=self._file_durations,
     )
 
   def to_dataframe(self) -> pd.DataFrame:
@@ -182,38 +225,56 @@ def convert_tensor_to_dataframe(
   return df
 
 
+def format_time_hms(seconds: float) -> str:
+  """
+  Formats a time in seconds to a byte string in the format HH:MM:SS.
+  """
+  result = time.strftime("%H:%M:%S", time.gmtime(seconds))
+  return result
+
+
+def hms_centis_fast(v: float) -> str:
+  h, rem = divmod(v, 3600)
+  m, s = divmod(rem, 60)  # s bleibt Float
+  return f"{int(h):02}:{int(m):02}:{s:05.2f}"
+
+
 def fast_save_tensor_to_csv(
   result: PredictionResult,
   out_path: os.PathLike | str,
   *,
   buf_KiB: int = 256,
-  encoding="utf-8",
+  encoding: str = "utf-8",
   silent: bool = False,
 ) -> None:
-  sid = result._species_ids
-  sprob = result._species_probs
-  smask = ~result._species_masked
-  top_k = result._species_probs.shape[2]
-  n_files = len(result._files)
-  n_segments = result._species_probs.shape[1]
+  sid = result.species_ids
+  sprob = result.species_probs
+  smask = ~result.species_masked
+  top_k = result.species_probs.shape[2]
+  n_files = len(result.files)
+  n_segments = result.species_probs.shape[1]
   hop = result.segment_duration_s - result.overlap_duration_s
 
-  sec = np.arange(n_segments, dtype=np.float64) * hop
-  start_fmt = np.array(
-    [time.strftime("%H:%M:%S", time.gmtime(int(v))).encode(encoding) for v in sec],
-    dtype="S8",
+  segm_starts = np.arange(n_segments, dtype=np.float64) * hop
+  segm_ends = segm_starts + result.segment_duration_s
+  segm_starts_fmt = np.array(
+    [hms_centis_fast(v).encode(encoding) for v in segm_starts],
+    dtype="S11",
   )
-  end_fmt = np.array(
-    [
-      time.strftime("%H:%M:%S", time.gmtime(int(v + result.segment_duration_s))).encode(
-        encoding
-      )
-      for v in sec
-    ],
-    dtype="S8",
+  segm_ends_fmt = np.array(
+    [hms_centis_fast(v).encode(encoding) for v in segm_ends],
+    dtype="S11",
   )
 
-  hdr = b"file,start,end,scientific_name,common_name,confidence\n"
+  max_segments = get_max_n_segments_array(
+    result.file_durations, result.segment_duration_s, result.overlap_duration_s
+  )
+
+  file_ends_fmt_files = np.array(
+    [hms_centis_fast(x).encode(encoding) for x in result.file_durations],
+    dtype="S11",
+  )
+  hdr = b"file,start,end,species,confidence\n"
 
   buf_bytes = buf_KiB * 1024
   block: list[bytes] = []
@@ -228,45 +289,48 @@ def fast_save_tensor_to_csv(
       unit="segment",
       disable=silent,
     ) as pbar:
-      for fi in range(n_files):
-        file_b = result._files[fi].encode(encoding)
-        ids = sid[fi]  # View [segments, top_k]
-        probs = sprob[fi]
-        masks = smask[fi]
+      for file_index in range(n_files):
+        file_b = result.files[file_index].encode(encoding)
+        species_ids = sid[file_index]  # View [segments, top_k]
+        species_probs = sprob[file_index]
+        species_masks = smask[file_index]
+        max_segments_for_file = max_segments[file_index]
+        file_end = result.file_durations[file_index]
 
-        for ci in range(n_segments):
+        for segment_index in range(max_segments_for_file):
           # Bool-Maske für gültige Spezies
-          valid = masks[ci]
+          valid = species_masks[segment_index]
           if not valid.any():
             continue
 
-          s8 = start_fmt[ci]
-          e8 = end_fmt[ci]
+          start_time = segm_starts_fmt[segment_index]
+          if segm_ends[segment_index] <= file_end:
+            end_time = segm_ends_fmt[segment_index]
+          else:
+            end_time = file_ends_fmt_files[file_index]
 
           # Slice ohne Python-Loop
           k_lim = np.argmax(~valid, axis=0) if not valid.all() else top_k
-          sp_ids = ids[ci, :k_lim]
-          sp_conf = probs[ci, :k_lim]
+          ids = species_ids[segment_index, :k_lim]
+          confidences = species_probs[segment_index, :k_lim]
 
           # → Strings zusammenbauen (bytes, weil schneller)
           for k in range(k_lim):
-            name: str = result._species_list[sp_ids[k]]
-            sci = name
-            common = ""
-            if "_" in name:
-              sci, _, common = name.partition("_")
+            name: str = result.species_list[ids[k]]
+            # sci = name
+            # common = ""
+            # if "_" in name:
+            #   sci, _, common = name.partition("_")
             line = (
               file_b
               + b","
-              + s8
+              + start_time
               + b","
-              + e8
+              + end_time
               + b","
-              + sci.encode(encoding)
+              + name.encode(encoding)
               + b","
-              + common.encode(encoding)
-              + b","
-              + f"{sp_conf[k]:.6f}".encode(encoding)
+              + f"{confidences[k]:.6f}".encode(encoding)
               + b"\n"
             )
 

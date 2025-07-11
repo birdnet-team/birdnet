@@ -161,9 +161,12 @@ if __name__ == "__main__":
 
   audio_paths = get_pow_file_paths()
   audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
-  audio_paths = [Path("example/soundscape.wav")]
   audio_paths = "test-dataset/test_dataset_10000x0.2s_flac"
+  audio_paths = "example/soundscape.wav"
   audio_paths = "test-dataset/test_dataset_1000x0.2s_flac"
+  audio_paths = "test-dataset/test_dataset_100x1.3s_flac"
+  audio_paths = "test-dataset/test_dataset_100x1.3s_flac/000.flac"
+  audio_paths = "test-dataset/test_dataset_1x7.3s_flac/0.flac"
   audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
 
   params = {
@@ -176,7 +179,7 @@ if __name__ == "__main__":
   }
   params = {
     "n_workers": 12,
-    "n_producers": 1,
+    "n_producers": 2,
     "batch_size": 1,
     "prefetch_ratio": 1,
     "backend": "tf",
@@ -192,14 +195,14 @@ if __name__ == "__main__":
     batch_size=params["batch_size"],
     prefetch_ratio=params["prefetch_ratio"],
     apply_sigmoid=True,
-    top_k=5,
-    overlap_duration_s=1,
+    top_k=1,
+    overlap_duration_s=0.33,
     sigmoid_sensitivity=1,
     default_confidence_threshold=-np.inf,
     half_precision=False,
     device=params["device"],
     show_stats="benchmark",
-    serial_io=True,
+    serial_io=False,
     # custom_confidence_thresholds={
     #   "Junco hyemalis_Dark-eyed Junco": -np.inf,
     #   "Haemorhous mexicanus_House Finch": 0.1,

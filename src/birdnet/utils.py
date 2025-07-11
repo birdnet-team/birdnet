@@ -239,32 +239,6 @@ def itertools_batched(iterable: Iterable, n: int) -> Generator[Any, None, None]:
     yield batch
 
 
-def get_segments_with_overlap(
-  total_duration_s: Union[int, float],
-  segment_duration_s: Union[int, float],
-  overlap_duration_s: Union[int, float],
-) -> Generator[Tuple[float, float], None, None]:
-  assert total_duration_s > 0
-  assert segment_duration_s > 0
-  assert 0 <= overlap_duration_s < segment_duration_s
-
-  if not isinstance(overlap_duration_s, float):
-    overlap_duration_s = float(overlap_duration_s)
-  if not isinstance(segment_duration_s, float):
-    segment_duration_s = float(segment_duration_s)
-  if not isinstance(total_duration_s, float):
-    total_duration_s = float(total_duration_s)
-
-  step_duration = segment_duration_s - overlap_duration_s
-  for start in count(0.0, step_duration):
-    assert start < total_duration_s
-    if (end := start + segment_duration_s) < total_duration_s:
-      yield start, end
-    else:
-      yield start, total_duration_s
-      break
-
-
 def iter_segments_with_overlap(
   segment_duration_s: Union[int, float],
   overlap_duration_s: Union[int, float],

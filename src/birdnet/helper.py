@@ -148,6 +148,20 @@ def get_max_n_segments(
   return n_segments
 
 
+def get_max_n_segments_array(
+  max_duration_s: np.ndarray, segment_size_s: float, overlap_duration_s: float
+) -> np.ndarray:
+  max_val = get_max_n_segments(
+    np.max(max_duration_s), segment_size_s, overlap_duration_s
+  )
+  dtype = uint_dtype_for(max_val)
+
+  effective_segment_duration_s = segment_size_s - overlap_duration_s
+  assert effective_segment_duration_s > 0
+  n_segments = np.ceil(max_duration_s / effective_segment_duration_s).astype(dtype)
+  return n_segments
+
+
 # ---------------- Mapping -----------------
 _DTYPE_TO_CODE = {
   np.uint8: "B",  # unsigned char

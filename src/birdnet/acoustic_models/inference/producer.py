@@ -31,12 +31,36 @@ from birdnet.io_lock import IOLockHandler
 from birdnet.utils import (
   bandpass_signal,
   fillup_with_silence,
-  get_segments_with_overlap,
   itertools_batched,
 )
 
+# def get_segments_with_overlap(
+#   total_duration_s: int | float,
+#   segment_duration_s: int | float,
+#   overlap_duration_s: int | float,
+# ) -> Generator[tuple[float, float], None, None]:
+#   assert total_duration_s > 0
+#   assert segment_duration_s > 0
+#   assert 0 <= overlap_duration_s < segment_duration_s
 
-def get_segments_with_overlap(
+#   if not isinstance(overlap_duration_s, float):
+#     overlap_duration_s = float(overlap_duration_s)
+#   if not isinstance(segment_duration_s, float):
+#     segment_duration_s = float(segment_duration_s)
+#   if not isinstance(total_duration_s, float):
+#     total_duration_s = float(total_duration_s)
+
+#   step_duration = segment_duration_s - overlap_duration_s
+#   for start in count(0.0, step=step_duration):
+#     assert start < total_duration_s
+#     if (end := start + segment_duration_s) < total_duration_s:
+#       yield start, end
+#     else:
+#       yield start, total_duration_s
+#       break
+
+
+def get_segments_with_overlap_all(
   total_duration_s: int | float,
   segment_duration_s: int | float,
   overlap_duration_s: int | float,
@@ -53,13 +77,11 @@ def get_segments_with_overlap(
     total_duration_s = float(total_duration_s)
 
   step_duration = segment_duration_s - overlap_duration_s
-  for start in count(0.0, step_duration):
-    assert start < total_duration_s
-    if (end := start + segment_duration_s) < total_duration_s:
-      yield start, end
-    else:
-      yield start, total_duration_s
+  for start in count(0.0, step=step_duration):
+    if start >= total_duration_s:
       break
+    end = min(start + segment_duration_s, total_duration_s)
+    yield start, end
 
 
 def resample_array(
@@ -510,7 +532,7 @@ def load_audio_in_segments_with_overlap_locked(
 
   sample_rate = sf_info.samplerate
 
-  timestamps = get_segments_with_overlap(
+  timestamps = get_segments_with_overlap_all(
     float(sf_info.duration),
     float(segment_duration_s),
     float(overlap_duration_s),
