@@ -13,9 +13,11 @@ import time
 from collections import OrderedDict
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass
+
 # You'll need these imports in your own code
 from datetime import datetime, timedelta
 from pathlib import Path
+
 # Next two import lines for this demo only
 # backend_protocol.py
 from typing import Any, Literal, cast, final
@@ -30,21 +32,33 @@ from birdnet.acoustic_models.base import AcousticModelBase
 from birdnet.acoustic_models.inference.consumer import Consumer
 from birdnet.acoustic_models.inference.files_analyzer import FilesAnalyzer
 from birdnet.acoustic_models.inference.perf_tracker import (
-    PerformanceTracker, PerformanceTrackingResult)
+  PerformanceTracker,
+  PerformanceTrackingResult,
+)
+
 # try:
 #   import tflite_runtime.interpreter as tflite
 # except ImportError:  # fallback to full TF (heavier)
-from birdnet.acoustic_models.inference.prediction_result import \
-    PredictionResult
+from birdnet.acoustic_models.inference.prediction_result import PredictionResult
 from birdnet.acoustic_models.inference.producer import ChildProducer
 from birdnet.acoustic_models.inference.species_tensor import SpeciesTensor
 from birdnet.acoustic_models.inference.worker import ChildWorker
-from birdnet.base import (MODEL_TYPE_ACOUSTIC, MODEL_TYPES, MODEL_VERSION_V2_4,
-                          MODEL_VERSIONS)
+from birdnet.base import (
+  MODEL_TYPE_ACOUSTIC,
+  MODEL_TYPES,
+  MODEL_VERSION_V2_4,
+  MODEL_VERSIONS,
+)
 from birdnet.globals import PKG_NAME, WRITABLE_FLAG
-from birdnet.helper import (SF_FORMATS, RingField, create_shm_ring,
-                            get_max_n_segments, get_supported_audio_files,
-                            uint_ctype_from_dtype, uint_dtype_for)
+from birdnet.helper import (
+  SF_FORMATS,
+  RingField,
+  create_shm_ring,
+  get_max_n_segments,
+  get_supported_audio_files,
+  uint_ctype_from_dtype,
+  uint_dtype_for,
+)
 from birdnet.io_lock import IOLockHandler
 from birdnet.local_data import get_benchmark_dir, get_package_version
 from birdnet.logging_utils import QueueFileWriter, get_package_logging_level
