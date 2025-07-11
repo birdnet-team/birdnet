@@ -339,7 +339,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
             datetime.timedelta(seconds=math.ceil(est_remaining_time_s))
           )
           # est_remaining_time = est_remaining_time.split(".")[0]  # remove ms
-          output_msg_fields.append(f"PROG: {progress:.1f} %; ETA {est_remaining_time}")
+          output_msg_fields.append(f"PROG: {progress:.1f} %; ETA: {est_remaining_time}")
         else:
           output_msg_fields.append("PROG: analyzing...")
 

@@ -278,7 +278,8 @@ class ChildProducer(bn_logging.LogableProcessBase):
         self._logger.error(
           f"Chunk index {max_segment_index} exceeds maximum supported segment index {self._max_supported_segment_index}. Please set maximum audio duration. Cancelling proceessing."
         )
-        break
+        self._cancel_event.set()
+        return
 
       while True:
         if self._check_cancel_event():

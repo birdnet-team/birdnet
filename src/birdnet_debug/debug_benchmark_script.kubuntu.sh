@@ -32,3 +32,8 @@ birdnet-benchmark src/birdnet_debug/audio_formats/soundscape_stereo.wav test-dat
 birdnet-benchmark example/soundscape.wav /tmp/soundscape.csv --device GPU --backend pb
 
 birdnet-benchmark test-dataset/test_dataset_4x60min
+
+birdnet-benchmark test-dataset/test_dataset_10000x2min_flac
+
+birdnet-benchmark test-dataset/test_dataset_100000x4s_flac
+birdnet-benchmark test-dataset/test_dataset_100000x0.2s_flac

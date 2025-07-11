@@ -130,7 +130,7 @@ During analysis, the key performance indicators are updated and printed once per
 ```text
 Example log line
 ----------------
-SPEED: 51 xRT [17 seg/s]; MEM: 1590 M; BUF: 8/8; WAIT: 0.17 ms; BUSY: 4/4; PROG: 93.5 %; ETA 0:00:48
+SPEED: 51 xRT [17 seg/s]; MEM: 1590 M; BUF: 8/8; WAIT: 0.17 ms; BUSY: 4/4; PROG: 93.5 %; ETA: 0:00:48
 ```
 
 ### Typical Bottlenecks and Mitigation Measures

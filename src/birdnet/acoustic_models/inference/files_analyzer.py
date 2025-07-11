@@ -76,7 +76,9 @@ class FilesAnalyzer(bn_logging.LogableProcessBase):
           self._logger.error(
             f"File {path} has a duration of {audio_duration_s / 60:.2f} min and contains {file_n_segments} segments, which exceeds the maximum supported amount of segments {self._max_supported_segment_index + 1}. Please set maximum audio duration."
           )
-          continue
+          self._cancel_event.set()
+          return
+
         current_max_segment_index = file_max_segment_index
         self._max_segment_idx_ptr.value = current_max_segment_index
     self._tot_n_segments.value = n_segments
