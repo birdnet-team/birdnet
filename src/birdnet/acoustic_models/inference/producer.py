@@ -4,7 +4,7 @@ import ctypes
 import os
 from collections.abc import Generator
 from itertools import count
-from multiprocessing import Queue, SimpleQueue, shared_memory
+from multiprocessing import Queue, shared_memory
 from multiprocessing.sharedctypes import Synchronized
 from multiprocessing.synchronize import Event, Semaphore
 from pathlib import Path

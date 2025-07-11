@@ -1,4 +1,3 @@
-import tempfile
 from pathlib import Path
 
 from birdnet.acoustic_models.inference.prediction_result import (

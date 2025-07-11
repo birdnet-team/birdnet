@@ -1,10 +1,8 @@
 import ctypes
 import multiprocessing as mp
-from dataclasses import dataclass
 from multiprocessing.synchronize import Event
 from pathlib import Path
 
-import numpy as np
 from ordered_set import OrderedSet
 
 import birdnet.logging_utils as bn_logging

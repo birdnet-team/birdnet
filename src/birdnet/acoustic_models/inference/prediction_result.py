@@ -3,7 +3,6 @@ from __future__ import annotations  # seit Py 3.7, ab Py 3.11 Standard
 import csv
 import os
 import time
-from math import ceil, floor
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 
@@ -12,7 +11,7 @@ from ordered_set import OrderedSet
 from tqdm import tqdm
 
 from birdnet.acoustic_models.inference.species_tensor import SpeciesTensor
-from birdnet.helper import get_max_n_segments, get_max_n_segments_array
+from birdnet.helper import get_max_n_segments_array
 
 if TYPE_CHECKING:
   import pandas as pd
