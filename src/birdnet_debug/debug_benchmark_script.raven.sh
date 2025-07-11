@@ -59,7 +59,7 @@ birdnet-benchmark test-dataset/test_dataset_100x60min /tmp/result.csv -w 8 -f 5
 birdnet-benchmark test-dataset/test_dataset_100x60min /tmp/result.csv --device GPU --backend pb -w 8 -f 5
 
 
-birdnet-benchmark /data/datasets/l2arctic /tmp/l2arctic.csv --device GPU --backend pb -w 1 -f 6 -s 1025
+birdnet-benchmark /data/datasets/l2arctic --device GPU --backend pb -w 1 -f 6 -s 1025
 # Wall time:  0:01:28.809129
 # Input: 26889 file(s) (WAV)
 #   Total duration: 1 day, 3:30:31.551406

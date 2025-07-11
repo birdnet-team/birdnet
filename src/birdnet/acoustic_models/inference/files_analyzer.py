@@ -77,7 +77,5 @@ class FilesAnalyzer(bn_logging.LogableProcessBase):
     self._logger.debug("Putting analyzing result into queue.")
     self._analyzing_result.put(durations, block=False)
     self._logger.debug("Done putting analyzing result into queue.")
-    self._logger.info(
-      f"Total duration of all files: {np.sum(durations) / 60**2:.2f} h."
-    )
+    self._logger.info(f"Total duration of all files: {sum(durations) / 60**2:.2f} h.")
     self._uninit_logging()

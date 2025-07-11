@@ -30,9 +30,7 @@ from ordered_set import OrderedSet
 import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.base import AcousticModelBase
 from birdnet.acoustic_models.inference.consumer import Consumer
-from birdnet.acoustic_models.inference.files_analyzer import (
-  FilesAnalyzer,
-)
+from birdnet.acoustic_models.inference.files_analyzer import FilesAnalyzer
 from birdnet.acoustic_models.inference.perf_tracker import (
   PerformanceTracker,
   PerformanceTrackingResult,
@@ -96,7 +94,9 @@ class MinimalBenchmarkMeta:
   def file_duration_sum(self) -> str:
     if self.file_count == 0:
       return "N/A"
-    return str(timedelta(seconds=float(self._file_durations.sum())))
+    dur_sum = float(np.sum(self._file_durations, dtype=np.float64))
+    assert not np.isinf(dur_sum)
+    return str(timedelta(seconds=dur_sum))
 
   @property
   def file_duration_average(self) -> str:
