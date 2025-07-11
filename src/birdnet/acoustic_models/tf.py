@@ -33,7 +33,7 @@ class AcousticTFBackend(AcousticInferenceBackend):
     absl_logging.set_verbosity(absl_logging.ERROR)
     absl_logging.set_stderrthreshold("error")
     tf_verbosity_before = logging.getLogger("tensorflow").level
-    logging.getLogger("tensorflow").setLevel(logging.WARNING)
+    logging.getLogger("tensorflow").setLevel(logging.ERROR)
     os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
     # import tflite_runtime.interpreter as tflite

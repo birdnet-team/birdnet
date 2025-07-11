@@ -10,8 +10,8 @@ from tqdm import tqdm
 INPUT_FILE = Path("example/soundscape.wav")
 INPUT_FILE_DUR = 2
 DURATION_PER_FILE = 60  # min
-N_FILES = 100
-DTYPE = ".flac"
+N_FILES = 10
+DTYPE = ".wav"
 
 OUTPUT_FOLDER_BASE = Path("/data/test-dataset")
 OUTPUT_FOLDER_BASE = Path("/home/mi/tmp")
@@ -31,11 +31,14 @@ data, samplerate = sf.read(INPUT_FILE)
 
 repeated_data = np.tile(data, REPS)
 
+ref = OUTPUT_FOLDER / "tmp.wav"
+
 with NamedTemporaryFile("w", suffix=DTYPE) as f:
-  ref = Path(f.name)
+  # ref = Path(f.name)
   sf.write(ref, repeated_data, samplerate)
   del repeated_data
   for file_nr in tqdm(range(N_FILES)):
     output_file = OUTPUT_FOLDER / f"{file_nr:0{len(str(N_FILES))}d}{DTYPE}"
     shutil.copyfile(ref, output_file)
+ref.unlink()
 print(OUTPUT_FOLDER)

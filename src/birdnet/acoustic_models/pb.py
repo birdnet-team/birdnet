@@ -27,7 +27,7 @@ class AcousticPBBackend(AcousticInferenceBackend):
     absl_verbosity_before = absl.logging.get_verbosity()
     absl.logging.set_verbosity(absl.logging.ERROR)
     tf_verbosity_before = logging.getLogger("tensorflow").level
-    logging.getLogger("tensorflow").setLevel(logging.WARNING)
+    logging.getLogger("tensorflow").setLevel(logging.ERROR)
     os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
     import tensorflow as tf
 
