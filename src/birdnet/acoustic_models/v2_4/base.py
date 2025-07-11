@@ -4,7 +4,6 @@ from __future__ import annotations
 import ctypes
 import inspect
 import json
-import multiprocessing
 import multiprocessing as mp
 import os
 import platform
@@ -33,7 +32,6 @@ from birdnet.acoustic_models.base import AcousticModelBase
 from birdnet.acoustic_models.inference.consumer import Consumer
 from birdnet.acoustic_models.inference.files_analyzer import (
   FilesAnalyzer,
-  FilesAnalyzerMeta,
 )
 from birdnet.acoustic_models.inference.perf_tracker import (
   PerformanceTracker,
@@ -218,7 +216,7 @@ class FullBenchmarkMeta(MinimalBenchmarkMeta):
 
   @property
   def sw_start_method(self) -> str:
-    return multiprocessing.get_start_method()
+    return mp.get_start_method()
 
   # Software
   @property
@@ -558,8 +556,8 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       print(f"Writing logs to: {log_file.absolute()}")
 
     logging_level = get_package_logging_level()
-    logging_queue = multiprocessing.Queue()
-    logging_listener = multiprocessing.Process(
+    logging_queue = mp.Queue()
+    logging_listener = mp.Process(
       target=QueueFileWriter(logging_queue, logging_level, log_file, io_lock_handler),
       daemon=True,
     )
