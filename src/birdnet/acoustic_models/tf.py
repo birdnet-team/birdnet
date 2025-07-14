@@ -21,11 +21,8 @@ class AcousticTFBackend(AcousticInferenceBackend):
     self._cached_shape: tuple[int, ...] | None = None
 
   @final
-  def load(self, device_name: str, io_lock_handler: IOLockHandler) -> None:
+  def load(self, io_lock_handler: IOLockHandler) -> None:
     assert self._interp is None
-
-    if "CPU" not in device_name:
-      raise ValueError("TensorFlow models can only be loaded on CPU!")
 
     import absl.logging as absl_logging
 
@@ -52,9 +49,7 @@ class AcousticTFBackend(AcousticInferenceBackend):
       )
       end = time.perf_counter()
     logger = get_logger(__name__)
-    logger.debug(
-      f"Model loaded from {self._model_path} on device CPU in {end - start:.2f} seconds."
-    )
+    logger.debug(f"Model loaded from {self._model_path} in {end - start:.2f} seconds.")
 
     interp.allocate_tensors()
 
@@ -66,8 +61,6 @@ class AcousticTFBackend(AcousticInferenceBackend):
 
     absl_logging.set_verbosity(absl_verbosity_before)
     logging.getLogger("tensorflow").setLevel(tf_verbosity_before)
-
-    # tf.random.set_seed(0)
 
   def _set_tensor(self, batch: np.ndarray):
     from tensorflow.lite.python.interpreter import Interpreter
@@ -86,7 +79,11 @@ class AcousticTFBackend(AcousticInferenceBackend):
     interpr.set_tensor(self._in_idx, batch)
 
   @final
-  def infer(self, batch: np.ndarray) -> np.ndarray:
+  def infer(self, batch: np.ndarray, device_name: str) -> np.ndarray:
+    # TODO: implement load on different CPUs
+    if "CPU" not in device_name:
+      raise ValueError("TensorFlow models can only be loaded on CPU!")
+
     from tensorflow.lite.python.interpreter import Interpreter
 
     assert self._interp is not None

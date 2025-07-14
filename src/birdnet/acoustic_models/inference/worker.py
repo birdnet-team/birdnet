@@ -13,6 +13,8 @@ from numpy.typing import DTypeLike
 
 import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.base import AcousticInferenceBackend
+from birdnet.acoustic_models.pb import AcousticPBBackend
+from birdnet.acoustic_models.tf import AcousticTFBackend
 from birdnet.globals import (
   DONE_FLAG,
   READABLE_FLAG,
@@ -33,6 +35,7 @@ from birdnet.utils import flat_sigmoid_logaddexp
 class ChildWorker(bn_logging.LogableProcessBase):
   def __init__(
     self,
+    backend_cow: AcousticInferenceBackend | None,
     top_k: int,
     species_thresholds: np.ndarray,
     species_blacklist: np.ndarray,
@@ -130,18 +133,25 @@ class ChildWorker(bn_logging.LogableProcessBase):
 
     self._cancel_event = cancel_event
 
-    self._lazy_init = True  # lazy init to avoid issues with forked processes
+    self._lazy_init = True
     if mp.get_start_method() == "fork":
-      self._lazy_init = False
-      if not self._try_init():
-        self._cancel_event.set()
-        raise ValueError("Failed to initialize worker.")
+      if self._backend_type is AcousticTFBackend:
+        assert backend_cow is not None
+        self._init_logging()
+        self._load_ring_buffers()
+        self._backend = backend_cow
+        self._lazy_init = False
+      else:
+        # PB backend does not support non lazy initialization
+        assert self._backend_type is AcousticPBBackend
+        assert backend_cow is not None
+        pass
 
   def _load_model(self) -> None:
     self._log_debug("Loading model...")
     try:
       self._backend = self._backend_type(**self._backend_kwargs)
-      self._backend.load(self._device_name, self._io_lock_handler)
+      self._backend.load(self._io_lock_handler)
     except ValueError as e:
       self._log_debug(f"Failed to load model: {e}")
       raise e
@@ -149,7 +159,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
 
   def _infer(self, batch: np.ndarray) -> np.ndarray:
     assert self._backend is not None
-    res = self._backend.infer(batch)
+    res = self._backend.infer(batch, self._device_name)
     assert res.dtype == np.float32
     res = res.astype(self._prob_dtype, copy=False)
     return res
@@ -201,11 +211,9 @@ class ChildWorker(bn_logging.LogableProcessBase):
     self._logger.debug(f"WORKER({self._pid}) - {msg}")
 
   def __call__(self):
-    if self._lazy_init:
-      self._log_debug("Lazy initialization enabled. Initializing worker.")
-      if not self._try_init():
-        self._cancel_event.set()
-        return
+    if self._lazy_init and not self._try_init():
+      self._cancel_event.set()
+      return
 
     assert self._ring_flags is not None
     assert self._ring_file_indices is not None

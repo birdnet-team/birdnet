@@ -1,5 +1,6 @@
 import logging
 import random
+from multiprocessing import set_start_method
 from pathlib import Path
 
 import numpy as np
@@ -12,11 +13,6 @@ from birdnet_debug.hsn_downloader import get_hsn_file_paths
 from birdnet_debug.pow_downloader import get_pow_file_paths
 
 if __name__ == "__main__":
-  # set_start_method("forkserver", force=True) # Linux, macOS
-
-  # set_start_method("fork", force=True)  # Linux, macOS
-  # set_start_method("spawn", force=True)  # Windows
-
   # os.environ["TF_CPP_MIN_LOG_LEVEL"] = "0"  # sämtliche TF-Logs
 
   # faulthandler.enable(file=sys.stderr, all_threads=True)
@@ -147,7 +143,6 @@ if __name__ == "__main__":
   ]
   # model = load(device="CPU", lang_id="de")
   # model = load(backend="pb", device="gpu:0")
-  model: AcousticModelBaseV2_4 = load(backend=params["backend"])
   # model = load()
 
   audio_paths = Path("src/birdnet_tests/test_files/soundscape.wav")
@@ -160,13 +155,13 @@ if __name__ == "__main__":
   audio_paths = [Path("src\\birdnet_v2_debug\\60min.wav")]
 
   audio_paths = get_pow_file_paths()
-  audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
   audio_paths = "test-dataset/test_dataset_10000x0.2s_flac"
   audio_paths = "test-dataset/test_dataset_1000x0.2s_flac"
   audio_paths = "test-dataset/test_dataset_100x1.3s_flac"
   audio_paths = "test-dataset/test_dataset_100x1.3s_flac/000.flac"
   audio_paths = "test-dataset/test_dataset_1x7.3s_flac/0.flac"
   audio_paths = "example/soundscape.wav"
+  audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
 
   params = {
     "n_workers": 12,
@@ -177,6 +172,11 @@ if __name__ == "__main__":
     "device": "CPU",
   }
 
+  model: AcousticModelBaseV2_4 = load(backend=params["backend"])
+
+  # set_start_method("forkserver", force=True) # Linux, macOS
+  # set_start_method("fork", force=True)  # Linux, macOS
+  set_start_method("forkserver", force=True)  # Windows
   start = time.perf_counter()
   assert isinstance(model, AcousticModelBaseV2_4)
   result = model.analyze(

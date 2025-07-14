@@ -28,7 +28,7 @@ from numpy.typing import DTypeLike
 from ordered_set import OrderedSet
 
 import birdnet.logging_utils as bn_logging
-from birdnet.acoustic_models.base import AcousticModelBase
+from birdnet.acoustic_models.base import AcousticInferenceBackend, AcousticModelBase
 from birdnet.acoustic_models.inference.consumer import Consumer
 from birdnet.acoustic_models.inference.files_analyzer import FilesAnalyzer
 from birdnet.acoustic_models.inference.perf_tracker import (
@@ -43,6 +43,7 @@ from birdnet.acoustic_models.inference.prediction_result import PredictionResult
 from birdnet.acoustic_models.inference.producer import ChildProducer
 from birdnet.acoustic_models.inference.species_tensor import SpeciesTensor
 from birdnet.acoustic_models.inference.worker import ChildWorker
+from birdnet.acoustic_models.tf import AcousticTFBackend
 from birdnet.base import (
   MODEL_TYPE_ACOUSTIC,
   MODEL_TYPES,
@@ -826,9 +827,18 @@ class AcousticModelBaseV2_4(AcousticModelBase):
 
       backend_kwargs = [self.get_backend_args() for _ in range(workers)]
 
+      # Copy-on-write backend instance for forked processes
+      backend_cow: AcousticInferenceBackend | None = None
+      if (
+        mp.get_start_method() == "fork" and self.get_backend_type() is AcousticTFBackend
+      ):
+        backend_cow = self.get_backend_type()(**self.get_backend_args())
+        backend_cow.load(io_lock_handler)
+
       worker_processes = [
         mp.Process(
           target=ChildWorker(
+            backend_cow=backend_cow,
             backend_type=self.get_backend_type(),
             device=devices[i],
             backend_kwargs=backend_kwargs[i],
