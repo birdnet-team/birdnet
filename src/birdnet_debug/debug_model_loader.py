@@ -135,12 +135,6 @@ if __name__ == "__main__":
     "backend": "tf",
     "device": "CPU",
   }
-  audio_paths = [
-    Path("test-dataset/test_dataset_4x60min/0.wav"),
-    Path("test-dataset/test_dataset_4x60min/1.wav"),
-    Path("test-dataset/test_dataset_4x60min/2.wav"),
-    Path("test-dataset/test_dataset_4x60min/3.wav"),
-  ]
   # model = load(device="CPU", lang_id="de")
   # model = load(backend="pb", device="gpu:0")
   # model = load()
@@ -161,11 +155,20 @@ if __name__ == "__main__":
   audio_paths = "test-dataset/test_dataset_100x1.3s_flac/000.flac"
   audio_paths = "test-dataset/test_dataset_1x7.3s_flac/0.flac"
   audio_paths = "example/soundscape.wav"
+
+  audio_paths = [
+    Path("test-dataset/test_dataset_4x60min/0.wav"),
+    Path("test-dataset/test_dataset_4x60min/1.wav"),
+    Path("test-dataset/test_dataset_4x60min/2.wav"),
+    Path("test-dataset/test_dataset_4x60min/3.wav"),
+  ]
+  
+  audio_paths = "test-dataset/test_dataset_100000x4s_flac"
   audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
 
   params = {
     "n_workers": 12,
-    "n_producers": 2,
+    "n_producers": 1,
     "batch_size": 1,
     "prefetch_ratio": 1,
     "backend": "tf",
@@ -175,8 +178,8 @@ if __name__ == "__main__":
   model: AcousticModelBaseV2_4 = load(backend=params["backend"])
 
   # set_start_method("forkserver", force=True) # Linux, macOS
-  # set_start_method("fork", force=True)  # Linux, macOS
-  set_start_method("forkserver", force=True)  # Windows
+  set_start_method("fork", force=True)  # Linux, macOS
+  # set_start_method("forkserver", force=True)  # Windows
   start = time.perf_counter()
   assert isinstance(model, AcousticModelBaseV2_4)
   result = model.analyze(

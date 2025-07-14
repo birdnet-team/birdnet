@@ -9,6 +9,7 @@ import os
 import platform
 import shutil
 import tempfile
+import threading as th
 import time
 from collections import OrderedDict
 from collections.abc import Iterable
@@ -575,7 +576,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
 
     logging_level = get_package_logging_level()
     logging_queue = mp.Queue()
-    logging_listener = mp.Process(
+    logging_listener = th.Thread(
       target=QueueFileWriter(logging_queue, logging_level, log_file, io_lock_handler),
       daemon=True,
     )
@@ -770,7 +771,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       flags = rf_flags.get_array(shm_ring_flags)
       flags[:] = WRITABLE_FLAG
 
-      file_analyzer_proc = mp.Process(
+      file_analyzer_proc = th.Thread(
         target=FilesAnalyzer(
           files=file_paths,
           logging_level=logging_level,
@@ -788,7 +789,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       )
       file_analyzer_proc.start()
 
-      producer_processes: list[mp.Process] = [
+      producer_processes = [
         mp.Process(
           target=ChildProducer(
             files_queue=files_queue,
@@ -880,7 +881,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       perf_tracker = None
       if track_performance:
         perf_res_queue = mp.Queue()
-        perf_tracker = mp.Process(
+        perf_tracker = th.Thread(
           target=PerformanceTracker(
             pred_dur_queue,
             perf_stop_event,
