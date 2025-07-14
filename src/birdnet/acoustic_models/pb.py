@@ -62,9 +62,6 @@ class AcousticPBBackend(AcousticInferenceBackend):
       if len(gpus_with_name) == 0:
         raise ValueError(f"No GPU with name '{device_name}' found!")
 
-      physical_gpu_device = gpus_with_name[0]
-      if tf.config.experimental.get_memory_growth(physical_gpu_device) is False:
-        tf.config.experimental.set_memory_growth(physical_gpu_device, True)
       self._cached_logical_device = [
         log_dev
         for log_dev in tf.config.list_logical_devices()

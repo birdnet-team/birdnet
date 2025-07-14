@@ -144,7 +144,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
       else:
         # PB backend does not support non lazy initialization
         assert self._backend_type is AcousticPBBackend
-        assert backend_cow is not None
+        assert backend_cow is None
         pass
 
   def _load_model(self) -> None:

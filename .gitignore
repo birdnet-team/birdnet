@@ -8,6 +8,7 @@ scripts/
 .venv*/
 test-dataset/
 img/birdnet-structure-src/
+src/birdnet_debug/debug_model_loader_raven.py
 
 # VSCode
 .vscode
