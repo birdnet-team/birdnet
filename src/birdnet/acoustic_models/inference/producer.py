@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ctypes
 import os
+import time
 from collections.abc import Generator
 from itertools import count
 from multiprocessing import Queue, shared_memory
@@ -118,6 +119,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
     rf_audio_samples: RingField,
     rf_batch_sizes: RingField,
     rf_flags: RingField,
+    track_performance: bool,
     sem_free_slots: Semaphore,
     sem_filled_slots: Semaphore,
     max_segment_idx_ptr: ctypes.c_uint8
@@ -131,6 +133,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
     n_prods: int,
     logging_queue: Queue,
     logging_level: int,
+    prod_stats_queue: Queue,
     segment_duration_s: float,
     overlap_duration_s: float,
     target_sample_rate: int,
@@ -144,6 +147,8 @@ class ChildProducer(bn_logging.LogableProcessBase):
   ):
     super().__init__(__name__, logging_queue, logging_level)
 
+    self._track_performance = track_performance
+    self._prod_stats_queue = prod_stats_queue
     self.segment_duration_s = segment_duration_s
     self.overlap_duration_s = overlap_duration_s
     self.target_sample_rate = target_sample_rate
@@ -287,13 +292,22 @@ class ChildProducer(bn_logging.LogableProcessBase):
       for segment_index, segment in enumerate(segments):
         yield file_index, segment_index, segment
 
+  @property
+  def _pid(self) -> int:
+    return os.getpid()
+
   def __call__(self) -> None:
     self._init()
+    start_time = time.perf_counter()
+    batch_loading_start_time = start_time
+    batch_loading_duration: float | None = None
     buffer_input = self.get_segments_from_files()
     if self._check_cancel_event():
       return
 
     for batch in itertools_batched(buffer_input, self._batch_size):
+      batch_loading_duration = time.perf_counter() - batch_loading_start_time
+
       file_indices, segment_indices, audio_samples = zip(*batch, strict=False)
       max_segment_index = max(segment_indices)
       if max_segment_index > self._max_supported_segment_index:
@@ -302,7 +316,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
         )
         self._cancel_event.set()
         return
-
+      wait_time_for_free_slot_start = time.perf_counter()
       while True:
         if self._check_cancel_event():
           return
@@ -313,17 +327,81 @@ class ChildProducer(bn_logging.LogableProcessBase):
         except TimeoutError:
           if self._check_cancel_event():
             return
+      now = time.perf_counter()
+      wait_time_for_free_slot = now - wait_time_for_free_slot_start
+      flush_duration_start = now
 
       self._logger.debug(
         f"PRODUCER({os.getpid()}) - Producer acquired FREE. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
       )
 
-      self._flush_batch(file_indices, segment_indices, audio_samples)
+      assert self._ring_flags is not None
+
+      claimed_flag = None
+      claimed_slot = None
+
+      # TODO: track wait for a free slot in the ring buffer
+
+      with self._slot_ptr:
+        while no_free_slot_found := claimed_flag is None:
+          if self._check_cancel_event():
+            return
+
+          current_slot = self._slot_ptr.value
+          current_slot_flag = self._ring_flags[current_slot]
+          # can never be DONE because this flag is set after all segments from all files have been flushed
+          assert current_slot_flag != DONE_FLAG
+
+          if current_slot_flag == WRITABLE_FLAG:
+            claimed_slot = current_slot
+            claimed_flag = current_slot_flag
+            if claimed_flag == WRITABLE_FLAG:
+              self._ring_flags[claimed_slot] = WRITING_FLAG
+
+              self._logger.debug(
+                f"PRODUCER({os.getpid()}) - Acquired WRITING_FLAG for slot {claimed_slot}."
+              )
+            self._jump_to_next_slot_ptr()
+            break
+          else:
+            assert current_slot_flag in (
+              READABLE_FLAG,
+              READING_FLAG,
+              WRITING_FLAG,
+            )
+            self._jump_to_next_slot_ptr()
+
+      if self._check_cancel_event():
+        return
+
+      assert claimed_slot is not None
+      assert claimed_flag == WRITABLE_FLAG
+
+      self._flush_batch(claimed_slot, file_indices, segment_indices, audio_samples)
+
+      self._ring_flags[claimed_slot] = READABLE_FLAG
+
+      if self._track_performance:
+        now = time.perf_counter()
+        process_total_duration = now - start_time
+        flush_duration = now - flush_duration_start
+        n = len(file_indices)
+        self._prod_stats_queue.put(
+          (
+            self._pid,
+            process_total_duration,
+            batch_loading_duration,
+            wait_time_for_free_slot,
+            flush_duration,
+            n,
+          )
+        )
 
       self._sem_filled_slots.release()
       self._logger.debug(
         f"PRODUCER({os.getpid()}) - Producer released FILL. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
       )
+      batch_loading_start_time = time.perf_counter()
 
     with self._prod_done_ptr.get_lock():
       self._prod_done_ptr.value = self._prod_done_ptr.value + 1
@@ -389,51 +467,13 @@ class ChildProducer(bn_logging.LogableProcessBase):
     self._jump_to_next_slot_ptr()
     self._sem_filled_slots.release()
 
-  def _flush_batch(self, file_indices, segment_indices, audio_samples) -> None:
+  def _flush_batch(
+    self, claimed_slot, file_indices, segment_indices, audio_samples
+  ) -> None:
     assert self._ring_audio_samples is not None
     assert self._ring_file_indices is not None
     assert self._ring_segment_indices is not None
     assert self._ring_batch_sizes is not None
-    assert self._ring_flags is not None
-
-    claimed_flag = None
-    claimed_slot = None
-
-    while True:
-      if self._check_cancel_event():
-        return
-
-      with self._slot_ptr.get_lock():
-        current_slot = self._slot_ptr.value
-        current_slot_flag = self._ring_flags[current_slot]
-        # can never be DONE because this flag is set after all segments from all files have been flushed
-        assert current_slot_flag != DONE_FLAG
-
-        if current_slot_flag == WRITABLE_FLAG:
-          claimed_slot = current_slot
-          claimed_flag = current_slot_flag
-          if claimed_flag == WRITABLE_FLAG:
-            self._ring_flags[claimed_slot] = WRITING_FLAG
-          self._jump_to_next_slot_ptr()
-          break
-        else:
-          assert current_slot_flag in (
-            READABLE_FLAG,
-            READING_FLAG,
-            WRITING_FLAG,
-          )
-          self._jump_to_next_slot_ptr()
-
-    if self._check_cancel_event():
-      return
-
-    assert claimed_flag is not None
-    assert claimed_slot is not None
-
-    assert claimed_flag == WRITABLE_FLAG
-    self._logger.debug(
-      f"PRODUCER({os.getpid()}) - Acquired WRITABLE_FLAG for slot {claimed_slot}."
-    )
 
     current_batch_size = len(audio_samples)
     assert len(file_indices) == current_batch_size
@@ -460,8 +500,6 @@ class ChildProducer(bn_logging.LogableProcessBase):
     self._logger.debug(
       f"PRODUCER({os.getpid()}) - Flushed batch to shared memory on slot {claimed_slot}, batch size {current_batch_size}. Chunk indices: {segment_indices}"
     )
-
-    self._ring_flags[claimed_slot] = READABLE_FLAG
 
 
 def get_audio_duration_s(audio_path: Path) -> float:

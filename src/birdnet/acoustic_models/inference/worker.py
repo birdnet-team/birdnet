@@ -225,7 +225,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
 
     while True:
       wait_for_batch_start = time.perf_counter()
-      wait_time_for_batch: float | None = None
+      wait_duration_for_batch: float | None = None
 
       while True:
         if self._cancel_event.is_set():
@@ -254,7 +254,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
           current_slot_flag = self._ring_flags[current_slot]
           # TODO: check if all ring_size slots = DONE
           if current_slot_flag in (READABLE_FLAG, DONE_FLAG):
-            wait_time_for_batch = time.perf_counter() - wait_for_batch_start
+            wait_duration_for_batch = time.perf_counter() - wait_for_batch_start
             claimed_slot = current_slot
             claimed_flag = current_slot_flag
             if claimed_flag == READABLE_FLAG:
@@ -269,7 +269,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
             )
             self._jump_to_next_slot_ptr()
 
-      assert wait_time_for_batch is not None
+      assert wait_duration_for_batch is not None
 
       if claimed_flag == DONE_FLAG:
         self._log_debug(f"Received DONE_FLAG for slot {claimed_slot}. Exiting.")
@@ -279,7 +279,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
 
       self._sem_active_workers.release()
       self._log_debug(
-        f"Acquired READ_FLAG for slot {claimed_slot}. Waited {wait_time_for_batch:.4f} seconds for batch."
+        f"Acquired READ_FLAG for slot {claimed_slot}. Waited {wait_duration_for_batch:.4f} seconds for batch."
       )
 
       n = self._ring_batch_sizes[claimed_slot]
@@ -293,7 +293,6 @@ class ChildWorker(bn_logging.LogableProcessBase):
       )
 
       pred_start_time = time.perf_counter()
-      prediction_duration: float | None = None
 
       try:
         pred = self._infer(audio_samples)
@@ -355,7 +354,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
           (
             self._pid,
             process_total_duration,
-            wait_time_for_batch,
+            wait_duration_for_batch,
             prediction_duration,
             n,
           ),

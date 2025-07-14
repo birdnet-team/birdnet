@@ -740,6 +740,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     )  # type: ignore
 
     pred_dur_queue = mp.Queue()
+    prod_stats_queue = mp.Queue()
     analyzer_queue = mp.Queue()
     perf_res_queue: mp.Queue | None = None
     perf_result: PerformanceTrackingResult | None = None
@@ -796,6 +797,8 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             slot_ptr=producer_slot_ptr,
             batch_size=batch_size,
             n_slots=n_slots,
+            track_performance=track_performance,
+            prod_stats_queue=prod_stats_queue,
             rf_file_indices=rf_file_indices,
             rf_segment_indices=rf_segment_indices,
             rf_audio_samples=rf_audio_samples,
@@ -883,10 +886,11 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         perf_res_queue = mp.Queue()
         perf_tracker = th.Thread(
           target=PerformanceTracker(
-            pred_dur_queue,
-            perf_stop_event,
+            pred_dur_queue=pred_dur_queue,
+            stop_event=perf_stop_event,
             update_interval=0.5,
             print_interval=1,
+            prod_stats_queue=prod_stats_queue,
             use_stats_from_last_seconds=30,
             n_workers=workers,
             start=start,
