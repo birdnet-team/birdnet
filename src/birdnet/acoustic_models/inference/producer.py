@@ -329,7 +329,6 @@ class ChildProducer(bn_logging.LogableProcessBase):
             return
       now = time.perf_counter()
       wait_time_for_free_slot = now - wait_time_for_free_slot_start
-      flush_duration_start = now
 
       self._logger.debug(
         f"PRODUCER({os.getpid()}) - Producer acquired FREE. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
@@ -342,6 +341,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
 
       # TODO: track wait for a free slot in the ring buffer
 
+      free_slot_search_start = time.perf_counter()
       with self._slot_ptr:
         while no_free_slot_found := claimed_flag is None:
           if self._check_cancel_event():
@@ -370,12 +370,15 @@ class ChildProducer(bn_logging.LogableProcessBase):
               WRITING_FLAG,
             )
             self._jump_to_next_slot_ptr()
+      free_slot_search_time = time.perf_counter() - free_slot_search_start
 
       if self._check_cancel_event():
         return
 
       assert claimed_slot is not None
       assert claimed_flag == WRITABLE_FLAG
+
+      flush_duration_start = now
 
       self._flush_batch(claimed_slot, file_indices, segment_indices, audio_samples)
 
@@ -392,6 +395,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
             process_total_duration,
             batch_loading_duration,
             wait_time_for_free_slot,
+            free_slot_search_time,
             flush_duration,
             n,
           )

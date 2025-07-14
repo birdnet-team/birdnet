@@ -116,9 +116,11 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._prd_wall_times = {}
     self._prd_avg_batch_loading_dur_ms = 0.0
     self._prd_avg_wait_dur_free_slot_ms = 0.0
+    self._prd_avg_free_slot_search_time = 0.0
     self._prd_avg_flush_dur_ms = 0.0
     self._prd_wait_dur_free_slots_deque = deque(maxlen=self._n_last)
     self._prd_batch_loading_dur_deque = deque(maxlen=self._n_last)
+    self._prd_free_slot_search_dur_deque = deque(maxlen=self._n_last)
     self._prd_flush_dur_deque = deque(maxlen=self._n_last)
 
   def _get_worker_stats(self) -> None:
@@ -159,6 +161,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         process_total_duration,
         batch_loading_duration,
         wait_time_for_free_slot,
+        free_slot_search_time,
         flush_duration,
         n,
       ) = self._prod_stats_queue.get(block=False)
@@ -182,6 +185,11 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         + (wait_time_for_free_slot * 1000)
       ) / (self._producer_total_batches_processed + 1)
 
+      self._prd_avg_free_slot_search_time = (
+        self._prd_avg_free_slot_search_time * self._producer_total_batches_processed
+        + (free_slot_search_time * 1000)
+      ) / (self._producer_total_batches_processed + 1)
+
       self._prd_avg_flush_dur_ms = (
         self._prd_avg_flush_dur_ms * self._producer_total_batches_processed
         + (flush_duration * 1000)
@@ -189,6 +197,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
       self._prd_wait_dur_free_slots_deque.append(wait_time_for_free_slot)
       self._prd_batch_loading_dur_deque.append(batch_loading_duration)
+      self._prd_free_slot_search_dur_deque.append(free_slot_search_time)
       self._prd_flush_dur_deque.append(flush_duration)
 
   def __call__(self):
