@@ -130,11 +130,18 @@ class ChildWorker(bn_logging.LogableProcessBase):
 
     self._cancel_event = cancel_event
 
+    self._lazy_init = True  # lazy init to avoid issues with forked processes
+    if mp.get_start_method() == "fork":
+      self._lazy_init = False
+      if not self._try_init():
+        self._cancel_event.set()
+        raise ValueError("Failed to initialize worker.")
+
   def _load_model(self) -> None:
     self._log_debug("Loading model...")
     try:
       self._backend = self._backend_type(**self._backend_kwargs)
-      self._backend.lazy_load(self._device_name, self._io_lock_handler)
+      self._backend.load(self._device_name, self._io_lock_handler)
     except ValueError as e:
       self._log_debug(f"Failed to load model: {e}")
       raise e
@@ -171,11 +178,17 @@ class ChildWorker(bn_logging.LogableProcessBase):
     self._shm_ring_flags, self._ring_flags = self._rf_flags.attach_and_get_array()
     self._log_debug("Attached ring buffers.")
 
-  def _init(self) -> None:
+  def _try_init(self) -> bool:
+    start = time.perf_counter()
     self._init_logging()
     self._load_ring_buffers()
-    self._load_model()
-    self._log_debug("Worker initialized.")
+    try:
+      self._load_model()
+    except ValueError:
+      return False
+    duration_init = time.perf_counter() - start
+    self._log_debug(f"Worker {self._pid} initialized in {duration_init:.4f} seconds.")
+    return True
 
   def _uninit(self) -> None:
     self._uninit_logging()
@@ -188,14 +201,11 @@ class ChildWorker(bn_logging.LogableProcessBase):
     self._logger.debug(f"WORKER({self._pid}) - {msg}")
 
   def __call__(self):
-    warm_up_start_time = time.perf_counter()
-    try:
-      self._init()
-    except ValueError:
-      self._log_debug("Failed to initialize worker. Exiting.")
-      self._cancel_event.set()
-      self._uninit()
-      return
+    if self._lazy_init:
+      self._log_debug("Lazy initialization enabled. Initializing worker.")
+      if not self._try_init():
+        self._cancel_event.set()
+        return
 
     assert self._ring_flags is not None
     assert self._ring_file_indices is not None
@@ -204,10 +214,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
     assert self._ring_batch_sizes is not None
 
     start_time = time.perf_counter()
-    warm_up_start = start_time - warm_up_start_time
-    self._log_debug(
-      f"Worker {self._pid} ready to analyze. Warm-up time: {warm_up_start:.4f} seconds."
-    )
+
     while True:
       wait_for_batch_start = time.perf_counter()
       wait_time_for_batch: float | None = None
@@ -289,16 +296,6 @@ class ChildWorker(bn_logging.LogableProcessBase):
           f"Exiting worker {self._pid} due to error during inference. Set cancel event."
         )
         return
-        # mark slot as writable again
-        # self._ring_flags[claimed_slot] = WRITABLE_FLAG
-        # self._sem_free.release()
-        # self._log_debug(
-        #   f"Released FREE. Free slots remaining: {self._sem_free}; Filled slots: {self._sem_filled}"
-        # )
-        # self._log_debug(f"Exiting worker {self._pid} due to error during inference.")
-        # self._out_q.put(None)
-        # self._sem_active_workers.acquire(block=False)
-        # break
 
       prediction_duration = time.perf_counter() - pred_start_time
 
@@ -349,7 +346,6 @@ class ChildWorker(bn_logging.LogableProcessBase):
         self._pred_dur_queue.put(
           (
             self._pid,
-            warm_up_start,
             process_total_duration,
             wait_time_for_batch,
             prediction_duration,
@@ -357,7 +353,6 @@ class ChildWorker(bn_logging.LogableProcessBase):
           ),
           block=False,
         )
-        warm_up_start = 0  # reset warm-up start after first prediction
 
       self._sem_active_workers.acquire(block=False)
 

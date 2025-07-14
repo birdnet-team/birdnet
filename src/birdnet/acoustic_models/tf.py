@@ -21,7 +21,7 @@ class AcousticTFBackend(AcousticInferenceBackend):
     self._cached_shape: tuple[int, ...] | None = None
 
   @final
-  def lazy_load(self, device_name: str, io_lock_handler: IOLockHandler) -> None:
+  def load(self, device_name: str, io_lock_handler: IOLockHandler) -> None:
     assert self._interp is None
 
     if "CPU" not in device_name:

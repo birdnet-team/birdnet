@@ -162,21 +162,12 @@ if __name__ == "__main__":
   audio_paths = get_pow_file_paths()
   audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
   audio_paths = "test-dataset/test_dataset_10000x0.2s_flac"
-  audio_paths = "example/soundscape.wav"
   audio_paths = "test-dataset/test_dataset_1000x0.2s_flac"
   audio_paths = "test-dataset/test_dataset_100x1.3s_flac"
   audio_paths = "test-dataset/test_dataset_100x1.3s_flac/000.flac"
   audio_paths = "test-dataset/test_dataset_1x7.3s_flac/0.flac"
-  audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
+  audio_paths = "example/soundscape.wav"
 
-  params = {
-    "n_workers": 4,
-    "n_producers": 1,
-    "batch_size": 1,
-    "prefetch_ratio": 1,
-    "backend": "tf",
-    "device": "CPU",
-  }
   params = {
     "n_workers": 12,
     "n_producers": 2,

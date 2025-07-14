@@ -20,7 +20,7 @@ class AcousticPBBackend(AcousticInferenceBackend):
     self._infer_fn: Callable | None = None
 
   @final
-  def lazy_load(self, device_name: str, io_lock_handler: IOLockHandler) -> None:
+  def load(self, device_name: str, io_lock_handler: IOLockHandler) -> None:
     assert "GPU" in device_name or "CPU" in device_name
     import absl.logging
 
