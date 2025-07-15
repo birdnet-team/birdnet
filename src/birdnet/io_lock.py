@@ -44,16 +44,16 @@ class LockedMemoryHandler(MemoryHandler):
     self._stop_evt = threading.Event()
     # >>> Start des Hintergrund-Threads
     self.flush_interval_s = flush_interval_s
-    th = threading.Thread(target=self._timed_flusher, daemon=True)
+    th = threading.Thread(target=self._continous_flush, daemon=True)
     th.start()
 
   def flush(self):
     with self._io_lock_handler:
       super().flush()
 
-  def _timed_flusher(self):
+  def _continous_flush(self):
     while not self._stop_evt.wait(self.flush_interval_s):
-      self.flush()  # alle 30 s
+      self.flush()
 
   def close(self):
     self._stop_evt.set()

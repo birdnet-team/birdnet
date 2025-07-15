@@ -1,12 +1,15 @@
 # birdnet/logging_utils.py
 from __future__ import annotations
 
-import multiprocessing.synchronize
 import logging
 import multiprocessing as mp
+import multiprocessing.synchronize
+import threading
+import time
 from logging.handlers import QueueHandler
 from multiprocessing import Queue
 from pathlib import Path
+from time import sleep
 
 from birdnet.globals import PKG_NAME
 from birdnet.io_lock import IOLockHandler, LockedMemoryHandler
@@ -73,7 +76,6 @@ def init_package_logger(logging_level: int) -> None:
 init_package_logger(logging.INFO)
 
 
-
 class QueueFileWriter:
   def __init__(
     self,
@@ -82,12 +84,15 @@ class QueueFileWriter:
     log_file: Path,
     io_lock_handler: IOLockHandler,
     cancel_event: multiprocessing.synchronize.Event,
+    stop_event: threading.Event,
   ):
     self._logging_level = logging_level
     self._log_queue = log_queue
     self._log_file = log_file
     self._io_log_handler = io_lock_handler
     self._cancel_event = cancel_event
+    self._stop_event = stop_event
+    self._get_logs_interval = 5
 
   def __call__(self):
     logger = logging.getLogger("birdnet-file-writer")
@@ -100,11 +105,11 @@ class QueueFileWriter:
       "%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s"
     )
 
-    h = logging.FileHandler(self._log_file, mode="w")
+    h = logging.FileHandler(self._log_file, mode="w", encoding="utf-8")
     mh = LockedMemoryHandler(
-      capacity=100000,
+      capacity=10000,
       io_lock_handler=self._io_log_handler,
-      flush_interval_s=30,
+      flush_interval_s=15,
       flushLevel=logging.WARNING,
       target=h,
       flushOnClose=True,
@@ -113,12 +118,14 @@ class QueueFileWriter:
     h.setFormatter(f)
     logger.addHandler(mh)
 
-    while True:
+    while not self._stop_event.is_set():
       try:
-        record: logging.LogRecord = self._log_queue.get()
-        if record is None:
-          break
-        logger.handle(record)
+        perf_c = time.perf_counter()
+        while not self._log_queue.empty():
+          record: logging.LogRecord = self._log_queue.get()
+          logger.handle(record)
+        get_que_duration = time.perf_counter() - perf_c
+        logger.debug(f"{get_que_duration}s to get logging entries from queue.")
       except OSError as e:
         # OSError can happen if the file is closed while writing
         if e.args[0] == "handle is closed":
@@ -142,7 +149,7 @@ class QueueFileWriter:
         traceback.print_exc(file=sys.stderr)
         self._cancel_event.set()
         break
-
+      sleep(self._get_logs_interval)
     mh.flush()
 
 

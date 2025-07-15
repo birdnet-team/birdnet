@@ -163,8 +163,8 @@ if __name__ == "__main__":
     Path("test-dataset/test_dataset_4x60min/3.wav"),
   ]
 
-  audio_paths = "test-dataset/test_dataset_100000x4s_flac"
   audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
+  audio_paths = "test-dataset/test_dataset_100000x4s_flac"
 
   params = {
     "n_workers": 12,

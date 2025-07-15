@@ -578,6 +578,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
 
     logging_level = get_package_logging_level()
     logging_queue = mp.Queue()
+    logging_stop_event = th.Event()
     logging_listener = th.Thread(
       target=QueueFileWriter(
         log_queue=logging_queue,
@@ -585,6 +586,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         log_file=log_file,
         io_lock_handler=io_lock_handler,
         cancel_event=cancel_event,
+        stop_event=logging_stop_event,
       ),
       daemon=True,
     )
@@ -1219,7 +1221,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       )
       print(summary)
 
-    logging_queue.put_nowait(None)
+    logging_stop_event.set()
     logging_listener.join()
     bn_logging.remove_queue_handler(queue_handler)
 
