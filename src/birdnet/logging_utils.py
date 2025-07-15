@@ -1,6 +1,7 @@
 # birdnet/logging_utils.py
 from __future__ import annotations
 
+import multiprocessing.synchronize
 import logging
 import multiprocessing as mp
 from logging.handlers import QueueHandler
@@ -72,6 +73,7 @@ def init_package_logger(logging_level: int) -> None:
 init_package_logger(logging.INFO)
 
 
+
 class QueueFileWriter:
   def __init__(
     self,
@@ -79,11 +81,13 @@ class QueueFileWriter:
     logging_level: int,
     log_file: Path,
     io_lock_handler: IOLockHandler,
+    cancel_event: multiprocessing.synchronize.Event,
   ):
     self._logging_level = logging_level
     self._log_queue = log_queue
     self._log_file = log_file
     self._io_log_handler = io_lock_handler
+    self._cancel_event = cancel_event
 
   def __call__(self):
     logger = logging.getLogger("birdnet-file-writer")
@@ -115,12 +119,29 @@ class QueueFileWriter:
         if record is None:
           break
         logger.handle(record)
+      except OSError as e:
+        # OSError can happen if the file is closed while writing
+        if e.args[0] == "handle is closed":
+          # This is expected if the file is closed while writing
+          # e.g., when the process is terminated
+          self._cancel_event.set()
+          break
+      except EOFError:
+        print("EOFError: Queue was closed, stopping file writer.")
+        self._cancel_event.set()
+        break
+      except KeyboardInterrupt:
+        print("KeyboardInterrupt: Stopping file writer.")
+        self._cancel_event.set()
+        break
       except Exception:
         import sys
         import traceback
 
         print("Problem:", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
+        self._cancel_event.set()
+        break
 
     mh.flush()
 

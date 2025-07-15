@@ -400,6 +400,11 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
           if self._prd_batch_loading_dur_deque
           else 0
         )
+        prd_avg_free_slots_search_dur_ms = (
+          np.mean(self._prd_free_slot_search_dur_deque) * 1000
+          if self._prd_free_slot_search_dur_deque
+          else 0
+        )
         prd_avg_flush_dur_ms = (
           np.mean(self._prd_flush_dur_deque) * 1000 if self._prd_flush_dur_deque else 0
         )
@@ -418,6 +423,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
           # f"free: {avg_free_slots:.0f}/{self._ring_flags.shape[0]}",
           f"P-WAIT: {prd_avg_wait_time_free_slots_ms:.2f} ms",
           f"P-BATCH: {prd_avg_batch_loading_dur_ms:.2f} ms",
+          f"P-SEARCH: {prd_avg_wait_time_free_slots_ms:.2f} ms",
           f"P-FLUSH: {prd_avg_flush_dur_ms:.2f} ms",
           f"W-WAIT: {avg_wait_time_ms:.2f} ms",
           f"BUSY: {avg_busy_workers:.0f}/{self._n_workers}",

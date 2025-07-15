@@ -299,14 +299,41 @@ class ChildProducer(bn_logging.LogableProcessBase):
   def __call__(self) -> None:
     self._init()
     start_time = time.perf_counter()
-    batch_loading_start_time = start_time
-    batch_loading_duration: float | None = None
-    buffer_input = self.get_segments_from_files()
     if self._check_cancel_event():
       return
 
-    for batch in itertools_batched(buffer_input, self._batch_size):
-      batch_loading_duration = time.perf_counter() - batch_loading_start_time
+    buffer_input = self.get_segments_from_files()
+    batches = itertools_batched(buffer_input, self._batch_size)
+
+    while True:
+      perf_c = time.perf_counter()
+      while True:
+        try:
+          self._sem_free_slots.acquire(timeout=1.0)
+          break
+        except TimeoutError:
+          if self._check_cancel_event():
+            return
+
+      wait_time_for_free_slot = time.perf_counter() - perf_c
+
+      self._logger.debug(
+        f"PRODUCER({os.getpid()}) - Producer acquired FREE. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
+      )
+
+      if self._check_cancel_event():
+        return
+
+      perf_c = time.perf_counter()
+      try:
+        batch = next(batches)
+      except StopIteration:
+        self._logger.debug(
+          f"PRODUCER({os.getpid()}) - No more batches to process. Exiting."
+        )
+        self._sem_free_slots.release()
+        break
+      batch_loading_duration = time.perf_counter() - perf_c
 
       file_indices, segment_indices, audio_samples = zip(*batch, strict=False)
       max_segment_index = max(segment_indices)
@@ -316,37 +343,15 @@ class ChildProducer(bn_logging.LogableProcessBase):
         )
         self._cancel_event.set()
         return
-      wait_time_for_free_slot_start = time.perf_counter()
-      while True:
-        if self._check_cancel_event():
-          return
-
-        try:
-          self._sem_free_slots.acquire(timeout=1.0)
-          break
-        except TimeoutError:
-          if self._check_cancel_event():
-            return
-      now = time.perf_counter()
-      wait_time_for_free_slot = now - wait_time_for_free_slot_start
-
-      self._logger.debug(
-        f"PRODUCER({os.getpid()}) - Producer acquired FREE. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
-      )
 
       assert self._ring_flags is not None
 
       claimed_flag = None
       claimed_slot = None
 
-      # TODO: track wait for a free slot in the ring buffer
-
-      free_slot_search_start = time.perf_counter()
+      perf_c = time.perf_counter()
       with self._slot_ptr:
         while no_free_slot_found := claimed_flag is None:
-          if self._check_cancel_event():
-            return
-
           current_slot = self._slot_ptr.value
           current_slot_flag = self._ring_flags[current_slot]
           # can never be DONE because this flag is set after all segments from all files have been flushed
@@ -370,7 +375,11 @@ class ChildProducer(bn_logging.LogableProcessBase):
               WRITING_FLAG,
             )
             self._jump_to_next_slot_ptr()
-      free_slot_search_time = time.perf_counter() - free_slot_search_start
+
+          if self._check_cancel_event():
+            return
+
+      free_slot_search_time = time.perf_counter() - perf_c
 
       if self._check_cancel_event():
         return
@@ -378,16 +387,20 @@ class ChildProducer(bn_logging.LogableProcessBase):
       assert claimed_slot is not None
       assert claimed_flag == WRITABLE_FLAG
 
-      flush_duration_start = now
-
+      perf_c = time.perf_counter()
       self._flush_batch(claimed_slot, file_indices, segment_indices, audio_samples)
+      flush_duration = time.perf_counter() - perf_c
 
       self._ring_flags[claimed_slot] = READABLE_FLAG
+      self._sem_filled_slots.release()
+
+      self._logger.debug(
+        f"PRODUCER({os.getpid()}) - Producer released FILL. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
+      )
 
       if self._track_performance:
         now = time.perf_counter()
         process_total_duration = now - start_time
-        flush_duration = now - flush_duration_start
         n = len(file_indices)
         self._prod_stats_queue.put(
           (
@@ -400,12 +413,6 @@ class ChildProducer(bn_logging.LogableProcessBase):
             n,
           )
         )
-
-      self._sem_filled_slots.release()
-      self._logger.debug(
-        f"PRODUCER({os.getpid()}) - Producer released FILL. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
-      )
-      batch_loading_start_time = time.perf_counter()
 
     with self._prod_done_ptr.get_lock():
       self._prod_done_ptr.value = self._prod_done_ptr.value + 1

@@ -574,10 +574,18 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       log_file = benchmark_run_out_dir / f"log-{iso_time}.log"
       print(f"Writing logs to: {log_file.absolute()}")
 
+    cancel_event = mp.Event()
+
     logging_level = get_package_logging_level()
     logging_queue = mp.Queue()
     logging_listener = th.Thread(
-      target=QueueFileWriter(logging_queue, logging_level, log_file, io_lock_handler),
+      target=QueueFileWriter(
+        log_queue=logging_queue,
+        logging_level=logging_level,
+        log_file=log_file,
+        io_lock_handler=io_lock_handler,
+        cancel_event=cancel_event,
+      ),
       daemon=True,
     )
     logging_listener.start()
@@ -745,7 +753,6 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     perf_res_queue: mp.Queue | None = None
     perf_result: PerformanceTrackingResult | None = None
     perf_stop_event = mp.Event()
-    cancel_event = mp.Event()
     tot_n_segments_ptr = mp.RawValue(ctypes.c_uint64, 0)
     files_queue = mp.Queue(
       len(file_paths) + feeders
