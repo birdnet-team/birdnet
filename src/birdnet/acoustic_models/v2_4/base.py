@@ -811,7 +811,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       file_analyzer_proc.start()
 
       producer_processes = [
-        threading.Thread(
+        mp.Process(
           target=ChildProducer(
             files_queue=files_queue,
             slot_ptr=producer_slot_ptr,
