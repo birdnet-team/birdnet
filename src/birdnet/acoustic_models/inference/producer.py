@@ -142,6 +142,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
     overlap_duration_s: float,
     target_sample_rate: int,
     cancel_event: Event,
+    prd_all_done_event: Event,
     use_bandpass: bool,
     bandpass_fmin: int | None,
     bandpass_fmax: int | None,
@@ -151,6 +152,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
   ):
     super().__init__(__name__, logging_queue, logging_level)
 
+    self._prd_all_done_event = prd_all_done_event
     self._prd_ring_access_lock = prd_ring_access_lock
     self._track_performance = track_performance
     self._prod_stats_queue = prod_stats_queue
@@ -301,8 +303,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
   def _pid(self) -> int:
     return os.getpid()
 
-  def __call__(self) -> None:
-    self._init()
+  def _iter_files(self) -> None:
     start_time = time.perf_counter()
     if self._check_cancel_event():
       return
@@ -411,7 +412,15 @@ class ChildProducer(bn_logging.LogableProcessBase):
           )
         )
 
-    with self._prod_done_ptr.get_lock():
+  def __call__(self) -> None:
+    self._init()
+
+    self._iter_files()
+
+    if self._check_cancel_event():
+      return
+
+    with self._prod_done_ptr:
       self._prod_done_ptr.value = self._prod_done_ptr.value + 1
       self._logger.debug(
         f"PRODUCER({os.getpid()}) - Set prod_done_ptr to {self._prod_done_ptr.value}."
@@ -422,12 +431,14 @@ class ChildProducer(bn_logging.LogableProcessBase):
       self._logger.debug(
         f"PRODUCER({os.getpid()}) - Last producer finished. Sending poison pills."
       )
-      # send poison pills
-      # can also use n_jobs here, but this is faster
-      for _ in range(self._n_slots):
-        self._set_done_flag()
-        if self._check_cancel_event():
-          return
+      self._prd_all_done_event.set()
+
+      # # send poison pills
+      # # can also use n_jobs here, but this is faster
+      # for _ in range(self._n_slots):
+      #   self._set_done_flag()
+      #   if self._check_cancel_event():
+      #     return
 
     self._uninit()
 
@@ -443,6 +454,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
     assert 0 <= self._slot_ptr.value < self._n_slots
 
   def _set_done_flag(self) -> None:
+    raise NotImplementedError()
     assert self._ring_flags is not None
     # only one producer process gets into this method
 

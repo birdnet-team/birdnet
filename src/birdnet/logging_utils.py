@@ -118,14 +118,13 @@ class QueueFileWriter:
     h.setFormatter(f)
     logger.addHandler(mh)
 
-    while not self._stop_event.is_set():
+    while not self._stop_event.is_set() or not self._log_queue.empty():
       try:
         perf_c = time.perf_counter()
         while not self._log_queue.empty():
           record: logging.LogRecord = self._log_queue.get()
           logger.handle(record)
-        get_que_duration = time.perf_counter() - perf_c
-        logger.debug(f"{get_que_duration}s to get logging entries from queue.")
+        print(f"{time.perf_counter() - perf_c}s to get logging entries from queue.")
       except OSError as e:
         # OSError can happen if the file is closed while writing
         if e.args[0] == "handle is closed":
@@ -149,8 +148,13 @@ class QueueFileWriter:
         traceback.print_exc(file=sys.stderr)
         self._cancel_event.set()
         break
-      sleep(self._get_logs_interval)
+      if not self._stop_event.is_set():
+        sleep(self._get_logs_interval)
     mh.flush()
+
+    lines = self._log_file.read_text(encoding="utf-8").splitlines()
+    sorted_lines = sorted(lines, key=lambda x: x.split()[:2])
+    self._log_file.write_text("\n".join(sorted_lines), encoding="utf-8")
 
 
 class LogableProcessBase:

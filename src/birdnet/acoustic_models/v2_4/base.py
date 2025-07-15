@@ -750,12 +750,14 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     )  # type: ignore
     prd_ring_access_lock = mp.Lock()
     wkr_ring_access_lock = mp.Lock()
+    prd_all_done_event = mp.Event()
 
     pred_dur_queue = mp.Queue()
     prod_stats_queue = mp.Queue()
     analyzer_queue = mp.Queue()
     perf_res_queue: mp.Queue | None = None
     perf_result: PerformanceTrackingResult | None = None
+    processing_finished_event = mp.Event()
     perf_stop_event = mp.Event()
     tot_n_segments_ptr = mp.RawValue(ctypes.c_uint64, 0)
     files_queue = mp.Queue(
@@ -807,6 +809,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             files_queue=files_queue,
             slot_ptr=producer_slot_ptr,
             batch_size=batch_size,
+            prd_all_done_event=prd_all_done_event,
             n_slots=n_slots,
             prd_ring_access_lock=prd_ring_access_lock,
             track_performance=track_performance,
@@ -868,6 +871,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             segment_duration_samples=AcousticModelBaseV2_4.get_segment_size_samples(),
             out_q=worker_queue,
             logging_queue=logging_queue,
+            prd_all_done_event=prd_all_done_event,
             logging_level=logging_level,
             rf_file_indices=rf_file_indices,
             rf_segment_indices=rf_segment_indices,
@@ -901,6 +905,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
           target=PerformanceTracker(
             pred_dur_queue=pred_dur_queue,
             stop_event=perf_stop_event,
+            processing_finished_event=processing_finished_event,
             update_interval=0.5,
             print_interval=1,
             prod_stats_queue=prod_stats_queue,
@@ -930,6 +935,8 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         cancel_event=cancel_event,
       )
       consumer()
+
+      processing_finished_event.set()
 
       file_durations = np.array(
         cast(list[float], analyzer_queue.get()), dtype=np.float16

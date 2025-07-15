@@ -70,7 +70,6 @@ if __name__ == "__main__":
   # model = load_custom_model("acoustic/v2.4+pb@cpu", custom_species_list="..")
 
   # model.use_custom_model(model_path, custom_species_list="..")
-  audio_paths = [Path("src/birdnet_v2_debug/10min.wav")]
   audio_paths = [Path("src/birdnet_v2_debug/60min.wav")]
 
   audio_paths = [
@@ -154,7 +153,6 @@ if __name__ == "__main__":
   audio_paths = "test-dataset/test_dataset_100x1.3s_flac"
   audio_paths = "test-dataset/test_dataset_100x1.3s_flac/000.flac"
   audio_paths = "test-dataset/test_dataset_1x7.3s_flac/0.flac"
-  audio_paths = "example/soundscape.wav"
 
   audio_paths = [
     Path("test-dataset/test_dataset_4x60min/0.wav"),
@@ -163,8 +161,10 @@ if __name__ == "__main__":
     Path("test-dataset/test_dataset_4x60min/3.wav"),
   ]
 
-  audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
   audio_paths = "test-dataset/test_dataset_100000x4s_flac"
+  audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
+  audio_paths = "example/soundscape.wav"
+  audio_paths = "test-dataset/test_dataset_1x10min/0.wav"
 
   params = {
     "n_workers": 12,

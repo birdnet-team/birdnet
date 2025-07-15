@@ -114,6 +114,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     pred_dur_queue: mp.Queue,
     prod_stats_queue: mp.Queue,
     stop_event: Event,
+    processing_finished_event: Event,
     update_interval: float,
     print_interval: float,
     use_stats_from_last_seconds: float,
@@ -140,6 +141,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     n_last_updated_s = 5.0
     n_last_updated = math.ceil(n_last_updated_s / update_interval)
 
+    self._processing_finished_event = processing_finished_event
     self._n_workers = n_workers
     self._workers_start = workers_start
     self._prd_stats_queue = prod_stats_queue
@@ -338,7 +340,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       # f"fill: {avg_filled_slots:.0f}",
     ]
 
-    if self._tot_n_segments_ptr.value > 0:
+    if self._tot_n_segments_ptr.value > 0 and self._wkr_total_segments_processed > 0:
       progress = (
         self._wkr_total_segments_processed / self._tot_n_segments_ptr.value * 100
       )
@@ -358,15 +360,16 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       output_msg_fields.append("PROG: analyzing...")
 
     output_msg = "; ".join(output_msg_fields)
-    self._logger.info(output_msg)
+    # self._logger.info(output_msg)
     print(output_msg, file=sys.stdout)
 
   def print_stats_continuously(self):
-    while not self._stop_event.is_set():
+    while not self._processing_finished_event.is_set():
       if self._cancel_event.is_set():
         return
       self._print_stats()
       time.sleep(self._print_interval)
+    self._logger.debug("PerformanceTrackerPrintThread thread finished.")
 
   def __call__(self):
     self._init_logging()
@@ -381,62 +384,56 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
     worker_speed_xrt_max = 0
 
-    while True:
+    while (
+      not self._processing_finished_event.is_set()
+      or not self._wkr_stats_queue.empty()
+      or not self._prd_stats_queue.empty()
+    ):
       if self._cancel_event.is_set():
         self._logger.debug("PerformanceTracker canceled because of cancel event.")
-        self._uninit_logging()
         return
-      processing_finished = self._stop_event.is_set()
-      worker_queue_is_empty = self._wkr_stats_queue.empty()
-      producer_queue_is_empty = self._prd_stats_queue.empty()
-      if processing_finished:
-        if worker_queue_is_empty and producer_queue_is_empty:
-          # TODO print again final stats
-          break
 
-      self._get_worker_stats()
       self._get_producer_stats()
+      self._get_worker_stats()
 
-      now = time.time()
+      if not self._processing_finished_event.is_set():
+        memory_usage: float = self._parent_process.memory_full_info().uss
+        for child in self._parent_process.children(recursive=True):
+          try:
+            memory_usage += child.memory_full_info().uss
+          except psutil.NoSuchProcess:
+            continue
+          except psutil.AccessDenied:
+            continue
 
-      memory_usage: float = self._parent_process.memory_full_info().uss
-      for child in self._parent_process.children(recursive=True):
-        try:
-          memory_usage += child.memory_full_info().uss
-        except psutil.NoSuchProcess:
-          continue
-        except psutil.AccessDenied:
-          continue
+        self._memory_usage_MiB_tracker.add_value(memory_usage / 1024**2)
 
-      self._memory_usage_MiB_tracker.add_value(memory_usage / 1024**2)
+        cpu_usage = psutil.cpu_percent()
+        self._cpu_usage_tracker.add_value(cpu_usage)
 
-      cpu_usage = psutil.cpu_percent()
-      self._cpu_usage_tracker.add_value(cpu_usage)
+        c = Counter(self._ring_flags)
+        n_free = c.get(WRITABLE_FLAG, 0)
+        n_preloaded = c.get(READABLE_FLAG, 0)
+        n_busy = c.get(READING_FLAG, 0)
 
-      c = Counter(self._ring_flags)
-      n_free = c.get(WRITABLE_FLAG, 0)
-      n_preloaded = c.get(READABLE_FLAG, 0)
-      n_busy = c.get(READING_FLAG, 0)
+        self._rng_free_slots_tracker.add_value(n_free)
+        self._rng_busy_slots_tracker.add_value(n_busy)
+        self._rng_preloaded_slots_tracker.add_value(n_preloaded)
+        self._wkr_busy_tracker.add_value(self._sem_active_workers.get_value())
 
-      self._rng_free_slots_tracker.add_value(n_free)
-      self._rng_busy_slots_tracker.add_value(n_busy)
-      self._rng_preloaded_slots_tracker.add_value(n_preloaded)
-      self._wkr_busy_tracker.add_value(self._sem_active_workers.get_value())
+        _summed_wkr_duration = sum(self._wkr_wall_times.values())
+        wkr_proc_audio_duration_s = (
+          self._wkr_total_segments_processed * self._segment_size_s
+        )
 
-      _summed_wkr_duration = sum(self._wkr_wall_times.values())
-      wkr_proc_audio_duration_s = (
-        self._wkr_total_segments_processed * self._segment_size_s
-      )
+        wkr_speed_xrt = (
+          wkr_proc_audio_duration_s / _summed_wkr_duration * len(self._wkr_wall_times)
+          if _summed_wkr_duration > 0
+          else 0
+        )
 
-      wkr_speed_xrt = (
-        wkr_proc_audio_duration_s / _summed_wkr_duration * len(self._wkr_wall_times)
-        if _summed_wkr_duration > 0
-        else 0
-      )
-
-      worker_speed_xrt_max = max(worker_speed_xrt_max, wkr_speed_xrt)
-
-      time.sleep(self._update_every)
+        worker_speed_xrt_max = max(worker_speed_xrt_max, wkr_speed_xrt)
+        time.sleep(self._update_every)
 
     stats = PerformanceTrackingResult(
       worker_speed_xrt=(self._wkr_total_segments_processed * self._segment_size_s)
@@ -474,7 +471,12 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       # avg_segments_per_s_last=(np.mean(avg_segments_per_s) if avg_segments_per_s else 0),
     )
 
+    self._logger.debug("Putting performance tracking result into queue.")
     self._perf_res.put(stats, block=False)
+    self._logger.debug("Done putting performance tracking result into queue.")
+
+    self._logger.info("Joining print thread...")
     print_thread.join()
+    self._logger.info("Print thread joined.")
 
     self._uninit_logging()

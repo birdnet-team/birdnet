@@ -69,6 +69,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
     device: str,
     cancel_event: Event,
     io_lock_handler: IOLockHandler,
+    prd_all_done_event: Event,
   ):
     super().__init__(__name__, logging_queue, logging_level)
 
@@ -76,6 +77,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
     assert species_blacklist.shape[0] == 1
     assert species_thresholds.shape[1] == species_blacklist.shape[1]
 
+    self._prd_all_done_event = prd_all_done_event
     self._wkr_ring_access_lock = wkr_ring_access_lock
     self._backend = None  # backend
     self._backend_type = backend_type
@@ -237,6 +239,10 @@ class ChildWorker(bn_logging.LogableProcessBase):
       while not self._sem_filled.acquire(timeout=1.0):
         if self._check_cancel_event():
           return
+        if self._prd_all_done_event.is_set():
+          self._log_debug("Producer is done. Exiting worker.")
+          self._out_q.put(None)
+          return
       dur_wait_for_filled_slot = time.perf_counter() - perf_c
 
       self._log_debug(
@@ -246,21 +252,23 @@ class ChildWorker(bn_logging.LogableProcessBase):
       if self._check_cancel_event():
         return
 
-      claimed_flag = None
       claimed_slot = None
+      claimed_flag = None
 
       perf_c = time.perf_counter()
+      n_done = 0
       with self._wkr_ring_access_lock:
         for current_slot in range(self._n_slots):
           current_slot_flag = self._ring_flags[current_slot]
 
           # TODO: check if all ring_size slots = DONE
-          if current_slot_flag in (READABLE_FLAG, DONE_FLAG):
+          if current_slot_flag == READABLE_FLAG:
             claimed_slot = current_slot
             claimed_flag = current_slot_flag
-            if claimed_flag == READABLE_FLAG:
-              self._ring_flags[claimed_slot] = READING_FLAG
-              break
+            self._ring_flags[claimed_slot] = READING_FLAG
+            break
+          elif current_slot_flag == DONE_FLAG:
+            n_done += 1
           else:
             assert current_slot_flag in (
               WRITABLE_FLAG,
@@ -271,14 +279,21 @@ class ChildWorker(bn_logging.LogableProcessBase):
       dur_search_for_filled_slot = time.perf_counter() - perf_c
 
       if claimed_slot is None:
-        raise AssertionError(
-          "No slot found in the ring buffer but sem_fill was available!"
-        )
+        if self._prd_all_done_event.is_set():
+          self._log_debug("Producer is done. Exiting worker.")
+          self._out_q.put(None)
+          break
+        # if n_done >= 1:
+        #   self._log_debug(
+        #     f"Slots are DONE_FLAG {claimed_slot}. No more work to d. Exiting."
+        #   )
+        #   self._out_q.put(None)
+        #   break
+        else:
+          raise AssertionError(
+            "No slot found in the ring buffer but sem_fill was available!"
+          )
 
-      if claimed_flag == DONE_FLAG:
-        self._log_debug(f"Acquired DONE_FLAG for slot {claimed_slot}. Exiting.")
-        self._out_q.put(None)
-        break
       assert claimed_flag == READABLE_FLAG
 
       self._log_debug(
