@@ -58,10 +58,10 @@ class PerformanceTrackingResult:
 class ValueTracker:
   def __init__(self, n_last: int):
     self._values = deque(maxlen=n_last)
-    self._summed_val = np.nan
-    self._avg_val = np.nan
-    self._min_val = np.nan
-    self._max_val = np.nan
+    self._summed_val = 0
+    self._avg_val = 0
+    self._min_val = 0
+    self._max_val = 0
     self._n_vals = 0
 
   def add_value(self, val: float) -> None:
@@ -125,6 +125,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     logging_level: int,
     perf_res: mp.Queue,
     sem_active_workers: Semaphore,
+    sem_filled_slots: Semaphore,
     segment_size_s: float,
     parent_process_id: int,
     rf_flags: RingField,
@@ -141,6 +142,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     n_last_updated_s = 5.0
     n_last_updated = math.ceil(n_last_updated_s / update_interval)
 
+    self._sem_filled_slots = sem_filled_slots
     self._processing_finished_event = processing_finished_event
     self._n_workers = n_workers
     self._workers_start = workers_start
@@ -185,8 +187,11 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._rng_busy_slots_tracker = ValueTracker(n_last_updated)
     self._rng_preloaded_slots_tracker = ValueTracker(n_last_updated)
 
+    self._sem_filled_tracker = ValueTracker(n_last_updated)
+
   def _get_worker_stats(self) -> None:
-    while not self._wkr_stats_queue.empty():
+    entry_count = self._wkr_stats_queue.qsize()
+    for _ in range(entry_count):
       (
         worker_pid,
         wall_time,
@@ -196,7 +201,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         dur_inference,
         dur_add_to_queue,
         batch_size,
-      ) = self._wkr_stats_queue.get(block=False)
+      ) = self._wkr_stats_queue.get(block=True)
       self._logger.debug(
         f"PerformanceTracker received prediction duration from worker {worker_pid}: "
         f"wall time: {wall_time:.3f}s, wait for filled slot: {dur_wait_for_filled_slot:.3f}s, find filled slot: {dur_search_for_filled_slot:.3f}s, inference: {dur_inference:.3f}s, add to queue: {dur_add_to_queue}s, batch size: {batch_size}"
@@ -221,7 +226,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         )
 
   def _get_producer_stats(self) -> None:
-    while not self._prd_stats_queue.empty():
+    entry_count = self._prd_stats_queue.qsize()
+    for _ in range(entry_count):
       (
         prod_pid,
         process_total_duration,
@@ -230,7 +236,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         free_slot_search_time,
         flush_duration,
         n,
-      ) = self._prd_stats_queue.get(block=False)
+      ) = self._prd_stats_queue.get(block=True)
       self._logger.debug(
         f"PerformanceTracker received producer stats from producer {prod_pid}: "
         f"process: {process_total_duration:.3f}s, batch loading: {batch_loading_duration:.3f}s, "
@@ -324,6 +330,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       f"MEM: {memory_usage_MiB:.0f} M",
       # f"CPU usage: {cpu_usage:.1f} %",
       f"BUF: {self._ring_flags.shape[0] - self._rng_free_slots_tracker.avg_val_last:.0f}/{self._ring_flags.shape[0]}",
+      # f"BUF2: {self._rng_preloaded_slots_tracker.avg_val_last:.0f}/{self._ring_flags.shape[0]}",
+      # f"S-FILL: {self._sem_filled_tracker.avg_val_last:.0f}",
       # f"free: {avg_free_slots:.0f}/{self._ring_flags.shape[0]}",
       f"P-WAIT: {self._prd_1_batch_loading_dur_tracker.avg_val_last * 1000:.2f} ms",
       f"P-BATCH: {self._prd_2_wait_dur_free_slot_tracker.avg_val_last * 1000:.2f} ms",
@@ -364,12 +372,11 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     print(output_msg, file=sys.stdout)
 
   def print_stats_continuously(self):
-    while not self._processing_finished_event.is_set():
+    while not self._processing_finished_event.wait(self._print_interval):
       if self._cancel_event.is_set():
         return
       self._print_stats()
-      time.sleep(self._print_interval)
-    self._logger.debug("PerformanceTrackerPrintThread thread finished.")
+    self._logger.debug("PerformanceTracker.PrintThread thread finished.")
 
   def __call__(self):
     self._init_logging()
@@ -377,7 +384,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
     print_thread = th.Thread(
       target=self.print_stats_continuously,
-      name="PerformanceTrackerPrintThread",
+      name="PerformanceTracker.PrintThread",
       daemon=True,
     )
     print_thread.start()
@@ -386,8 +393,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
     while (
       not self._processing_finished_event.is_set()
-      or not self._wkr_stats_queue.empty()
-      or not self._prd_stats_queue.empty()
+      or self._wkr_stats_queue.qsize() != 0
+      or self._prd_stats_queue.qsize() != 0
     ):
       if self._cancel_event.is_set():
         self._logger.debug("PerformanceTracker canceled because of cancel event.")
@@ -396,7 +403,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       self._get_producer_stats()
       self._get_worker_stats()
 
-      if not self._processing_finished_event.is_set():
+      if not self._processing_finished_event.wait(self._update_every):
         memory_usage: float = self._parent_process.memory_full_info().uss
         for child in self._parent_process.children(recursive=True):
           try:
@@ -421,6 +428,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         self._rng_preloaded_slots_tracker.add_value(n_preloaded)
         self._wkr_busy_tracker.add_value(self._sem_active_workers.get_value())
 
+        self._sem_filled_tracker.add_value(self._sem_filled_slots.get_value())
+
         _summed_wkr_duration = sum(self._wkr_wall_times.values())
         wkr_proc_audio_duration_s = (
           self._wkr_total_segments_processed * self._segment_size_s
@@ -433,7 +442,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         )
 
         worker_speed_xrt_max = max(worker_speed_xrt_max, wkr_speed_xrt)
-        time.sleep(self._update_every)
 
     stats = PerformanceTrackingResult(
       worker_speed_xrt=(self._wkr_total_segments_processed * self._segment_size_s)
@@ -471,12 +479,14 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       # avg_segments_per_s_last=(np.mean(avg_segments_per_s) if avg_segments_per_s else 0),
     )
 
-    self._logger.debug("Putting performance tracking result into queue.")
-    self._perf_res.put(stats, block=False)
-    self._logger.debug("Done putting performance tracking result into queue.")
-
     self._logger.info("Joining print thread...")
     print_thread.join()
     self._logger.info("Print thread joined.")
+
+    self._logger.debug("Putting performance tracking result into queue.")
+    self._perf_res.put(stats, block=True)
+    # self._perf_res.close()
+    # self._perf_res.join_thread()
+    self._logger.debug("Done putting performance tracking result into queue.")
 
     self._uninit_logging()

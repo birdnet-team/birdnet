@@ -156,9 +156,9 @@ class ChildProducer(bn_logging.LogableProcessBase):
     self._prd_ring_access_lock = prd_ring_access_lock
     self._track_performance = track_performance
     self._prod_stats_queue = prod_stats_queue
-    self.segment_duration_s = segment_duration_s
-    self.overlap_duration_s = overlap_duration_s
-    self.target_sample_rate = target_sample_rate
+    self._segment_duration_s = segment_duration_s
+    self._overlap_duration_s = overlap_duration_s
+    self._target_sample_rate = target_sample_rate
     self._batch_size = batch_size
     self._n_slots = n_slots
     self._sem_free_slots = sem_free_slots
@@ -253,7 +253,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
       with self._io_lock_handler:
         audio_duration_s = get_audio_duration_s(path)
       file_n_segments = get_max_n_segments(
-        audio_duration_s, self.segment_duration_s, self.overlap_duration_s
+        audio_duration_s, self._segment_duration_s, self._overlap_duration_s
       )
       file_max_segment_index = file_n_segments - 1
 
@@ -267,9 +267,9 @@ class ChildProducer(bn_logging.LogableProcessBase):
       segments = load_audio_in_segments_with_overlap_locked(
         path,
         self._io_lock_handler,
-        segment_duration_s=self.segment_duration_s,
-        overlap_duration_s=self.overlap_duration_s,
-        target_sample_rate=self.target_sample_rate,
+        segment_duration_s=self._segment_duration_s,
+        overlap_duration_s=self._overlap_duration_s,
+        target_sample_rate=self._target_sample_rate,
       )
 
       # fill last segment with silence up to segmentsize if it is smaller than 3s
@@ -287,7 +287,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
         segments = (
           bandpass_signal(
             segment,
-            self.target_sample_rate,
+            self._target_sample_rate,
             self.bandpass_fmin,
             self.bandpass_fmax,
             self.sig_fmin,
@@ -412,6 +412,10 @@ class ChildProducer(bn_logging.LogableProcessBase):
           )
         )
 
+    self._logger.debug(
+      f"PRODUCER({os.getpid()}) - Finished processing files. Total time: {time.perf_counter() - start_time:.2f} seconds."
+    )
+
   def __call__(self) -> None:
     self._init()
 
@@ -432,6 +436,9 @@ class ChildProducer(bn_logging.LogableProcessBase):
         f"PRODUCER({os.getpid()}) - Last producer finished. Sending poison pills."
       )
       self._prd_all_done_event.set()
+      self._prod_stats_queue.close()
+      self._prod_stats_queue.join_thread()
+      self._logger.debug(f"PRODUCER({os.getpid()}) - Closed prod_stats_queue.")
 
       # # send poison pills
       # # can also use n_jobs here, but this is faster
@@ -440,7 +447,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
       #   if self._check_cancel_event():
       #     return
 
-    self._uninit()
+    # self._uninit()
 
   def _check_cancel_event(self) -> bool:
     if self._cancel_event.is_set():

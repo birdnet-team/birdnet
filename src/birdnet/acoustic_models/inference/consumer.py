@@ -48,6 +48,9 @@ class Consumer:
 
       got_stop_signal_from_worker = data is None
       if got_stop_signal_from_worker:
+        self._logger.debug(
+          f"CONSUMER - Received stop signal from worker. Finished workers: {finished_workers + 1}."
+        )
         finished_workers += 1
         continue
 

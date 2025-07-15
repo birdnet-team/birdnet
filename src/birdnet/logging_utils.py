@@ -4,9 +4,8 @@ from __future__ import annotations
 import logging
 import multiprocessing as mp
 import multiprocessing.synchronize
-import threading
 import time
-from logging.handlers import QueueHandler
+from logging.handlers import MemoryHandler, QueueHandler
 from multiprocessing import Queue
 from pathlib import Path
 from time import sleep
@@ -76,6 +75,17 @@ def init_package_logger(logging_level: int) -> None:
 init_package_logger(logging.INFO)
 
 
+class FakeQueue:
+  def put(self, item, block=True, timeout=None):
+    pass  # tut nichts
+
+  def get(self, block=True, timeout=None):
+    raise RuntimeError("FakeQueue: get() aufgerufen, obwohl sie leer ist.")
+
+  def empty(self):
+    return True
+
+
 class QueueFileWriter:
   def __init__(
     self,
@@ -84,15 +94,17 @@ class QueueFileWriter:
     log_file: Path,
     io_lock_handler: IOLockHandler,
     cancel_event: multiprocessing.synchronize.Event,
-    stop_event: threading.Event,
+    stop_event: multiprocessing.synchronize.Event,
+    processing_finished_event: multiprocessing.synchronize.Event,
   ):
     self._logging_level = logging_level
     self._log_queue = log_queue
     self._log_file = log_file
     self._io_log_handler = io_lock_handler
     self._cancel_event = cancel_event
-    self._stop_event = stop_event
-    self._get_logs_interval = 5
+    self._logging_stop_event = stop_event
+    self._get_logs_interval = 3
+    self._processing_finished_event = processing_finished_event
 
   def __call__(self):
     logger = logging.getLogger("birdnet-file-writer")
@@ -106,25 +118,45 @@ class QueueFileWriter:
     )
 
     h = logging.FileHandler(self._log_file, mode="w", encoding="utf-8")
+
+    LARGE_LOG_SIZE_THAT_WILL_NOT_BE_REACHED = 100000
     mh = LockedMemoryHandler(
-      capacity=10000,
-      io_lock_handler=self._io_log_handler,
-      flush_interval_s=15,
+      capacity=LARGE_LOG_SIZE_THAT_WILL_NOT_BE_REACHED,
       flushLevel=logging.WARNING,
       target=h,
       flushOnClose=True,
+      io_lock_handler=self._io_log_handler,
     )
 
     h.setFormatter(f)
     logger.addHandler(mh)
 
-    while not self._stop_event.is_set() or not self._log_queue.empty():
+    while True:
+      if self._logging_stop_event.wait(self._get_logs_interval):
+        if self._log_queue.qsize() == 0:
+          logger.debug("Processing finished, log queue is empty, stopping file writer.")
+          print(time.time(), "finished logging loop")
+          break
+        else:
+          logger.debug(
+            "Processing finished, but log queue is not empty, continuing to write logs."
+          )
+          print(time.time(), "about to finish logging loop")
+
       try:
-        perf_c = time.perf_counter()
-        while not self._log_queue.empty():
+        # perf_c = time.perf_counter()
+        # print(
+        #   f"Getting logging entries from queue, queue size: {self._log_queue.qsize()}"
+        # )
+        # NOTE: Don't use !empty()
+        current_size = self._log_queue.qsize()
+        for _ in range(current_size):
           record: logging.LogRecord = self._log_queue.get()
           logger.handle(record)
-        print(f"{time.perf_counter() - perf_c}s to get logging entries from queue.")
+        mh.flush()
+        # print(
+        #   f"Flushed logging entries from queue in {time.perf_counter() - perf_c}s. Queue size: {self._log_queue.qsize()}"
+        # )
       except OSError as e:
         # OSError can happen if the file is closed while writing
         if e.args[0] == "handle is closed":
@@ -148,13 +180,17 @@ class QueueFileWriter:
         traceback.print_exc(file=sys.stderr)
         self._cancel_event.set()
         break
-      if not self._stop_event.is_set():
-        sleep(self._get_logs_interval)
-    mh.flush()
-
-    lines = self._log_file.read_text(encoding="utf-8").splitlines()
-    sorted_lines = sorted(lines, key=lambda x: x.split()[:2])
-    self._log_file.write_text("\n".join(sorted_lines), encoding="utf-8")
+      # if not self._logging_stop_event.is_set():
+      # sleep(self._get_logs_interval)
+    # print(time.time(), "flushing on close")
+    mh.close()
+    # print(time.time(), "done flushing")
+    # lines = self._log_file.read_text(encoding="utf-8").splitlines()
+    # sorted_lines = sorted(lines, key=lambda x: x.split()[:2])
+    # self._log_file.write_text("\n".join(sorted_lines), encoding="utf-8")
+    # print(
+    #   f"Finished writing logs to {self._log_file.absolute()}. Total lines: {len(sorted_lines)}."
+    # )
 
 
 class LogableProcessBase:

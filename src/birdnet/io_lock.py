@@ -32,6 +32,27 @@ class LockedMemoryHandler(MemoryHandler):
     self,
     capacity,
     io_lock_handler: IOLockHandler,
+    flushLevel=logging.ERROR,
+    target=None,
+    flushOnClose=True,
+  ):
+    super().__init__(capacity, flushLevel, target, flushOnClose)
+    self._io_lock_handler = io_lock_handler
+
+  def flush(self):
+    with self._io_lock_handler:
+      super().flush()
+
+
+class LockedMemoryHandlerWithTimer(MemoryHandler):
+  """
+  MemoryHandler, der beim Flush einen externen mp.Lock benutzt.
+  """
+
+  def __init__(
+    self,
+    capacity,
+    io_lock_handler: IOLockHandler,
     flush_interval_s=30,
     flushLevel=logging.ERROR,
     target=None,
@@ -44,8 +65,13 @@ class LockedMemoryHandler(MemoryHandler):
     self._stop_evt = threading.Event()
     # >>> Start des Hintergrund-Threads
     self.flush_interval_s = flush_interval_s
-    th = threading.Thread(target=self._continous_flush, daemon=True)
+    th = threading.Thread(
+      target=self._continous_flush,
+      name="LockedMemoryHandler.ContinousFlush",
+      daemon=True,
+    )
     th.start()
+    self._thread = th
 
   def flush(self):
     with self._io_lock_handler:
@@ -57,4 +83,5 @@ class LockedMemoryHandler(MemoryHandler):
 
   def close(self):
     self._stop_evt.set()
+    self._thread.join()
     super().close()

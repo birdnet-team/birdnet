@@ -9,7 +9,7 @@ import os
 import platform
 import shutil
 import tempfile
-import threading as th
+import threading
 import time
 from collections import OrderedDict
 from collections.abc import Iterable
@@ -436,6 +436,8 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     device: str | list[str] = "CPU",
     serial_io: bool = False,
   ):
+    debug_log = False
+
     start = time.perf_counter()
     start_time = time.time()
     start_timepoint = datetime.now()
@@ -551,7 +553,9 @@ class AcousticModelBaseV2_4(AcousticModelBase):
 
     if show_stats == "benchmark":
       print("Starting benchmark...")
+      debug_log = True
 
+    # print("PID", os.getpid())
     track_performance = show_stats in ("progress", "benchmark")
 
     io_lock = mp.Lock() if serial_io else None
@@ -575,11 +579,12 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       print(f"Writing logs to: {log_file.absolute()}")
 
     cancel_event = mp.Event()
+    processing_finished_event = mp.Event()
 
     logging_level = get_package_logging_level()
     logging_queue = mp.Queue()
-    logging_stop_event = th.Event()
-    logging_listener = th.Thread(
+    logging_stop_event = mp.Event()
+    logging_listener = threading.Thread(
       target=QueueFileWriter(
         log_queue=logging_queue,
         logging_level=logging_level,
@@ -587,7 +592,9 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         io_lock_handler=io_lock_handler,
         cancel_event=cancel_event,
         stop_event=logging_stop_event,
+        processing_finished_event=processing_finished_event,
       ),
+      name="QueueFileWriter",
       daemon=True,
     )
     logging_listener.start()
@@ -752,12 +759,11 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     wkr_ring_access_lock = mp.Lock()
     prd_all_done_event = mp.Event()
 
-    pred_dur_queue = mp.Queue()
-    prod_stats_queue = mp.Queue()
+    wkr_stats_queue = mp.Queue()
+    prd_stats_queue = mp.Queue()
     analyzer_queue = mp.Queue()
     perf_res_queue: mp.Queue | None = None
     perf_result: PerformanceTrackingResult | None = None
-    processing_finished_event = mp.Event()
     perf_stop_event = mp.Event()
     tot_n_segments_ptr = mp.RawValue(ctypes.c_uint64, 0)
     files_queue = mp.Queue(
@@ -785,7 +791,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       flags = rf_flags.get_array(shm_ring_flags)
       flags[:] = WRITABLE_FLAG
 
-      file_analyzer_proc = th.Thread(
+      file_analyzer_proc = threading.Thread(
         target=FilesAnalyzer(
           files=file_paths,
           logging_level=logging_level,
@@ -799,12 +805,13 @@ class AcousticModelBaseV2_4(AcousticModelBase):
           cancel_event=cancel_event,
           io_lock_handler=io_lock_handler,
         ),
+        name="FileAnalyzer",
         daemon=True,
       )
       file_analyzer_proc.start()
 
       producer_processes = [
-        mp.Process(
+        threading.Thread(
           target=ChildProducer(
             files_queue=files_queue,
             slot_ptr=producer_slot_ptr,
@@ -813,7 +820,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             n_slots=n_slots,
             prd_ring_access_lock=prd_ring_access_lock,
             track_performance=track_performance,
-            prod_stats_queue=prod_stats_queue,
+            prod_stats_queue=prd_stats_queue,
             rf_file_indices=rf_file_indices,
             rf_segment_indices=rf_segment_indices,
             rf_audio_samples=rf_audio_samples,
@@ -837,9 +844,10 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             cancel_event=cancel_event,
             io_lock_handler=io_lock_handler,
           ),
+          name=f"ChildProducer-{i}",
           daemon=True,
         )
-        for _ in range(feeders)
+        for i in range(feeders)
       ]
       for p in producer_processes:
         p.start()
@@ -883,12 +891,13 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             apply_sigmoid=apply_sigmoid,
             prob_dtype=prob_dtype,
             sigmoid_sensitivity=sigmoid_sensitivity,
-            pred_dur_queue=pred_dur_queue,
+            wkr_stats_queue=wkr_stats_queue,
             track_performance=track_performance,
             cancel_event=cancel_event,
             sem_active_workers=sem_active_workers,
             io_lock_handler=io_lock_handler,
           ),
+          name=f"ChildWorker-{i}",
           daemon=True,
         )
         for i in range(workers)
@@ -901,17 +910,18 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       perf_tracker = None
       if track_performance:
         perf_res_queue = mp.Queue()
-        perf_tracker = th.Thread(
+        perf_tracker = mp.Process(
           target=PerformanceTracker(
-            pred_dur_queue=pred_dur_queue,
+            pred_dur_queue=wkr_stats_queue,
             stop_event=perf_stop_event,
             processing_finished_event=processing_finished_event,
             update_interval=0.5,
             print_interval=1,
-            prod_stats_queue=prod_stats_queue,
+            prod_stats_queue=prd_stats_queue,
             use_stats_from_last_seconds=30,
             n_workers=workers,
             start=start,
+            sem_filled_slots=sem_filled_slots,
             workers_start=worker_start,
             segment_size_s=AcousticModelBaseV2_4.get_segment_size_s(),
             logging_queue=logging_queue,
@@ -923,6 +933,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             cancel_event=cancel_event,
             sem_active_workers=sem_active_workers,
           ),
+          name="PerformanceTracker",
           daemon=True,
         )
         perf_tracker.start()
@@ -947,12 +958,12 @@ class AcousticModelBaseV2_4(AcousticModelBase):
 
       for p in producer_processes:
         p.join()
-        logger.debug(f"Producer {p.pid} finished.")
+        logger.debug(f"Producer '{p.name}' finished.")
       logger.debug("All producers finished.")
 
       for w in worker_processes:
         w.join()
-        logger.debug(f"Worker {w.pid} finished.")
+        logger.debug(f"Worker '{w.name}' finished.")
       logger.debug("All workers finished.")
 
       stop = time.perf_counter()
@@ -968,8 +979,10 @@ class AcousticModelBaseV2_4(AcousticModelBase):
 
     if cancel_event.is_set():
       logger.error("Analysis was cancelled due to an error.")
-      logging_queue.put_nowait(None)
+      logging_stop_event.set()
       logging_listener.join()
+      logging_queue.close()
+      logging_queue.join_thread()
       raise RuntimeError(
         f"Analysis was cancelled due to an error. Please check the logs for details: {log_file.absolute()}"
       )
@@ -1230,11 +1243,12 @@ class AcousticModelBaseV2_4(AcousticModelBase):
 
     logging_stop_event.set()
     logging_listener.join()
+    logging_queue.close()
+    logging_queue.join_thread()
     bn_logging.remove_queue_handler(queue_handler)
 
     global_log_file_iso = Path(
       Path(tempfile.gettempdir()) / f"{PKG_NAME}-{iso_time}.log"
     )
     shutil.copyfile(log_file, global_log_file_iso)
-    return res
     return res

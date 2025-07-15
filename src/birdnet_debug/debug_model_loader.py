@@ -1,5 +1,6 @@
 import logging
 import random
+import sys
 from multiprocessing import set_start_method
 from pathlib import Path
 
@@ -15,7 +16,11 @@ from birdnet_debug.pow_downloader import get_pow_file_paths
 if __name__ == "__main__":
   # os.environ["TF_CPP_MIN_LOG_LEVEL"] = "0"  # sämtliche TF-Logs
 
-  # faulthandler.enable(file=sys.stderr, all_threads=True)
+  import faulthandler
+  import signal
+
+  faulthandler.enable(file=sys.stderr, all_threads=True)
+  faulthandler.register(signal.SIGUSR1)
   logging.basicConfig(
     level=logging.WARNING,
     format="%(asctime)s (%(levelname)s): %(message)s",
@@ -147,12 +152,18 @@ if __name__ == "__main__":
   audio_paths = [Path("src\\birdnet_v2_debug\\10min.wav")]
   audio_paths = [Path("src\\birdnet_v2_debug\\60min.wav")]
 
-  audio_paths = get_pow_file_paths()
   audio_paths = "test-dataset/test_dataset_10000x0.2s_flac"
   audio_paths = "test-dataset/test_dataset_1000x0.2s_flac"
   audio_paths = "test-dataset/test_dataset_100x1.3s_flac"
   audio_paths = "test-dataset/test_dataset_100x1.3s_flac/000.flac"
   audio_paths = "test-dataset/test_dataset_1x7.3s_flac/0.flac"
+
+  audio_paths = "test-dataset/test_dataset_1x10min/0.wav"
+  audio_paths = "test-dataset/test_dataset_100000x4s_flac"
+
+  audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
+
+  audio_paths = "example/soundscape.wav"
 
   audio_paths = [
     Path("test-dataset/test_dataset_4x60min/0.wav"),
@@ -160,17 +171,12 @@ if __name__ == "__main__":
     Path("test-dataset/test_dataset_4x60min/2.wav"),
     Path("test-dataset/test_dataset_4x60min/3.wav"),
   ]
-
-  audio_paths = "test-dataset/test_dataset_100000x4s_flac"
-  audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
-  audio_paths = "example/soundscape.wav"
-  audio_paths = "test-dataset/test_dataset_1x10min/0.wav"
-
+  audio_paths = get_pow_file_paths()
   params = {
     "n_workers": 12,
     "n_producers": 1,
     "batch_size": 1,
-    "prefetch_ratio": 1,
+    "prefetch_ratio": 2,
     "backend": "tf",
     "device": "CPU",
   }
@@ -178,8 +184,8 @@ if __name__ == "__main__":
   model: AcousticModelBaseV2_4 = load(backend=params["backend"])
 
   # set_start_method("forkserver", force=True) # Linux, macOS
+  # set_start_method("spawn", force=True)  # Linux, macOS
   set_start_method("fork", force=True)  # Linux, macOS
-  # set_start_method("forkserver", force=True)  # Windows
   start = time.perf_counter()
   assert isinstance(model, AcousticModelBaseV2_4)
   result = model.analyze(

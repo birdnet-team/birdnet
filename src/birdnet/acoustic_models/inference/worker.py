@@ -62,7 +62,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
     prob_dtype: DTypeLike,
     apply_sigmoid: bool,
     sigmoid_sensitivity: float | None,
-    pred_dur_queue: mp.Queue,
+    wkr_stats_queue: mp.Queue,
     track_performance: bool,
     logging_queue: mp.Queue,
     logging_level: int,
@@ -83,7 +83,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
     self._backend_type = backend_type
     self._backend_kwargs = backend_kwargs
     self._track_performance = track_performance
-    self._pred_dur_queue = pred_dur_queue
+    self._wkr_stats_queue = wkr_stats_queue
     self._top_k = top_k
     self._thresholds = species_thresholds
     self._blacklist = species_blacklist
@@ -374,7 +374,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
 
       if self._track_performance:
         wall_time = time.perf_counter() - start_time
-        self._pred_dur_queue.put(
+        self._wkr_stats_queue.put(
           (
             self._pid,
             wall_time,
