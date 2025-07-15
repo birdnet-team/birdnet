@@ -362,10 +362,6 @@ class ChildProducer(bn_logging.LogableProcessBase):
             claimed_flag = current_slot_flag
             if claimed_flag == WRITABLE_FLAG:
               self._ring_flags[claimed_slot] = WRITING_FLAG
-
-              self._logger.debug(
-                f"PRODUCER({os.getpid()}) - Acquired WRITING_FLAG for slot {claimed_slot}."
-              )
               break
           else:
             assert current_slot_flag in (
@@ -380,6 +376,10 @@ class ChildProducer(bn_logging.LogableProcessBase):
           "No free slot found in the ring buffer but sem_free was available!"
         )
       assert claimed_flag == WRITABLE_FLAG
+
+      self._logger.debug(
+        f"PRODUCER({os.getpid()}) - Acquired WRITING_FLAG for slot {claimed_slot}."
+      )
 
       if self._check_cancel_event():
         return

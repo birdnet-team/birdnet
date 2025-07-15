@@ -1,4 +1,4 @@
+import numpy as np
 
-import soundfile as sf
-
-print("\n".join(sf.available_formats().keys()))
+x = np.nan * 1000
+print(x)

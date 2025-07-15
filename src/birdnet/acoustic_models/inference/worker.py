@@ -2,6 +2,12 @@ from __future__ import annotations
 
 import ctypes
 import multiprocessing as mp
+
+# try:
+#   import tflite_runtime.interpreter as tflite
+# except ImportError:  # fallback to full TF (heavier)
+# from tensorflow.lite.python import interpreter as tflite
+import multiprocessing.synchronize
 import os
 import time
 from multiprocessing import Queue, shared_memory
@@ -26,11 +32,6 @@ from birdnet.helper import RingField, uint_dtype_for
 from birdnet.io_lock import IOLockHandler
 from birdnet.utils import flat_sigmoid_logaddexp
 
-# try:
-#   import tflite_runtime.interpreter as tflite
-# except ImportError:  # fallback to full TF (heavier)
-# from tensorflow.lite.python import interpreter as tflite
-
 
 class ChildWorker(bn_logging.LogableProcessBase):
   def __init__(
@@ -54,6 +55,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
     | Synchronized[ctypes.c_uint32]
     | Synchronized[ctypes.c_uint64],
     out_q: Queue,
+    wkr_ring_access_lock: multiprocessing.synchronize.Lock,
     sem_free: Semaphore,
     sem_fill: Semaphore,
     sem_active_workers: Semaphore,
@@ -74,6 +76,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
     assert species_blacklist.shape[0] == 1
     assert species_thresholds.shape[1] == species_blacklist.shape[1]
 
+    self._wkr_ring_access_lock = wkr_ring_access_lock
     self._backend = None  # backend
     self._backend_type = backend_type
     self._backend_kwargs = backend_kwargs
@@ -188,7 +191,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
     self._shm_ring_flags, self._ring_flags = self._rf_flags.attach_and_get_array()
     self._log_debug("Attached ring buffers.")
 
-  def _try_init(self) -> bool:
+  def _init(self) -> bool:
     start = time.perf_counter()
     self._init_logging()
     self._load_ring_buffers()
@@ -217,7 +220,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
     return False
 
   def __call__(self):
-    if self._lazy_init and not self._try_init():
+    if self._lazy_init and not self._init():
       self._cancel_event.set()
       return
 
@@ -230,12 +233,11 @@ class ChildWorker(bn_logging.LogableProcessBase):
     start_time = time.perf_counter()
 
     while True:
-      wait_for_batch_start = time.perf_counter()
-      wait_duration_for_batch: float | None = None
-
+      perf_c = time.perf_counter()
       while not self._sem_filled.acquire(timeout=1.0):
         if self._check_cancel_event():
           return
+      dur_wait_for_filled_slot = time.perf_counter() - perf_c
 
       self._log_debug(
         f"Acquired FILL; Free slots remaining: {self._sem_free}; Filled slots: {self._sem_filled}"
@@ -244,55 +246,60 @@ class ChildWorker(bn_logging.LogableProcessBase):
       if self._check_cancel_event():
         return
 
-      while True:
-        with self._slot_ptr.get_lock():
-          current_slot = self._slot_ptr.value
+      claimed_flag = None
+      claimed_slot = None
+
+      perf_c = time.perf_counter()
+      with self._wkr_ring_access_lock:
+        for current_slot in range(self._n_slots):
           current_slot_flag = self._ring_flags[current_slot]
+
           # TODO: check if all ring_size slots = DONE
           if current_slot_flag in (READABLE_FLAG, DONE_FLAG):
-            wait_duration_for_batch = time.perf_counter() - wait_for_batch_start
             claimed_slot = current_slot
             claimed_flag = current_slot_flag
             if claimed_flag == READABLE_FLAG:
               self._ring_flags[claimed_slot] = READING_FLAG
-            self._jump_to_next_slot_ptr()
-            break
+              break
           else:
             assert current_slot_flag in (
               WRITABLE_FLAG,
               WRITING_FLAG,
               READING_FLAG,
             )
-            self._jump_to_next_slot_ptr()
 
-        if self._check_cancel_event():
-          return
+      dur_search_for_filled_slot = time.perf_counter() - perf_c
 
-      assert wait_duration_for_batch is not None
+      if claimed_slot is None:
+        raise AssertionError(
+          "No slot found in the ring buffer but sem_fill was available!"
+        )
 
       if claimed_flag == DONE_FLAG:
-        self._log_debug(f"Received DONE_FLAG for slot {claimed_slot}. Exiting.")
+        self._log_debug(f"Acquired DONE_FLAG for slot {claimed_slot}. Exiting.")
         self._out_q.put(None)
         break
       assert claimed_flag == READABLE_FLAG
 
-      self._sem_active_workers.release()
       self._log_debug(
-        f"Acquired READ_FLAG for slot {claimed_slot}. Waited {wait_duration_for_batch:.4f} seconds for batch."
+        f"Acquired READ_FLAG for slot {claimed_slot}. Searched {dur_search_for_filled_slot:.4f} seconds for batch."
       )
 
+      self._sem_active_workers.release()
+
+      perf_c = time.perf_counter()
       n = self._ring_batch_sizes[claimed_slot]
       audio_samples = self._ring_audio_samples[claimed_slot, :n]
       file_indices = self._ring_file_indices[claimed_slot, :n].copy()  # copy needed
       segment_indices = self._ring_segment_indices[
         claimed_slot, :n
       ].copy()  # copy needed
+      dur_get_job = time.perf_counter() - perf_c
       self._log_debug(
         f"Received job for slot {claimed_slot} with {n} segments: {segment_indices}"
       )
 
-      pred_start_time = time.perf_counter()
-
+      perf_c = time.perf_counter()
       try:
         pred = self._infer(audio_samples)
       except Exception as e:
@@ -302,11 +309,12 @@ class ChildWorker(bn_logging.LogableProcessBase):
           f"Exiting worker {self._pid} due to error during inference. Set cancel event."
         )
         return
-
-      prediction_duration = time.perf_counter() - pred_start_time
+      dur_inference = time.perf_counter() - perf_c
 
       self._ring_flags[claimed_slot] = WRITABLE_FLAG
       self._sem_free.release()
+
+      perf_c = time.perf_counter()
 
       self._log_debug(
         f"Released FREE. Free slots remaining: {self._sem_free}; Filled slots: {self._sem_filled}"
@@ -342,19 +350,24 @@ class ChildWorker(bn_logging.LogableProcessBase):
           top_k_mask,
         )
       )
+      dur_add_to_queue = time.perf_counter() - perf_c
+
       self._prediction_count += top_k_species.shape[0]
       self._log_debug(
-        f"Prediction made ({prediction_duration:.4} s). Total predictions: {self._prediction_count}. Chunks: {segment_indices}"
+        f"Prediction made ({dur_inference:.4} s). Total predictions: {self._prediction_count}. Chunks: {segment_indices}"
       )
 
       if self._track_performance:
-        process_total_duration = time.perf_counter() - start_time
+        wall_time = time.perf_counter() - start_time
         self._pred_dur_queue.put(
           (
             self._pid,
-            process_total_duration,
-            wait_duration_for_batch,
-            prediction_duration,
+            wall_time,
+            dur_wait_for_filled_slot,
+            dur_search_for_filled_slot,
+            dur_get_job,
+            dur_inference,
+            dur_add_to_queue,
             n,
           ),
           block=False,

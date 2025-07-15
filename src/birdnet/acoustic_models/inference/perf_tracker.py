@@ -54,6 +54,66 @@ class PerformanceTrackingResult:
   # avg_segments_per_s_last: float
 
 
+class DurationTracker:
+  def __init__(self, n_last: int):
+    self._n_last = n_last
+    self._durations = deque(maxlen=n_last)
+    self._total_duration = np.nan
+    self._avg_duration = np.nan
+    self._min_duration = np.nan
+    self._max_duration = np.nan
+    self._n_recordings = 0
+
+  def add_duration(self, duration: float) -> None:
+    self._durations.append(duration)
+    self._min_duration = (
+      min(self._min_duration, duration) if self._n_recordings > 0 else duration
+    )
+    self._max_duration = (
+      max(self._max_duration, duration) if self._n_recordings > 0 else duration
+    )
+    self._total_duration = (
+      self._total_duration + duration if self._n_recordings > 0 else duration
+    )
+    self._avg_duration = (
+      (self._avg_duration * self._n_recordings + duration) / (self._n_recordings + 1)
+      if self._n_recordings > 0
+      else duration
+    )
+
+    self._n_recordings += 1
+
+  @property
+  def avg_duration(self) -> float:
+    return self._avg_duration
+
+  @property
+  def min_duration(self) -> float:
+    return self._min_duration
+
+  @property
+  def max_duration(self) -> float:
+    return self._max_duration
+
+  @property
+  def total_duration(self) -> float:
+    return self._total_duration
+
+  @property
+  def n_recordings(self) -> int:
+    return self._n_recordings
+
+  @property
+  def durations(self) -> deque[float]:
+    return self._durations
+
+  @property
+  def avg_duration_last(self) -> float:
+    if len(self._durations) == 0:
+      return np.nan
+    return np.mean(self._durations)  # type: ignore
+
+
 class PerformanceTracker(bn_logging.LogableProcessBase):
   def __init__(
     self,
@@ -82,9 +142,9 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
     self._n_workers = n_workers
     self._workers_start = workers_start
-    self._prod_stats_queue = prod_stats_queue
+    self._prd_stats_queue = prod_stats_queue
     self._perf_res = perf_res
-    self._worker_stats_queue = pred_dur_queue
+    self._wkr_stats_queue = pred_dur_queue
     self._n_last = int(1 / update_interval * use_stats_from_last_seconds)
     self._sem_active_workers = sem_active_workers
     # self._n_last = print_last_n
@@ -94,12 +154,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._stop_event = stop_event
     self._next_print = time.time()
     self._next_update = self._next_print
-    self._wkr_total_segments_processed = 0
-    self._prd_total_segments_processed = 0
-    self._producer_total_batches_processed = 0
-    self._worker_total_batches_processed = 0
     self._summed_prd_flush_duration = 0.0
-    self._wkr_summed_pred_duration = 0.0
     self._start = start
     self._segment_size_s = segment_size_s
     self._parent_process_id = parent_process_id
@@ -109,53 +164,62 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._ring_flags: np.ndarray | None = None
     self._tot_n_segments_ptr = tot_n_segments_ptr
     self._cancel_event = cancel_event
+
     self._wkr_wall_times = {}
-    self._wkr_avg_wait_dur_ms = 0.0
-    self._wkr_wait_dur_deque = deque(maxlen=self._n_last)
+    self._wkr_total_segments_processed = 0
+    self._wkr_1_wait_dur_for_filled_slot_tracker = DurationTracker(self._n_last)
+    self._wkr_2_search_dur_for_filled_slot_tracker = DurationTracker(self._n_last)
+    self._wkr_3_get_job_dur_tracker = DurationTracker(self._n_last)
+    self._wkr_4_inference_dur_tracker = DurationTracker(self._n_last)
+    self._wkr_5_add_to_queue_dur_tracker = DurationTracker(self._n_last)
     self._wkr_ramp_up_time_until_first_pred = None
+
     self._prd_wall_times = {}
-    self._prd_avg_batch_loading_dur_ms = 0.0
-    self._prd_avg_wait_dur_free_slot_ms = 0.0
-    self._prd_avg_free_slot_search_time = 0.0
-    self._prd_avg_flush_dur_ms = 0.0
-    self._prd_wait_dur_free_slots_deque = deque(maxlen=self._n_last)
-    self._prd_batch_loading_dur_deque = deque(maxlen=self._n_last)
-    self._prd_free_slot_search_dur_deque = deque(maxlen=self._n_last)
-    self._prd_flush_dur_deque = deque(maxlen=self._n_last)
+    self._prd_total_segments_processed = 0
+    self._prd_1_batch_loading_dur_tracker = DurationTracker(self._n_last)
+    self._prd_2_wait_dur_free_slot_tracker = DurationTracker(self._n_last)
+    self._prd_3_free_slot_search_dur_tracker = DurationTracker(self._n_last)
+    self._prd_4_flush_dur_tracker = DurationTracker(self._n_last)
 
   def _get_worker_stats(self) -> None:
-    while not self._worker_stats_queue.empty():
-      worker_pid, process_dur, wait_dur, pred_dur, batch_size = (
-        self._worker_stats_queue.get(block=False)
-      )
+    while not self._wkr_stats_queue.empty():
+      (
+        worker_pid,
+        wall_time,
+        dur_wait_for_filled_slot,
+        dur_search_for_filled_slot,
+        dur_get_job,
+        dur_inference,
+        dur_add_to_queue,
+        batch_size,
+      ) = self._wkr_stats_queue.get(block=False)
       self._logger.debug(
         f"PerformanceTracker received prediction duration from worker {worker_pid}: "
-        f"process: {process_dur:.3f}s, wait: {wait_dur:.3f}s, pred: {pred_dur:.3f}s, batch size: {batch_size}"
+        f"wall time: {wall_time:.3f}s, wait for filled slot: {dur_wait_for_filled_slot:.3f}s, find filled slot: {dur_search_for_filled_slot:.3f}s, inference: {dur_inference:.3f}s, add to queue: {dur_add_to_queue}s, batch size: {batch_size}"
       )
-      self._wkr_wall_times[worker_pid] = process_dur
-      # summed_warm_up += warm_up_dur
-      self._wkr_wait_dur_deque.append(wait_dur)
-
-      self._wkr_avg_wait_dur_ms = (
-        self._wkr_avg_wait_dur_ms * self._worker_total_batches_processed
-        + (wait_dur * 1000)
-      ) / (self._worker_total_batches_processed + 1)
-
-      # self._pred_dur_deque.append(pred_dur)
-      # self._batch_sizes_deque.append(batch_size)
+      self._wkr_wall_times[worker_pid] = wall_time
       self._wkr_total_segments_processed += batch_size
-      self._wkr_summed_pred_duration += pred_dur
+
+      self._wkr_1_wait_dur_for_filled_slot_tracker.add_duration(
+        dur_wait_for_filled_slot
+      )
+      self._wkr_2_search_dur_for_filled_slot_tracker.add_duration(
+        dur_search_for_filled_slot
+      )
+      self._wkr_3_get_job_dur_tracker.add_duration(dur_get_job)
+      self._wkr_4_inference_dur_tracker.add_duration(dur_inference)
+      self._wkr_5_add_to_queue_dur_tracker.add_duration(dur_add_to_queue)
+
       if self._wkr_ramp_up_time_until_first_pred is None:
         self._wkr_ramp_up_time_until_first_pred = (
-          time.perf_counter() - self._start - pred_dur
+          time.perf_counter() - self._start - dur_inference
         )
         self._logger.info(
           f"Rampup time until first prediction: {self._wkr_ramp_up_time_until_first_pred:.2f}s"
         )
-      self._worker_total_batches_processed += 1
 
   def _get_producer_stats(self) -> None:
-    while not self._prod_stats_queue.empty():
+    while not self._prd_stats_queue.empty():
       (
         prod_pid,
         process_total_duration,
@@ -164,41 +228,19 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         free_slot_search_time,
         flush_duration,
         n,
-      ) = self._prod_stats_queue.get(block=False)
+      ) = self._prd_stats_queue.get(block=False)
       self._logger.debug(
         f"PerformanceTracker received producer stats from producer {prod_pid}: "
         f"process: {process_total_duration:.3f}s, batch loading: {batch_loading_duration:.3f}s, "
         f"wait for free slot: {wait_time_for_free_slot:.3f}s, flush: {flush_duration:.3f}s, n: {n}"
       )
       self._prd_wall_times[prod_pid] = process_total_duration
-      self._producer_total_batches_processed += 1
       self._prd_total_segments_processed += n
-      self._summed_prd_flush_duration += flush_duration
 
-      self._prd_avg_batch_loading_dur_ms = (
-        self._prd_avg_batch_loading_dur_ms * self._producer_total_batches_processed
-        + (batch_loading_duration * 1000)
-      ) / (self._producer_total_batches_processed + 1)
-
-      self._prd_avg_wait_dur_free_slot_ms = (
-        self._prd_avg_wait_dur_free_slot_ms * self._producer_total_batches_processed
-        + (wait_time_for_free_slot * 1000)
-      ) / (self._producer_total_batches_processed + 1)
-
-      self._prd_avg_free_slot_search_time = (
-        self._prd_avg_free_slot_search_time * self._producer_total_batches_processed
-        + (free_slot_search_time * 1000)
-      ) / (self._producer_total_batches_processed + 1)
-
-      self._prd_avg_flush_dur_ms = (
-        self._prd_avg_flush_dur_ms * self._producer_total_batches_processed
-        + (flush_duration * 1000)
-      ) / (self._producer_total_batches_processed + 1)
-
-      self._prd_wait_dur_free_slots_deque.append(wait_time_for_free_slot)
-      self._prd_batch_loading_dur_deque.append(batch_loading_duration)
-      self._prd_free_slot_search_dur_deque.append(free_slot_search_time)
-      self._prd_flush_dur_deque.append(flush_duration)
+      self._prd_1_batch_loading_dur_tracker.add_duration(batch_loading_duration)
+      self._prd_2_wait_dur_free_slot_tracker.add_duration(wait_time_for_free_slot)
+      self._prd_3_free_slot_search_dur_tracker.add_duration(free_slot_search_time)
+      self._prd_4_flush_dur_tracker.add_duration(flush_duration)
 
   def __call__(self):
     self._init_logging()
@@ -234,8 +276,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         self._uninit_logging()
         return
       processing_finished = self._stop_event.is_set()
-      worker_queue_is_empty = self._worker_stats_queue.empty()
-      producer_queue_is_empty = self._prod_stats_queue.empty()
+      worker_queue_is_empty = self._wkr_stats_queue.empty()
+      producer_queue_is_empty = self._prd_stats_queue.empty()
       if processing_finished:
         if worker_queue_is_empty and producer_queue_is_empty:
           # TODO print again final stats
@@ -315,7 +357,10 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         float_n_records += 1
         self._next_update = now + self._update_every
 
-      if now >= self._next_print and len(self._wkr_wait_dur_deque) > 0:
+      if (
+        now >= self._next_print
+        and self._wkr_1_wait_dur_for_filled_slot_tracker.n_recordings > 0
+      ):
         t = time.perf_counter()
         wall_time = t - self._start
         # perf_duration_workers = t - self._workers_start
@@ -387,27 +432,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         # max_raw_segments_per_s = max(max_raw_segments_per_s, raw_segments_per_s_old)
 
         # avg_segments_per_s.append(raw_segments_per_s_old)
-        avg_wait_time_ms = (
-          np.mean(self._wkr_wait_dur_deque) * 1000 if self._wkr_wait_dur_deque else 0
-        )
-        prd_avg_wait_time_free_slots_ms = (
-          np.mean(self._prd_wait_dur_free_slots_deque) * 1000
-          if self._prd_wait_dur_free_slots_deque
-          else 0
-        )
-        prd_avg_batch_loading_dur_ms = (
-          np.mean(self._prd_batch_loading_dur_deque) * 1000
-          if self._prd_batch_loading_dur_deque
-          else 0
-        )
-        prd_avg_free_slots_search_dur_ms = (
-          np.mean(self._prd_free_slot_search_dur_deque) * 1000
-          if self._prd_free_slot_search_dur_deque
-          else 0
-        )
-        prd_avg_flush_dur_ms = (
-          np.mean(self._prd_flush_dur_deque) * 1000 if self._prd_flush_dur_deque else 0
-        )
 
         output_msg_fields = [
           # f"inference speed: {self._summed_raw_pred_duration / self._total_segments_processed * 1000:.0f} ms/segment",
@@ -421,11 +445,15 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
           # f"CPU usage: {cpu_usage:.1f} %",
           f"BUF: {self._ring_flags.shape[0] - avg_free_slots:.0f}/{self._ring_flags.shape[0]}",
           # f"free: {avg_free_slots:.0f}/{self._ring_flags.shape[0]}",
-          f"P-WAIT: {prd_avg_wait_time_free_slots_ms:.2f} ms",
-          f"P-BATCH: {prd_avg_batch_loading_dur_ms:.2f} ms",
-          f"P-SEARCH: {prd_avg_free_slots_search_dur_ms:.2f} ms",
-          f"P-FLUSH: {prd_avg_flush_dur_ms:.2f} ms",
-          f"W-WAIT: {avg_wait_time_ms:.2f} ms",
+          f"P-WAIT: {self._prd_1_batch_loading_dur_tracker.avg_duration_last * 1000:.2f} ms",
+          f"P-BATCH: {self._prd_2_wait_dur_free_slot_tracker.avg_duration_last * 1000:.2f} ms",
+          f"P-SEARCH: {self._prd_3_free_slot_search_dur_tracker.avg_duration_last * 1000:.2f} ms",
+          f"P-FLUSH: {self._prd_4_flush_dur_tracker.avg_duration_last * 1000:.2f} ms",
+          f"W-WAIT: {self._wkr_1_wait_dur_for_filled_slot_tracker.avg_duration * 1000:.2f} ms",
+          f"W-SEARCH: {self._wkr_2_search_dur_for_filled_slot_tracker.avg_duration_last * 1000:.2f} ms",
+          f"W-JOB: {self._wkr_3_get_job_dur_tracker.avg_duration_last * 1000:.2f} ms",
+          f"W-INFER: {self._wkr_4_inference_dur_tracker.avg_duration_last * 1000:.2f} ms",
+          f"W-ADD: {self._wkr_5_add_to_queue_dur_tracker.avg_duration_last * 1000:.2f} ms",
           f"BUSY: {avg_busy_workers:.0f}/{self._n_workers}",
           # f"prel: {avg_preloaded_slots:.0f}",
           # f"busy: {avg_busy_slots:.0f}",
@@ -467,7 +495,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       ),
       worker_speed_xrt_max=worker_speed_xrt_max,
       total_segments_processed=self._wkr_total_segments_processed,
-      total_batches_processed=self._worker_total_batches_processed,
+      total_batches_processed=self._wkr_5_add_to_queue_dur_tracker.n_recordings,
       # summed_prediction_duration_s=self._summed_worker_raw_pred_duration,
       ramp_up_time_until_first_pred_s=self._wkr_ramp_up_time_until_first_pred,
       n_usage_recordings=float_n_records,
@@ -479,7 +507,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       avg_busy_slots=float_avg_busy_slots,
       avg_preloaded_slots=float_avg_preloaded_slots,
       avg_busy_workers=float_avg_busy_workers,
-      avg_wait_time_ms=self._wkr_avg_wait_dur_ms,
+      avg_wait_time_ms=self._wkr_1_wait_dur_for_filled_slot_tracker.avg_duration * 1000,
       # avg_pred_dur_last_s=np.mean(self._pred_dur_deque) if self._pred_dur_deque else 0,
       # avg_wait_dur_last_ms=(
       #   np.mean(self._wait_dur_deque) * 1000 if self._wait_dur_deque else 0

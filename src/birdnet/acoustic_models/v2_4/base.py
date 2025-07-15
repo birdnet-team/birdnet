@@ -747,6 +747,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       lock=True,
     )  # type: ignore
     prd_ring_access_lock = mp.Lock()
+    wkr_ring_access_lock = mp.Lock()
 
     pred_dur_queue = mp.Queue()
     prod_stats_queue = mp.Queue()
@@ -859,6 +860,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             species_thresholds=species_thresholds,
             species_blacklist=species_blacklist,
             batch_size=batch_size,
+            wkr_ring_access_lock=wkr_ring_access_lock,
             n_slots=n_slots,
             slot_ptr=worker_slot_ptr,
             segment_duration_samples=AcousticModelBaseV2_4.get_segment_size_samples(),
