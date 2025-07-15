@@ -210,6 +210,12 @@ class ChildWorker(bn_logging.LogableProcessBase):
   def _log_debug(self, msg: str) -> None:
     self._logger.debug(f"WORKER({self._pid}) - {msg}")
 
+  def _check_cancel_event(self) -> bool:
+    if self._cancel_event.is_set():
+      self._log_debug("Received cancel event.")
+      return True
+    return False
+
   def __call__(self):
     if self._lazy_init and not self._try_init():
       self._cancel_event.set()
@@ -227,28 +233,18 @@ class ChildWorker(bn_logging.LogableProcessBase):
       wait_for_batch_start = time.perf_counter()
       wait_duration_for_batch: float | None = None
 
-      while True:
-        if self._cancel_event.is_set():
-          self._log_debug("Cancellation requested. Exiting worker.")
+      while not self._sem_filled.acquire(timeout=1.0):
+        if self._check_cancel_event():
           return
-
-        try:
-          self._sem_filled.acquire(timeout=1.0)
-          break
-        except TimeoutError:
-          if self._cancel_event.is_set():
-            self._log_debug("Cancellation requested. Exiting worker.")
-            return
 
       self._log_debug(
         f"Acquired FILL; Free slots remaining: {self._sem_free}; Filled slots: {self._sem_filled}"
       )
 
-      while True:
-        if self._cancel_event.is_set():
-          self._log_debug("Cancellation requested. Exiting worker.")
-          return
+      if self._check_cancel_event():
+        return
 
+      while True:
         with self._slot_ptr.get_lock():
           current_slot = self._slot_ptr.value
           current_slot_flag = self._ring_flags[current_slot]
@@ -268,6 +264,9 @@ class ChildWorker(bn_logging.LogableProcessBase):
               READING_FLAG,
             )
             self._jump_to_next_slot_ptr()
+
+        if self._check_cancel_event():
+          return
 
       assert wait_duration_for_batch is not None
 

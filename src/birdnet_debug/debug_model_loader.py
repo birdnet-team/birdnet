@@ -170,7 +170,7 @@ if __name__ == "__main__":
     "n_workers": 12,
     "n_producers": 1,
     "batch_size": 1,
-    "prefetch_ratio": 0,
+    "prefetch_ratio": 1,
     "backend": "tf",
     "device": "CPU",
   }

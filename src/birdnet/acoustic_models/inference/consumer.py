@@ -34,10 +34,6 @@ class Consumer:
 
       data = None
       while True:
-        if self._cancel_event.is_set():
-          self._logger.debug("CONSUMER - Cancel event set. Exiting.")
-          return
-
         try:
           data = self._queue.get(timeout=1.0)
           break
@@ -45,6 +41,10 @@ class Consumer:
           if self._cancel_event.is_set():
             self._logger.debug("CONSUMER - Cancel event set. Exiting.")
             return
+
+      if self._cancel_event.is_set():
+        self._logger.debug("CONSUMER - Cancel event set. Exiting.")
+        return
 
       got_stop_signal_from_worker = data is None
       if got_stop_signal_from_worker:

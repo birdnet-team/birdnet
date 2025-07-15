@@ -448,20 +448,17 @@ class ChildProducer(bn_logging.LogableProcessBase):
 
     """Set the DONE_FLAG in the shared memory to signal that no more data will be produced."""
 
-    while True:
+    while not self._sem_free_slots.acquire(timeout=1.0):
       if self._check_cancel_event():
         return
-
-      try:
-        self._sem_free_slots.acquire(timeout=1.0)
-        break
-      except TimeoutError:
-        if self._check_cancel_event():
-          return
 
     self._logger.debug(
       f"PRODUCER({os.getpid()}) - Producer acquired FREE. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
     )
+
+    if self._check_cancel_event():
+      return
+
     while self._ring_flags[self._slot_ptr.value] != WRITABLE_FLAG:
       self._jump_to_next_slot_ptr()
       if self._check_cancel_event():
