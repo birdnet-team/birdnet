@@ -54,64 +54,57 @@ class PerformanceTrackingResult:
   # avg_segments_per_s_last: float
 
 
-class DurationTracker:
+class ValueTracker:
   def __init__(self, n_last: int):
-    self._n_last = n_last
-    self._durations = deque(maxlen=n_last)
-    self._total_duration = np.nan
-    self._avg_duration = np.nan
-    self._min_duration = np.nan
-    self._max_duration = np.nan
-    self._n_recordings = 0
+    self._values = deque(maxlen=n_last)
+    self._summed_val = np.nan
+    self._avg_val = np.nan
+    self._min_val = np.nan
+    self._max_val = np.nan
+    self._n_vals = 0
 
-  def add_duration(self, duration: float) -> None:
-    self._durations.append(duration)
-    self._min_duration = (
-      min(self._min_duration, duration) if self._n_recordings > 0 else duration
-    )
-    self._max_duration = (
-      max(self._max_duration, duration) if self._n_recordings > 0 else duration
-    )
-    self._total_duration = (
-      self._total_duration + duration if self._n_recordings > 0 else duration
-    )
-    self._avg_duration = (
-      (self._avg_duration * self._n_recordings + duration) / (self._n_recordings + 1)
-      if self._n_recordings > 0
-      else duration
+  def add_value(self, val: float) -> None:
+    self._values.append(val)
+    self._min_val = min(self._min_val, val) if self._n_vals > 0 else val
+    self._max_val = max(self._max_val, val) if self._n_vals > 0 else val
+    self._summed_val = self._summed_val + val if self._n_vals > 0 else val
+    self._avg_val = (
+      (self._avg_val * self._n_vals + val) / (self._n_vals + 1)
+      if self._n_vals > 0
+      else val
     )
 
-    self._n_recordings += 1
+    self._n_vals += 1
 
   @property
-  def avg_duration(self) -> float:
-    return self._avg_duration
+  def avg_val(self) -> float:
+    return self._avg_val
 
   @property
-  def min_duration(self) -> float:
-    return self._min_duration
+  def min_val(self) -> float:
+    return self._min_val
 
   @property
-  def max_duration(self) -> float:
-    return self._max_duration
+  def max_val(self) -> float:
+    return self._max_val
 
   @property
-  def total_duration(self) -> float:
-    return self._total_duration
+  def summed_val(self) -> float:
+    return self._summed_val
 
   @property
-  def n_recordings(self) -> int:
-    return self._n_recordings
+  def n_vals(self) -> int:
+    return self._n_vals
 
   @property
-  def durations(self) -> deque[float]:
-    return self._durations
+  def vals_last(self) -> deque[float]:
+    return self._values
 
   @property
-  def avg_duration_last(self) -> float:
-    if len(self._durations) == 0:
+  def avg_val_last(self) -> float:
+    if len(self._values) == 0:
       return np.nan
-    return np.mean(self._durations)  # type: ignore
+    return np.mean(self._values)  # type: ignore
 
 
 class PerformanceTracker(bn_logging.LogableProcessBase):
@@ -167,19 +160,27 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
     self._wkr_wall_times = {}
     self._wkr_total_segments_processed = 0
-    self._wkr_1_wait_dur_for_filled_slot_tracker = DurationTracker(self._n_last)
-    self._wkr_2_search_dur_for_filled_slot_tracker = DurationTracker(self._n_last)
-    self._wkr_3_get_job_dur_tracker = DurationTracker(self._n_last)
-    self._wkr_4_inference_dur_tracker = DurationTracker(self._n_last)
-    self._wkr_5_add_to_queue_dur_tracker = DurationTracker(self._n_last)
+    self._wkr_1_wait_dur_for_filled_slot_tracker = ValueTracker(self._n_last)
+    self._wkr_2_search_dur_for_filled_slot_tracker = ValueTracker(self._n_last)
+    self._wkr_3_get_job_dur_tracker = ValueTracker(self._n_last)
+    self._wkr_4_inference_dur_tracker = ValueTracker(self._n_last)
+    self._wkr_5_add_to_queue_dur_tracker = ValueTracker(self._n_last)
     self._wkr_ramp_up_time_until_first_pred = None
+    self._wkr_busy_tracker = ValueTracker(self._n_last)
 
     self._prd_wall_times = {}
     self._prd_total_segments_processed = 0
-    self._prd_1_batch_loading_dur_tracker = DurationTracker(self._n_last)
-    self._prd_2_wait_dur_free_slot_tracker = DurationTracker(self._n_last)
-    self._prd_3_free_slot_search_dur_tracker = DurationTracker(self._n_last)
-    self._prd_4_flush_dur_tracker = DurationTracker(self._n_last)
+    self._prd_1_batch_loading_dur_tracker = ValueTracker(self._n_last)
+    self._prd_2_wait_dur_free_slot_tracker = ValueTracker(self._n_last)
+    self._prd_3_free_slot_search_dur_tracker = ValueTracker(self._n_last)
+    self._prd_4_flush_dur_tracker = ValueTracker(self._n_last)
+
+    self._cpu_usage_tracker = ValueTracker(self._n_last)
+    self._memory_usage_MiB_tracker = ValueTracker(self._n_last)
+
+    self._rng_free_slots_tracker = ValueTracker(self._n_last)
+    self._rng_busy_slots_tracker = ValueTracker(self._n_last)
+    self._rng_preloaded_slots_tracker = ValueTracker(self._n_last)
 
   def _get_worker_stats(self) -> None:
     while not self._wkr_stats_queue.empty():
@@ -200,15 +201,13 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       self._wkr_wall_times[worker_pid] = wall_time
       self._wkr_total_segments_processed += batch_size
 
-      self._wkr_1_wait_dur_for_filled_slot_tracker.add_duration(
-        dur_wait_for_filled_slot
-      )
-      self._wkr_2_search_dur_for_filled_slot_tracker.add_duration(
+      self._wkr_1_wait_dur_for_filled_slot_tracker.add_value(dur_wait_for_filled_slot)
+      self._wkr_2_search_dur_for_filled_slot_tracker.add_value(
         dur_search_for_filled_slot
       )
-      self._wkr_3_get_job_dur_tracker.add_duration(dur_get_job)
-      self._wkr_4_inference_dur_tracker.add_duration(dur_inference)
-      self._wkr_5_add_to_queue_dur_tracker.add_duration(dur_add_to_queue)
+      self._wkr_3_get_job_dur_tracker.add_value(dur_get_job)
+      self._wkr_4_inference_dur_tracker.add_value(dur_inference)
+      self._wkr_5_add_to_queue_dur_tracker.add_value(dur_add_to_queue)
 
       if self._wkr_ramp_up_time_until_first_pred is None:
         self._wkr_ramp_up_time_until_first_pred = (
@@ -237,37 +236,20 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       self._prd_wall_times[prod_pid] = process_total_duration
       self._prd_total_segments_processed += n
 
-      self._prd_1_batch_loading_dur_tracker.add_duration(batch_loading_duration)
-      self._prd_2_wait_dur_free_slot_tracker.add_duration(wait_time_for_free_slot)
-      self._prd_3_free_slot_search_dur_tracker.add_duration(free_slot_search_time)
-      self._prd_4_flush_dur_tracker.add_duration(flush_duration)
+      self._prd_1_batch_loading_dur_tracker.add_value(batch_loading_duration)
+      self._prd_2_wait_dur_free_slot_tracker.add_value(wait_time_for_free_slot)
+      self._prd_3_free_slot_search_dur_tracker.add_value(free_slot_search_time)
+      self._prd_4_flush_dur_tracker.add_value(flush_duration)
 
   def __call__(self):
     self._init_logging()
     self._shm_ring_flags, self._ring_flags = self._rf_flags.attach_and_get_array()
     wall_time = 0
     parent_process = psutil.Process(self._parent_process_id)
-    float_n_records = 0
-    float_max_memory_usage = 0
-    float_avg_memory_usage = 0
-    float_avg_cpu_usage = 0
-    float_max_cpu_usage = 0
-    float_avg_free_slots = 0
-    float_avg_busy_slots = 0
-    float_avg_preloaded_slots = 0
-    float_avg_busy_workers = 0
     max_raw_segments_per_s = 0
     worker_speed_xrt_max = 0
 
-    cpu_usages = deque(maxlen=self._n_last)
-    memory_usages = deque(maxlen=self._n_last)
-    free_slots = deque(maxlen=self._n_last)
-    busy_slots = deque(maxlen=self._n_last)
-    preloaded_slots = deque(maxlen=self._n_last)
-    busy_workers = deque(maxlen=self._n_last)
-
     summed_warm_up = 0
-
     avg_segments_per_s = deque(maxlen=self._n_last)
 
     while True:
@@ -289,7 +271,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       now = time.time()
 
       if now >= self._next_update:
-        memory_usage = parent_process.memory_full_info().uss
+        memory_usage: float = parent_process.memory_full_info().uss
         for child in parent_process.children(recursive=True):
           try:
             memory_usage += child.memory_full_info().uss
@@ -298,43 +280,20 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
           except psutil.AccessDenied:
             continue
 
-        memory_usage_MiB = memory_usage / 1024**2
-        memory_usages.append(memory_usage_MiB)
+        self._memory_usage_MiB_tracker.add_value(memory_usage / 1024**2)
 
         cpu_usage = psutil.cpu_percent()
-        cpu_usages.append(cpu_usage)
-
-        float_avg_memory_usage = (
-          float_avg_memory_usage * float_n_records + memory_usage_MiB
-        ) / (float_n_records + 1)
-
-        float_max_memory_usage = max(float_max_memory_usage, memory_usage_MiB)
-
-        float_avg_cpu_usage = (float_avg_cpu_usage * float_n_records + cpu_usage) / (
-          float_n_records + 1
-        )
-        float_max_cpu_usage = max(float_max_cpu_usage, cpu_usage)
+        self._cpu_usage_tracker.add_value(cpu_usage)
 
         c = Counter(self._ring_flags)
         n_free = c.get(WRITABLE_FLAG, 0)
         n_preloaded = c.get(READABLE_FLAG, 0)
         n_busy = c.get(READING_FLAG, 0)
 
-        float_avg_free_slots = (float_avg_free_slots * float_n_records + n_free) / (
-          float_n_records + 1
-        )
-
-        float_avg_busy_slots = (float_avg_busy_slots * float_n_records + n_busy) / (
-          float_n_records + 1
-        )
-        float_avg_preloaded_slots = (
-          float_avg_preloaded_slots * float_n_records + n_preloaded
-        ) / (float_n_records + 1)
-
-        n_busy_workers = self._sem_active_workers.get_value()
-        float_avg_busy_workers = (
-          float_avg_busy_workers * float_n_records + n_busy_workers
-        ) / (float_n_records + 1)
+        self._rng_free_slots_tracker.add_value(n_free)
+        self._rng_busy_slots_tracker.add_value(n_busy)
+        self._rng_preloaded_slots_tracker.add_value(n_preloaded)
+        self._wkr_busy_tracker.add_value(self._sem_active_workers.get_value())
 
         _summed_wkr_duration = sum(self._wkr_wall_times.values())
         wkr_proc_audio_duration_s = (
@@ -349,17 +308,11 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
         worker_speed_xrt_max = max(worker_speed_xrt_max, wkr_speed_xrt)
 
-        free_slots.append(n_free)
-        busy_slots.append(n_busy)
-        preloaded_slots.append(n_preloaded)
-        busy_workers.append(n_busy_workers)
-
-        float_n_records += 1
         self._next_update = now + self._update_every
 
       if (
         now >= self._next_print
-        and self._wkr_1_wait_dur_for_filled_slot_tracker.n_recordings > 0
+        and self._wkr_1_wait_dur_for_filled_slot_tracker.n_vals > 0
       ):
         t = time.perf_counter()
         wall_time = t - self._start
@@ -377,9 +330,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
           except psutil.AccessDenied:
             continue
         memory_usage_MiB = memory_usage / 1024**2
-
-        avg_free_slots = np.mean(free_slots) if free_slots else 0
-        avg_busy_workers = np.mean(busy_workers) if busy_workers else 0
 
         # avg_busy_workers = self._sem_active_workers.get_value()
 
@@ -443,18 +393,18 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
           # f"{raw_min_per_s:.2f} min/s",
           f"MEM: {memory_usage_MiB:.0f} M",
           # f"CPU usage: {cpu_usage:.1f} %",
-          f"BUF: {self._ring_flags.shape[0] - avg_free_slots:.0f}/{self._ring_flags.shape[0]}",
+          f"BUF: {self._ring_flags.shape[0] - self._rng_free_slots_tracker.avg_val_last:.0f}/{self._ring_flags.shape[0]}",
           # f"free: {avg_free_slots:.0f}/{self._ring_flags.shape[0]}",
-          f"P-WAIT: {self._prd_1_batch_loading_dur_tracker.avg_duration_last * 1000:.2f} ms",
-          f"P-BATCH: {self._prd_2_wait_dur_free_slot_tracker.avg_duration_last * 1000:.2f} ms",
-          f"P-SEARCH: {self._prd_3_free_slot_search_dur_tracker.avg_duration_last * 1000:.2f} ms",
-          f"P-FLUSH: {self._prd_4_flush_dur_tracker.avg_duration_last * 1000:.2f} ms",
-          f"W-WAIT: {self._wkr_1_wait_dur_for_filled_slot_tracker.avg_duration * 1000:.2f} ms",
-          f"W-SEARCH: {self._wkr_2_search_dur_for_filled_slot_tracker.avg_duration_last * 1000:.2f} ms",
-          f"W-JOB: {self._wkr_3_get_job_dur_tracker.avg_duration_last * 1000:.2f} ms",
-          f"W-INFER: {self._wkr_4_inference_dur_tracker.avg_duration_last * 1000:.2f} ms",
-          f"W-ADD: {self._wkr_5_add_to_queue_dur_tracker.avg_duration_last * 1000:.2f} ms",
-          f"BUSY: {avg_busy_workers:.0f}/{self._n_workers}",
+          f"P-WAIT: {self._prd_1_batch_loading_dur_tracker.avg_val_last * 1000:.2f} ms",
+          f"P-BATCH: {self._prd_2_wait_dur_free_slot_tracker.avg_val_last * 1000:.2f} ms",
+          f"P-SEARCH: {self._prd_3_free_slot_search_dur_tracker.avg_val_last * 1000:.2f} ms",
+          f"P-FLUSH: {self._prd_4_flush_dur_tracker.avg_val_last * 1000:.2f} ms",
+          f"W-WAIT: {self._wkr_1_wait_dur_for_filled_slot_tracker.avg_val * 1000:.2f} ms",
+          f"W-SEARCH: {self._wkr_2_search_dur_for_filled_slot_tracker.avg_val_last * 1000:.2f} ms",
+          f"W-JOB: {self._wkr_3_get_job_dur_tracker.avg_val_last * 1000:.2f} ms",
+          f"W-INFER: {self._wkr_4_inference_dur_tracker.avg_val_last * 1000:.2f} ms",
+          f"W-ADD: {self._wkr_5_add_to_queue_dur_tracker.avg_val_last * 1000:.2f} ms",
+          f"BUSY: {self._wkr_busy_tracker.avg_val_last:.0f}/{self._n_workers}",
           # f"prel: {avg_preloaded_slots:.0f}",
           # f"busy: {avg_busy_slots:.0f}",
           # f"fill: {avg_filled_slots:.0f}",
@@ -474,7 +424,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
             datetime.timedelta(seconds=math.ceil(est_remaining_time_s))
           )
           # est_remaining_time = est_remaining_time.split(".")[0]  # remove ms
-          output_msg_fields.append(f"PROG: {progress:.1f} %; ETA: {est_remaining_time}")
+          output_msg_fields.append(f"PROG: {progress:.1f} %")
+          output_msg_fields.append(f"ETA: {est_remaining_time}")
         else:
           output_msg_fields.append("PROG: analyzing...")
 
@@ -495,19 +446,19 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       ),
       worker_speed_xrt_max=worker_speed_xrt_max,
       total_segments_processed=self._wkr_total_segments_processed,
-      total_batches_processed=self._wkr_5_add_to_queue_dur_tracker.n_recordings,
+      total_batches_processed=self._wkr_5_add_to_queue_dur_tracker.n_vals,
       # summed_prediction_duration_s=self._summed_worker_raw_pred_duration,
       ramp_up_time_until_first_pred_s=self._wkr_ramp_up_time_until_first_pred,
-      n_usage_recordings=float_n_records,
-      max_memory_usages_MiB=float_max_memory_usage,
-      avg_memory_usages_MiB=float_avg_memory_usage,
-      max_cpu_usages_pct=float_max_cpu_usage,
-      avg_cpu_usages_pct=float_avg_cpu_usage,
-      avg_free_slots=float_avg_free_slots,
-      avg_busy_slots=float_avg_busy_slots,
-      avg_preloaded_slots=float_avg_preloaded_slots,
-      avg_busy_workers=float_avg_busy_workers,
-      avg_wait_time_ms=self._wkr_1_wait_dur_for_filled_slot_tracker.avg_duration * 1000,
+      n_usage_recordings=self._memory_usage_MiB_tracker.n_vals,
+      max_memory_usages_MiB=self._memory_usage_MiB_tracker.max_val,
+      avg_memory_usages_MiB=self._memory_usage_MiB_tracker.avg_val,
+      max_cpu_usages_pct=self._cpu_usage_tracker.max_val,
+      avg_cpu_usages_pct=self._cpu_usage_tracker.avg_val,
+      avg_free_slots=self._rng_free_slots_tracker.avg_val,
+      avg_busy_slots=self._rng_busy_slots_tracker.avg_val,
+      avg_preloaded_slots=self._rng_preloaded_slots_tracker.avg_val,
+      avg_busy_workers=self._wkr_busy_tracker.avg_val,
+      avg_wait_time_ms=self._wkr_1_wait_dur_for_filled_slot_tracker.avg_val * 1000,
       # avg_pred_dur_last_s=np.mean(self._pred_dur_deque) if self._pred_dur_deque else 0,
       # avg_wait_dur_last_ms=(
       #   np.mean(self._wait_dur_deque) * 1000 if self._wait_dur_deque else 0
