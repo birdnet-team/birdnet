@@ -746,6 +746,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       0,
       lock=True,
     )  # type: ignore
+    prd_ring_access_lock = mp.Lock()
 
     pred_dur_queue = mp.Queue()
     prod_stats_queue = mp.Queue()
@@ -804,6 +805,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             slot_ptr=producer_slot_ptr,
             batch_size=batch_size,
             n_slots=n_slots,
+            prd_ring_access_lock=prd_ring_access_lock,
             track_performance=track_performance,
             prod_stats_queue=prod_stats_queue,
             rf_file_indices=rf_file_indices,

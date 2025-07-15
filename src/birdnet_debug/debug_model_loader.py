@@ -168,9 +168,9 @@ if __name__ == "__main__":
 
   params = {
     "n_workers": 12,
-    "n_producers": 5,
+    "n_producers": 1,
     "batch_size": 1,
-    "prefetch_ratio": 1,
+    "prefetch_ratio": 0,
     "backend": "tf",
     "device": "CPU",
   }

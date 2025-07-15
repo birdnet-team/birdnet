@@ -104,6 +104,9 @@ def resample_array(
   return x_resampled
 
 
+import multiprocessing.synchronize
+
+
 class ChildProducer(bn_logging.LogableProcessBase):
   def __init__(
     self,
@@ -131,6 +134,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
     | Synchronized[ctypes.c_uint32]
     | Synchronized[ctypes.c_uint64],
     n_prods: int,
+    prd_ring_access_lock: multiprocessing.synchronize.Lock,
     logging_queue: Queue,
     logging_level: int,
     prod_stats_queue: Queue,
@@ -147,6 +151,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
   ):
     super().__init__(__name__, logging_queue, logging_level)
 
+    self._prd_ring_access_lock = prd_ring_access_lock
     self._track_performance = track_performance
     self._prod_stats_queue = prod_stats_queue
     self.segment_duration_s = segment_duration_s
@@ -307,14 +312,9 @@ class ChildProducer(bn_logging.LogableProcessBase):
 
     while True:
       perf_c = time.perf_counter()
-      while True:
-        try:
-          self._sem_free_slots.acquire(timeout=1.0)
-          break
-        except TimeoutError:
-          if self._check_cancel_event():
-            return
-
+      while not self._sem_free_slots.acquire(timeout=1.0):
+        if self._check_cancel_event():
+          return
       wait_time_for_free_slot = time.perf_counter() - perf_c
 
       self._logger.debug(
@@ -350,9 +350,9 @@ class ChildProducer(bn_logging.LogableProcessBase):
       claimed_slot = None
 
       perf_c = time.perf_counter()
-      with self._slot_ptr:
-        while no_free_slot_found := claimed_flag is None:
-          current_slot = self._slot_ptr.value
+      with self._prd_ring_access_lock:
+        for current_slot in range(self._n_slots):
+          # current_slot = self._slot_ptr.value
           current_slot_flag = self._ring_flags[current_slot]
           # can never be DONE because this flag is set after all segments from all files have been flushed
           assert current_slot_flag != DONE_FLAG
@@ -366,26 +366,23 @@ class ChildProducer(bn_logging.LogableProcessBase):
               self._logger.debug(
                 f"PRODUCER({os.getpid()}) - Acquired WRITING_FLAG for slot {claimed_slot}."
               )
-            self._jump_to_next_slot_ptr()
-            break
+              break
           else:
             assert current_slot_flag in (
               READABLE_FLAG,
               READING_FLAG,
               WRITING_FLAG,
             )
-            self._jump_to_next_slot_ptr()
-
-          if self._check_cancel_event():
-            return
-
       free_slot_search_time = time.perf_counter() - perf_c
+
+      if claimed_slot is None:
+        raise AssertionError(
+          "No free slot found in the ring buffer but sem_free was available!"
+        )
+      assert claimed_flag == WRITABLE_FLAG
 
       if self._check_cancel_event():
         return
-
-      assert claimed_slot is not None
-      assert claimed_flag == WRITABLE_FLAG
 
       perf_c = time.perf_counter()
       self._flush_batch(claimed_slot, file_indices, segment_indices, audio_samples)
