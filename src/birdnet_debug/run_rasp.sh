@@ -16,19 +16,26 @@ pip install wheel
 
 # Install / Update
 
-## Kubuntu
+## First on Kubuntu
 rm -rf dist/; python3.11 -m build -o dist/
 scp dist/birdnet-0.2.0a0-py3-none-any.whl pi@192.168.2.103:/home/pi/birdnet-0.2.0a0-py3-none-any.whl
-# scp example/soundscape.wav  pi@192.168.2.103:/home/pi/soundscape.wav
+scp example/soundscape.wav  pi@192.168.2.103:/home/pi/soundscape.wav
+scp test-dataset/test_dataset_1x10min/0.wav  pi@192.168.2.103:/home/pi/10min.wav
+scp test-dataset/test_dataset_1x60min/0.wav  pi@192.168.2.103:/home/pi/60min.wav
 
-## Pi
+## Then on Pi
 source .venv-bn/bin/activate
 pip uninstall birdnet -y; pip install /home/pi/birdnet-0.2.0a0-py3-none-any.whl
 
 # Run benchmark
 
 source .venv-bn/bin/activate
-birdnet-benchmark /home/pi/soundscape.wav /home/pi/soundscape.csv -w 1 --serial-io --prefetch-ratio 2 --feeders 1
+birdnet-benchmark /home/pi/soundscape.wav 
+birdnet-benchmark /home/pi/soundscape.wav -w 1 --prefetch-ratio 1 --feeders 1
+birdnet-benchmark /home/pi/10min.wav -w 1 --prefetch-ratio 1 --feeders 1
+birdnet-benchmark /home/pi/60min.wav -w 2 --prefetch-ratio 1 --feeders 1 #   7 x real-time (RTF: 0.15280223)
+birdnet-benchmark /home/pi/60min.wav -w 3 --prefetch-ratio 1 --feeders 1
+
 
 # Sonstiges
 

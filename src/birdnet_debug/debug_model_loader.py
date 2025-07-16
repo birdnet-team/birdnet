@@ -161,17 +161,17 @@ if __name__ == "__main__":
   audio_paths = "test-dataset/test_dataset_1x10min/0.wav"
   audio_paths = "test-dataset/test_dataset_100000x4s_flac"
 
-  audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
 
   audio_paths = "example/soundscape.wav"
 
+  audio_paths = get_pow_file_paths()
+  audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
   audio_paths = [
     Path("test-dataset/test_dataset_4x60min/0.wav"),
     Path("test-dataset/test_dataset_4x60min/1.wav"),
     Path("test-dataset/test_dataset_4x60min/2.wav"),
     Path("test-dataset/test_dataset_4x60min/3.wav"),
   ]
-  audio_paths = get_pow_file_paths()
   params = {
     "n_workers": 12,
     "n_producers": 1,
