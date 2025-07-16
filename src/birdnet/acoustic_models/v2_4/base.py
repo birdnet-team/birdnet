@@ -36,16 +36,14 @@ from birdnet.acoustic_models.inference.perf_tracker import (
   PerformanceTracker,
   PerformanceTrackingResult,
 )
-
-# try:
-#   import tflite_runtime.interpreter as tflite
-# except ImportError:  # fallback to full TF (heavier)
 from birdnet.acoustic_models.inference.prediction_result import PredictionResult
 from birdnet.acoustic_models.inference.producer import ChildProducer
 from birdnet.acoustic_models.inference.species_tensor import SpeciesTensor
 from birdnet.acoustic_models.inference.worker import ChildWorker
 from birdnet.acoustic_models.tf import AcousticTFBackend
 from birdnet.base import (
+  MODEL_BACKENDS,
+  MODEL_PRECISIONS,
   MODEL_TYPE_ACOUSTIC,
   MODEL_TYPES,
   MODEL_VERSION_V2_4,
@@ -58,12 +56,46 @@ from birdnet.helper import (
   create_shm_ring,
   get_max_n_segments,
   get_supported_audio_files,
+  tf_installed,
   uint_ctype_from_dtype,
   uint_dtype_for,
 )
 from birdnet.io_lock import IOLockHandler
 from birdnet.local_data import get_benchmark_dir, get_package_version
 from birdnet.logging_utils import QueueFileWriter, get_package_logging_level
+
+# Can't be a property of base class, because in custom models, the languages are not known
+AVAILABLE_LANGUAGES: OrderedSet[str] = OrderedSet(
+  (
+    "af",
+    "ar",
+    "cs",
+    "da",
+    "de",
+    "en_uk",
+    "en_us",
+    "es",
+    "fi",
+    "fr",
+    "hu",
+    "it",
+    "ja",
+    "ko",
+    "nl",
+    "no",
+    "pl",
+    "pt",
+    "ro",
+    "ru",
+    "sk",
+    "sl",
+    "sv",
+    "th",
+    "tr",
+    "uk",
+    "zh",
+  )
+)
 
 
 @dataclass
@@ -238,16 +270,21 @@ class FullBenchmarkMeta(MinimalBenchmarkMeta):
   def sw_package_version(self) -> str:
     return get_package_version()
 
+  @property
+  def sw_tf_available(self) -> bool:
+    return tf_installed()
+
   # Model
-  model_type: str
-  model_backend: str
-  model_version: str
+  model_type: MODEL_TYPES
+  model_backend: MODEL_BACKENDS
+  model_version: MODEL_VERSIONS
   model_is_custom: bool
   model_path: str
   model_species: int
   model_sig_fmin: int
   model_sig_fmax: int
   model_sample_rate: int
+  model_precision: MODEL_PRECISIONS
 
   file_segments_maximum: int
   file_batches_processed: int
@@ -435,7 +472,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     show_stats: Literal["no", "minimal", "progress", "benchmark"] = "progress",
     device: str | list[str] = "CPU",
     serial_io: bool = False,
-  ):
+  ) -> PredictionResult:
     debug_log = False
 
     start = time.perf_counter()
@@ -1051,6 +1088,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         model_is_custom=self.use_custom_model,
         model_path=str(self.model_path.absolute()),
         model_species=self.n_species,
+        model_precision=self.precision,
         _file_durations=file_durations,
         file_segments_maximum=max_segment_idx_ptr.value + 1,
         file_segments_total=tot_n_segments_ptr.value,

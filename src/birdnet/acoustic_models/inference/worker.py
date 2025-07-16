@@ -2,11 +2,6 @@ from __future__ import annotations
 
 import ctypes
 import multiprocessing as mp
-
-# try:
-#   import tflite_runtime.interpreter as tflite
-# except ImportError:  # fallback to full TF (heavier)
-# from tensorflow.lite.python import interpreter as tflite
 import multiprocessing.synchronize
 import os
 import time
@@ -150,7 +145,6 @@ class ChildWorker(bn_logging.LogableProcessBase):
         # PB backend does not support non lazy initialization
         assert self._backend_type is AcousticPBBackend
         assert backend_cow is None
-        pass
 
   def _load_model(self) -> None:
     self._log_debug("Loading model...")

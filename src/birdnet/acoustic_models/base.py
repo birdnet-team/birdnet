@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-from birdnet.base import ModelBase
+from birdnet.base import MODEL_PRECISIONS, ModelBase
 from birdnet.io_lock import IOLockHandler
 
 
@@ -17,6 +17,15 @@ class AcousticInferenceBackend(ABC):
 class AcousticModelBase(ModelBase):
   def __init__(self) -> None:
     super().__init__()
+    self._precision: MODEL_PRECISIONS | None = None
+
+  @property
+  def precision(self) -> MODEL_PRECISIONS:
+    """
+    Returns the precision of the model.
+    """
+    assert self._precision is not None
+    return self._precision
 
   @classmethod
   @abstractmethod

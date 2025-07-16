@@ -1,3 +1,4 @@
+
 import numpy as np
 
 PKG_NAME = "birdnet"
@@ -16,3 +17,4 @@ READING_FLAG = np.uint8(3)
 
 # flag for "done"
 DONE_FLAG = np.uint8(4)
+

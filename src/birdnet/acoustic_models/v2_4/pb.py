@@ -13,13 +13,9 @@ from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.base import AcousticInferenceBackend
 from birdnet.acoustic_models.pb import AcousticPBBackend
-from birdnet.acoustic_models.v2_4.base import AcousticModelBaseV2_4
-from birdnet.base import MODEL_BACKEND_PB, MODEL_BACKENDS
+from birdnet.acoustic_models.v2_4.base import AVAILABLE_LANGUAGES, AcousticModelBaseV2_4
+from birdnet.base import MODEL_BACKEND_PB, MODEL_BACKENDS, MODEL_PRECISION_FLOAT32
 from birdnet.local_data import get_local_model_root_dir
-
-# try:
-#   import tflite_runtime.interpreter as tflite
-# except ImportError:  # fallback to full TF (heavier)
 from birdnet.utils import download_file_tqdm, get_species_from_file
 
 
@@ -33,38 +29,6 @@ def check_protobuf_model_files_exist(folder: Path) -> bool:
 
 
 class AcousticPBDownloaderV2_4:
-  _available_languages: OrderedSet[str] = OrderedSet(
-    (
-      "af",
-      "ar",
-      "cs",
-      "da",
-      "de",
-      "en_uk",
-      "en_us",
-      "es",
-      "fi",
-      "fr",
-      "hu",
-      "it",
-      "ja",
-      "ko",
-      "nl",
-      "no",
-      "pl",
-      "pt",
-      "ro",
-      "ru",
-      "sk",
-      "sl",
-      "sv",
-      "th",
-      "tr",
-      "uk",
-      "zh",
-    )
-  )
-
   @classmethod
   def _get_paths(cls) -> tuple[Path, Path]:
     model_root = get_local_model_root_dir(
@@ -86,23 +50,23 @@ class AcousticPBDownloaderV2_4:
     model_is_downloaded &= check_protobuf_model_files_exist(model_path)
 
     model_is_downloaded &= lang_dir.is_dir()
-    for lang in cls._available_languages:
+    for lang in AVAILABLE_LANGUAGES:
       model_is_downloaded &= (lang_dir / f"{lang}.txt").is_file()
 
     return model_is_downloaded
 
   @classmethod
   def _download_acoustic_model(cls) -> None:
-    url = "https://zenodo.org/records/15050749/files/BirdNET_v2.4_protobuf.zip"
+    dl_url = "https://zenodo.org/records/15050749/files/BirdNET_v2.4_protobuf.zip"
     dl_size = 124522908
 
     with tempfile.TemporaryDirectory(prefix="birdnet_download") as temp_dir:
       zip_download_path = Path(temp_dir) / "download.zip"
       download_file_tqdm(
-        url,
+        dl_url,
         zip_download_path,
         download_size=dl_size,
-        description="Downloading models",
+        description="Downloading model",
       )
 
       print("Extracting models...")
@@ -144,6 +108,7 @@ class AcousticPBDownloaderV2_4:
 class AcousticPBModelV2_4(AcousticModelBaseV2_4):
   def __init__(self) -> None:
     super().__init__()
+    self._precision = MODEL_PRECISION_FLOAT32
 
   @classmethod
   @final
@@ -163,36 +128,21 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
 
   @classmethod
   def load_official(cls, lang_id: str) -> AcousticPBModelV2_4:
-    # result = cls.__new__(cls)
-    # result.__init__(device)
     result = AcousticPBModelV2_4()
-    result._load_official_model(lang_id)
-    return result
-
-  def _load_official_model(self, lang_id: str) -> None:
-    self._model_path, self._species_list = (
+    result._model_path, result._species_list = (
       AcousticPBDownloaderV2_4.get_model_path_and_labels(lang_id)
     )
-    self._use_custom_model = False
-
-  @classmethod
-  def load_custom(
-    cls, model_path: Path, species_list: Path, device: str
-  ) -> AcousticPBModelV2_4:
-    result = AcousticPBModelV2_4(device)
-    result._load_custom_model(model_path, species_list)
+    result._use_custom_model = False
     return result
 
-  def _load_custom_model(self, model_path: Path, species_list: Path) -> None:
-    if not model_path.is_file():
-      raise ValueError(f"Model file '{model_path.absolute()}' does not exist!")
+  @classmethod
+  def load_custom(cls, model_path: Path, species_list: Path) -> AcousticPBModelV2_4:
+    assert model_path.is_file()
+    assert species_list.is_file()
 
-    if not species_list.is_file():
-      raise ValueError(f"Species list file '{species_list.absolute()}' does not exist!")
+    import tensorflow as tf
 
     try:
-      import tensorflow as tf
-
       tf.saved_model.load(model_path)
     except ValueError as e:
       raise ValueError(
@@ -207,6 +157,9 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
         f"Failed to read species list from '{species_list.absolute()}'. Ensure it is a valid text file."
       ) from e
 
-    self._model_path = model_path
-    self._species_list = loaded_species_list
-    self._use_custom_model = True
+    result = AcousticPBModelV2_4()
+    result._model_path = model_path
+    result._species_list = loaded_species_list
+    result._use_custom_model = True
+
+    return result

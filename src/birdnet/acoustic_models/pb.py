@@ -33,6 +33,11 @@ class AcousticPBBackend(AcousticInferenceBackend):
 
     tf.random.set_seed(0)
 
+    # Note: memory growth needs to be set before loading the model and maybe only once in the main process
+    # physical_gpu_device = gpus_with_name[0]
+    # if tf.config.experimental.get_memory_growth(physical_gpu_device) is False:
+    #   tf.config.experimental.set_memory_growth(physical_gpu_device, True)
+
     with io_lock_handler:
       start = time.perf_counter()
       audio_model = tf.saved_model.load(self._model_path)
@@ -43,7 +48,6 @@ class AcousticPBBackend(AcousticInferenceBackend):
     absl.logging.set_verbosity(absl_verbosity_before)
     logging.getLogger("tensorflow").setLevel(tf_verbosity_before)
 
-    # _SignatureMap({'basic': <ConcreteFunction (*, inputs: TensorSpec(shape=(None, 144000), dtype=tf.float32, name='inputs')) -> Dict[['scores', TensorSpec(shape=(None, 6522), dtype=tf.float32, name='scores')]] at 0x7BD844349190>, 'embeddings': <ConcreteFunction (*, inputs: TensorSpec(shape=(None, 144000), dtype=tf.float32, name='inputs')) -> Dict[['embeddings', TensorSpec(shape=(None, 1024), dtype=tf.float32, name='embeddings')]] at 0x7BD8684EBC50>})
     self._infer_fn = audio_model.signatures["basic"]  # type: ignore
 
   def _set_logical_device(self, device_name: str) -> None:

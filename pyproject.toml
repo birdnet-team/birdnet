@@ -29,7 +29,6 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
 ]
 dependencies = [
-  "tensorflow==2.15.1",
   "resampy==0.4.3",
   "soundfile==0.12.1",
   "scipy==1.9.3",
@@ -38,10 +37,12 @@ dependencies = [
   "numpy==1.23.5",
   "pandas==2.3.0",
   "psutil==7.0.0",
+  "ai_edge_litert==1.4.0",
 ]
 
 [project.optional-dependencies]
-and-cuda = ["tensorflow[and-cuda]==2.15.1"]
+tf = ["tensorflow==2.15.1"]
+tf-and-cuda = ["tensorflow[and-cuda]==2.15.1"]
 dev = ["pytest", "pytest-cov", "pytest-xdist", "tox", "ruff", "mypy", "rope", "build", "twine", "scipy-stubs", "tuna"]
 
 [project.urls]

@@ -13,7 +13,7 @@ from tqdm import tqdm
 def get_species_from_file(
   species_file: Path, /, *, encoding: str = "utf8"
 ) -> OrderedSet[str]:
-  species = OrderedSet(species_file.read_text(encoding).splitlines())
+  species = OrderedSet(species_file.read_text(encoding).strip().splitlines())
   return species
 
 

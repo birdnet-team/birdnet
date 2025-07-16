@@ -9,7 +9,7 @@ import numpy as np
 from birdnet.acoustic_models.inference.prediction_result import PredictionResult
 from birdnet.acoustic_models.v2_4.base import AcousticModelBaseV2_4
 from birdnet.logging_utils import get_package_logger
-from birdnet.model_loader import load
+from birdnet.model_loader import load, load_custom
 from birdnet_debug.hsn_downloader import get_hsn_file_paths
 from birdnet_debug.pow_downloader import get_pow_file_paths
 
@@ -161,9 +161,6 @@ if __name__ == "__main__":
   audio_paths = "test-dataset/test_dataset_1x10min/0.wav"
   audio_paths = "test-dataset/test_dataset_100000x4s_flac"
 
-
-  audio_paths = "example/soundscape.wav"
-
   audio_paths = get_pow_file_paths()
   audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
   audio_paths = [
@@ -172,16 +169,28 @@ if __name__ == "__main__":
     Path("test-dataset/test_dataset_4x60min/2.wav"),
     Path("test-dataset/test_dataset_4x60min/3.wav"),
   ]
+  audio_paths = "example/soundscape.wav"
   params = {
     "n_workers": 12,
     "n_producers": 1,
     "batch_size": 1,
     "prefetch_ratio": 2,
     "backend": "tf",
+    "precision": "fp16",
     "device": "CPU",
   }
 
-  model: AcousticModelBaseV2_4 = load(backend=params["backend"])
+  # model: AcousticModelBaseV2_4 = load(
+  #   backend=params["backend"], precision=params["precision"]
+  # )
+  model = load_custom(
+    "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/tf/model-fp32.tflite",
+    "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/tf/labels/en_us.txt",
+    model_type="acoustic",
+    version="2.4",
+    backend="tf",
+    precision="fp32",
+  )
 
   # set_start_method("forkserver", force=True) # Linux, macOS
   # set_start_method("spawn", force=True)  # Linux, macOS

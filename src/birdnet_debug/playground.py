@@ -1,4 +1,1 @@
-import numpy as np
-
-x = np.nan * 1000
-print(x)
+from ai_edge_litert import interpreter as tflite

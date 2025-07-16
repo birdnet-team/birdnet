@@ -5,10 +5,9 @@ import logging
 import multiprocessing as mp
 import multiprocessing.synchronize
 import time
-from logging.handlers import MemoryHandler, QueueHandler
+from logging.handlers import QueueHandler
 from multiprocessing import Queue
 from pathlib import Path
-from time import sleep
 
 from birdnet.globals import PKG_NAME
 from birdnet.io_lock import IOLockHandler, LockedMemoryHandler

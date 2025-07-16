@@ -1,112 +1,90 @@
-# birdnet_batch_inference.py – raw‑audio version
-# birdnet_batch_inference.py – raw‑audio version
 from __future__ import annotations
 
 import os
 import shutil
 import tempfile
 import zipfile
-
-# You'll need these imports in your own code
 from pathlib import Path
-
-# Next two import lines for this demo only
-from typing import (
-  final,
-)
+from typing import final
 
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.base import AcousticInferenceBackend
 from birdnet.acoustic_models.tf import AcousticTFBackend
-from birdnet.acoustic_models.v2_4.base import AcousticModelBaseV2_4
+from birdnet.acoustic_models.v2_4.base import AVAILABLE_LANGUAGES, AcousticModelBaseV2_4
 from birdnet.base import (
   MODEL_BACKEND_TF,
   MODEL_BACKENDS,
+  MODEL_PRECISION_FLOAT16,
+  MODEL_PRECISION_FLOAT32,
+  MODEL_PRECISION_INT8,
+  MODEL_PRECISIONS,
 )
+from birdnet.helper import ModelInfo, load_tflite_model
 from birdnet.local_data import get_local_model_root_dir
-
-# try:
-#   import tflite_runtime.interpreter as tflite
-# except ImportError:  # fallback to full TF (heavier)
-# from tensorflow.lite.python import interpreter as tflite
 from birdnet.utils import download_file_tqdm, get_species_from_file
+
+models = {
+  MODEL_PRECISION_INT8: ModelInfo(
+    dl_url="https://zenodo.org/records/15050749/files/BirdNET_v2.4_tflite_int8.zip",
+    dl_file_name="audio-model-int8.tflite",
+    dl_size=45948867,
+    file_size=41064296,
+  ),
+  MODEL_PRECISION_FLOAT16: ModelInfo(
+    dl_url="https://zenodo.org/records/15050749/files/BirdNET_v2.4_tflite_fp16.zip",
+    dl_file_name="audio-model-fp16.tflite",
+    dl_size=53025528,
+    file_size=25932528,
+  ),
+  MODEL_PRECISION_FLOAT32: ModelInfo(
+    dl_url="https://zenodo.org/records/15050749/files/BirdNET_v2.4_tflite.zip",
+    dl_file_name="audio-model.tflite",
+    dl_size=76822925,
+    file_size=51726412,
+  ),
+}
 
 
 class AcousticTFDownloaderV2_4:
-  _available_languages: OrderedSet[str] = OrderedSet(
-    (
-      "af",
-      "ar",
-      "cs",
-      "da",
-      "de",
-      "en_uk",
-      "en_us",
-      "es",
-      "fi",
-      "fr",
-      "hu",
-      "it",
-      "ja",
-      "ko",
-      "nl",
-      "no",
-      "pl",
-      "pt",
-      "ro",
-      "ru",
-      "sk",
-      "sl",
-      "sv",
-      "th",
-      "tr",
-      "uk",
-      "zh",
-    )
-  )
-
   @classmethod
-  def _get_paths(cls) -> tuple[Path, Path]:
+  def _get_paths(cls, precision: MODEL_PRECISIONS) -> tuple[Path, Path]:
     model_root = get_local_model_root_dir(
       AcousticTFModelV2_4.get_model_type(),
       AcousticTFModelV2_4.get_version(),
       AcousticTFModelV2_4.get_backend(),
     )
 
-    model_path = model_root / "model.tflite"
+    model_path = model_root / f"model-{precision}.tflite"
     lang_dir = model_root / "labels"
     return model_path, lang_dir
 
   @classmethod
-  def _check_acoustic_model_available(cls) -> bool:
-    model_is_downloaded = True
+  def _check_acoustic_model_available(cls, precision: MODEL_PRECISIONS) -> bool:
+    model_path, lang_dir = cls._get_paths(precision)
 
-    model_path, lang_dir = cls._get_paths()
+    if not model_path.is_file():
+      return False
 
-    model_is_downloaded &= model_path.is_file()
-    if model_is_downloaded:
-      file_stats = os.stat(model_path)
-      audio_is_newest_version = file_stats.st_size == 51726412
-      model_is_downloaded &= audio_is_newest_version
+    file_stats = os.stat(model_path)
+    is_newest_version = file_stats.st_size == models[precision].file_size
+    if not is_newest_version:
+      return False
 
-    model_is_downloaded &= lang_dir.is_dir()
-    for lang in cls._available_languages:
-      model_is_downloaded &= (lang_dir / f"{lang}.txt").is_file()
-    return model_is_downloaded
+    if not lang_dir.is_dir():
+      return False
+
+    return all((lang_dir / f"{lang}.txt").is_file() for lang in AVAILABLE_LANGUAGES)
 
   @classmethod
-  def _download_acoustic_model(cls) -> None:
-    url = "https://zenodo.org/records/15050749/files/BirdNET_v2.4_tflite.zip"
-    dl_size = 76822925
-
+  def _download_acoustic_model(cls, precision: MODEL_PRECISIONS) -> None:
     with tempfile.TemporaryDirectory(prefix="birdnet_download") as temp_dir:
       zip_download_path = Path(temp_dir) / "download.zip"
       download_file_tqdm(
-        url,
+        models[precision].dl_url,
         zip_download_path,
-        download_size=dl_size,
-        description="Downloading models",
+        download_size=models[precision].dl_size,
+        description="Downloading model",
       )
 
       extract_dir = Path(temp_dir) / "extracted"
@@ -114,26 +92,27 @@ class AcousticTFDownloaderV2_4:
       with zipfile.ZipFile(zip_download_path, "r") as zip_ref:
         zip_ref.extractall(extract_dir)
 
-      acoustic_model_dl_path = extract_dir / "audio-model.tflite"
+      acoustic_model_dl_path = extract_dir / models[precision].dl_file_name
       species_dl_dir = extract_dir / "labels"
 
-      acoustic_model_path, acoustic_lang_dir = cls._get_paths()
+      acoustic_model_path, acoustic_lang_dir = cls._get_paths(precision)
       acoustic_model_path.parent.mkdir(parents=True, exist_ok=True)
       shutil.move(acoustic_model_dl_path, acoustic_model_path)
 
       acoustic_lang_dir.parent.mkdir(parents=True, exist_ok=True)
+      shutil.rmtree(acoustic_lang_dir, ignore_errors=True)
       shutil.move(species_dl_dir, acoustic_lang_dir)
 
   @classmethod
   def get_model_path_and_labels(
-    cls,
-    lang_id: str,
+    cls, lang_id: str, precision: MODEL_PRECISIONS
   ) -> tuple[Path, OrderedSet[str]]:
-    if not cls._check_acoustic_model_available():
-      cls._download_acoustic_model()
-    assert cls._check_acoustic_model_available()
+    assert lang_id in AVAILABLE_LANGUAGES
+    if not cls._check_acoustic_model_available(precision):
+      cls._download_acoustic_model(precision)
+    assert cls._check_acoustic_model_available(precision)
 
-    model_path, langs_path = cls._get_paths()
+    model_path, langs_path = cls._get_paths(precision)
 
     lang_file = langs_path / f"{lang_id}.txt"
     if not lang_file.is_file():
@@ -164,44 +143,25 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     }
 
   @classmethod
-  def load_official(cls, lang_id: str) -> AcousticTFModelV2_4:
-    result = cls.__new__(cls)
-    result.__init__()
-    result._load_official_model(lang_id)
-    return result
-
-  def _load_official_model(self, lang_id: str) -> None:
-    self._model_path, self._species_list = (
-      AcousticTFDownloaderV2_4.get_model_path_and_labels(lang_id)
+  def load_official(
+    cls, lang_id: str, precision: MODEL_PRECISIONS
+  ) -> AcousticTFModelV2_4:
+    result = AcousticTFModelV2_4()
+    result._model_path, result._species_list = (
+      AcousticTFDownloaderV2_4.get_model_path_and_labels(lang_id, precision)
     )
-    self._use_custom_model = False
+    result._use_custom_model = False
+    result._precision = precision
+    return result
 
   @classmethod
-  def load_custom(cls, model_path: Path, species_list: Path) -> AcousticTFModelV2_4:
-    result = AcousticTFModelV2_4()
-    result._load_custom_model(model_path, species_list)
-    return result
+  def load_custom(
+    cls, model_path: Path, species_list: Path, precision: MODEL_PRECISIONS
+  ) -> AcousticTFModelV2_4:
+    assert model_path.is_file()
+    assert species_list.is_file()
 
-  def _load_custom_model(self, model_path: Path, species_list: Path) -> None:
-    if not model_path.is_file():
-      raise ValueError(f"Model file '{model_path.absolute()}' does not exist!")
-
-    if not species_list.is_file():
-      raise ValueError(f"Species list file '{species_list.absolute()}' does not exist!")
-
-    from tensorflow.lite.python import interpreter as tflite
-    from tensorflow.lite.python.interpreter import OpResolverType
-
-    try:
-      interp = tflite.Interpreter(
-        str(model_path.absolute()),
-        num_threads=1,
-        experimental_op_resolver_type=OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,  # tensor#187 is a dynamic-sized tensor
-      )
-    except ValueError as e:
-      raise ValueError(
-        f"Failed to load model '{model_path.absolute()}'. Ensure it is a valid TFLite model."
-      ) from e
+    interp = load_tflite_model(model_path, io_lock_handler=None, allocate_tensors=False)
 
     loaded_species_list: OrderedSet[str]
     try:
@@ -211,12 +171,15 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
         f"Failed to read species list from '{species_list.absolute()}'. Ensure it is a valid text file."
       ) from e
 
-    output_size = interp.get_output_details()[0]["index"]
-    if output_size != len(loaded_species_list):
+    n_species_in_model = interp.get_output_details()[0]["shape"][1]
+    if n_species_in_model != len(loaded_species_list):
       raise ValueError(
-        f"Model '{model_path.absolute()}' has {output_size} outputs, but species list '{species_list.absolute()}' has {len(loaded_species_list)} species!"
+        f"Model '{model_path.absolute()}' has {n_species_in_model} outputs, but species list '{species_list.absolute()}' has {len(loaded_species_list)} species!"
       )
 
-    self._model_path = model_path
-    self._species_list = loaded_species_list
-    self._use_custom_model = True
+    result = AcousticTFModelV2_4()
+    result._model_path = model_path
+    result._species_list = loaded_species_list
+    result._use_custom_model = True
+    result._precision = precision
+    return result
