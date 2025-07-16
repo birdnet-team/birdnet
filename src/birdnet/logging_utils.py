@@ -134,13 +134,13 @@ class QueueFileWriter:
       if self._logging_stop_event.wait(self._get_logs_interval):
         if self._log_queue.qsize() == 0:
           logger.debug("Processing finished, log queue is empty, stopping file writer.")
-          print(time.time(), "finished logging loop")
+          # print(time.time(), "finished logging loop")
           break
         else:
           logger.debug(
             "Processing finished, but log queue is not empty, continuing to write logs."
           )
-          print(time.time(), "about to finish logging loop")
+          # print(time.time(), "about to finish logging loop")
 
       try:
         # perf_c = time.perf_counter()

@@ -16,6 +16,13 @@ from birdnet.argparse_helper import (
   parse_path,
   parse_positive_integer,
 )
+from birdnet.base import (
+  MODEL_BACKEND_PB,
+  MODEL_BACKEND_TF,
+  MODEL_PRECISION_FLOAT16,
+  MODEL_PRECISION_FLOAT32,
+  MODEL_PRECISION_INT8,
+)
 from birdnet.logging_utils import get_package_logger
 
 
@@ -54,10 +61,20 @@ def run_benchmark_from_args(args: list[str]) -> None:
     "-b",
     "--backend",
     type=str,
-    choices=["tf", "pb"],
+    choices=[MODEL_BACKEND_TF, MODEL_BACKEND_PB],
     metavar="BACKEND",
-    help="use this backend (default: tf)",
-    default="tf",
+    help=f"use this backend (default: {MODEL_BACKEND_TF})",
+    default=MODEL_BACKEND_TF,
+  )
+
+  parser.add_argument(
+    "-p",
+    "--precision",
+    type=str,
+    choices=[MODEL_PRECISION_INT8, MODEL_PRECISION_FLOAT16, MODEL_PRECISION_FLOAT32],
+    metavar="PRECISION",
+    help=f"model precision (default: {MODEL_PRECISION_FLOAT32})",
+    default=MODEL_PRECISION_FLOAT32,
   )
 
   parser.add_argument(
@@ -125,7 +142,6 @@ def run_benchmark_from_args(args: list[str]) -> None:
   )
 
   parser.add_argument(
-    "-p",
     "--prefetch-ratio",
     type=parse_non_negative_integer,
     metavar="RATIO",
@@ -154,7 +170,10 @@ def run_benchmark_from_args(args: list[str]) -> None:
 
 def run_benchmark_from_ns(ns: Namespace) -> None:
   model: AcousticModelBaseV2_4 = birdnet.model_loader.load(
-    model_type="acoustic", version="2.4", backend=ns.backend
+    model_type="acoustic",
+    version="2.4",
+    backend=ns.backend,
+    precision=ns.precision,
   )
 
   assert isinstance(model, AcousticModelBaseV2_4)

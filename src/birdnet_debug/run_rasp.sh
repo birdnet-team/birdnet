@@ -34,7 +34,7 @@ birdnet-benchmark /home/pi/soundscape.wav
 birdnet-benchmark /home/pi/soundscape.wav -w 1 --prefetch-ratio 1 --feeders 1
 birdnet-benchmark /home/pi/10min.wav -w 1 --prefetch-ratio 1 --feeders 1
 birdnet-benchmark /home/pi/60min.wav -w 2 --prefetch-ratio 1 --feeders 1 #   7 x real-time (RTF: 0.15280223)
-birdnet-benchmark /home/pi/60min.wav -w 3 --prefetch-ratio 1 --feeders 1
+birdnet-benchmark /home/pi/60min.wav -w 2 --prefetch-ratio 1 --feeders 1 -p int8
 
 
 # Sonstiges
