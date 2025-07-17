@@ -25,7 +25,7 @@ from birdnet.globals import (
 )
 from birdnet.helper import RingField, uint_dtype_for
 from birdnet.io_lock import IOLockHandler
-from birdnet.utils import flat_sigmoid_logaddexp, flat_sigmoid_logaddexp_fast
+from birdnet.utils import flat_sigmoid_logaddexp_fast
 
 
 class ChildWorker(bn_logging.LogableProcessBase):
@@ -324,14 +324,15 @@ class ChildWorker(bn_logging.LogableProcessBase):
         )
         return
       dur_inference = time.perf_counter() - perf_c
+
+      self._ring_flags[claimed_slot] = WRITABLE_FLAG
+      self._sem_free.release()
+
       assert pred.flags.aligned
 
       if self._species_dtype is None:
         n_species = pred.shape[1]
         self._species_dtype = uint_dtype_for(n_species - 1)
-
-      self._ring_flags[claimed_slot] = WRITABLE_FLAG
-      self._sem_free.release()
 
       perf_c = time.perf_counter()
 
