@@ -25,7 +25,7 @@ from birdnet.globals import (
 )
 from birdnet.helper import RingField, uint_dtype_for
 from birdnet.io_lock import IOLockHandler
-from birdnet.utils import flat_sigmoid_logaddexp
+from birdnet.utils import flat_sigmoid_logaddexp, flat_sigmoid_logaddexp_fast
 
 
 class ChildWorker(bn_logging.LogableProcessBase):
@@ -71,6 +71,8 @@ class ChildWorker(bn_logging.LogableProcessBase):
     assert species_thresholds.shape[0] == 1
     assert species_blacklist.shape[0] == 1
     assert species_thresholds.shape[1] == species_blacklist.shape[1]
+    assert species_thresholds.flags.aligned
+    assert species_blacklist.flags.aligned
 
     self._prd_all_done_event = prd_all_done_event
     self._wkr_ring_access_lock = wkr_ring_access_lock
@@ -99,12 +101,15 @@ class ChildWorker(bn_logging.LogableProcessBase):
     self._io_lock_handler = io_lock_handler
     # Interpreter
     self._slot = 0
+    self._batch_idx_cache = {}
 
     # attatch to existing shared memory buffers
     # NOTE: these handlers must be created that GC does not delete the shared memory access
     self._n_slots = n_slots
     self._batch_size = batch_size
     self._segment_duration_samples = segment_duration_samples
+
+    self._species_dtype: DTypeLike | None = None
     # self._cached_shape: tuple[int, ...] | None = None
     # self._model_path = str(model_path.absolute())
 
@@ -319,6 +324,11 @@ class ChildWorker(bn_logging.LogableProcessBase):
         )
         return
       dur_inference = time.perf_counter() - perf_c
+      assert pred.flags.aligned
+
+      if self._species_dtype is None:
+        n_species = pred.shape[1]
+        self._species_dtype = uint_dtype_for(n_species - 1)
 
       self._ring_flags[claimed_slot] = WRITABLE_FLAG
       self._sem_free.release()
@@ -331,25 +341,22 @@ class ChildWorker(bn_logging.LogableProcessBase):
 
       if self._apply_sigmoid:
         assert self._sigmoid_sensitivity is not None
-        pred = flat_sigmoid_logaddexp(
+        pred = flat_sigmoid_logaddexp_fast(
           pred,
           sensitivity=-self._sigmoid_sensitivity,
         )
 
-      invalid_mask = filter_by_threshold(pred, self._thresholds)
-      # np.logical_or(invalid_mask, self._blacklist, out=invalid_mask)
-      invalid_mask = combine_invalid_masks(invalid_mask, self._blacklist, in_place=True)
+      invalid_mask = (pred < self._thresholds) | self._blacklist
 
-      # select top-k species
-      top_k_species = select_top_k_indices(pred, invalid_mask, self._top_k)
-      top_k_scores = np.take_along_axis(pred, top_k_species, axis=1)
-      top_k_mask = np.take_along_axis(invalid_mask, top_k_species, axis=1)
+      shadow = np.where(invalid_mask, -np.inf, pred)
 
-      # # sort desc by scores
-      # sorted_indices = get_ordered_indices(top_k_scores)
-      # top_k_species = np.take_along_axis(top_k_species, sorted_indices, axis=1)
-      # top_k_scores = np.take_along_axis(top_k_scores, sorted_indices, axis=1)
-      # top_k_mask = np.take_along_axis(top_k_mask, sorted_indices, axis=1)
+      top_k_species = np.argpartition(shadow, -self._top_k, axis=1)[
+        :, -self._top_k :
+      ].astype(self._species_dtype, copy=False)
+
+      batch_idx = self._get_batch_idx(pred.shape[0])
+      top_k_scores = pred[batch_idx, top_k_species]
+      top_k_mask = invalid_mask[batch_idx, top_k_species]
 
       self._out_q.put(
         (
@@ -387,6 +394,11 @@ class ChildWorker(bn_logging.LogableProcessBase):
 
     self._log_debug("Finished.")
     self._uninit()
+
+  def _get_batch_idx(self, batch_size: int) -> np.ndarray:
+    if batch_size not in self._batch_idx_cache:
+      self._batch_idx_cache[batch_size] = np.arange(batch_size)[:, None]
+    return self._batch_idx_cache[batch_size]
 
 
 def filter_by_threshold(
