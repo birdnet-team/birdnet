@@ -220,23 +220,24 @@ class PredictionResult:
 
     structured = self.to_structured_array()
 
-    file_paths = structured[VAR_FILE_PATH]
-    start_times = structured[VAR_START_TIME]
-    end_times = structured[VAR_END_TIME]
-    species_names = structured[VAR_SPECIES_NAME]
-    confidences = structured[VAR_CONFIDENCE]
-
-    arrow_arrays = {
-      VAR_FILE_PATH: pa.array(file_paths).dictionary_encode(),
-      VAR_START_TIME: pa.array(
-        start_times, type=pa.from_numpy_dtype(start_times.dtype)
-      ),
-      VAR_END_TIME: pa.array(end_times, type=pa.from_numpy_dtype(end_times.dtype)),
-      VAR_SPECIES_NAME: pa.array(species_names).dictionary_encode(),
-      VAR_CONFIDENCE: pa.array(
-        confidences, type=pa.from_numpy_dtype(confidences.dtype)
-      ),
-    }
+    arrow_arrays = {}
+    arrow_arrays[VAR_FILE_PATH] = pa.array(
+      structured[VAR_FILE_PATH]
+    ).dictionary_encode()
+    arrow_arrays[VAR_START_TIME] = pa.array(
+      structured[VAR_START_TIME],
+      type=pa.from_numpy_dtype(structured[VAR_START_TIME].dtype),
+    )
+    arrow_arrays[VAR_END_TIME] = pa.array(
+      structured[VAR_END_TIME], type=pa.from_numpy_dtype(structured[VAR_END_TIME].dtype)
+    )
+    arrow_arrays[VAR_SPECIES_NAME] = pa.array(
+      structured[VAR_SPECIES_NAME]
+    ).dictionary_encode()
+    arrow_arrays[VAR_CONFIDENCE] = pa.array(
+      structured[VAR_CONFIDENCE],
+      type=pa.from_numpy_dtype(structured[VAR_CONFIDENCE].dtype),
+    )
 
     fields = [
       pa.field(VAR_FILE_PATH, arrow_arrays[VAR_FILE_PATH].type, nullable=False),
@@ -255,7 +256,6 @@ class PredictionResult:
 
     schema_with_metadata = pa.schema(fields, metadata=metadata)
     table = pa.table(arrow_arrays, schema=schema_with_metadata)
-
     return table
 
   def to_csv(
@@ -306,7 +306,7 @@ class PredictionResult:
 
           pbar.update(1)
           # show file size in GB after every GB of data written
-          if collected_size_bytes >= update_size_every:
+          if collected_size_bytes >= update_size_every or pbar.n == pbar.total:
             total_size_bytes += collected_size_bytes
             collected_size_bytes = 0
             if not silent:
@@ -317,109 +317,14 @@ class PredictionResult:
           f.writelines(block)
 
   def to_dataframe(self) -> pd.DataFrame:
-    return convert_tensor_to_dataframe(
-      self._species_ids,
-      self._species_probs,
-      self._species_masked,
-      self._files,
-      self.segment_duration_s,
-      self.overlap_duration_s,
-      self._species_list,
-    )
+    import pandas as pd
 
-
-def convert_tensor_to_dataframe(
-  species_ids: np.ndarray,
-  species_probs: np.ndarray,
-  species_masked: np.ndarray,
-  files: np.ndarray,
-  segment_duration_s: int | float,
-  overlap_duration_s: int | float,
-  species_list: np.ndarray,
-  /,
-  *,
-  silent: bool = False,
-) -> pd.DataFrame:
-  import pandas as pd
-
-  top_k = species_probs.shape[2]
-  max_segments = species_probs.shape[1]
-  n_files = len(files)
-  segments = []
-  resulting_lines = []
-  for i in range(max_segments):
-    start = i * segment_duration_s - (i * overlap_duration_s)
-    end = start + segment_duration_s
-    segments.append((start, end))
-  non_masked_entry_count = np.count_nonzero(~species_masked)
-  with tqdm(
-    total=non_masked_entry_count,
-    desc="Creating DataFrame",
-    unit="segment",
-    disable=silent,
-  ) as pbar:
-    for i in range(n_files):
-      for j in range(max_segments):
-        spec_ids = species_ids[i, j]
-        spec_probs = species_probs[i, j]
-        valid = ~species_masked[i, j]
-        for k in range(top_k):
-          if valid[k]:
-            species_id = spec_ids[k]
-            species_name: str = species_list[species_id]
-            scientific_name = species_name
-            common_name = ""
-            if "_" in species_name:
-              parts = species_name.split("_", 1)
-              scientific_name = parts[0]
-              common_name = parts[1]
-
-            start_sec = int(segments[j][0])
-            end_sec = int(segments[j][1])
-
-            row = {
-              "file": files[i],
-              "start": time.strftime("%H:%M:%S", time.gmtime(start_sec)),
-              "end": time.strftime("%H:%M:%S", time.gmtime(end_sec)),
-              "scientific_name": scientific_name,
-              "common_name": common_name,
-              VAR_CONFIDENCE: spec_probs[k],
-            }
-            resulting_lines.append(row)
-            pbar.update(1)
-          else:
-            break
-  df = pd.DataFrame.from_records(resulting_lines)
-
-  if len(df.index) > 0:
-    # sorting with float16 is not supported by pandas DataFrame
-    df["_confidence32"] = df[VAR_CONFIDENCE].astype(np.float32, copy=False)
-    df = (
-      df.sort_values(
-        by=["file", "start", "_confidence32"], ascending=[True, True, False]
-      )
-      .drop(columns="_confidence32")
-      .reset_index(drop=True)
-    )
-
-  return df
-
-
-def format_time_hms(seconds: float) -> str:
-  """
-  Formats a time in seconds to a byte string in the format HH:MM:SS.
-  """
-  result = time.strftime("%H:%M:%S", time.gmtime(seconds))
-  return result
+    df = pd.DataFrame(self.to_structured_array(), copy=True)
+    return df
 
 
 def hms_centis_fast(v: float) -> str:
   h, rem = divmod(v, 3600)
   m, s = divmod(rem, 60)  # s bleibt Float
-  return f"{int(h):02}:{int(m):02}:{s:05.2f}"
-
-
-def load_prediction_data(in_path: os.PathLike | str) -> dict[str, Any]:
-  with np.load(Path(in_path), allow_pickle=True) as npz:
-    result = {k: npz[k] for k in npz.files}
-    return result
+  result = f"{int(h):02}:{int(m):02}:{s:05.2f}"
+  return result

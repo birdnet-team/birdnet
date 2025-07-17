@@ -100,20 +100,48 @@ def comp_test_flac_csv():
   print(array)
 
 
+def comp_test_flac_pd():
+  audio_path = [
+    Path("example/soundscape.wav"),
+    Path("test-dataset/test_dataset_1x7.3s_flac/0.flac"),
+    Path("test-dataset/test_dataset_100x1.3s_flac/000.flac"),
+    Path("test-dataset/test_dataset_1000x0.2s_flac/0000.flac"),
+  ]
+
+  result = get_cached_result(audio_path, k=6500, conf=-1)
+  with duration_counter() as duration, memory_monitor() as memory_footprint:
+    array = result.to_dataframe()
+  print(array)
+  print(duration(), "s")
+  print(memory_footprint(), "MB")
+
+
 def test_large_file():
   audio_path = [Path("test-dataset/test_dataset_4x60min")]
 
   with duration_counter() as duration, memory_monitor() as memory_footprint:
     result = get_cached_result(audio_path, k=6500, conf=-1)
-  print(duration(), "s")
-  print(memory_footprint(), "MB")
+  print(f"Loading -> duration: {duration()} s; memory: {memory_footprint()} MB")
+
+  with duration_counter() as duration, memory_monitor() as memory_footprint:
+    array = result.to_structured_array()
+
+  print(f"Numpy -> duration: {duration()} s; memory: {memory_footprint()} MB")
+
+  with duration_counter() as duration, memory_monitor() as memory_footprint:
+    array = result.to_arrow_table()
+
+  print(f"Arrow -> duration: {duration()} s; memory: {memory_footprint()} MB")
+
+  with duration_counter() as duration, memory_monitor() as memory_footprint:
+    array = result.to_dataframe()
+
+  print(f"DataFrame -> duration: {duration()} s; memory: {memory_footprint()} MB")
 
   with duration_counter() as duration, memory_monitor() as memory_footprint:
     array = result.to_csv("/tmp/test_conv.csv")
 
-  print(duration(), "s")
-  print(memory_footprint(), "MB")
-  # print(array)
+  print(f"CSV -> duration: {duration()} s; memory: {memory_footprint()} MB")
 
 
-test_large_file()
+comp_test_flac_csv()
