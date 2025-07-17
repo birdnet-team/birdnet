@@ -72,4 +72,17 @@ def comp_test_flac_pa():
   print(array)
 
 
-comp_test_flac_pa()
+def comp_test_flac_csv():
+  audio_path = [
+    Path("example/soundscape.wav"),
+    Path("test-dataset/test_dataset_1x7.3s_flac/0.flac"),
+    Path("test-dataset/test_dataset_100x1.3s_flac/000.flac"),
+    Path("test-dataset/test_dataset_1000x0.2s_flac/0000.flac"),
+  ]
+
+  result = get_cached_result(audio_path, k=6500, conf=-1)
+  array = result.to_csv_from_structured_ultra_fast("/tmp/test_conv.csv")
+  print(array)
+
+
+comp_test_flac_csv()

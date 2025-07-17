@@ -241,6 +241,93 @@ class PredictionResult:
 
     return table
 
+  def to_csv_from_structured_ultra_fast(
+    self,
+    path: os.PathLike | str,
+    *,
+    encoding: str = "utf-8",
+    buffer_size_kb: int = 1024,
+    silent: bool = False,
+  ) -> None:
+    """
+    Ultra-schnelle CSV-Export Version mit minimalen Allokationen.
+
+    Basiert auf der fast_save_tensor_to_csv Logik aber nutzt structured array.
+    """
+    from pathlib import Path
+
+    path = Path(path)
+    structured = self.to_structured_array()
+
+    header = b"file_path,start_time,end_time,species_name,confidence\n"
+
+    if len(structured) == 0:
+      with open(path, "wb") as f:
+        f.write(header)
+      return
+
+    # Byte-orientierte Verarbeitung (schnellster Ansatz)
+    buffer_bytes = buffer_size_kb * 1024
+
+    # Pre-encode strings zu bytes (einmalig)
+    file_paths_b = np.array([fp.encode(encoding) for fp in structured["file_path"]])
+    species_names_b = np.array(
+      [sn.encode(encoding) for sn in structured["species_name"]]
+    )
+
+    # Formatiere numerische Werte zu bytes
+    start_times_b = np.array(
+      [f"{hms_centis_fast(t)}".encode(encoding) for t in structured["start_time"]]
+    )
+    end_times_b = np.array(
+      [f"{hms_centis_fast(t)}".encode(encoding) for t in structured["end_time"]]
+    )
+    confidences_b = np.array(
+      [f"{c:.6f}".encode(encoding) for c in structured["confidence"]]
+    )
+
+    block = []
+    block_size = 0
+
+    with open(path, "wb", buffering=buffer_bytes) as f:
+      f.write(header)
+
+      with tqdm(
+        total=len(structured),
+        desc="Writing CSV",
+        unit="predictions",
+        disable=silent,
+      ) as pbar:
+        for i in range(len(structured)):
+          line = (
+            b'"'
+            + file_paths_b[i]
+            + b'","'
+            + start_times_b[i]
+            + b'","'
+            + end_times_b[i]
+            + b'","'
+            + species_names_b[i]
+            + b'",'
+            + confidences_b[i]
+            + b"\n"
+          )
+
+          block.append(line)
+          block_size += len(line)
+
+          # Gepufferte I/O
+          if block_size >= buffer_bytes:
+            f.writelines(block)
+            block.clear()
+            block_size = 0
+
+          pbar.update(1)
+
+        # Final flush
+        if block:
+          f.writelines(block)
+
   def to_dataframe(self) -> pd.DataFrame:
     return convert_tensor_to_dataframe(
       self._species_ids,
