@@ -9,7 +9,7 @@ import numpy as np
 from birdnet.acoustic_models.inference.prediction_result import PredictionResult
 from birdnet.acoustic_models.v2_4.base import AcousticModelBaseV2_4
 from birdnet.logging_utils import get_package_logger
-from birdnet.model_loader import load, load_custom
+from birdnet.model_loader import load
 from birdnet_debug.hsn_downloader import get_hsn_file_paths
 from birdnet_debug.pow_downloader import get_pow_file_paths
 

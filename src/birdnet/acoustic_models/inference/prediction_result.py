@@ -1,19 +1,14 @@
 from __future__ import annotations  # seit Py 3.7, ab Py 3.11 Standard
 
-import csv
 import os
-import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Literal, Self
 
 import numpy as np  # alles, was du ohnehin brauchst
 from ordered_set import OrderedSet
 from tqdm import tqdm
 
 from birdnet.acoustic_models.inference.species_tensor import SpeciesTensor
-from birdnet.globals import PKG_NAME
-from birdnet.helper import get_max_n_segments_array
-from birdnet.local_data import get_package_version
 
 if TYPE_CHECKING:
   import pandas as pd
@@ -157,7 +152,7 @@ class PredictionResult:
     del valid_mask
 
     n_predictions = len(valid_indices[0])
-    # NOTE: use object for paths and species because strings repeat often -> pointer is more efficient
+    # NOTE: use dtype object for paths and species because these strings repeat often -> pointer to python string is more efficient
     dtype = [
       (VAR_FILE_PATH, object),
       (VAR_START_TIME, self._file_durations.dtype),
@@ -273,7 +268,11 @@ class PredictionResult:
 
     buffer_bytes = buffer_size_kb * 1024
 
-    with Path(path).open("w", encoding=encoding, buffering=buffer_bytes) as f:
+    output_path = Path(path)
+    if output_path.suffix != ".csv":
+      raise ValueError("Output path must have a .csv suffix")
+
+    with output_path.open("w", encoding=encoding, buffering=buffer_bytes) as f:
       # Header
       f.write(
         f"{VAR_FILE_PATH},{VAR_START_TIME},{VAR_END_TIME},{VAR_SPECIES_NAME},{VAR_CONFIDENCE}\n"
@@ -321,6 +320,41 @@ class PredictionResult:
 
     df = pd.DataFrame(self.to_structured_array(), copy=True)
     return df
+
+  def to_parquet(
+    self,
+    path: os.PathLike | str,
+    *,
+    compression: Literal["none", "snappy", "gzip", "brotli", "lz4", "zstd"] = "snappy",
+    compression_level: int | None = None,
+    silent: bool = False,
+  ) -> None:
+    import pyarrow.parquet as pq
+
+    path = Path(path)
+    if path.suffix != ".parquet":
+      raise ValueError("Output path must have a .parquet suffix")
+
+    if not silent:
+      print("Creating Arrow table...")
+
+    table = self.to_arrow_table()
+
+    if not silent:
+      print(f"Writing Parquet to {path.absolute()} ...")
+
+    pq.write_table(
+      table,
+      path,
+      compression=compression,
+      compression_level=compression_level,
+    )
+
+    if not silent:
+      file_size = path.stat().st_size / 1024**2
+      original_size = table.nbytes / 1024**2
+      compression_ratio = original_size / file_size if file_size > 0 else 0
+      print(f"Parquet file: {file_size:.1f} MB (compression: {compression_ratio:.1f}x)")
 
 
 def hms_centis_fast(v: float) -> str:

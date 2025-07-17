@@ -1,14 +1,7 @@
-import contextlib
-import ctypes
-import os
 import tempfile
-import threading
-import time
 from hashlib import sha1
 from pathlib import Path
-from typing import Generator
 
-import psutil
 
 from birdnet.acoustic_models.inference.prediction_result import PredictionResult
 from birdnet.model_loader import load
@@ -116,12 +109,33 @@ def comp_test_flac_pd():
   print(memory_footprint(), "MB")
 
 
+def comp_test_flac_parquet():
+  audio_path = [
+    Path("example/soundscape.wav"),
+    Path("test-dataset/test_dataset_1x7.3s_flac/0.flac"),
+    Path("test-dataset/test_dataset_100x1.3s_flac/000.flac"),
+    Path("test-dataset/test_dataset_1000x0.2s_flac/0000.flac"),
+  ]
+
+  result = get_cached_result(audio_path, k=6500, conf=-1)
+  with duration_counter() as duration, memory_monitor() as memory_footprint:
+    array = result.to_parquet("/tmp/test_conv.parquet")
+  print(array)
+  print(duration(), "s")
+  print(memory_footprint(), "MB")
+
+
 def test_large_file():
   audio_path = [Path("test-dataset/test_dataset_4x60min")]
 
   with duration_counter() as duration, memory_monitor() as memory_footprint:
     result = get_cached_result(audio_path, k=6500, conf=-1)
   print(f"Loading -> duration: {duration()} s; memory: {memory_footprint()} MB")
+
+  with duration_counter() as duration, memory_monitor() as memory_footprint:
+    array = result.to_parquet("/tmp/test_conv.parquet")
+
+  print(f"Parquet -> duration: {duration()} s; memory: {memory_footprint()} MB")
 
   with duration_counter() as duration, memory_monitor() as memory_footprint:
     array = result.to_structured_array()
@@ -144,4 +158,4 @@ def test_large_file():
   print(f"CSV -> duration: {duration()} s; memory: {memory_footprint()} MB")
 
 
-comp_test_flac_csv()
+test_large_file()

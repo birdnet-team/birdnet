@@ -4,7 +4,6 @@ from __future__ import annotations
 import logging
 import multiprocessing as mp
 import multiprocessing.synchronize
-import time
 from logging.handlers import QueueHandler
 from multiprocessing import Queue
 from pathlib import Path
