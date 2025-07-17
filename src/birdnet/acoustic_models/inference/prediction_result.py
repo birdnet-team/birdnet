@@ -11,10 +11,13 @@ from ordered_set import OrderedSet
 from tqdm import tqdm
 
 from birdnet.acoustic_models.inference.species_tensor import SpeciesTensor
+from birdnet.globals import PKG_NAME
 from birdnet.helper import get_max_n_segments_array
+from birdnet.local_data import get_package_version
 
 if TYPE_CHECKING:
   import pandas as pd
+  import pyarrow as pa
 
 
 class PredictionResult:
@@ -96,11 +99,15 @@ class PredictionResult:
     return len(self._files)
 
   @property
-  def n_segments(self) -> int:
+  def n_species(self) -> int:
+    return len(self._species_list)
+
+  @property
+  def max_n_segments(self) -> int:
     return self._species_ids.shape[1]
 
   @property
-  def n_species(self) -> int:
+  def top_k(self) -> int:
     return self._species_ids.shape[2]
 
   def save(self, npz_out_path: os.PathLike | str, /, *, compress: bool = True) -> None:
@@ -194,6 +201,45 @@ class PredictionResult:
     structured_array["confidence"] = confidences_flat
 
     return structured_array
+
+  def to_arrow_table(self) -> pa.Table:
+    import pyarrow as pa
+
+    structured = self.to_structured_array()
+
+    file_paths = structured["file_path"]
+    start_times = structured["start_time"]
+    end_times = structured["end_time"]
+    species_names = structured["species_name"]
+    confidences = structured["confidence"]
+
+    arrow_arrays = {
+      "file_path": pa.array(file_paths).dictionary_encode(),
+      "start_time": pa.array(start_times, type=pa.from_numpy_dtype(start_times.dtype)),
+      "end_time": pa.array(end_times, type=pa.from_numpy_dtype(end_times.dtype)),
+      "species_name": pa.array(species_names).dictionary_encode(),
+      "confidence": pa.array(confidences, type=pa.from_numpy_dtype(confidences.dtype)),
+    }
+
+    fields = [
+      pa.field("file_path", arrow_arrays["file_path"].type, nullable=False),
+      pa.field("start_time", arrow_arrays["start_time"].type, nullable=False),
+      pa.field("end_time", arrow_arrays["end_time"].type, nullable=False),
+      pa.field("species_name", arrow_arrays["species_name"].type, nullable=False),
+      pa.field("confidence", arrow_arrays["confidence"].type, nullable=False),
+    ]
+
+    metadata: dict[bytes | str, bytes | str] | None = {
+      "segment_duration_s": str(self._segment_duration_s),
+      "overlap_duration_s": str(self._overlap_duration_s),
+      "n_files": str(self.n_files),
+      "n_species": str(self.n_species),
+    }
+
+    schema_with_metadata = pa.schema(fields, metadata=metadata)
+    table = pa.table(arrow_arrays, schema=schema_with_metadata)
+
+    return table
 
   def to_dataframe(self) -> pd.DataFrame:
     return convert_tensor_to_dataframe(
