@@ -163,34 +163,34 @@ if __name__ == "__main__":
 
   audio_paths = get_pow_file_paths()
   audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
+  audio_paths = "example/soundscape.wav"
   audio_paths = [
     Path("test-dataset/test_dataset_4x60min/0.wav"),
     Path("test-dataset/test_dataset_4x60min/1.wav"),
     Path("test-dataset/test_dataset_4x60min/2.wav"),
     Path("test-dataset/test_dataset_4x60min/3.wav"),
   ]
-  audio_paths = "example/soundscape.wav"
   params = {
     "n_workers": 12,
     "n_producers": 1,
     "batch_size": 1,
     "prefetch_ratio": 2,
     "backend": "tf",
-    "precision": "fp16",
+    "precision": "fp32",
     "device": "CPU",
   }
 
-  # model: AcousticModelBaseV2_4 = load(
-  #   backend=params["backend"], precision=params["precision"]
-  # )
-  model = load_custom(
-    "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/tf/model-fp32.tflite",
-    "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/tf/labels/en_us.txt",
-    model_type="acoustic",
-    version="2.4",
-    backend="tf",
-    precision="fp32",
+  model: AcousticModelBaseV2_4 = load(
+    backend=params["backend"], precision=params["precision"]
   )
+  # model = load_custom(
+  #   "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/tf/model-fp32.tflite",
+  #   "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/tf/labels/en_us.txt",
+  #   model_type="acoustic",
+  #   version="2.4",
+  #   backend="tf",
+  #   precision="fp32",
+  # )
 
   # set_start_method("forkserver", force=True) # Linux, macOS
   # set_start_method("spawn", force=True)  # Linux, macOS
@@ -232,7 +232,7 @@ if __name__ == "__main__":
 
   output_file = Path(tempfile.gettempdir()) / "predictions.npz"
   now = time.perf_counter()
-  result.dump(output_file)
+  result.save(output_file)
   print(f"Saved to {output_file} in {time.perf_counter() - now:.2f} seconds.")
   if True:
     result_loaded = PredictionResult.load(output_file)

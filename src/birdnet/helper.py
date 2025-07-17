@@ -222,7 +222,8 @@ def create_shm_ring(ring: RingField) -> shared_memory.SharedMemory:  # type: ign
     yield shm  # type: ignore
   finally:
     shm.close()
-    shm.unlink()
+    with suppress(FileNotFoundError):
+      shm.unlink()
     logger = logging.getLogger(__name__)
     logger.debug(f"Shared memory {ring.name} cleaned up.")
 

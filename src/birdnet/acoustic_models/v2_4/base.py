@@ -469,7 +469,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     custom_species_list: set[str] | None = None,
     half_precision: bool = True,
     max_audio_duration_min: float | None = None,
-    show_stats: Literal["no", "minimal", "progress", "benchmark"] = "progress",
+    show_stats: Literal["no", "minimal", "progress", "benchmark"] = "no",
     device: str | list[str] = "CPU",
     serial_io: bool = False,
   ) -> PredictionResult:
@@ -1259,7 +1259,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       stats_human_readable_out.write_text(summary, encoding="utf8")
 
       print("Saving result using internal format (.npz)...")
-      res.dump(result_npz)
+      res.save(result_npz)
       print("Saving result using CSV format (.csv)...")
       res.to_csv(result_csv, encoding="utf-8", silent=False)
 

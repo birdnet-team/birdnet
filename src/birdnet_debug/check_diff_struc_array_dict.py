@@ -21,10 +21,10 @@ dict_arrays = {
 
 # 2. Strukturiertes Array
 dtype = [
-  ("file_path", dict_arrays["file_path"].dtype),
+  ("file_path", dict_arrays["file_path"].dtype),  # Fixed width!
   ("start_time", dict_arrays["start_time"].dtype),
   ("end_time", dict_arrays["end_time"].dtype),
-  ("species_name", dict_arrays["species_name"].dtype),
+  ("species_name", dict_arrays["species_name"].dtype),  # Fixed width!
   ("confidence", dict_arrays["confidence"].dtype),
 ]
 structured = np.empty(n, dtype=dtype)
@@ -38,6 +38,6 @@ structured["confidence"] = dict_arrays["confidence"]
 dict_size = sum(arr.nbytes for arr in dict_arrays.values())
 structured_size = structured.nbytes
 
-print(f"Dictionary Arrays: {dict_size / 1024**2:.1f} MB")
+print(f"Dictionary Arrays: {(dict_arrays.__sizeof__() + dict_size) / 1024**2:.1f} MB")
 print(f"Structured Array:  {structured_size / 1024**2:.1f} MB")
 print(f"Verhältnis: {structured_size / dict_size:.2f}x")

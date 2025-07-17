@@ -27,13 +27,20 @@ class PredictionResult:
     segment_duration_s: int | float,
     overlap_duration_s: int | float,
   ) -> None:
+    assert file_durations.dtype == np.float16
+    assert tensor._species_ids.dtype in (np.uint8, np.uint16, np.uint32, np.uint64)
+    assert tensor._species_probs.dtype in (np.float16, np.float32)
+    assert tensor._species_masked.dtype == bool
+
+    # Direkte String-Konvertierung ohne Zwischenlisten
     all_files = [str(file.absolute()) for file in files]
     max_len = max(map(len, all_files))
-    self._files = np.asarray([str(p) for p in files], dtype=f"<U{max_len}")
-    # self._files = np.array([str(file.absolute()) for file in files], dtype=object)
-    self._segment_duration_s = np.float32(segment_duration_s)
-    self._overlap_duration_s = np.float32(overlap_duration_s)
-    self._species_list = np.array(list(species_list), dtype=object)
+    self._files = np.asarray(all_files, dtype=f"<U{max_len}")
+    self._segment_duration_s = np.float16(segment_duration_s)
+    self._overlap_duration_s = np.float16(overlap_duration_s)
+
+    max_len = max(map(len, species_list))
+    self._species_list = np.array(list(species_list), dtype=f"<U{max_len}")
     self._species_probs = tensor._species_probs
     self._species_ids = tensor._species_ids
     self._species_masked = tensor._species_masked
@@ -51,21 +58,6 @@ class PredictionResult:
       + self._species_list.nbytes
       + self._file_durations.nbytes
     ) / 1024**2
-
-  @classmethod
-  def load(cls, path: os.PathLike | str) -> Self:
-    result = cls.__new__(cls)
-    data = load_prediction_data(path)
-
-    result._species_ids = data["species_ids"]
-    result._species_probs = data["species_probs"]
-    result._species_masked = data["species_masked"]
-    result._files = data["files"]
-    result._segment_duration_s = data["segment_duration_s"]
-    result._overlap_duration_s = data["overlap_duration_s"]
-    result._species_list = data["species_list"]
-    result._file_durations = data["file_durations"]
-    return result
 
   @property
   def segment_duration_s(self) -> float:
@@ -111,7 +103,7 @@ class PredictionResult:
   def n_species(self) -> int:
     return self._species_ids.shape[2]
 
-  def dump(self, npz_out_path: os.PathLike | str, /, *, compress: bool = True) -> None:
+  def save(self, npz_out_path: os.PathLike | str, /, *, compress: bool = True) -> None:
     npz_out_path = Path(npz_out_path)
     if npz_out_path.suffix != ".npz":
       raise ValueError("Output path must have a .npz suffix")
@@ -129,6 +121,79 @@ class PredictionResult:
       species_list=self._species_list,
       file_durations=self._file_durations,
     )
+
+  @classmethod
+  def load(cls, path: os.PathLike | str) -> Self:
+    result = cls.__new__(cls)
+    data = load_prediction_data(path)
+
+    result._species_ids = data["species_ids"]
+    result._species_probs = data["species_probs"]
+    result._species_masked = data["species_masked"]
+    result._files = data["files"]
+    result._segment_duration_s = data["segment_duration_s"]
+    result._overlap_duration_s = data["overlap_duration_s"]
+    result._species_list = data["species_list"]
+    result._file_durations = data["file_durations"]
+    return result
+
+  def to_structured_array(self) -> np.ndarray:
+    valid_mask = ~self._species_masked
+    valid_indices = np.where(valid_mask)
+
+    n_predictions = len(valid_indices[0])
+    dtype = [
+      ("file_path", self._files.dtype),
+      ("start_time", self._file_durations.dtype),
+      ("end_time", self._file_durations.dtype),
+      ("species_name", self._species_list.dtype),
+      ("confidence", self._species_probs.dtype),
+    ]
+
+    structured_array = np.empty(n_predictions, dtype=dtype)
+
+    if n_predictions == 0:
+      return structured_array
+
+    file_idx_flat = valid_indices[0]
+    chunk_idx_flat = valid_indices[1]
+    confidences_flat = self._species_probs[valid_indices]
+
+    sort_keys = (
+      -confidences_flat,
+      chunk_idx_flat,
+      file_idx_flat,
+    )
+    sort_indices = np.lexsort(sort_keys)
+
+    file_idx_flat = file_idx_flat[sort_indices]
+    chunk_idx_flat = chunk_idx_flat[sort_indices]
+    valid_indices = (
+      valid_indices[0][sort_indices],
+      valid_indices[1][sort_indices],
+      valid_indices[2][sort_indices],
+    )
+
+    hop_duration = self._segment_duration_s - self._overlap_duration_s
+    start_times = chunk_idx_flat.astype(self._file_durations.dtype) * hop_duration
+    end_times = start_times + self._segment_duration_s
+
+    file_durations_flat = self._file_durations[file_idx_flat]
+    end_times = np.minimum(end_times, file_durations_flat)
+
+    species_ids_flat = self._species_ids[valid_indices]
+    confidences_flat = self._species_probs[valid_indices]
+
+    file_paths = self._files[file_idx_flat]
+    species_names = self._species_list[species_ids_flat]
+
+    structured_array["file_path"] = file_paths
+    structured_array["start_time"] = start_times
+    structured_array["end_time"] = end_times
+    structured_array["species_name"] = species_names
+    structured_array["confidence"] = confidences_flat
+
+    return structured_array
 
   def to_dataframe(self) -> pd.DataFrame:
     return convert_tensor_to_dataframe(

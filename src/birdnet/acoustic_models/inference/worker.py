@@ -337,6 +337,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
         )
 
       invalid_mask = filter_by_threshold(pred, self._thresholds)
+      # np.logical_or(invalid_mask, self._blacklist, out=invalid_mask)
       invalid_mask = combine_invalid_masks(invalid_mask, self._blacklist, in_place=True)
 
       # select top-k species
@@ -344,11 +345,11 @@ class ChildWorker(bn_logging.LogableProcessBase):
       top_k_scores = np.take_along_axis(pred, top_k_species, axis=1)
       top_k_mask = np.take_along_axis(invalid_mask, top_k_species, axis=1)
 
-      # sort desc by scores
-      sorted_indices = get_ordered_indices(top_k_scores)
-      top_k_species = np.take_along_axis(top_k_species, sorted_indices, axis=1)
-      top_k_scores = np.take_along_axis(top_k_scores, sorted_indices, axis=1)
-      top_k_mask = np.take_along_axis(top_k_mask, sorted_indices, axis=1)
+      # # sort desc by scores
+      # sorted_indices = get_ordered_indices(top_k_scores)
+      # top_k_species = np.take_along_axis(top_k_species, sorted_indices, axis=1)
+      # top_k_scores = np.take_along_axis(top_k_scores, sorted_indices, axis=1)
+      # top_k_mask = np.take_along_axis(top_k_mask, sorted_indices, axis=1)
 
       self._out_q.put(
         (
