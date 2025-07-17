@@ -1,9 +1,18 @@
+import contextlib
+import ctypes
+import os
 import tempfile
+import threading
+import time
 from hashlib import sha1
 from pathlib import Path
+from typing import Generator
+
+import psutil
 
 from birdnet.acoustic_models.inference.prediction_result import PredictionResult
 from birdnet.model_loader import load
+from birdnet_tests.helper import duration_counter, memory_monitor
 
 
 def get_cached_result(audio_paths: list[Path], k: int, conf: float) -> PredictionResult:
@@ -18,7 +27,12 @@ def get_cached_result(audio_paths: list[Path], k: int, conf: float) -> Predictio
     return PredictionResult.load(npz_path)
   else:
     model = load()
-    result = model.analyze(audio_paths, top_k=k, default_confidence_threshold=conf)
+    result = model.analyze(
+      audio_paths,
+      top_k=k,
+      default_confidence_threshold=conf,
+      workers=12,
+    )
     result.save(npz_path)
     return result
 
@@ -81,8 +95,25 @@ def comp_test_flac_csv():
   ]
 
   result = get_cached_result(audio_path, k=6500, conf=-1)
-  array = result.to_csv_from_structured_ultra_fast("/tmp/test_conv.csv")
+  with duration_counter() as duration, memory_monitor() as memory_footprint:
+    array = result.to_csv("/tmp/test_conv.csv")
   print(array)
 
 
-comp_test_flac_csv()
+def test_large_file():
+  audio_path = [Path("test-dataset/test_dataset_4x60min")]
+
+  with duration_counter() as duration, memory_monitor() as memory_footprint:
+    result = get_cached_result(audio_path, k=6500, conf=-1)
+  print(duration(), "s")
+  print(memory_footprint(), "MB")
+
+  with duration_counter() as duration, memory_monitor() as memory_footprint:
+    array = result.to_csv("/tmp/test_conv.csv")
+
+  print(duration(), "s")
+  print(memory_footprint(), "MB")
+  # print(array)
+
+
+test_large_file()

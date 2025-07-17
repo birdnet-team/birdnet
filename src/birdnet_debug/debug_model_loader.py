@@ -153,8 +153,6 @@ if __name__ == "__main__":
   audio_paths = [Path("src\\birdnet_v2_debug\\60min.wav")]
 
   audio_paths = "test-dataset/test_dataset_10000x0.2s_flac"
-  audio_paths = "test-dataset/test_dataset_1000x0.2s_flac"
-  audio_paths = "test-dataset/test_dataset_100x1.3s_flac"
   audio_paths = "test-dataset/test_dataset_100x1.3s_flac/000.flac"
   audio_paths = "test-dataset/test_dataset_1x7.3s_flac/0.flac"
 
@@ -170,6 +168,8 @@ if __name__ == "__main__":
     Path("test-dataset/test_dataset_4x60min/3.wav"),
   ]
   audio_paths = "test-dataset/test_dataset_100000x4s_flac"
+  audio_paths = "test-dataset/test_dataset_1000x0.2s_flac"
+  audio_paths = "test-dataset/test_dataset_100x1.3s_flac"
   params = {
     "n_workers": 12,
     "n_producers": 1,
@@ -234,6 +234,7 @@ if __name__ == "__main__":
   now = time.perf_counter()
   result.save(output_file)
   print(f"Saved to {output_file} in {time.perf_counter() - now:.2f} seconds.")
+
   if True:
     result_loaded = PredictionResult.load(output_file)
     df = result.to_dataframe()

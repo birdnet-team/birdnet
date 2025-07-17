@@ -19,6 +19,12 @@ if TYPE_CHECKING:
   import pandas as pd
   import pyarrow as pa
 
+VAR_FILE_PATH = "file_path"
+VAR_START_TIME = "start_time"
+VAR_END_TIME = "end_time"
+VAR_SPECIES_NAME = "species_name"
+VAR_CONFIDENCE = "confidence"
+
 
 class PredictionResult:
   def __init__(
@@ -132,7 +138,8 @@ class PredictionResult:
   @classmethod
   def load(cls, path: os.PathLike | str) -> Self:
     result = cls.__new__(cls)
-    data = load_prediction_data(path)
+    with np.load(path, allow_pickle=True) as npz:
+      data = {k: npz[k] for k in npz.files}
 
     result._species_ids = data["species_ids"]
     result._species_probs = data["species_probs"]
@@ -147,20 +154,24 @@ class PredictionResult:
   def to_structured_array(self) -> np.ndarray:
     valid_mask = ~self._species_masked
     valid_indices = np.where(valid_mask)
+    del valid_mask
 
     n_predictions = len(valid_indices[0])
+    # NOTE: use object for paths and species because strings repeat often -> pointer is more efficient
     dtype = [
-      ("file_path", self._files.dtype),
-      ("start_time", self._file_durations.dtype),
-      ("end_time", self._file_durations.dtype),
-      ("species_name", self._species_list.dtype),
-      ("confidence", self._species_probs.dtype),
+      (VAR_FILE_PATH, object),
+      (VAR_START_TIME, self._file_durations.dtype),
+      (VAR_END_TIME, self._file_durations.dtype),
+      (VAR_SPECIES_NAME, object),
+      (VAR_CONFIDENCE, self._species_probs.dtype),
     ]
 
     structured_array = np.empty(n_predictions, dtype=dtype)
+    del dtype
 
     if n_predictions == 0:
       return structured_array
+    del n_predictions
 
     file_idx_flat = valid_indices[0]
     chunk_idx_flat = valid_indices[1]
@@ -172,6 +183,8 @@ class PredictionResult:
       file_idx_flat,
     )
     sort_indices = np.lexsort(sort_keys)
+    del sort_keys
+    del confidences_flat
 
     file_idx_flat = file_idx_flat[sort_indices]
     chunk_idx_flat = chunk_idx_flat[sort_indices]
@@ -180,25 +193,25 @@ class PredictionResult:
       valid_indices[1][sort_indices],
       valid_indices[2][sort_indices],
     )
+    del sort_indices
 
     hop_duration = self._segment_duration_s - self._overlap_duration_s
     start_times = chunk_idx_flat.astype(self._file_durations.dtype) * hop_duration
-    end_times = start_times + self._segment_duration_s
+    del hop_duration
+    del chunk_idx_flat
 
-    file_durations_flat = self._file_durations[file_idx_flat]
-    end_times = np.minimum(end_times, file_durations_flat)
-
-    species_ids_flat = self._species_ids[valid_indices]
-    confidences_flat = self._species_probs[valid_indices]
-
-    file_paths = self._files[file_idx_flat]
-    species_names = self._species_list[species_ids_flat]
-
-    structured_array["file_path"] = file_paths
-    structured_array["start_time"] = start_times
-    structured_array["end_time"] = end_times
-    structured_array["species_name"] = species_names
-    structured_array["confidence"] = confidences_flat
+    structured_array[VAR_START_TIME] = start_times
+    structured_array[VAR_END_TIME] = np.minimum(
+      start_times + self._segment_duration_s, self._file_durations[file_idx_flat]
+    )
+    del start_times
+    structured_array[VAR_FILE_PATH] = self._files[file_idx_flat]
+    del file_idx_flat
+    structured_array[VAR_SPECIES_NAME] = self._species_list[
+      self._species_ids[valid_indices]
+    ]
+    structured_array[VAR_CONFIDENCE] = self._species_probs[valid_indices]
+    del valid_indices
 
     return structured_array
 
@@ -207,26 +220,30 @@ class PredictionResult:
 
     structured = self.to_structured_array()
 
-    file_paths = structured["file_path"]
-    start_times = structured["start_time"]
-    end_times = structured["end_time"]
-    species_names = structured["species_name"]
-    confidences = structured["confidence"]
+    file_paths = structured[VAR_FILE_PATH]
+    start_times = structured[VAR_START_TIME]
+    end_times = structured[VAR_END_TIME]
+    species_names = structured[VAR_SPECIES_NAME]
+    confidences = structured[VAR_CONFIDENCE]
 
     arrow_arrays = {
-      "file_path": pa.array(file_paths).dictionary_encode(),
-      "start_time": pa.array(start_times, type=pa.from_numpy_dtype(start_times.dtype)),
-      "end_time": pa.array(end_times, type=pa.from_numpy_dtype(end_times.dtype)),
-      "species_name": pa.array(species_names).dictionary_encode(),
-      "confidence": pa.array(confidences, type=pa.from_numpy_dtype(confidences.dtype)),
+      VAR_FILE_PATH: pa.array(file_paths).dictionary_encode(),
+      VAR_START_TIME: pa.array(
+        start_times, type=pa.from_numpy_dtype(start_times.dtype)
+      ),
+      VAR_END_TIME: pa.array(end_times, type=pa.from_numpy_dtype(end_times.dtype)),
+      VAR_SPECIES_NAME: pa.array(species_names).dictionary_encode(),
+      VAR_CONFIDENCE: pa.array(
+        confidences, type=pa.from_numpy_dtype(confidences.dtype)
+      ),
     }
 
     fields = [
-      pa.field("file_path", arrow_arrays["file_path"].type, nullable=False),
-      pa.field("start_time", arrow_arrays["start_time"].type, nullable=False),
-      pa.field("end_time", arrow_arrays["end_time"].type, nullable=False),
-      pa.field("species_name", arrow_arrays["species_name"].type, nullable=False),
-      pa.field("confidence", arrow_arrays["confidence"].type, nullable=False),
+      pa.field(VAR_FILE_PATH, arrow_arrays[VAR_FILE_PATH].type, nullable=False),
+      pa.field(VAR_START_TIME, arrow_arrays[VAR_START_TIME].type, nullable=False),
+      pa.field(VAR_END_TIME, arrow_arrays[VAR_END_TIME].type, nullable=False),
+      pa.field(VAR_SPECIES_NAME, arrow_arrays[VAR_SPECIES_NAME].type, nullable=False),
+      pa.field(VAR_CONFIDENCE, arrow_arrays[VAR_CONFIDENCE].type, nullable=False),
     ]
 
     metadata: dict[bytes | str, bytes | str] | None = {
@@ -241,7 +258,7 @@ class PredictionResult:
 
     return table
 
-  def to_csv_from_structured_ultra_fast(
+  def to_csv(
     self,
     path: os.PathLike | str,
     *,
@@ -249,48 +266,24 @@ class PredictionResult:
     buffer_size_kb: int = 1024,
     silent: bool = False,
   ) -> None:
-    """
-    Ultra-schnelle CSV-Export Version mit minimalen Allokationen.
+    if not silent:
+      print("Preparing CSV export...")
 
-    Basiert auf der fast_save_tensor_to_csv Logik aber nutzt structured array.
-    """
-    from pathlib import Path
-
-    path = Path(path)
     structured = self.to_structured_array()
 
-    header = b"file_path,start_time,end_time,species_name,confidence\n"
-
-    if len(structured) == 0:
-      with open(path, "wb") as f:
-        f.write(header)
-      return
-
-    # Byte-orientierte Verarbeitung (schnellster Ansatz)
     buffer_bytes = buffer_size_kb * 1024
 
-    # Pre-encode strings zu bytes (einmalig)
-    file_paths_b = np.array([fp.encode(encoding) for fp in structured["file_path"]])
-    species_names_b = np.array(
-      [sn.encode(encoding) for sn in structured["species_name"]]
-    )
+    with Path(path).open("w", encoding=encoding, buffering=buffer_bytes) as f:
+      # Header
+      f.write(
+        f"{VAR_FILE_PATH},{VAR_START_TIME},{VAR_END_TIME},{VAR_SPECIES_NAME},{VAR_CONFIDENCE}\n"
+      )
 
-    # Formatiere numerische Werte zu bytes
-    start_times_b = np.array(
-      [f"{hms_centis_fast(t)}".encode(encoding) for t in structured["start_time"]]
-    )
-    end_times_b = np.array(
-      [f"{hms_centis_fast(t)}".encode(encoding) for t in structured["end_time"]]
-    )
-    confidences_b = np.array(
-      [f"{c:.6f}".encode(encoding) for c in structured["confidence"]]
-    )
-
-    block = []
-    block_size = 0
-
-    with open(path, "wb", buffering=buffer_bytes) as f:
-      f.write(header)
+      block = []
+      block_size_bytes = 0
+      total_size_bytes = 0
+      collected_size_bytes = 0
+      update_size_every = 1024**2 * 100  # Update every 100 MB
 
       with tqdm(
         total=len(structured),
@@ -298,31 +291,26 @@ class PredictionResult:
         unit="predictions",
         disable=silent,
       ) as pbar:
-        for i in range(len(structured)):
-          line = (
-            b'"'
-            + file_paths_b[i]
-            + b'","'
-            + start_times_b[i]
-            + b'","'
-            + end_times_b[i]
-            + b'","'
-            + species_names_b[i]
-            + b'",'
-            + confidences_b[i]
-            + b"\n"
-          )
+        for record in structured:
+          line = f'"{record[VAR_FILE_PATH]}","{hms_centis_fast(record[VAR_START_TIME])}","{hms_centis_fast(record[VAR_END_TIME])}","{record[VAR_SPECIES_NAME]}",{record[VAR_CONFIDENCE]:.6f}\n'
 
           block.append(line)
-          block_size += len(line)
+          block_size_bytes += len(line.encode(encoding))
 
           # Gepufferte I/O
-          if block_size >= buffer_bytes:
+          if block_size_bytes >= buffer_bytes:
             f.writelines(block)
             block.clear()
-            block_size = 0
+            collected_size_bytes += block_size_bytes
+            block_size_bytes = 0
 
           pbar.update(1)
+          # show file size in GB after every GB of data written
+          if collected_size_bytes >= update_size_every:
+            total_size_bytes += collected_size_bytes
+            collected_size_bytes = 0
+            if not silent:
+              pbar.set_postfix({"CSV": f"{total_size_bytes / 1024**2:.0f} MB"})
 
         # Final flush
         if block:
@@ -338,11 +326,6 @@ class PredictionResult:
       self.overlap_duration_s,
       self._species_list,
     )
-
-  def to_csv(
-    self, path: os.PathLike | str, /, *, encoding: str = "utf-8", silent: bool = False
-  ) -> None:
-    fast_save_tensor_to_csv(self, path, encoding=encoding, silent=silent)
 
 
 def convert_tensor_to_dataframe(
@@ -400,7 +383,7 @@ def convert_tensor_to_dataframe(
               "end": time.strftime("%H:%M:%S", time.gmtime(end_sec)),
               "scientific_name": scientific_name,
               "common_name": common_name,
-              "confidence": spec_probs[k],
+              VAR_CONFIDENCE: spec_probs[k],
             }
             resulting_lines.append(row)
             pbar.update(1)
@@ -410,7 +393,7 @@ def convert_tensor_to_dataframe(
 
   if len(df.index) > 0:
     # sorting with float16 is not supported by pandas DataFrame
-    df["_confidence32"] = df["confidence"].astype(np.float32, copy=False)
+    df["_confidence32"] = df[VAR_CONFIDENCE].astype(np.float32, copy=False)
     df = (
       df.sort_values(
         by=["file", "start", "_confidence32"], ascending=[True, True, False]
@@ -434,197 +417,6 @@ def hms_centis_fast(v: float) -> str:
   h, rem = divmod(v, 3600)
   m, s = divmod(rem, 60)  # s bleibt Float
   return f"{int(h):02}:{int(m):02}:{s:05.2f}"
-
-
-def fast_save_tensor_to_csv(
-  result: PredictionResult,
-  out_path: os.PathLike | str,
-  *,
-  buf_KiB: int = 256,
-  encoding: str = "utf-8",
-  silent: bool = False,
-) -> None:
-  sid = result.species_ids
-  sprob = result.species_probs
-  smask = ~result.species_masked
-  top_k = result.species_probs.shape[2]
-  n_files = len(result.files)
-  n_segments = result.species_probs.shape[1]
-  hop = result.segment_duration_s - result.overlap_duration_s
-
-  segm_starts = np.arange(n_segments, dtype=np.float64) * hop
-  segm_ends = segm_starts + result.segment_duration_s
-  segm_starts_fmt = np.array(
-    [hms_centis_fast(v).encode(encoding) for v in segm_starts],
-    dtype="S11",
-  )
-  segm_ends_fmt = np.array(
-    [hms_centis_fast(v).encode(encoding) for v in segm_ends],
-    dtype="S11",
-  )
-
-  max_segments = get_max_n_segments_array(
-    result.file_durations, result.segment_duration_s, result.overlap_duration_s
-  )
-
-  file_ends_fmt_files = np.array(
-    [hms_centis_fast(x).encode(encoding) for x in result.file_durations],
-    dtype="S11",
-  )
-  hdr = b"file,start,end,species,confidence\n"
-
-  buf_bytes = buf_KiB * 1024
-  block: list[bytes] = []
-  block_size = 0
-
-  with open(out_path, "wb", buffering=buf_bytes) as fh:
-    fh.write(hdr)
-    non_masked_entry_count = np.count_nonzero(smask)
-    with tqdm(
-      total=non_masked_entry_count,
-      desc="Writing predictions to CSV",
-      unit="segment",
-      disable=silent,
-    ) as pbar:
-      for file_index in range(n_files):
-        file_b = result.files[file_index].encode(encoding)
-        species_ids = sid[file_index]  # View [segments, top_k]
-        species_probs = sprob[file_index]
-        species_masks = smask[file_index]
-        max_segments_for_file = max_segments[file_index]
-        file_end = result.file_durations[file_index]
-
-        for segment_index in range(max_segments_for_file):
-          # Bool-Maske für gültige Spezies
-          valid = species_masks[segment_index]
-          if not valid.any():
-            continue
-
-          start_time = segm_starts_fmt[segment_index]
-          if segm_ends[segment_index] <= file_end:
-            end_time = segm_ends_fmt[segment_index]
-          else:
-            end_time = file_ends_fmt_files[file_index]
-
-          # Slice ohne Python-Loop
-          k_lim = np.argmax(~valid, axis=0) if not valid.all() else top_k
-          ids = species_ids[segment_index, :k_lim]
-          confidences = species_probs[segment_index, :k_lim]
-
-          # → Strings zusammenbauen (bytes, weil schneller)
-          for k in range(k_lim):
-            name: str = result.species_list[ids[k]]
-            # sci = name
-            # common = ""
-            # if "_" in name:
-            #   sci, _, common = name.partition("_")
-            line = (
-              file_b
-              + b","
-              + start_time
-              + b","
-              + end_time
-              + b","
-              + name.encode(encoding)
-              + b","
-              + f"{confidences[k]:.6f}".encode(encoding)
-              + b"\n"
-            )
-
-            block.append(line)
-            pbar.update(1)
-            block_size += len(line)
-
-            # Sobald der Puffer > ~256 KiB ist → einmalig flushen
-            if block_size >= buf_bytes:
-              fh.writelines(block)
-              block.clear()
-              block_size = 0
-
-    # Tail flush
-    if block:
-      fh.writelines(block)
-
-
-def save_tensor_to_csv(
-  species_ids: np.ndarray,
-  species_probs: np.ndarray,
-  species_masked: np.ndarray,
-  files: np.ndarray,
-  segment_duration_s: float,
-  overlap_duration_s: float,
-  species_list: np.ndarray,
-  out_path: os.PathLike | str,
-  *,
-  encoding: str = "utf-8",
-  newline: str = "",
-) -> None:
-  """
-  Stream-writes the prediction tensor directly to *out_path* (CSV).
-
-  •  zero-copy on the tensor: we only read views (.astype is **never** called)
-  •  no pandas / DataFrame → almost no extra RAM
-  •  rows come out already grouped     (file ↑  →  start ↑  → confidence ↓)
-
-  """
-
-  # ---------– helpers (local for speed) ------------------------------------
-  fmt_hms = time.strftime  # local binding (tight inner loop)
-  gmtime = time.gmtime
-  top_k = species_ids.shape[2]
-  n_segments = species_ids.shape[1]
-  n_files = len(files)
-  step = segment_duration_s - overlap_duration_s  # “effective hop”
-
-  # fast pre-compute the start/end list once
-  starts = np.arange(n_segments, dtype=np.float64) * step
-  ends = starts + segment_duration_s
-
-  header = "file,start,end,scientific_name,common_name,confidence"
-
-  # --- stream write --------------------------------------------------------
-  with open(out_path, "w", encoding=encoding, newline=newline) as fh:
-    writer = csv.writer(fh)
-    writer.writerow(header.split(","))  # one tiny allocation
-
-    for fi in range(n_files):
-      file_str = files[fi]
-      for ci in range(n_segments):
-        # tensor already sorted per-segment by score ↓
-        valid_mask = ~species_masked[fi, ci]
-        if not valid_mask.any():
-          continue  # no detections here
-
-        start_txt = fmt_hms("%H:%M:%S", gmtime(int(starts[ci])))
-        end_txt = fmt_hms("%H:%M:%S", gmtime(int(ends[ci])))
-
-        species_ids = species_ids[fi, ci]
-        species_prob = species_probs[fi, ci]
-
-        # iterate only over valid positions (≤ top_k, early break)
-        for ki in range(top_k):
-          if not valid_mask[ki]:
-            break
-
-          sp_id = species_ids[ki]
-          sp_name = species_list[
-            sp_id
-          ]  # e.g. "Poecile_atricapillus_Black-capped Chickadee"
-          sci = sp_name
-          common = ""
-          if "_" in sp_name:
-            sci, _, common = sp_name.partition("_")
-
-          writer.writerow(
-            (
-              file_str,
-              start_txt,
-              end_txt,
-              sci,
-              common,  # may be ""
-              f"{species_prob[ki]:.6f}",
-            )
-          )
 
 
 def load_prediction_data(in_path: os.PathLike | str) -> dict[str, Any]:
