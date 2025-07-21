@@ -164,7 +164,6 @@ def run_benchmark_from_args(args: list[str]) -> None:
 
 def run_benchmark_from_ns(ns: Namespace) -> None:
   model: AcousticModelBaseV2_4 = birdnet.model_loader.load(
-    model_type="acoustic",
     version="2.4",
     backend=ns.backend,
     precision=ns.precision,

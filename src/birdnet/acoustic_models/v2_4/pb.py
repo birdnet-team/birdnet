@@ -20,7 +20,6 @@ from ordered_set import OrderedSet
 from birdnet.acoustic_models.base import AcousticInferenceBackend
 from birdnet.acoustic_models.v2_4.base import AVAILABLE_LANGUAGES, AcousticModelBaseV2_4
 from birdnet.base import MODEL_BACKEND_PB, MODEL_BACKENDS, MODEL_PRECISION_FLOAT32
-from birdnet.io_lock import IOLockHandler
 from birdnet.local_data import get_local_model_root_dir
 from birdnet.logging_utils import get_logger
 from birdnet.utils import download_file_tqdm, get_species_from_file
