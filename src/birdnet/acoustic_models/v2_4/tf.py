@@ -225,7 +225,6 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     half_precision: bool = True,
     max_audio_duration_min: float | None = None,
     show_stats: Literal["no", "minimal", "progress", "benchmark"] = "no",
-    serial_io: bool = False,
     inference_library: Literal["tf", "litert"] = "tf",
   ) -> PredictionResult:
     # backend_loader = AcousticInferenceBackendLoader(
@@ -255,7 +254,6 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       max_audio_duration_min=max_audio_duration_min,
       show_stats=show_stats,
       device="CPU",
-      serial_io=serial_io,
       inference_library=inference_library,
     )
 
