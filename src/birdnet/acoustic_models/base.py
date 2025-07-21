@@ -1,7 +1,9 @@
 import multiprocessing
 from abc import ABC, abstractmethod
+from pathlib import Path
 
 import numpy as np
+from ordered_set import OrderedSet
 
 from birdnet.base import ACOUSTIC_MODEL_VERSIONS, MODEL_PRECISIONS, ModelBase
 
@@ -54,9 +56,13 @@ class AcousticInferenceBackendLoader:
 
 
 class AcousticModelBase(ModelBase):
-  def __init__(self) -> None:
+  def __init__(
+    self, model_path: Path, species_list: OrderedSet[str], precision: MODEL_PRECISIONS
+  ) -> None:
     super().__init__()
-    self._precision: MODEL_PRECISIONS | None = None
+    self._model_path = model_path
+    self._species_list = species_list
+    self._precision = precision
 
   @classmethod
   @abstractmethod
@@ -67,12 +73,16 @@ class AcousticModelBase(ModelBase):
     """
     Returns the precision of the model.
     """
-    assert self._precision is not None
-    return self._precision
+    return self._precision  # type: ignore
 
-  @classmethod
-  @abstractmethod
-  def get_inference_backend_type(cls) -> type[AcousticInferenceBackend]: ...
+  @property
+  def model_path(self) -> Path:
+    return self._model_path
 
-  @abstractmethod
-  def get_inference_backend_args(self) -> dict: ...
+  @property
+  def species_list(self) -> OrderedSet[str]:
+    return self._species_list
+
+  @property
+  def n_species(self) -> int:
+    return len(self.species_list)

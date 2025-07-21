@@ -20,7 +20,11 @@ from ordered_set import OrderedSet
 from birdnet.acoustic_models.base import AcousticInferenceBackend
 from birdnet.acoustic_models.inference.prediction_result import PredictionResult
 from birdnet.acoustic_models.v2_4.base import AVAILABLE_LANGUAGES, AcousticModelBaseV2_4
-from birdnet.base import MODEL_BACKEND_PB, MODEL_BACKENDS, MODEL_PRECISION_FLOAT32
+from birdnet.base import (
+  MODEL_BACKEND_PB,
+  MODEL_BACKENDS,
+  MODEL_PRECISION_FLOAT32,
+)
 from birdnet.local_data import get_local_model_root_dir
 from birdnet.logging_utils import get_logger
 from birdnet.utils import download_file_tqdm, get_species_from_file
@@ -113,20 +117,15 @@ class AcousticPBDownloaderV2_4:
 
 
 class AcousticPBModelV2_4(AcousticModelBaseV2_4):
-  def __init__(self) -> None:
-    super().__init__()
-    self._precision = MODEL_PRECISION_FLOAT32
-
-  @classmethod
-  @final
-  def get_inference_backend_type(cls) -> type[AcousticInferenceBackend]:
-    return PBAcousticInferenceBackend
-
-  @final
-  def get_inference_backend_args(self) -> dict:
-    return {
-      "model_path": self.model_path,
-    }
+  def __init__(
+    self,
+    model_path: Path,
+    species_list: OrderedSet[str],
+    use_custom_model: bool,
+  ) -> None:
+    super().__init__(
+      model_path, species_list, MODEL_PRECISION_FLOAT32, use_custom_model
+    )
 
   @classmethod
   @final
@@ -135,11 +134,14 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
 
   @classmethod
   def load_official(cls, lang_id: str) -> AcousticPBModelV2_4:
-    result = AcousticPBModelV2_4()
-    result._model_path, result._species_list = (
-      AcousticPBDownloaderV2_4.get_model_path_and_labels(lang_id)
+    model_path, species_list = AcousticPBDownloaderV2_4.get_model_path_and_labels(
+      lang_id
     )
-    result._use_custom_model = False
+    result = AcousticPBModelV2_4(
+      model_path=model_path,
+      species_list=species_list,
+      use_custom_model=False,
+    )
     return result
 
   @classmethod
@@ -164,10 +166,9 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
         f"Failed to read species list from '{species_list.absolute()}'. Ensure it is a valid text file."
       ) from e
 
-    result = AcousticPBModelV2_4()
-    result._model_path = model_path
-    result._species_list = loaded_species_list
-    result._use_custom_model = True
+    result = AcousticPBModelV2_4(
+      model_path=model_path, species_list=loaded_species_list, use_custom_model=True
+    )
 
     return result
 

@@ -296,22 +296,20 @@ class FullBenchmarkMeta(MinimalBenchmarkMeta):
   # avg_preloaded_slots_last: float
   # avg_busy_workers_last: float
 
-  # --- automatische Serialisierung ----------------------------------
   def to_dict(self) -> dict[str, Any]:
-    result = asdict(self)  # Dataclass-Felder
+    result = asdict(self)
     del_keys = [k for k in result if k.startswith("_")]
     for k in del_keys:
       del result[k]
 
-    # Alle Attribute der Klasse durchgehen, die ein property-Objekt sind …
     for name, attr in inspect.getmembers(
       self.__class__, lambda o: isinstance(o, property)
     ):
       if name.startswith("_"):
         continue
       try:
-        result[name] = getattr(self, name)  # Property auswerten
-      except Exception as exc:  # falls Property Fehler wirft
+        result[name] = getattr(self, name)
+      except Exception as exc:
         result[name] = f"<error: {exc}>"
     # sort result by keys
     result = OrderedDict(sorted(result.items()))

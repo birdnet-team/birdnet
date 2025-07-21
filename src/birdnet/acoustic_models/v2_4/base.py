@@ -25,10 +25,6 @@ from birdnet.acoustic_models.base import (
   AcousticInferenceBackendLoader,
   AcousticModelBase,
 )
-from birdnet.acoustic_models.inference.benchmarking import (
-  FullBenchmarkMeta,
-  MinimalBenchmarkMeta,
-)
 from birdnet.acoustic_models.inference.consumer import Consumer
 from birdnet.acoustic_models.inference.files_analyzer import FilesAnalyzer
 from birdnet.acoustic_models.inference.perf_tracker import (
@@ -39,10 +35,14 @@ from birdnet.acoustic_models.inference.prediction_result import PredictionResult
 from birdnet.acoustic_models.inference.producer import ChildProducer
 from birdnet.acoustic_models.inference.species_tensor import SpeciesTensor
 from birdnet.acoustic_models.inference.worker import ChildWorker
+from birdnet.acoustic_models.v2_4.banchmarking import (
+  FullBenchmarkMetaV2_4,
+  MinimalBenchmarkMetaV2_4,
+)
 from birdnet.base import (
   ACOUSTIC_MODEL_VERSION_V2_4,
   ACOUSTIC_MODEL_VERSIONS,
-  MODEL_BACKEND_TF,
+  MODEL_PRECISIONS,
   MODEL_TYPE_ACOUSTIC,
   MODEL_TYPES,
 )
@@ -94,29 +94,18 @@ AVAILABLE_LANGUAGES: OrderedSet[str] = OrderedSet(
 
 
 class AcousticModelBaseV2_4(AcousticModelBase):
-  def __init__(self) -> None:
-    super().__init__()
-    self._model_path: Path | None = None
-    self._species_list: OrderedSet[str] | None = None
-    self._use_custom_model: bool | None = None
-
-  @property
-  def n_species(self) -> int:
-    return len(self.species_list)
-
-  @property
-  def model_path(self) -> Path:
-    assert self._model_path is not None
-    return self._model_path
-
-  @property
-  def species_list(self) -> OrderedSet[str]:
-    assert self._species_list is not None
-    return self._species_list
+  def __init__(
+    self,
+    model_path: Path,
+    species_list: OrderedSet[str],
+    precision: MODEL_PRECISIONS,
+    use_custom_model: bool,
+  ) -> None:
+    super().__init__(model_path, species_list, precision)
+    self._use_custom_model = use_custom_model
 
   @property
   def use_custom_model(self) -> bool:
-    assert self._use_custom_model is not None
     return self._use_custom_model
 
   @classmethod
@@ -722,7 +711,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     del result
 
     if show_stats in ("minimal", "progress"):
-      bmm = MinimalBenchmarkMeta(
+      bmm = MinimalBenchmarkMetaV2_4(
         _start_timepoint=start_timepoint,
         _end_timepoint=end_timepoint,
         _time_wall_time_s=stop - start,
@@ -763,7 +752,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
 
       logger.info("Benchmarking is enabled. Collecting performance data...")
 
-      bmm = FullBenchmarkMeta(
+      bmm = FullBenchmarkMetaV2_4(
         _start_timepoint=start_timepoint,
         _end_timepoint=end_timepoint,
         param_producers=feeders,
@@ -829,9 +818,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         model_sig_fmax=AcousticModelBaseV2_4.get_sig_fmax(),
         worker_wait_time_average_milliseconds=perf_result.avg_wait_time_ms,
         file_formats=", ".join(sorted({x.suffix[1:].upper() for x in file_paths})),
-        param_inference_library=inference_library
-        if self.get_backend() == MODEL_BACKEND_TF
-        else None,
+        param_inference_library=backend_kwargs.get("inference_library"),
       )
 
       bm = asdict(bmm)

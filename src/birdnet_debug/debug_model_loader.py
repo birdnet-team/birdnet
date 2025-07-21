@@ -7,7 +7,6 @@ from pathlib import Path
 import numpy as np
 
 from birdnet.acoustic_models.inference.prediction_result import PredictionResult
-from birdnet.acoustic_models.v2_4.base import AcousticModelBaseV2_4
 from birdnet.logging_utils import get_package_logger
 from birdnet.model_loader import load
 from birdnet_debug.hsn_downloader import get_hsn_file_paths
@@ -185,60 +184,71 @@ if __name__ == "__main__":
     "n_producers": 1,
     "batch_size": 1,
     "prefetch_ratio": 2,
-    "backend": "tf",
+    "backend": "pb",
     "precision": "fp32",
     "device": "CPU",
     "top_k": 5,
     "start_method": "fork",  # "fork", "spawn" or "forkserver" for Linux, macOS
   }
 
-  model: AcousticModelBaseV2_4 = load(
-    backend=params["backend"], precision=params["precision"]
-  )
-  # model = load_custom(
-  #   "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/tf/model-fp32.tflite",
-  #   "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/tf/labels/en_us.txt",
-  #   model_type="acoustic",
-  #   version="2.4",
-  #   backend="tf",
-  #   precision="fp32",
-  # )
-
-  # set_start_method("forkserver", force=True) # Linux, macOS
-  # set_start_method("spawn", force=True)  # Linux, macOS
   set_start_method(params["start_method"], force=True)  # Linux, macOS
+
   start = time.perf_counter()
-  assert isinstance(model, AcousticModelBaseV2_4)
-  result = model.analyze(
-    audio_paths,
-    workers=params["n_workers"],
-    feeders=params["n_producers"],
-    batch_size=params["batch_size"],
-    prefetch_ratio=params["prefetch_ratio"],
-    apply_sigmoid=True,
-    top_k=params["top_k"],
-    overlap_duration_s=0,
-    sigmoid_sensitivity=1,
-    default_confidence_threshold=-np.inf,
-    half_precision=False,
-    device=params["device"],
-    show_stats="benchmark",
-    serial_io=False,
-    inference_library="litert",
-    # custom_confidence_thresholds={
-    #   "Junco hyemalis_Dark-eyed Junco": -np.inf,
-    #   "Haemorhous mexicanus_House Finch": 0.1,
-    # },
-    # custom_confidence_thresholds={
-    #   model.species_list.by_scientific_name("Junco hyemalis"): -np.inf,
-    #   model.species_list.by_common_name("House Finch"): -np.inf,
-    # },
-    # max_audio_duration_min=60,
-    # custom_species_list={
-    #   "Junco hyemalis_Dark-eyed Junco",
-    #   "Haemorhous mexicanus_House Finch",
-    # },
-  )
+  if params["backend"] == "tf":
+    model = load(backend="tf", precision=params["precision"])
+    # model = load_custom(
+    #   "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/tf/model-fp32.tflite",
+    #   "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/tf/labels/en_us.txt",
+    #   model_type="acoustic",
+    #   version="2.4",
+    #   backend="tf",
+    #   precision="fp32",
+    # )
+    result = model.analyze(
+      audio_paths,
+      workers=params["n_workers"],
+      feeders=params["n_producers"],
+      batch_size=params["batch_size"],
+      prefetch_ratio=params["prefetch_ratio"],
+      apply_sigmoid=True,
+      top_k=params["top_k"],
+      overlap_duration_s=0,
+      sigmoid_sensitivity=1,
+      default_confidence_threshold=-np.inf,
+      half_precision=False,
+      show_stats="benchmark",
+      inference_library="litert",
+      # custom_confidence_thresholds={
+      #   "Junco hyemalis_Dark-eyed Junco": -np.inf,
+      #   "Haemorhous mexicanus_House Finch": 0.1,
+      # },
+      # custom_confidence_thresholds={
+      #   model.species_list.by_scientific_name("Junco hyemalis"): -np.inf,
+      #   model.species_list.by_common_name("House Finch"): -np.inf,
+      # },
+      # max_audio_duration_min=60,
+      # custom_species_list={
+      #   "Junco hyemalis_Dark-eyed Junco",
+      #   "Haemorhous mexicanus_House Finch",
+      # },
+    )
+  elif params["backend"] == "pb":
+    model = load(backend="pb", precision=params["precision"])
+    result = model.analyze(
+      audio_paths,
+      workers=params["n_workers"],
+      feeders=params["n_producers"],
+      batch_size=params["batch_size"],
+      prefetch_ratio=params["prefetch_ratio"],
+      apply_sigmoid=True,
+      top_k=params["top_k"],
+      overlap_duration_s=0,
+      sigmoid_sensitivity=1,
+      default_confidence_threshold=-np.inf,
+      half_precision=False,
+      device=params["device"],
+      show_stats="benchmark",
+    )
   end = time.perf_counter()
   print(f"Finished analysis in {end - start:.2f} seconds.")
   import tempfile

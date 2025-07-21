@@ -7,7 +7,6 @@ import numpy as np
 
 from birdnet.acoustic_models.base import (
   AcousticInferenceBackend,
-  AcousticInferenceBackendLoader,
 )
 from birdnet.acoustic_models.inference.prediction_result import PredictionResult
 from birdnet.helper import load_litert_model, load_tf_model
@@ -140,25 +139,19 @@ class AcousticTFDownloaderV2_4:
 
 
 class AcousticTFModelV2_4(AcousticModelBaseV2_4):
-  def __init__(self) -> None:
-    super().__init__()
+  def __init__(
+    self,
+    model_path: Path,
+    species_list: OrderedSet[str],
+    precision: MODEL_PRECISIONS,
+    use_custom_model: bool,
+  ) -> None:
+    super().__init__(model_path, species_list, precision, use_custom_model)
 
   @final
   @classmethod
   def get_backend(cls) -> MODEL_BACKENDS:
     return MODEL_BACKEND_TF
-
-  @final
-  @classmethod
-  def get_inference_backend_type(cls) -> type[AcousticInferenceBackend]:
-    return TFAcousticInferenceBackend
-
-  @final
-  def get_inference_backend_args(self) -> dict:
-    return {
-      "model_path": self.model_path,
-      "inference_library": None,
-    }
 
   @classmethod
   def load_official(
@@ -166,12 +159,11 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     lang_id: MODEL_LANGUAGES,
     precision: MODEL_PRECISIONS,
   ) -> AcousticTFModelV2_4:
-    result = AcousticTFModelV2_4()
-    result._model_path, result._species_list = (
-      AcousticTFDownloaderV2_4.get_model_path_and_labels(lang_id, precision)
+    model_path, species_list = AcousticTFDownloaderV2_4.get_model_path_and_labels(
+      lang_id, precision
     )
-    result._use_custom_model = False
-    result._precision = precision
+    use_custom_model = False
+    result = AcousticTFModelV2_4(model_path, species_list, precision, use_custom_model)
     return result
 
   @classmethod
@@ -197,11 +189,10 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
         f"Model '{model_path.absolute()}' has {n_species_in_model} outputs, but species list '{species_list.absolute()}' has {len(loaded_species_list)} species!"
       )
 
-    result = AcousticTFModelV2_4()
-    result._model_path = model_path
-    result._species_list = loaded_species_list
-    result._use_custom_model = True
-    result._precision = precision
+    result = AcousticTFModelV2_4(
+      model_path, loaded_species_list, precision, use_custom_model=True
+    )
+
     return result
 
   def analyze(
@@ -228,13 +219,6 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     show_stats: Literal["no", "minimal", "progress", "benchmark"] = "no",
     inference_library: Literal["tf", "litert"] = "tf",
   ) -> PredictionResult:
-    backend_loader = AcousticInferenceBackendLoader(
-      backend_type=TFAcousticInferenceBackend,
-      backend_kwargs={
-        "model_path": self.model_path,
-        "inference_library": inference_library,
-      },
-    )
     return super()._analyze(
       inp,
       TFAcousticInferenceBackend,
