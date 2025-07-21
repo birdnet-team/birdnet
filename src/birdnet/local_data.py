@@ -2,7 +2,7 @@ import importlib.metadata
 import os
 from pathlib import Path
 
-from birdnet.base import MODEL_BACKENDS, MODEL_TYPES, MODEL_VERSIONS
+from birdnet.base import ACOUSTIC_MODEL_VERSIONS, MODEL_BACKENDS, MODEL_TYPES
 from birdnet.globals import PKG_NAME
 
 
@@ -38,7 +38,7 @@ APP_DIR = get_birdnet_app_data_folder()
 
 def get_benchmark_dir(
   model: MODEL_TYPES,
-  version: MODEL_VERSIONS,
+  version: ACOUSTIC_MODEL_VERSIONS,
 ) -> Path:
   result = (
     # Path(tempfile.gettempdir()) / f"{PKG_NAME}-benchmarks" / f"{model}-v{version}"
@@ -50,7 +50,7 @@ def get_benchmark_dir(
 
 def get_local_model_root_dir(
   model: MODEL_TYPES,
-  version: MODEL_VERSIONS,
+  version: ACOUSTIC_MODEL_VERSIONS,
   backend: MODEL_BACKENDS,
 ) -> Path:
   parent_dir = APP_DIR / f"{model}-models" / f"v{version}" / backend

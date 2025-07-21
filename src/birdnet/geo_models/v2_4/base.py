@@ -3,7 +3,12 @@ from typing import final
 
 from ordered_set import OrderedSet
 
-from birdnet.base import MODEL_TYPE_GEO, MODEL_TYPES, MODEL_VERSION_V2_4, MODEL_VERSIONS
+from birdnet.base import (
+  ACOUSTIC_MODEL_VERSION_V2_4,
+  ACOUSTIC_MODEL_VERSIONS,
+  MODEL_TYPE_GEO,
+  MODEL_TYPES,
+)
 from birdnet.geo_models.base import GeoModelBase
 
 
@@ -30,8 +35,8 @@ class GeoModelBaseV2_4(GeoModelBase):
 
   @classmethod
   @final
-  def get_version(cls) -> MODEL_VERSIONS:
-    return MODEL_VERSION_V2_4
+  def get_version(cls) -> ACOUSTIC_MODEL_VERSIONS:
+    return ACOUSTIC_MODEL_VERSION_V2_4
 
   @classmethod
   @final

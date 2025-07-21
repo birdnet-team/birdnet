@@ -38,12 +38,12 @@ dependencies = [
   "pandas==2.3.0",
   "psutil==7.0.0",
   "pyarrow==20.0.0",
-  "ai_edge_litert==1.4.0",
+  "tensorflow==2.15.1",
 ]
 
 [project.optional-dependencies]
-tf = ["tensorflow==2.15.1"]
-tf-and-cuda = ["tensorflow[and-cuda]==2.15.1"]
+litert = ["ai_edge_litert==1.4.0"]
+and-cuda = ["tensorflow[and-cuda]==2.15.1"]
 dev = ["pytest", "pytest-cov", "pytest-xdist", "tox", "ruff", "mypy", "rope", "build", "twine", "scipy-stubs", "tuna", "pyarrow-stubs"]
 
 [project.urls]

@@ -1,0 +1,154 @@
+from __future__ import annotations
+
+import os
+import shutil
+import tempfile
+import zipfile
+from pathlib import Path
+from typing import final
+
+from ordered_set import OrderedSet
+
+from birdnet.acoustic_models.base import AcousticInferenceBackend
+from birdnet.acoustic_models.tf import AcousticTFBackend
+from birdnet.acoustic_models.v2_4.base import AVAILABLE_LANGUAGES, AcousticModelBaseV2_4
+from birdnet.base import (
+  MODEL_BACKEND_TF,
+  MODEL_BACKENDS,
+  MODEL_PRECISION_FLOAT16,
+  MODEL_PRECISION_FLOAT32,
+  MODEL_PRECISION_INT8,
+  MODEL_PRECISIONS,
+)
+from birdnet.geo_models.v2_4.base import GeoModelBaseV2_4
+from birdnet.helper import ModelInfo, load_litert_model
+from birdnet.local_data import get_local_model_root_dir
+from birdnet.utils import download_file_tqdm, get_species_from_file
+
+models = {
+  MODEL_PRECISION_INT8: ModelInfo(
+    dl_url="https://zenodo.org/records/15050749/files/BirdNET_v2.4_tflite_int8.zip",
+    dl_file_name="audio-model-int8.tflite",
+    dl_size=45948867,
+    file_size=41064296,
+  ),
+  MODEL_PRECISION_FLOAT16: ModelInfo(
+    dl_url="https://zenodo.org/records/15050749/files/BirdNET_v2.4_tflite_fp16.zip",
+    dl_file_name="audio-model-fp16.tflite",
+    dl_size=53025528,
+    file_size=25932528,
+  ),
+  MODEL_PRECISION_FLOAT32: ModelInfo(
+    dl_url="https://zenodo.org/records/15050749/files/BirdNET_v2.4_tflite.zip",
+    dl_file_name="audio-model.tflite",
+    dl_size=76822925,
+    file_size=51726412,
+  ),
+}
+
+
+class GeoTFDownloaderV2_4:
+  @classmethod
+  def _get_paths(cls, precision: MODEL_PRECISIONS) -> tuple[Path, Path]:
+    model_root = get_local_model_root_dir(
+      GeoTFModelV2_4.get_model_type(),
+      GeoTFModelV2_4.get_version(),
+      GeoTFModelV2_4.get_backend(),
+    )
+
+    model_path = model_root / f"model-{precision}.tflite"
+    lang_dir = model_root / "labels"
+    return model_path, lang_dir
+
+  @classmethod
+  def _check_acoustic_model_available(cls, precision: MODEL_PRECISIONS) -> bool:
+    model_path, lang_dir = cls._get_paths(precision)
+
+    if not model_path.is_file():
+      return False
+
+    file_stats = os.stat(model_path)
+    is_newest_version = file_stats.st_size == models[precision].file_size
+    if not is_newest_version:
+      return False
+
+    if not lang_dir.is_dir():
+      return False
+
+    return all((lang_dir / f"{lang}.txt").is_file() for lang in AVAILABLE_LANGUAGES)
+
+  @classmethod
+  def _download_acoustic_model(cls, precision: MODEL_PRECISIONS) -> None:
+    with tempfile.TemporaryDirectory(prefix="birdnet_download") as temp_dir:
+      zip_download_path = Path(temp_dir) / "download.zip"
+      download_file_tqdm(
+        models[precision].dl_url,
+        zip_download_path,
+        download_size=models[precision].dl_size,
+        description="Downloading model",
+      )
+
+      extract_dir = Path(temp_dir) / "extracted"
+
+      with zipfile.ZipFile(zip_download_path, "r") as zip_ref:
+        zip_ref.extractall(extract_dir)
+
+      acoustic_model_dl_path = extract_dir / models[precision].dl_file_name
+      species_dl_dir = extract_dir / "labels"
+
+      acoustic_model_path, acoustic_lang_dir = cls._get_paths(precision)
+      acoustic_model_path.parent.mkdir(parents=True, exist_ok=True)
+      shutil.move(acoustic_model_dl_path, acoustic_model_path)
+
+      acoustic_lang_dir.parent.mkdir(parents=True, exist_ok=True)
+      shutil.rmtree(acoustic_lang_dir, ignore_errors=True)
+      shutil.move(species_dl_dir, acoustic_lang_dir)
+
+  @classmethod
+  def get_model_path_and_labels(
+    cls, lang_id: str, precision: MODEL_PRECISIONS
+  ) -> tuple[Path, OrderedSet[str]]:
+    assert lang_id in AVAILABLE_LANGUAGES
+    if not cls._check_acoustic_model_available(precision):
+      cls._download_acoustic_model(precision)
+    assert cls._check_acoustic_model_available(precision)
+
+    model_path, langs_path = cls._get_paths(precision)
+
+    lang_file = langs_path / f"{lang_id}.txt"
+    if not lang_file.is_file():
+      raise ValueError(f"Language does not exist: {lang_id}")
+
+    labels = get_species_from_file(lang_file, encoding="utf8")
+    return model_path, labels
+
+
+class GeoTFModelV2_4(GeoModelBaseV2_4):
+  def __init__(self) -> None:
+    super().__init__()
+
+  @classmethod
+  @final
+  def get_backend(cls) -> MODEL_BACKENDS:
+    return MODEL_BACKEND_TF
+
+  @classmethod
+  @final
+  def get_backend_type(cls) -> type[AcousticInferenceBackend]:
+    return AcousticTFBackend
+
+  @final
+  def get_backend_args(self) -> dict:
+    return {
+      "model_path": self.model_path,
+    }
+
+  @classmethod
+  def load_official(cls, lang_id: str, precision: MODEL_PRECISIONS) -> GeoTFModelV2_4:
+    result = GeoTFModelV2_4()
+    result._model_path, result._species_list = (
+      GeoTFDownloaderV2_4.get_model_path_and_labels(lang_id, precision)
+    )
+    result._use_custom_model = False
+    result._precision = precision
+    return result

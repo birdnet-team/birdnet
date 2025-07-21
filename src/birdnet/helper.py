@@ -19,36 +19,33 @@ from birdnet.io_lock import IOLockHandler
 from birdnet.logging_utils import get_logger
 
 if TYPE_CHECKING:
-  from ai_edge_litert.interpreter import Interpreter as TFLiteInterpreter
+  from ai_edge_litert.interpreter import Interpreter as LiteRTInterpreter
+  from tensorflow.lite.python.interpreter import Interpreter as TFInterpreter
 
 
-def load_tflite_model(
+def load_tf_model(
   model_path: Path,
   io_lock_handler: IOLockHandler | None,
   allocate_tensors: bool = False,
-) -> TFLiteInterpreter:
+) -> TFInterpreter:
   assert model_path.is_file()
+  assert tf_installed()
 
   absl_verbosity_before: int | None = None
   tf_verbosity_before: int | None = None
 
-  use_tf = tf_installed()
-  if use_tf:
-    import absl.logging as absl_logging
+  import absl.logging as absl_logging
 
-    absl_verbosity_before = absl_logging.get_verbosity()
-    absl_logging.set_verbosity(absl_logging.ERROR)
-    absl_logging.set_stderrthreshold("error")
-    os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-    tf_verbosity_before: int | None = None
-    tf_verbosity_before = logging.getLogger("tensorflow").level
-    logging.getLogger("tensorflow").setLevel(logging.ERROR)
-    # NOTE: import in this way is not possible:
-    # `import tensorflow.lite.python.interpreter as tflite`
-    from tensorflow.lite.python import interpreter as tflite
-  else:
-    # from tflite_runtime import interpreter as tflite
-    from ai_edge_litert import interpreter as tflite
+  absl_verbosity_before = absl_logging.get_verbosity()
+  absl_logging.set_verbosity(absl_logging.ERROR)
+  absl_logging.set_stderrthreshold("error")
+  os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+  tf_verbosity_before: int | None = None
+  tf_verbosity_before = logging.getLogger("tensorflow").level
+  logging.getLogger("tensorflow").setLevel(logging.ERROR)
+  # NOTE: import in this way is not possible:
+  # `import tensorflow.lite.python.interpreter as tflite`
+  from tensorflow.lite.python import interpreter as tflite
 
   # memory_map not working for TF 2.15.1:
   # f = open(self._model_path, "rb")
@@ -63,33 +60,73 @@ def load_tflite_model(
       )
   except ValueError as e:
     raise ValueError(
-      f"Failed to load model '{model_path.absolute()}' using {'tensorflow' if use_tf else 'ai_edge_litert'}. Ensure it is a valid TFLite model."
+      f"Failed to load model '{model_path.absolute()}' using 'tensorflow'. Ensure it is a valid TFLite model."
     ) from e
 
   end = time.perf_counter()
   logger = get_logger(__name__)
   logger.debug(
-    f"Model loaded from {model_path.absolute()} using {'tensorflow' if use_tf else 'ai_edge_litert'} in {end - start:.2f} seconds."
+    f"Model loaded from {model_path.absolute()} using 'tensorflow' in {end - start:.2f} seconds."
   )
 
   if allocate_tensors:
     interp.allocate_tensors()
 
-  if use_tf:
-    import absl.logging as absl_logging
+  import absl.logging as absl_logging
 
-    assert absl_verbosity_before is not None
-    assert tf_verbosity_before is not None
-    absl_logging.set_verbosity(absl_verbosity_before)
-    logging.getLogger("tensorflow").setLevel(tf_verbosity_before)
+  assert absl_verbosity_before is not None
+  assert tf_verbosity_before is not None
+  absl_logging.set_verbosity(absl_verbosity_before)
+  logging.getLogger("tensorflow").setLevel(tf_verbosity_before)
 
-  return interp  # type: ignore
+  return interp
+
+
+def load_litert_model(
+  model_path: Path,
+  io_lock_handler: IOLockHandler | None,
+  allocate_tensors: bool = False,
+) -> LiteRTInterpreter:
+  assert model_path.is_file()
+  assert litert_installed()
+
+  from ai_edge_litert import interpreter as tflite
+
+  start = time.perf_counter()
+  try:
+    with io_lock_handler or nullcontext():
+      interp = tflite.Interpreter(
+        str(model_path.absolute()),
+        num_threads=1,
+        experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,  # tensor#187 is a dynamic-sized tensor # type: ignore
+      )
+  except ValueError as e:
+    raise ValueError(
+      f"Failed to load model '{model_path.absolute()}' using 'ai_edge_litert'. Ensure it is a valid TFLite model."
+    ) from e
+
+  end = time.perf_counter()
+  logger = get_logger(__name__)
+  logger.debug(
+    f"Model loaded from {model_path.absolute()} using 'ai_edge_litert' in {end - start:.2f} seconds."
+  )
+
+  if allocate_tensors:
+    interp.allocate_tensors()
+
+  return interp
 
 
 def tf_installed() -> bool:
   import importlib.util
 
   return importlib.util.find_spec("tensorflow") is not None
+
+
+def litert_installed() -> bool:
+  import importlib.util
+
+  return importlib.util.find_spec("ai_edge_litert") is not None
 
 
 @dataclass()

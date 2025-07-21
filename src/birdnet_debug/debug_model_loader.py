@@ -156,20 +156,30 @@ if __name__ == "__main__":
   audio_paths = "test-dataset/test_dataset_100x1.3s_flac/000.flac"
   audio_paths = "test-dataset/test_dataset_1x7.3s_flac/0.flac"
 
-  audio_paths = "test-dataset/test_dataset_1x10min/0.wav"
-
   audio_paths = get_pow_file_paths()
   audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
-  audio_paths = "example/soundscape.wav"
   audio_paths = [
     Path("test-dataset/test_dataset_4x60min/0.wav"),
     Path("test-dataset/test_dataset_4x60min/1.wav"),
     Path("test-dataset/test_dataset_4x60min/2.wav"),
     Path("test-dataset/test_dataset_4x60min/3.wav"),
   ]
-  audio_paths = "test-dataset/test_dataset_100000x4s_flac"
   audio_paths = "test-dataset/test_dataset_1000x0.2s_flac"
+  audio_paths = "test-dataset/test_dataset_100000x4s_flac"
   audio_paths = "test-dataset/test_dataset_100x1.3s_flac"
+  audio_paths = [
+    Path("test-dataset/test_dataset_120x60min/000.wav"),
+    Path("test-dataset/test_dataset_120x60min/001.wav"),
+    Path("test-dataset/test_dataset_120x60min/002.wav"),
+    Path("test-dataset/test_dataset_120x60min/003.wav"),
+    Path("test-dataset/test_dataset_120x60min/004.wav"),
+    Path("test-dataset/test_dataset_120x60min/005.wav"),
+    Path("test-dataset/test_dataset_120x60min/006.wav"),
+    Path("test-dataset/test_dataset_120x60min/007.wav"),
+    Path("test-dataset/test_dataset_120x60min/008.wav"),
+  ]
+  audio_paths = "example/soundscape.wav"
+  audio_paths = "test-dataset/test_dataset_1x10min/0.wav"
   params = {
     "n_workers": 12,
     "n_producers": 1,
@@ -178,6 +188,8 @@ if __name__ == "__main__":
     "backend": "tf",
     "precision": "fp32",
     "device": "CPU",
+    "top_k": 5,
+    "start_method": "fork",  # "fork", "spawn" or "forkserver" for Linux, macOS
   }
 
   model: AcousticModelBaseV2_4 = load(
@@ -194,7 +206,7 @@ if __name__ == "__main__":
 
   # set_start_method("forkserver", force=True) # Linux, macOS
   # set_start_method("spawn", force=True)  # Linux, macOS
-  set_start_method("fork", force=True)  # Linux, macOS
+  set_start_method(params["start_method"], force=True)  # Linux, macOS
   start = time.perf_counter()
   assert isinstance(model, AcousticModelBaseV2_4)
   result = model.analyze(
@@ -204,7 +216,7 @@ if __name__ == "__main__":
     batch_size=params["batch_size"],
     prefetch_ratio=params["prefetch_ratio"],
     apply_sigmoid=True,
-    top_k=1,
+    top_k=params["top_k"],
     overlap_duration_s=0,
     sigmoid_sensitivity=1,
     default_confidence_threshold=-np.inf,
@@ -212,6 +224,7 @@ if __name__ == "__main__":
     device=params["device"],
     show_stats="benchmark",
     serial_io=False,
+    inference_library="litert",
     # custom_confidence_thresholds={
     #   "Junco hyemalis_Dark-eyed Junco": -np.inf,
     #   "Haemorhous mexicanus_House Finch": 0.1,

@@ -248,7 +248,6 @@ class PredictionResult:
       "n_files": str(self.n_files),
       "n_species": str(self.n_species),
     }
-
     schema_with_metadata = pa.schema(fields, metadata=metadata)
     table = pa.table(arrow_arrays, schema=schema_with_metadata)
     return table

@@ -155,7 +155,9 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._stop_event = stop_event
     self._start = start
     self._segment_size_s = segment_size_s
-    self._parent_process = psutil.Process(parent_process_id)
+
+    self._parent_process_id = parent_process_id
+    self._parent_process: psutil.Process | None = None
     self._print_interval = print_interval
     self._rf_flags = rf_flags
     self._shm_ring_flags: shared_memory.SharedMemory | None = None
@@ -256,7 +258,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     # avg = sum(self._pred_dur_deque) / sum(self._batch_sizes_deque)
     # segments_per_s = self._total_segments_processed / wall_time
     # min_per_s = segments_per_s * self._segment_size_s / 60
-
+    if self._parent_process is None:
+      self._parent_process = psutil.Process(self._parent_process_id)
     memory_usage = self._parent_process.memory_full_info().uss
     for child in self._parent_process.children(recursive=True):
       try:
@@ -282,6 +285,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       self._prd_total_segments_processed * self._segment_size_s
     )
 
+    received_at_least_one_prediction = len(self._wkr_wall_times) > 0
     _summed_wkr_duration = sum(self._wkr_wall_times.values())
     _summed_prd_duration = sum(self._prd_wall_times.values())
 
@@ -323,8 +327,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       # f"inference speed: {self._summed_raw_pred_duration / self._total_segments_processed * 1000:.0f} ms/segment",
       # f"last {len(self._pred_dur_deque)} predictions: {avg * 1000:.0f} ms/segment",
       # f"RTF: {real_time_factor:.8f}x [{raw_segments_per_s:.0f} segm/s]",
-      f"F-SPEED: {prd_speed_xrt:.0f} xRT [{prd_speed_segments_per_s:.0f} seg/s]",
-      f"W-SPEED: {wkr_speed_xrt:.0f} xRT [{wkr_speed_segments_per_s:.0f} seg/s]",
       # f"SPEED2: {speed_x_real_time_classic:.0f} xRT [{segments_per_s:.0f} seg/s]",
       # f"{raw_min_per_s:.2f} min/s",
       f"MEM: {memory_usage_MiB:.0f} M",
@@ -333,20 +335,29 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       # f"BUF2: {self._rng_preloaded_slots_tracker.avg_val_last:.0f}/{self._ring_flags.shape[0]}",
       # f"S-FILL: {self._sem_filled_tracker.avg_val_last:.0f}",
       # f"free: {avg_free_slots:.0f}/{self._ring_flags.shape[0]}",
-      f"P-WAIT: {self._prd_1_batch_loading_dur_tracker.avg_val_last * 1000:.2f} ms",
-      f"P-BATCH: {self._prd_2_wait_dur_free_slot_tracker.avg_val_last * 1000:.2f} ms",
-      f"P-SEARCH: {self._prd_3_free_slot_search_dur_tracker.avg_val_last * 1000:.2f} ms",
-      f"P-FLUSH: {self._prd_4_flush_dur_tracker.avg_val_last * 1000:.2f} ms",
-      f"W-WAIT: {self._wkr_1_wait_dur_for_filled_slot_tracker.avg_val * 1000:.2f} ms",
-      f"W-SEARCH: {self._wkr_2_search_dur_for_filled_slot_tracker.avg_val_last * 1000:.2f} ms",
-      f"W-JOB: {self._wkr_3_get_job_dur_tracker.avg_val_last * 1000:.2f} ms",
-      f"W-INFER: {self._wkr_4_inference_dur_tracker.avg_val_last * 1000:.2f} ms",
-      f"W-ADD: {self._wkr_5_add_to_queue_dur_tracker.avg_val_last * 1000:.2f} ms",
-      f"BUSY: {self._wkr_busy_tracker.avg_val_last:.0f}/{self._n_workers}",
-      # f"prel: {avg_preloaded_slots:.0f}",
-      # f"busy: {avg_busy_slots:.0f}",
-      # f"fill: {avg_filled_slots:.0f}",
+      f"F-SPEED: {prd_speed_xrt:.0f} xRT [{prd_speed_segments_per_s:.0f} seg/s]",
+      f"F-WAIT: {self._prd_1_batch_loading_dur_tracker.avg_val_last * 1000:.2f} ms",
+      f"F-BATCH: {self._prd_2_wait_dur_free_slot_tracker.avg_val_last * 1000:.2f} ms",
+      f"F-SEARCH: {self._prd_3_free_slot_search_dur_tracker.avg_val_last * 1000:.2f} ms",
+      f"F-FLUSH: {self._prd_4_flush_dur_tracker.avg_val_last * 1000:.2f} ms",
     ]
+    if received_at_least_one_prediction:
+      output_msg_fields += [
+        f"W-SPEED: {wkr_speed_xrt:.0f} xRT [{wkr_speed_segments_per_s:.0f} seg/s]",
+        f"W-WAIT: {self._wkr_1_wait_dur_for_filled_slot_tracker.avg_val * 1000:.2f} ms",
+        f"W-SEARCH: {self._wkr_2_search_dur_for_filled_slot_tracker.avg_val_last * 1000:.2f} ms",
+        f"W-JOB: {self._wkr_3_get_job_dur_tracker.avg_val_last * 1000:.2f} ms",
+        f"W-INFER: {self._wkr_4_inference_dur_tracker.avg_val_last * 1000:.2f} ms",
+        f"W-ADD: {self._wkr_5_add_to_queue_dur_tracker.avg_val_last * 1000:.2f} ms",
+        f"BUSY: {self._wkr_busy_tracker.avg_val_last:.0f}/{self._n_workers}",
+        # f"prel: {avg_preloaded_slots:.0f}",
+        # f"busy: {avg_busy_slots:.0f}",
+        # f"fill: {avg_filled_slots:.0f}",
+      ]
+    else:
+      output_msg_fields += [
+        "W: loading model...",
+      ]
 
     if self._tot_n_segments_ptr.value > 0 and self._wkr_total_segments_processed > 0:
       progress = (
@@ -404,6 +415,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       self._get_worker_stats()
 
       if not self._processing_finished_event.wait(self._update_every):
+        if self._parent_process is None:
+          self._parent_process = psutil.Process(self._parent_process_id)
         memory_usage: float = self._parent_process.memory_full_info().uss
         for child in self._parent_process.children(recursive=True):
           try:

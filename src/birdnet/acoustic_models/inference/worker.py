@@ -13,9 +13,10 @@ import numpy as np
 from numpy.typing import DTypeLike
 
 import birdnet.logging_utils as bn_logging
-from birdnet.acoustic_models.base import AcousticInferenceBackend
-from birdnet.acoustic_models.pb import AcousticPBBackend
-from birdnet.acoustic_models.tf import AcousticTFBackend
+from birdnet.acoustic_models.base import (
+  AcousticInferenceBackend,
+  AcousticInferenceBackendLoader,
+)
 from birdnet.globals import (
   DONE_FLAG,
   READABLE_FLAG,
@@ -31,7 +32,8 @@ from birdnet.utils import flat_sigmoid_logaddexp_fast
 class ChildWorker(bn_logging.LogableProcessBase):
   def __init__(
     self,
-    backend_cow: AcousticInferenceBackend | None,
+    # backend_cow: AcousticInferenceBackend | None,
+    backend_loader: AcousticInferenceBackendLoader,
     top_k: int,
     species_thresholds: np.ndarray,
     species_blacklist: np.ndarray,
@@ -45,10 +47,6 @@ class ChildWorker(bn_logging.LogableProcessBase):
     backend_type: type[AcousticInferenceBackend],
     backend_kwargs: dict,
     segment_duration_samples: int,
-    slot_ptr: Synchronized[ctypes.c_uint8]
-    | Synchronized[ctypes.c_uint16]
-    | Synchronized[ctypes.c_uint32]
-    | Synchronized[ctypes.c_uint64],
     out_q: Queue,
     wkr_ring_access_lock: multiprocessing.synchronize.Lock,
     sem_free: Semaphore,
@@ -74,6 +72,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
     assert species_thresholds.flags.aligned
     assert species_blacklist.flags.aligned
 
+    self._backend_loader = backend_loader
     self._prd_all_done_event = prd_all_done_event
     self._wkr_ring_access_lock = wkr_ring_access_lock
     self._backend = None  # backend
@@ -86,7 +85,6 @@ class ChildWorker(bn_logging.LogableProcessBase):
     self._blacklist = species_blacklist
     # Setze für ungültige Spezies den Threshold auf inf, sodass (pred >= inf) immer False ist
     self._out_q = out_q
-    self._slot_ptr: Synchronized[int] = slot_ptr  # type: ignore
     self._sem_free = sem_free
     self._sem_filled = sem_fill
     self._sem_active_workers = sem_active_workers
@@ -138,24 +136,26 @@ class ChildWorker(bn_logging.LogableProcessBase):
 
     self._cancel_event = cancel_event
 
-    self._lazy_init = True
-    if mp.get_start_method() == "fork":
-      if self._backend_type is AcousticTFBackend:
-        assert backend_cow is not None
-        self._init_logging()
-        self._load_ring_buffers()
-        self._backend = backend_cow
-        self._lazy_init = False
-      else:
-        # PB backend does not support non lazy initialization
-        assert self._backend_type is AcousticPBBackend
-        assert backend_cow is None
+    self._lazy_init = mp.get_start_method() != "fork"
+
+    if not self._lazy_init:
+      self._init_logging()
+      self._load_ring_buffers()
+      # self._lazy_init = False
+      # if self._backend_type is AcousticTFBackend:
+      #   # assert backend_cow is not None
+      #   # self._backend = backend_cow
+      # else:
+      #   # PB backend does not support non lazy initialization
+      #   assert self._backend_type is AcousticPBBackend
+      #   # assert backend_cow is None
 
   def _load_model(self) -> None:
     self._log_debug("Loading model...")
     try:
-      self._backend = self._backend_type(**self._backend_kwargs)
-      self._backend.load(self._io_lock_handler)
+      self._backend = self._backend_loader.load_backend()
+      # self._backend = self._backend_type(**self._backend_kwargs)
+      # self._backend.load(self._io_lock_handler)
     except ValueError as e:
       self._log_debug(f"Failed to load model: {e}")
       raise e
@@ -167,11 +167,6 @@ class ChildWorker(bn_logging.LogableProcessBase):
     assert res.dtype == np.float32
     res = res.astype(self._prob_dtype, copy=False)
     return res
-
-  def _jump_to_next_slot_ptr(self) -> None:
-    """Increase the slot index, wrapping around if necessary."""
-    self._slot_ptr.value = (self._slot_ptr.value + 1) % self._n_slots
-    assert 0 <= self._slot_ptr.value < self._n_slots
 
   def _load_ring_buffers(self) -> None:
     self._log_debug("Attaching ring buffers...")
@@ -192,18 +187,6 @@ class ChildWorker(bn_logging.LogableProcessBase):
     self._shm_ring_flags, self._ring_flags = self._rf_flags.attach_and_get_array()
     self._log_debug("Attached ring buffers.")
 
-  def _init(self) -> bool:
-    start = time.perf_counter()
-    self._init_logging()
-    self._load_ring_buffers()
-    try:
-      self._load_model()
-    except ValueError:
-      return False
-    duration_init = time.perf_counter() - start
-    self._log_debug(f"Worker {self._pid} initialized in {duration_init:.4f} seconds.")
-    return True
-
   def _uninit(self) -> None:
     self._uninit_logging()
 
@@ -221,9 +204,19 @@ class ChildWorker(bn_logging.LogableProcessBase):
     return False
 
   def __call__(self):
-    if self._lazy_init and not self._init():
+    start = time.perf_counter()
+
+    if self._lazy_init:
+      self._init_logging()
+      self._load_ring_buffers()
+
+    try:
+      self._load_model()
+    except ValueError:
       self._cancel_event.set()
       return
+    duration_init = time.perf_counter() - start
+    self._log_debug(f"Worker {self._pid} initialized in {duration_init:.4f} seconds.")
 
     assert self._ring_flags is not None
     assert self._ring_file_indices is not None

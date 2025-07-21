@@ -29,7 +29,11 @@ from numpy.typing import DTypeLike
 from ordered_set import OrderedSet
 
 import birdnet.logging_utils as bn_logging
-from birdnet.acoustic_models.base import AcousticInferenceBackend, AcousticModelBase
+from birdnet.acoustic_models.base import (
+  AcousticInferenceBackend,
+  AcousticInferenceBackendLoader,
+  AcousticModelBase,
+)
 from birdnet.acoustic_models.inference.consumer import Consumer
 from birdnet.acoustic_models.inference.files_analyzer import FilesAnalyzer
 from birdnet.acoustic_models.inference.perf_tracker import (
@@ -40,14 +44,14 @@ from birdnet.acoustic_models.inference.prediction_result import PredictionResult
 from birdnet.acoustic_models.inference.producer import ChildProducer
 from birdnet.acoustic_models.inference.species_tensor import SpeciesTensor
 from birdnet.acoustic_models.inference.worker import ChildWorker
-from birdnet.acoustic_models.tf import AcousticTFBackend
 from birdnet.base import (
+  ACOUSTIC_MODEL_VERSION_V2_4,
+  ACOUSTIC_MODEL_VERSIONS,
+  MODEL_BACKEND_TF,
   MODEL_BACKENDS,
   MODEL_PRECISIONS,
   MODEL_TYPE_ACOUSTIC,
   MODEL_TYPES,
-  MODEL_VERSION_V2_4,
-  MODEL_VERSIONS,
 )
 from birdnet.globals import PKG_NAME, WRITABLE_FLAG
 from birdnet.helper import (
@@ -56,6 +60,7 @@ from birdnet.helper import (
   create_shm_ring,
   get_max_n_segments,
   get_supported_audio_files,
+  litert_installed,
   tf_installed,
   uint_ctype_from_dtype,
   uint_dtype_for,
@@ -274,10 +279,14 @@ class FullBenchmarkMeta(MinimalBenchmarkMeta):
   def sw_tf_available(self) -> bool:
     return tf_installed()
 
+  @property
+  def sw_litert_available(self) -> bool:
+    return litert_installed()
+
   # Model
   model_type: MODEL_TYPES
   model_backend: MODEL_BACKENDS
-  model_version: MODEL_VERSIONS
+  model_version: ACOUSTIC_MODEL_VERSIONS
   model_is_custom: bool
   model_path: str
   model_species: int
@@ -306,6 +315,7 @@ class FullBenchmarkMeta(MinimalBenchmarkMeta):
   param_confidence_threshold_custom: int
   param_custom_species: int
   param_devices: str
+  param_inference_library: str | None
 
   worker_busy_average: float
   worker_wait_time_average_milliseconds: float
@@ -415,8 +425,8 @@ class AcousticModelBaseV2_4(AcousticModelBase):
 
   @classmethod
   @final
-  def get_version(cls) -> MODEL_VERSIONS:
-    return MODEL_VERSION_V2_4
+  def get_version(cls) -> ACOUSTIC_MODEL_VERSIONS:
+    return ACOUSTIC_MODEL_VERSION_V2_4
 
   @classmethod
   @final
@@ -472,6 +482,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     show_stats: Literal["no", "minimal", "progress", "benchmark"] = "no",
     device: str | list[str] = "CPU",
     serial_io: bool = False,
+    inference_library: Literal["tf", "litert"] = "tf",
   ) -> PredictionResult:
     debug_log = False
 
@@ -782,11 +793,11 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     species_thresholds = thresholds[np.newaxis, :]
     species_thresholds.setflags(write=False)
     worker_queue = mp.Queue()
-    worker_slot_ptr = mp.Value(
-      uint_ctype_from_dtype(uint_dtype_for(n_slots - 1)),  # type: ignore
-      0,
-      lock=True,  # Lock = false?
-    )  # type: ignore
+    # worker_slot_ptr = mp.Value(
+    #   uint_ctype_from_dtype(uint_dtype_for(n_slots - 1)),  # type: ignore
+    #   0,
+    #   lock=True,  # Lock = false?
+    # )  # type: ignore
     producer_slot_ptr = mp.Value(
       uint_ctype_from_dtype(uint_dtype_for(n_slots - 1)),  # type: ignore
       0,
@@ -889,21 +900,41 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       for p in producer_processes:
         p.start()
 
-      backend_kwargs = [self.get_backend_args() for _ in range(workers)]
+      backend_kwargs = [self.get_inference_backend_args() for _ in range(workers)]
 
-      # Copy-on-write backend instance for forked processes
-      backend_cow: AcousticInferenceBackend | None = None
-      if (
-        mp.get_start_method() == "fork" and self.get_backend_type() is AcousticTFBackend
-      ):
-        backend_cow = self.get_backend_type()(**self.get_backend_args())
-        backend_cow.load(io_lock_handler)
+      backend_kwargs2 = self.get_inference_backend_args()
+      if self.get_backend() == MODEL_BACKEND_TF:
+        backend_kwargs2["inference_library"] = inference_library
+
+      backend_loader = AcousticInferenceBackendLoader(
+        backend_type=self.get_inference_backend_type(),
+        backend_kwargs=backend_kwargs2,
+        io_lock_handler=io_lock_handler,
+      )
+
+      try:
+        backend_loader.on_before_worker_initialized()
+      except Exception as exc:
+        cancel_event.set()
+        logger.error(f"Error during backend initialization: {exc}.")
+
+      # # Copy-on-write backend instance for forked processes
+      # backend_cow: AcousticInferenceBackend | None = None
+      # if (
+      #   mp.get_start_method() == "fork"
+      #   and self.get_inference_backend_type() is AcousticTFBackend
+      # ):
+      #   backend_cow = self.get_inference_backend_type()(
+      #     **self.get_inference_backend_args()
+      #   )
+      #   backend_cow.load(io_lock_handler)
 
       worker_processes = [
         mp.Process(
           target=ChildWorker(
-            backend_cow=backend_cow,
-            backend_type=self.get_backend_type(),
+            # backend_cow=backend_cow,
+            backend_type=self.get_inference_backend_type(),
+            backend_loader=backend_loader,
             device=devices[i],
             backend_kwargs=backend_kwargs[i],
             top_k=top_k,
@@ -912,7 +943,6 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             batch_size=batch_size,
             wkr_ring_access_lock=wkr_ring_access_lock,
             n_slots=n_slots,
-            slot_ptr=worker_slot_ptr,
             segment_duration_samples=AcousticModelBaseV2_4.get_segment_size_samples(),
             out_q=worker_queue,
             logging_queue=logging_queue,
@@ -1142,6 +1172,9 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         model_sig_fmax=AcousticModelBaseV2_4.get_sig_fmax(),
         worker_wait_time_average_milliseconds=perf_result.avg_wait_time_ms,
         file_formats=", ".join(sorted({x.suffix[1:].upper() for x in file_paths})),
+        param_inference_library=inference_library
+        if self.get_backend() == MODEL_BACKEND_TF
+        else None,
       )
 
       # bm = OrderedDict()
