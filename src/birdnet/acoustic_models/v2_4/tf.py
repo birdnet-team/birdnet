@@ -133,18 +133,18 @@ class AcousticTFDownloaderV2_4:
 
   @classmethod
   def get_model_path_and_labels(
-    cls, lang_id: str, precision: MODEL_PRECISIONS
+    cls, lang: str, precision: MODEL_PRECISIONS
   ) -> tuple[Path, OrderedSet[str]]:
-    assert lang_id in AVAILABLE_LANGUAGES_V2_4
+    assert lang in AVAILABLE_LANGUAGES_V2_4
     if not cls._check_acoustic_model_available(precision):
       cls._download_acoustic_model(precision)
     assert cls._check_acoustic_model_available(precision)
 
     model_path, langs_path = cls._get_paths(precision)
 
-    lang_file = langs_path / f"{lang_id}.txt"
+    lang_file = langs_path / f"{lang}.txt"
     if not lang_file.is_file():
-      raise ValueError(f"Language does not exist: {lang_id}")
+      raise ValueError(f"Language does not exist: {lang}")
 
     labels = get_species_from_file(lang_file, encoding="utf8")
     return model_path, labels
@@ -168,11 +168,11 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
   @classmethod
   def load_official(
     cls,
-    lang_id: MODEL_LANGUAGES,
+    lang: MODEL_LANGUAGES,
     precision: MODEL_PRECISIONS,
   ) -> AcousticTFModelV2_4:
     model_path, species_list = AcousticTFDownloaderV2_4.get_model_path_and_labels(
-      lang_id, precision
+      lang, precision
     )
     use_custom_model = False
     result = AcousticTFModelV2_4(model_path, species_list, precision, use_custom_model)

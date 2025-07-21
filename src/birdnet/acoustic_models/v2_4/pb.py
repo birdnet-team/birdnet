@@ -1,11 +1,8 @@
 # birdnet_batch_inference.py – raw‑audio version
 from __future__ import annotations
 
-import logging
-import os
 import shutil
 import tempfile
-import time
 import zipfile
 from collections.abc import Callable
 from pathlib import Path
@@ -25,9 +22,8 @@ from birdnet.base import (
   MODEL_BACKENDS,
   MODEL_PRECISION_FLOAT32,
 )
-from birdnet.helper import ModelInfo
+from birdnet.helper import load_pb_model
 from birdnet.local_data import get_local_model_root_dir
-from birdnet.logging_utils import get_logger
 from birdnet.translations import AVAILABLE_LANGUAGES_V2_4
 from birdnet.utils import download_file_tqdm, get_species_from_file
 
@@ -102,7 +98,7 @@ class AcousticPBDownloaderV2_4:
   @classmethod
   def get_model_path_and_labels(
     cls,
-    lang_id: str,
+    lang: str,
   ) -> tuple[Path, OrderedSet[str]]:
     if not cls._check_acoustic_model_available():
       cls._download_acoustic_model()
@@ -110,9 +106,9 @@ class AcousticPBDownloaderV2_4:
 
     model_dir, langs_path = cls._get_paths()
 
-    lang_file = langs_path / f"{lang_id}.txt"
+    lang_file = langs_path / f"{lang}.txt"
     if not lang_file.is_file():
-      raise ValueError(f"Language does not exist: {lang_id}")
+      raise ValueError(f"Language does not exist: {lang}")
 
     labels = get_species_from_file(lang_file, encoding="utf8")
     return model_dir, labels
@@ -135,10 +131,8 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
     return MODEL_BACKEND_PB
 
   @classmethod
-  def load_official(cls, lang_id: str) -> AcousticPBModelV2_4:
-    model_path, species_list = AcousticPBDownloaderV2_4.get_model_path_and_labels(
-      lang_id
-    )
+  def load_official(cls, lang: str) -> AcousticPBModelV2_4:
+    model_path, species_list = AcousticPBDownloaderV2_4.get_model_path_and_labels(lang)
     result = AcousticPBModelV2_4(
       model_path=model_path,
       species_list=species_list,
@@ -161,17 +155,23 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
         f"Failed to read species list from '{species_list.absolute()}'. Ensure it is a valid text file."
       ) from e
 
-    import tensorflow as tf
+    if not check_protobuf_model_files_exist(model):
+      raise ValueError(
+        f"Model directory '{model.absolute()}' does not contain the required files for a Protobuf model!"
+      )
 
-    if check_validity:
+    # check not possible currently because of tf loading
+    if False and check_validity:
       try:
-        interp = tf.saved_model.load(model)
+        loaded_model = load_pb_model(model)
       except ValueError as e:
         raise ValueError(
           f"Failed to load model '{model.absolute()}'. Ensure it is a valid TFLite model."
         ) from e
 
-      n_species_in_model = interp.get_output_details()[0]["shape"][1]
+      n_species_in_model = (
+        loaded_model.signatures["basic"].output_shapes["scores"].dims[1].value  # type: ignore
+      )
       if n_species_in_model != len(loaded_species_list):
         raise ValueError(
           f"Model '{model.absolute()}' has {n_species_in_model} outputs, but species list '{species_list.absolute()}' has {len(loaded_species_list)} species!"
@@ -237,7 +237,7 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
 class PBAcousticInferenceBackend(AcousticInferenceBackend):
   def __init__(self, model_path: Path) -> None:
     super().__init__()
-    self._model_path = str(model_path.absolute())
+    self._model_path = model_path
     self._cached_logical_device: Any | None = None
     self._infer_fn: Callable | None = None
     self._cached_device_name: str | None = None
@@ -249,31 +249,7 @@ class PBAcousticInferenceBackend(AcousticInferenceBackend):
 
   @final
   def load(self) -> None:
-    import absl.logging
-
-    absl_verbosity_before = absl.logging.get_verbosity()
-    absl.logging.set_verbosity(absl.logging.ERROR)
-    tf_verbosity_before = logging.getLogger("tensorflow").level
-    logging.getLogger("tensorflow").setLevel(logging.ERROR)
-    os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-    import tensorflow as tf
-
-    tf.random.set_seed(0)
-
-    # Note: memory growth needs to be set before loading the model and maybe only once in the main process
-    # physical_gpu_device = gpus_with_name[0]
-    # if tf.config.experimental.get_memory_growth(physical_gpu_device) is False:
-    #   tf.config.experimental.set_memory_growth(physical_gpu_device, True)
-
-    start = time.perf_counter()
-    model = tf.saved_model.load(self._model_path)
-    end = time.perf_counter()
-    logger = get_logger(__name__)
-    logger.debug(f"Model loaded from {self._model_path} in {end - start:.2f} seconds.")
-
-    absl.logging.set_verbosity(absl_verbosity_before)
-    logging.getLogger("tensorflow").setLevel(tf_verbosity_before)
-
+    model = load_pb_model(self._model_path)
     self._infer_fn = model.signatures["basic"]  # type: ignore
 
   def _set_logical_device(self, device_name: str) -> None:

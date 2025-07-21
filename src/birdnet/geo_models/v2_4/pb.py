@@ -9,7 +9,7 @@ import time
 import zipfile
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Iterable, Literal, final
+from typing import Any, final
 
 import numpy as np
 
@@ -20,11 +20,9 @@ from ordered_set import OrderedSet
 from birdnet.base import (
   MODEL_BACKEND_PB,
   MODEL_BACKENDS,
-  MODEL_PRECISION_FLOAT32,
 )
 from birdnet.geo_models.base import GeoInferenceBackend
 from birdnet.geo_models.v2_4.base import GeoModelBaseV2_4
-from birdnet.helper import ModelInfo
 from birdnet.local_data import get_local_model_root_dir
 from birdnet.logging_utils import get_logger
 from birdnet.translations import AVAILABLE_LANGUAGES_V2_4
@@ -101,7 +99,7 @@ class GeoPBDownloaderV2_4:
   @classmethod
   def get_model_path_and_labels(
     cls,
-    lang_id: str,
+    lang: str,
   ) -> tuple[Path, OrderedSet[str]]:
     if not cls._check_geo_model_available():
       cls._download_geo_model()
@@ -109,9 +107,9 @@ class GeoPBDownloaderV2_4:
 
     model_dir, langs_path = cls._get_paths()
 
-    lang_file = langs_path / f"{lang_id}.txt"
+    lang_file = langs_path / f"{lang}.txt"
     if not lang_file.is_file():
-      raise ValueError(f"Language does not exist: {lang_id}")
+      raise ValueError(f"Language does not exist: {lang}")
 
     labels = get_species_from_file(lang_file, encoding="utf8")
     return model_dir, labels
@@ -127,8 +125,8 @@ class GeoPBModelV2_4(GeoModelBaseV2_4):
     return MODEL_BACKEND_PB
 
   @classmethod
-  def load_official(cls, lang_id: str) -> GeoPBModelV2_4:
-    model_path, species_list = GeoPBDownloaderV2_4.get_model_path_and_labels(lang_id)
+  def load_official(cls, lang: str) -> GeoPBModelV2_4:
+    model_path, species_list = GeoPBDownloaderV2_4.get_model_path_and_labels(lang)
     result = GeoPBModelV2_4(
       model_path=model_path,
       species_list=species_list,

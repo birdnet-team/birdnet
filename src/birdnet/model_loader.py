@@ -33,7 +33,7 @@ def load_acoustic_model(  # type: ignore
   version: Literal["latest"] | ACOUSTIC_MODEL_VERSIONS = ...,
   backend: Literal["tf"] = ...,
   precision: MODEL_PRECISIONS = ...,
-  lang_id: MODEL_LANGUAGES = ...,
+  lang: MODEL_LANGUAGES = ...,
 ) -> AcousticTFModelV2_4: ...
 
 
@@ -43,7 +43,7 @@ def load_acoustic_model(
   version: Literal["latest"] | ACOUSTIC_MODEL_VERSIONS = ...,
   backend: Literal["pb"] = ...,
   precision: Literal["fp32"] = ...,
-  lang_id: MODEL_LANGUAGES = ...,
+  lang: MODEL_LANGUAGES = ...,
 ) -> AcousticPBModelV2_4: ...
 
 
@@ -54,7 +54,7 @@ def load_acoustic_model(
 #   version: Literal["2.4"] = MODEL_VERSION_V2_4,
 #   backend: Literal["tf"] = MODEL_BACKEND_TF,
 #   device: Literal["CPU", "GPU"] = "CPU",
-#   lang_id: str = "en_us",
+#   lang: str = "en_us",
 # ) -> AcousticTFModelV2_4: ...
 
 
@@ -65,7 +65,7 @@ def load_acoustic_model(
 #   version: Literal["2.4"] = MODEL_VERSION_V2_4,
 #   backend: Literal["pb"] = MODEL_BACKEND_PB,
 #   device: Literal["CPU", "GPU"] = "CPU",
-#   lang_id: str = "en_us",
+#   lang: str = "en_us",
 # ) -> AcousticPBModelV2_4: ...
 
 
@@ -74,7 +74,7 @@ def load_acoustic_model(
   version: Literal["latest"] | ACOUSTIC_MODEL_VERSIONS = "latest",
   backend: MODEL_BACKENDS = MODEL_BACKEND_TF,
   precision: MODEL_PRECISIONS = MODEL_PRECISION_FLOAT32,
-  lang_id: MODEL_LANGUAGES = "en_us",
+  lang: MODEL_LANGUAGES = "en_us",
 ) -> AcousticModelBase:
   if version not in ["latest"] + VALID_ACOUSTIC_MODEL_VERSIONS:
     raise ValueError(
@@ -97,20 +97,20 @@ def load_acoustic_model(
   if version == ACOUSTIC_MODEL_VERSION_V2_4:
     from birdnet.translations import AVAILABLE_LANGUAGES_V2_4
 
-    if lang_id not in AVAILABLE_LANGUAGES_V2_4:
+    if lang not in AVAILABLE_LANGUAGES_V2_4:
       raise ValueError(
-        f"Parameter 'lang_id': Language '{lang_id}' is not supported by the model."
+        f"Parameter 'lang': Language '{lang}' is not supported by the model."
       )
 
     if backend == MODEL_BACKEND_TF:
-      return AcousticTFModelV2_4.load_official(lang_id, precision)
+      return AcousticTFModelV2_4.load_official(lang, precision)
     elif backend == MODEL_BACKEND_PB:
       if precision != MODEL_PRECISION_FLOAT32:
         raise ValueError(
           f"Parameter 'precision': Unsupported model precision for 'pb': {precision}. Currently supported precision is: {MODEL_PRECISION_FLOAT32}."
         )
 
-      return AcousticPBModelV2_4.load_official(lang_id)
+      return AcousticPBModelV2_4.load_official(lang)
     else:
       raise AssertionError()
   else:
@@ -119,27 +119,27 @@ def load_acoustic_model(
 
 @overload
 def load_custom_acoustic_model(  # type: ignore
-  model: str | PathLike[str],
-  species_list: str | PathLike[str],
-  version: ACOUSTIC_MODEL_VERSIONS,
-  backend: Literal["tf"],
-  precision: MODEL_PRECISIONS,
-  check_validity: bool,
+  model: str | PathLike[str] = ...,
+  species_list: str | PathLike[str] = ...,
+  version: ACOUSTIC_MODEL_VERSIONS = ...,
+  backend: Literal["tf"] = ...,
+  precision: MODEL_PRECISIONS = ...,
+  check_validity: bool = ...,
 ) -> AcousticTFModelV2_4: ...
 
 
 @overload
 def load_custom_acoustic_model(
-  model: str | PathLike[str],
-  species_list: str | PathLike[str],
-  version: ACOUSTIC_MODEL_VERSIONS,
-  backend: Literal["pb"],
-  precision: Literal["fp32"],
+  model: str | PathLike[str] = ...,
+  species_list: str | PathLike[str] = ...,
+  version: ACOUSTIC_MODEL_VERSIONS = ...,
+  backend: Literal["pb"] = ...,
+  precision: Literal["fp32"] = ...,
   check_validity: bool = ...,
 ) -> AcousticPBModelV2_4: ...
 
 
-def load_custom_acoustic_model(
+def load_custom_acoustic_model(  # type: ignore
   model: str | PathLike[str],
   species_list: str | PathLike[str],
   version: ACOUSTIC_MODEL_VERSIONS,
@@ -204,7 +204,7 @@ def load_geo_model(
   *,
   version: Literal["latest"] | GEO_MODEL_VERSIONS = GEO_MODEL_VERSION_V2_4,
   backend: MODEL_BACKENDS = MODEL_BACKEND_TF,
-  lang_id: MODEL_LANGUAGES = "en_us",
+  lang: MODEL_LANGUAGES = "en_us",
 ) -> GeoModelBase:
   if version not in ["latest"] + VALID_GEO_MODEL_VERSIONS:
     raise ValueError(
@@ -222,15 +222,15 @@ def load_geo_model(
   if version == GEO_MODEL_VERSION_V2_4:
     from birdnet.translations import AVAILABLE_LANGUAGES_V2_4
 
-    if lang_id not in AVAILABLE_LANGUAGES_V2_4:
+    if lang not in AVAILABLE_LANGUAGES_V2_4:
       raise ValueError(
-        f"Parameter 'lang_id': Language '{lang_id}' is not supported by the model."
+        f"Parameter 'lang': Language '{lang}' is not supported by the model."
       )
 
     if backend == MODEL_BACKEND_TF:
-      return GeoTFModelV2_4.load_official(lang_id)
+      return GeoTFModelV2_4.load_official(lang)
     elif backend == MODEL_BACKEND_PB:
-      return GeoPBModelV2_4.load_official(lang_id)
+      return GeoPBModelV2_4.load_official(lang)
     else:
       raise AssertionError()
   else:

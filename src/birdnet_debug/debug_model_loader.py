@@ -8,7 +8,7 @@ import numpy as np
 
 from birdnet.acoustic_models.inference.prediction_result import PredictionResult
 from birdnet.logging_utils import get_package_logger
-from birdnet.model_loader import load_acoustic_model
+from birdnet.model_loader import load_acoustic_model, load_custom_acoustic_model
 from birdnet_debug.hsn_downloader import get_hsn_file_paths
 from birdnet_debug.pow_downloader import get_pow_file_paths
 
@@ -184,7 +184,7 @@ if __name__ == "__main__":
     "n_producers": 1,
     "batch_size": 1,
     "prefetch_ratio": 2,
-    "backend": "tf",
+    "backend": "pb",
     "precision": "fp32",
     "device": "CPU",
     "top_k": 5,
@@ -196,6 +196,15 @@ if __name__ == "__main__":
   start = time.perf_counter()
   if params["backend"] == "tf":
     model = load_acoustic_model(backend="tf", precision=params["precision"])
+    model = load_custom_acoustic_model(
+      "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/tf/model-fp32.tflite",
+      "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/tf/labels/en_us.txt",
+      version="2.4",
+      backend="tf",
+      precision="fp32",
+      check_validity=True,
+    )
+
     # model = load_custom(
     #   "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/tf/model-fp32.tflite",
     #   "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/tf/labels/en_us.txt",
@@ -234,6 +243,15 @@ if __name__ == "__main__":
     )
   elif params["backend"] == "pb":
     model = load_acoustic_model(backend="pb", precision=params["precision"])
+    model = load_custom_acoustic_model(
+      "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/pb/model/",
+      "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/pb/labels/en_us.txt",
+      version="2.4",
+      backend="pb",
+      precision="fp32",
+      check_validity=True,
+    )
+
     result = model.analyze(
       audio_paths,
       workers=params["n_workers"],

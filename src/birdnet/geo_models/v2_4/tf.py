@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable, Literal, final
+from typing import TYPE_CHECKING, final
 
 import numpy as np
 
@@ -21,7 +21,7 @@ import shutil
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Literal, final
+from typing import final
 
 from ordered_set import OrderedSet
 
@@ -32,7 +32,6 @@ from birdnet.base import (
   MODEL_BACKEND_TF,
   MODEL_BACKENDS,
   MODEL_LANGUAGES,
-  MODEL_PRECISIONS,
 )
 from birdnet.geo_models.base import GeoInferenceBackend
 from birdnet.geo_models.v2_4.base import GeoModelBaseV2_4
@@ -109,17 +108,17 @@ class GeoTFDownloaderV2_4:
       shutil.move(species_dl_dir, geo_lang_dir)
 
   @classmethod
-  def get_model_path_and_labels(cls, lang_id: str) -> tuple[Path, OrderedSet[str]]:
-    assert lang_id in AVAILABLE_LANGUAGES_V2_4
+  def get_model_path_and_labels(cls, lang: str) -> tuple[Path, OrderedSet[str]]:
+    assert lang in AVAILABLE_LANGUAGES_V2_4
     if not cls._check_geo_model_available():
       cls._download_geo_model()
     assert cls._check_geo_model_available()
 
     model_path, langs_path = cls._get_paths()
 
-    lang_file = langs_path / f"{lang_id}.txt"
+    lang_file = langs_path / f"{lang}.txt"
     if not lang_file.is_file():
-      raise ValueError(f"Language does not exist: {lang_id}")
+      raise ValueError(f"Language does not exist: {lang}")
 
     labels = get_species_from_file(lang_file, encoding="utf8")
     return model_path, labels
@@ -141,9 +140,9 @@ class GeoTFModelV2_4(GeoModelBaseV2_4):
   @classmethod
   def load_official(
     cls,
-    lang_id: MODEL_LANGUAGES,
+    lang: MODEL_LANGUAGES,
   ) -> GeoTFModelV2_4:
-    model_path, species_list = GeoTFDownloaderV2_4.get_model_path_and_labels(lang_id)
+    model_path, species_list = GeoTFDownloaderV2_4.get_model_path_and_labels(lang)
     result = GeoTFModelV2_4(model_path, species_list)
     return result
 

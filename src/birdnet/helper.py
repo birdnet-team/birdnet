@@ -22,6 +22,34 @@ if TYPE_CHECKING:
   from tensorflow.lite.python.interpreter import Interpreter as TFInterpreter
 
 
+def load_pb_model(model_path: Path):
+  import absl.logging
+
+  absl_verbosity_before = absl.logging.get_verbosity()
+  absl.logging.set_verbosity(absl.logging.ERROR)
+  tf_verbosity_before = logging.getLogger("tensorflow").level
+  logging.getLogger("tensorflow").setLevel(logging.ERROR)
+  os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+  import tensorflow as tf
+
+  # Note: memory growth needs to be set before loading the model and maybe only once in the main process
+  # physical_gpu_device = gpus_with_name[0]
+  # if tf.config.experimental.get_memory_growth(physical_gpu_device) is False:
+  #   tf.config.experimental.set_memory_growth(physical_gpu_device, True)
+
+  start = time.perf_counter()
+  model = tf.saved_model.load(str(model_path.absolute()))
+  end = time.perf_counter()
+  logger = get_logger(__name__)
+  logger.debug(
+    f"Model loaded from {model_path.absolute()} in {end - start:.2f} seconds."
+  )
+
+  absl.logging.set_verbosity(absl_verbosity_before)
+  logging.getLogger("tensorflow").setLevel(tf_verbosity_before)
+  return model
+
+
 def load_tf_model(
   model_path: Path,
   allocate_tensors: bool = False,
