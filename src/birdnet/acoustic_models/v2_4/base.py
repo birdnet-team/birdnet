@@ -480,7 +480,6 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     max_audio_duration_min: float | None = None,
     show_stats: Literal["no", "minimal", "progress", "benchmark"] = "no",
     device: str | list[str] = "CPU",
-    serial_io: bool = False,
     inference_library: Literal["tf", "litert"] | None = "tf",
   ) -> PredictionResult:
     debug_log = False

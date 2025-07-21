@@ -150,12 +150,6 @@ def run_benchmark_from_args(args: list[str]) -> None:
   )
 
   parser.add_argument(
-    "--serial-io",
-    action="store_true",
-    help="use serial I/O (default: False, i.e., use parallel I/O)",
-  )
-
-  parser.add_argument(
     "--show-stats",
     type=str,
     choices=["no", "minimal", "progress", "benchmark"],
@@ -197,5 +191,4 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
     use_bandpass=False,
     bandpass_fmax=None,
     bandpass_fmin=None,
-    serial_io=ns.serial_io,
   )
