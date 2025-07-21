@@ -11,7 +11,7 @@ from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.base import AcousticInferenceBackend
 from birdnet.acoustic_models.tf import AcousticTFBackend
-from birdnet.acoustic_models.v2_4.base import AVAILABLE_LANGUAGES, AcousticModelBaseV2_4
+from birdnet.acoustic_models.v2_4.base import AVAILABLE_LANGUAGES
 from birdnet.base import (
   MODEL_BACKEND_TF,
   MODEL_BACKENDS,
@@ -21,7 +21,7 @@ from birdnet.base import (
   MODEL_PRECISIONS,
 )
 from birdnet.geo_models.v2_4.base import GeoModelBaseV2_4
-from birdnet.helper import ModelInfo, load_litert_model
+from birdnet.helper import ModelInfo
 from birdnet.local_data import get_local_model_root_dir
 from birdnet.utils import download_file_tqdm, get_species_from_file
 

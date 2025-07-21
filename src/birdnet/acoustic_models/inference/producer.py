@@ -16,7 +16,6 @@ import soundfile as sf
 
 import birdnet.logging_utils as bn_logging
 from birdnet.globals import (
-  DONE_FLAG,
   READABLE_FLAG,
   READING_FLAG,
   WRITABLE_FLAG,
@@ -111,10 +110,6 @@ class ChildProducer(bn_logging.LogableProcessBase):
   def __init__(
     self,
     files_queue: Queue,
-    slot_ptr: Synchronized[ctypes.c_uint8]
-    | Synchronized[ctypes.c_uint16]
-    | Synchronized[ctypes.c_uint32]
-    | Synchronized[ctypes.c_uint64],
     batch_size: int,
     n_slots: int,
     rf_file_indices: RingField,
@@ -163,7 +158,6 @@ class ChildProducer(bn_logging.LogableProcessBase):
     self._n_slots = n_slots
     self._sem_free_slots = sem_free_slots
     self._sem_filled_slots = sem_filled_slots
-    self._slot_ptr: Synchronized[int] = slot_ptr  # type: ignore
     self._files_queue = files_queue
     self._use_bandpass = use_bandpass
     self._max_segment_idx_ptr = max_segment_idx_ptr  # type: ignore
@@ -353,11 +347,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
       perf_c = time.perf_counter()
       with self._prd_ring_access_lock:
         for current_slot in range(self._n_slots):
-          # current_slot = self._slot_ptr.value
           current_slot_flag = self._ring_flags[current_slot]
-          # can never be DONE because this flag is set after all segments from all files have been flushed
-          assert current_slot_flag != DONE_FLAG
-
           if current_slot_flag == WRITABLE_FLAG:
             claimed_slot = current_slot
             claimed_flag = current_slot_flag
@@ -432,64 +422,14 @@ class ChildProducer(bn_logging.LogableProcessBase):
       is_last_producer = self._prod_done_ptr.value == self._n_producers
 
     if is_last_producer:
-      self._logger.debug(
-        f"PRODUCER({os.getpid()}) - Last producer finished. Sending poison pills."
-      )
+      self._logger.debug(f"PRODUCER({os.getpid()}) - Last producer finished.")
       self._prd_all_done_event.set()
-      self._prod_stats_queue.close()
-      self._prod_stats_queue.join_thread()
-      self._logger.debug(f"PRODUCER({os.getpid()}) - Closed prod_stats_queue.")
-
-      # # send poison pills
-      # # can also use n_jobs here, but this is faster
-      # for _ in range(self._n_slots):
-      #   self._set_done_flag()
-      #   if self._check_cancel_event():
-      #     return
-
-    # self._uninit()
 
   def _check_cancel_event(self) -> bool:
     if self._cancel_event.is_set():
       self._logger.debug(f"PRODUCER({os.getpid()}) - Received cancel event.")
       return True
     return False
-
-  def _jump_to_next_slot_ptr(self) -> None:
-    """Increase the slot index, wrapping around if necessary."""
-    self._slot_ptr.value = (self._slot_ptr.value + 1) % self._n_slots
-    assert 0 <= self._slot_ptr.value < self._n_slots
-
-  def _set_done_flag(self) -> None:
-    raise NotImplementedError()
-    assert self._ring_flags is not None
-    # only one producer process gets into this method
-
-    """Set the DONE_FLAG in the shared memory to signal that no more data will be produced."""
-
-    while not self._sem_free_slots.acquire(timeout=1.0):
-      if self._check_cancel_event():
-        return
-
-    self._logger.debug(
-      f"PRODUCER({os.getpid()}) - Producer acquired FREE. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
-    )
-
-    if self._check_cancel_event():
-      return
-
-    while self._ring_flags[self._slot_ptr.value] != WRITABLE_FLAG:
-      self._jump_to_next_slot_ptr()
-      if self._check_cancel_event():
-        return
-
-    assert 0 <= self._slot_ptr.value < self._n_slots
-    self._ring_flags[self._slot_ptr.value] = DONE_FLAG
-    self._logger.debug(
-      f"PRODUCER({os.getpid()}) - Set DONE_FLAG on slot {self._slot_ptr.value}."
-    )
-    self._jump_to_next_slot_ptr()
-    self._sem_filled_slots.release()
 
   def _flush_batch(
     self, claimed_slot, file_indices, segment_indices, audio_samples

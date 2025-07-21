@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import ctypes
 import multiprocessing as mp
 import multiprocessing.synchronize
 import os
 import time
 from multiprocessing import Queue, shared_memory
-from multiprocessing.sharedctypes import Synchronized
 from multiprocessing.synchronize import Event, Semaphore
 
 import numpy as np
@@ -14,11 +12,9 @@ from numpy.typing import DTypeLike
 
 import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.base import (
-  AcousticInferenceBackend,
   AcousticInferenceBackendLoader,
 )
 from birdnet.globals import (
-  DONE_FLAG,
   READABLE_FLAG,
   READING_FLAG,
   WRITABLE_FLAG,
@@ -32,7 +28,6 @@ from birdnet.utils import flat_sigmoid_logaddexp_fast
 class ChildWorker(bn_logging.LogableProcessBase):
   def __init__(
     self,
-    # backend_cow: AcousticInferenceBackend | None,
     backend_loader: AcousticInferenceBackendLoader,
     top_k: int,
     species_thresholds: np.ndarray,
@@ -44,8 +39,6 @@ class ChildWorker(bn_logging.LogableProcessBase):
     rf_audio_samples: RingField,
     rf_batch_sizes: RingField,
     rf_flags: RingField,
-    backend_type: type[AcousticInferenceBackend],
-    backend_kwargs: dict,
     segment_duration_samples: int,
     out_q: Queue,
     wkr_ring_access_lock: multiprocessing.synchronize.Lock,
@@ -75,9 +68,7 @@ class ChildWorker(bn_logging.LogableProcessBase):
     self._backend_loader = backend_loader
     self._prd_all_done_event = prd_all_done_event
     self._wkr_ring_access_lock = wkr_ring_access_lock
-    self._backend = None  # backend
-    self._backend_type = backend_type
-    self._backend_kwargs = backend_kwargs
+    self._backend = None
     self._track_performance = track_performance
     self._wkr_stats_queue = wkr_stats_queue
     self._top_k = top_k
@@ -141,21 +132,11 @@ class ChildWorker(bn_logging.LogableProcessBase):
     if not self._lazy_init:
       self._init_logging()
       self._load_ring_buffers()
-      # self._lazy_init = False
-      # if self._backend_type is AcousticTFBackend:
-      #   # assert backend_cow is not None
-      #   # self._backend = backend_cow
-      # else:
-      #   # PB backend does not support non lazy initialization
-      #   assert self._backend_type is AcousticPBBackend
-      #   # assert backend_cow is None
 
   def _load_model(self) -> None:
     self._log_debug("Loading model...")
     try:
       self._backend = self._backend_loader.load_backend()
-      # self._backend = self._backend_type(**self._backend_kwargs)
-      # self._backend.load(self._io_lock_handler)
     except ValueError as e:
       self._log_debug(f"Failed to load model: {e}")
       raise e
@@ -248,7 +229,6 @@ class ChildWorker(bn_logging.LogableProcessBase):
       claimed_flag = None
 
       perf_c = time.perf_counter()
-      n_done = 0
       with self._wkr_ring_access_lock:
         for current_slot in range(self._n_slots):
           current_slot_flag = self._ring_flags[current_slot]
@@ -259,8 +239,6 @@ class ChildWorker(bn_logging.LogableProcessBase):
             claimed_flag = current_slot_flag
             self._ring_flags[claimed_slot] = READING_FLAG
             break
-          elif current_slot_flag == DONE_FLAG:
-            n_done += 1
           else:
             assert current_slot_flag in (
               WRITABLE_FLAG,

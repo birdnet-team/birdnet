@@ -30,7 +30,6 @@ from ordered_set import OrderedSet
 
 import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.base import (
-  AcousticInferenceBackend,
   AcousticInferenceBackendLoader,
   AcousticModelBase,
 )
@@ -793,16 +792,6 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     species_thresholds = thresholds[np.newaxis, :]
     species_thresholds.setflags(write=False)
     worker_queue = mp.Queue()
-    # worker_slot_ptr = mp.Value(
-    #   uint_ctype_from_dtype(uint_dtype_for(n_slots - 1)),  # type: ignore
-    #   0,
-    #   lock=True,  # Lock = false?
-    # )  # type: ignore
-    producer_slot_ptr = mp.Value(
-      uint_ctype_from_dtype(uint_dtype_for(n_slots - 1)),  # type: ignore
-      0,
-      lock=True,
-    )  # type: ignore
     prd_ring_access_lock = mp.Lock()
     wkr_ring_access_lock = mp.Lock()
     prd_all_done_event = mp.Event()
@@ -862,7 +851,6 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         mp.Process(
           target=ChildProducer(
             files_queue=files_queue,
-            slot_ptr=producer_slot_ptr,
             batch_size=batch_size,
             prd_all_done_event=prd_all_done_event,
             n_slots=n_slots,
@@ -900,8 +888,6 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       for p in producer_processes:
         p.start()
 
-      backend_kwargs = [self.get_inference_backend_args() for _ in range(workers)]
-
       backend_kwargs2 = self.get_inference_backend_args()
       if self.get_backend() == MODEL_BACKEND_TF:
         backend_kwargs2["inference_library"] = inference_library
@@ -918,25 +904,11 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         cancel_event.set()
         logger.error(f"Error during backend initialization: {exc}.")
 
-      # # Copy-on-write backend instance for forked processes
-      # backend_cow: AcousticInferenceBackend | None = None
-      # if (
-      #   mp.get_start_method() == "fork"
-      #   and self.get_inference_backend_type() is AcousticTFBackend
-      # ):
-      #   backend_cow = self.get_inference_backend_type()(
-      #     **self.get_inference_backend_args()
-      #   )
-      #   backend_cow.load(io_lock_handler)
-
       worker_processes = [
         mp.Process(
           target=ChildWorker(
-            # backend_cow=backend_cow,
-            backend_type=self.get_inference_backend_type(),
             backend_loader=backend_loader,
             device=devices[i],
-            backend_kwargs=backend_kwargs[i],
             top_k=top_k,
             species_thresholds=species_thresholds,
             species_blacklist=species_blacklist,
@@ -1177,61 +1149,11 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         else None,
       )
 
-      # bm = OrderedDict()
-
-      # wall_time_s = stop - start
-      # pc_segments_per_s = total_segments_processed / wall_time_s
-      # samples_per_second = (
-      #   AcousticModelBaseV2_4.get_segment_size_samples() * pc_segments_per_s
-      # )
-
-      # bm["model_pred_ms_per_segment"] = None
-      # bm["pc_segments_per_s"] = pc_segments_per_s
-      # bm["pc_audio_min_per_s"] = (
-      #   pc_segments_per_s * AcousticModelBaseV2_4.get_segment_size_s() / 60
-      # )
-      # bm["pc_s_per_audio_h"] = 60 / bm["pc_audio_min_per_s"]
-
-      # total_segments_processed = perf_result["total_segments_processed"]
-      # cpu_time_s = perf_result["summed_prediction_duration_s"]
-      # model_pred_ms_per_segment = cpu_time_s / total_segments_processed * 1000
-
-      # raw_segments_per_s = total_segments_processed / (
-      #   cpu_time_s / perf_result["avg_busy_slots"]
-      # )
-
-      # Metrics
-
-      # bm["raw_segments_per_s"] = raw_segments_per_s
-      # bm["raw_min_per_s"] = (
-      #   bm["raw_segments_per_s"] * AcousticModelBaseV2_4.get_segment_size_s() / 60
-      # )
-      # bm["raw_avg_segments_per_s_last"] = perf_result["avg_segments_per_s_last"]
-      # bm["raw_avg_raw_min_per_s_last"] = (
-      #   bm["raw_avg_segments_per_s_last"] * AcousticModelBaseV2_4.get_segment_size_s() / 60
-      # )
-      # bm["raw_avg_s_for_one_hour_last"] = 60 / bm["raw_avg_raw_min_per_s_last"]
-      # bm["raw_s_for_one_hour"] = 60 / bm["raw_min_per_s"]
-      # bm["raw_segments_per_s_max"] = perf_result["max_raw_segments_per_s"]
-      # bm["raw_min_per_s_max"] = (
-      #   bm["raw_segments_per_s_max"] * AcousticModelBaseV2_4.get_segment_size_s() / 60
-      # )
-      # bm["raw_s_for_one_hour_max"] = 60 / bm["raw_min_per_s_max"]
-
-      # bm["model_pred_ms_per_segment"] = model_pred_ms_per_segment
-      # bm["model_pred_ms_per_batch"] = (
-      #   bm["cpu_time_s"] / bm["n_batches_processed"] * 1000
-      # )
-
-      # bm["real_time_factor"] = 0
-      # bm["speed_x_real_time"] = 0
-
       bm = asdict(bmm)
       del_keys = [k for k in bm if k.startswith("_")]
       for k in del_keys:
         del bm[k]
       bm = bmm.to_dict()
-      # print(bm.items())
 
       assert benchmark_dir is not None
       assert benchmark_run_out_dir is not None
@@ -1281,13 +1203,6 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         f"Worker performance:\n"
         f"  {bmm.speed_worker_xrt:.0f} x real-time (RTF: {bmm.speed_worker_rtf:.8f})\n"
         f"  {bmm.speed_worker_total_seg_per_second:.0f} segments/s ({bmm.speed_worker_total_audio_per_second} audio/s)\n"
-        # f"  {bmm.speed_worker_xrt_max:.0f} x real-time (max)\n"
-        # f"\tAudio processing (all): {bmm.pc_audio_min_per_s:.2f} min audio/s ({bmm.pc_s_per_audio_h:.2f} s/h audio; {bmm.pc_segments_per_s:.2f} segments/s)\n"
-        # f"\tAudio processing (computation):\n"
-        # f"\t\tMean: {bmm.raw_min_per_s:.2f} min audio/s ({bmm.raw_s_for_one_hour:.2f} s/h audio; {bmm.raw_segments_per_s:.2f} segments/s)\n"
-        # f"\t\tMean (last 30s): {bmm.raw_avg_raw_min_per_s_last:.2f} min audio/s ({bmm.raw_avg_s_for_one_hour_last:.2f} s/h audio; {bmm.raw_avg_segments_per_s_last:.2f} segments/s)\n"
-        # f"\t\tBest: {bmm.raw_min_per_s_max:.2f} min audio/s ({bmm.raw_s_for_one_hour_max:.2f} s/h audio; {bmm.raw_segments_per_s_max:.2f} segments/s)\n"
-        # f"\tPrediction speed: {bmm.model_pred_ms_per_segment:.2f} ms/segment ({bmm.model_pred_ms_per_batch:.2f} ms/batch)\n"
       )
       stats_human_readable_out.write_text(summary, encoding="utf8")
 

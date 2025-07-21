@@ -15,6 +15,3 @@ READABLE_FLAG = np.uint8(2)
 # flag for "busy", i.e., currently being processed
 READING_FLAG = np.uint8(3)
 
-# flag for "done"
-DONE_FLAG = np.uint8(4)
-
