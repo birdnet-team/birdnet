@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import multiprocessing as mp
 import multiprocessing.synchronize
-from logging.handlers import QueueHandler
+from logging.handlers import MemoryHandler, QueueHandler
 from multiprocessing import Queue
 from pathlib import Path
 
@@ -90,7 +90,6 @@ class QueueFileWriter:
     log_queue: Queue,
     logging_level: int,
     log_file: Path,
-    io_lock_handler: IOLockHandler,
     cancel_event: multiprocessing.synchronize.Event,
     stop_event: multiprocessing.synchronize.Event,
     processing_finished_event: multiprocessing.synchronize.Event,
@@ -98,7 +97,6 @@ class QueueFileWriter:
     self._logging_level = logging_level
     self._log_queue = log_queue
     self._log_file = log_file
-    self._io_log_handler = io_lock_handler
     self._cancel_event = cancel_event
     self._logging_stop_event = stop_event
     self._get_logs_interval = 3
@@ -118,12 +116,11 @@ class QueueFileWriter:
     h = logging.FileHandler(self._log_file, mode="w", encoding="utf-8")
 
     LARGE_LOG_SIZE_THAT_WILL_NOT_BE_REACHED = 100000
-    mh = LockedMemoryHandler(
+    mh = MemoryHandler(
       capacity=LARGE_LOG_SIZE_THAT_WILL_NOT_BE_REACHED,
       flushLevel=logging.WARNING,
       target=h,
       flushOnClose=True,
-      io_lock_handler=self._io_log_handler,
     )
 
     h.setFormatter(f)

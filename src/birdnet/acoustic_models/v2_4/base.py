@@ -605,9 +605,6 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     # print("PID", os.getpid())
     track_performance = show_stats in ("progress", "benchmark")
 
-    io_lock = mp.Lock() if serial_io else None
-    io_lock_handler = IOLockHandler(serial_io, io_lock)
-
     log_file = Path(Path(tempfile.gettempdir()) / f"{PKG_NAME}.log")
 
     benchmark_dir: Path | None = None
@@ -636,7 +633,6 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         log_queue=logging_queue,
         logging_level=logging_level,
         log_file=log_file,
-        io_lock_handler=io_lock_handler,
         cancel_event=cancel_event,
         stop_event=logging_stop_event,
         processing_finished_event=processing_finished_event,
@@ -840,7 +836,6 @@ class AcousticModelBaseV2_4(AcousticModelBase):
           analyzing_result=analyzer_queue,
           tot_n_segments=tot_n_segments_ptr,
           cancel_event=cancel_event,
-          io_lock_handler=io_lock_handler,
         ),
         name="FileAnalyzer",
         daemon=True,
@@ -878,7 +873,6 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             prod_done_ptr=prod_done_ptr,
             n_prods=feeders,
             cancel_event=cancel_event,
-            io_lock_handler=io_lock_handler,
           ),
           name=f"ChildProducer-{i}",
           daemon=True,
@@ -895,7 +889,6 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       backend_loader = AcousticInferenceBackendLoader(
         backend_type=self.get_inference_backend_type(),
         backend_kwargs=backend_kwargs2,
-        io_lock_handler=io_lock_handler,
       )
 
       try:
@@ -934,7 +927,6 @@ class AcousticModelBaseV2_4(AcousticModelBase):
             track_performance=track_performance,
             cancel_event=cancel_event,
             sem_active_workers=sem_active_workers,
-            io_lock_handler=io_lock_handler,
           ),
           name=f"ChildWorker-{i}",
           daemon=True,

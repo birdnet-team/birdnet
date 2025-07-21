@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING
 import numpy as np
 from numpy.typing import DTypeLike
 
-from birdnet.io_lock import IOLockHandler
 from birdnet.logging_utils import get_logger
 
 if TYPE_CHECKING:
@@ -25,7 +24,6 @@ if TYPE_CHECKING:
 
 def load_tf_model(
   model_path: Path,
-  io_lock_handler: IOLockHandler | None,
   allocate_tensors: bool = False,
 ) -> TFInterpreter:
   assert model_path.is_file()
@@ -52,12 +50,11 @@ def load_tf_model(
   # self._mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
   start = time.perf_counter()
   try:
-    with io_lock_handler or nullcontext():
-      interp = tflite.Interpreter(
-        str(model_path.absolute()),
-        num_threads=1,
-        experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,  # tensor#187 is a dynamic-sized tensor # type: ignore
-      )
+    interp = tflite.Interpreter(
+      str(model_path.absolute()),
+      num_threads=1,
+      experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,  # tensor#187 is a dynamic-sized tensor # type: ignore
+    )
   except ValueError as e:
     raise ValueError(
       f"Failed to load model '{model_path.absolute()}' using 'tensorflow'. Ensure it is a valid TFLite model."
@@ -84,7 +81,6 @@ def load_tf_model(
 
 def load_litert_model(
   model_path: Path,
-  io_lock_handler: IOLockHandler | None,
   allocate_tensors: bool = False,
 ) -> LiteRTInterpreter:
   assert model_path.is_file()
@@ -94,12 +90,11 @@ def load_litert_model(
 
   start = time.perf_counter()
   try:
-    with io_lock_handler or nullcontext():
-      interp = tflite.Interpreter(
-        str(model_path.absolute()),
-        num_threads=1,
-        experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,  # tensor#187 is a dynamic-sized tensor # type: ignore
-      )
+    interp = tflite.Interpreter(
+      str(model_path.absolute()),
+      num_threads=1,
+      experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,  # tensor#187 is a dynamic-sized tensor # type: ignore
+    )
   except ValueError as e:
     raise ValueError(
       f"Failed to load model '{model_path.absolute()}' using 'ai_edge_litert'. Ensure it is a valid TFLite model."

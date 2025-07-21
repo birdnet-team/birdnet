@@ -186,7 +186,7 @@ class AcousticPBBackend(AcousticInferenceBackend):
     return False
 
   @final
-  def load(self, io_lock_handler: IOLockHandler) -> None:
+  def load(self) -> None:
     import absl.logging
 
     absl_verbosity_before = absl.logging.get_verbosity()
@@ -203,10 +203,9 @@ class AcousticPBBackend(AcousticInferenceBackend):
     # if tf.config.experimental.get_memory_growth(physical_gpu_device) is False:
     #   tf.config.experimental.set_memory_growth(physical_gpu_device, True)
 
-    with io_lock_handler:
-      start = time.perf_counter()
-      audio_model = tf.saved_model.load(self._model_path)
-      end = time.perf_counter()
+    start = time.perf_counter()
+    audio_model = tf.saved_model.load(self._model_path)
+    end = time.perf_counter()
     logger = get_logger(__name__)
     logger.debug(f"Model loaded from {self._model_path} in {end - start:.2f} seconds.")
 

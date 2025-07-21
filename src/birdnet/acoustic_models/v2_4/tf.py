@@ -182,7 +182,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     assert model_path.is_file()
     assert species_list.is_file()
 
-    interp = load_litert_model(model_path, io_lock_handler=None, allocate_tensors=False)
+    interp = load_litert_model(model_path, allocate_tensors=False)
 
     loaded_species_list: OrderedSet[str]
     try:
@@ -236,7 +236,6 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     #     "inference_library": inference_library,
     #   }
     #   backend_type= AcousticTFBackend,
-    #   io_lock_handler=None,
     # )
     return super().analyze(
       inp,
@@ -280,16 +279,12 @@ class AcousticTFBackend(AcousticInferenceBackend):
   def supports_cow(cls) -> bool:
     return True
 
-  def load(self, io_lock_handler: IOLockHandler) -> None:
+  def load(self) -> None:
     assert self._interp is None
     if self._inference_library == "tf":
-      self._interp = load_tf_model(
-        self._model_path, io_lock_handler, allocate_tensors=True
-      )
+      self._interp = load_tf_model(self._model_path, allocate_tensors=True)
     elif self._inference_library == "litert":
-      self._interp = load_litert_model(
-        self._model_path, io_lock_handler, allocate_tensors=True
-      )
+      self._interp = load_litert_model(self._model_path, allocate_tensors=True)
     else:
       raise AssertionError()
 

@@ -9,7 +9,7 @@ from birdnet.io_lock import IOLockHandler
 
 class AcousticInferenceBackend(ABC):
   @abstractmethod
-  def load(self, io_lock_handler: IOLockHandler) -> None: ...
+  def load(self) -> None: ...
 
   @abstractmethod
   def infer(self, batch: np.ndarray, device_name: str) -> np.ndarray: ...
@@ -24,17 +24,15 @@ class AcousticInferenceBackendLoader:
     self,
     backend_type: type[AcousticInferenceBackend],
     backend_kwargs: dict,
-    io_lock_handler: IOLockHandler,
   ) -> None:
     self._backend_type = backend_type
     self._backend_kwargs = backend_kwargs
-    self._io_lock_handler = io_lock_handler
     self._backend: AcousticInferenceBackend | None = None
 
   def _load_backend(self) -> AcousticInferenceBackend:
     assert self._backend is None
     backend = self._backend_type(**self._backend_kwargs)
-    backend.load(self._io_lock_handler)
+    backend.load()
     self._backend = backend
     return backend
 

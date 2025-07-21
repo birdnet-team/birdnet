@@ -54,7 +54,6 @@ class ChildWorker(bn_logging.LogableProcessBase):
     logging_level: int,
     device: str,
     cancel_event: Event,
-    io_lock_handler: IOLockHandler,
     prd_all_done_event: Event,
   ):
     super().__init__(__name__, logging_queue, logging_level)
@@ -87,7 +86,6 @@ class ChildWorker(bn_logging.LogableProcessBase):
     if apply_sigmoid:
       assert sigmoid_sensitivity is not None
       self._sigmoid_sensitivity = sigmoid_sensitivity
-    self._io_lock_handler = io_lock_handler
     # Interpreter
     self._slot = 0
     self._batch_idx_cache = {}

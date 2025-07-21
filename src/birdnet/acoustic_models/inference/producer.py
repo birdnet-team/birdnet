@@ -143,7 +143,6 @@ class ChildProducer(bn_logging.LogableProcessBase):
     bandpass_fmax: int | None,
     fmin: int | None,
     fmax: int | None,
-    io_lock_handler: IOLockHandler,
   ):
     super().__init__(__name__, logging_queue, logging_level)
 
@@ -163,7 +162,6 @@ class ChildProducer(bn_logging.LogableProcessBase):
     self._max_segment_idx_ptr = max_segment_idx_ptr  # type: ignore
     self._prod_done_ptr: Synchronized[int] = prod_done_ptr  # type: ignore
     self._n_producers = n_prods
-    self._io_lock_handler = io_lock_handler
 
     if use_bandpass:
       assert bandpass_fmin is not None
@@ -244,8 +242,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
       assert isinstance(queue_entry, tuple)
       file_index, path = queue_entry
 
-      with self._io_lock_handler:
-        audio_duration_s = get_audio_duration_s(path)
+      audio_duration_s = get_audio_duration_s(path)
       file_n_segments = get_max_n_segments(
         audio_duration_s, self._segment_duration_s, self._overlap_duration_s
       )
@@ -260,7 +257,6 @@ class ChildProducer(bn_logging.LogableProcessBase):
         self._max_segment_idx_ptr.value = file_max_segment_index
       segments = load_audio_in_segments_with_overlap_locked(
         path,
-        self._io_lock_handler,
         segment_duration_s=self._segment_duration_s,
         overlap_duration_s=self._overlap_duration_s,
         target_sample_rate=self._target_sample_rate,
@@ -513,7 +509,6 @@ def get_audio_duration_s(audio_path: Path) -> float:
 
 def load_audio_in_segments_with_overlap_locked(
   audio_path: Path,
-  io_lock_handler: IOLockHandler,
   /,
   *,
   segment_duration_s: float = 3,
@@ -524,8 +519,7 @@ def load_audio_in_segments_with_overlap_locked(
   assert audio_path.is_file()
   assert audio_path.suffix.upper() in SF_FORMATS
 
-  with io_lock_handler:
-    sf_info = sf.info(audio_path)
+  sf_info = sf.info(audio_path)
 
   if sf_info.channels > 2:
     raise ValueError(
@@ -543,12 +537,11 @@ def load_audio_in_segments_with_overlap_locked(
   for start, end in timestamps:
     start_samples = round(start * sample_rate)
     end_samples = round(end * sample_rate)
-    with io_lock_handler:
-      audio, _ = sf.read(
-        audio_path, start=start_samples, stop=end_samples, dtype=np.float32
-      )
+    audio, _ = sf.read(
+      audio_path, start=start_samples, stop=end_samples, dtype=np.float32
+    )
 
-      if audio.ndim == 2:
-        audio = np.mean(audio, axis=1, dtype=np.float32)
+    if audio.ndim == 2:
+      audio = np.mean(audio, axis=1, dtype=np.float32)
     audio = resample_array(audio, sample_rate, target_sample_rate)
     yield audio
