@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, final
+from typing import TYPE_CHECKING, Iterable, Literal, final
 
 import numpy as np
 
-from birdnet.acoustic_models.base import AcousticInferenceBackend
+from birdnet.acoustic_models.base import (
+  AcousticInferenceBackend,
+  AcousticInferenceBackendLoader,
+)
+from birdnet.acoustic_models.inference.prediction_result import PredictionResult
 from birdnet.helper import load_litert_model, load_tf_model
 from birdnet.io_lock import IOLockHandler
 
@@ -200,6 +204,63 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     result._use_custom_model = True
     result._precision = precision
     return result
+
+  def analyze(
+    self,
+    inp: Path | str | Iterable[Path | str],
+    /,
+    *,
+    top_k: int | None = 5,
+    feeders: int = 1,
+    workers: int = 4,
+    batch_size: int = 1,
+    prefetch_ratio: int = 1,
+    overlap_duration_s: float = 0,
+    default_confidence_threshold: float | None = 0.1,
+    custom_confidence_thresholds: dict[str, float] | None = None,
+    use_bandpass: bool = False,
+    bandpass_fmin: int | None = None,
+    bandpass_fmax: int | None = None,
+    apply_sigmoid: bool = True,
+    sigmoid_sensitivity: float | None = 1.0,
+    custom_species_list: set[str] | None = None,
+    half_precision: bool = True,
+    max_audio_duration_min: float | None = None,
+    show_stats: Literal["no", "minimal", "progress", "benchmark"] = "no",
+    serial_io: bool = False,
+    inference_library: Literal["tf", "litert"] = "tf",
+  ) -> PredictionResult:
+    # backend_loader = AcousticInferenceBackendLoader(
+    #   backend_kwargs={
+    #     "model_path": self.model_path,
+    #     "inference_library": inference_library,
+    #   }
+    #   backend_type= AcousticTFBackend,
+    #   io_lock_handler=None,
+    # )
+    return super().analyze(
+      inp,
+      top_k=top_k,
+      feeders=feeders,
+      workers=workers,
+      batch_size=batch_size,
+      prefetch_ratio=prefetch_ratio,
+      overlap_duration_s=overlap_duration_s,
+      default_confidence_threshold=default_confidence_threshold,
+      custom_confidence_thresholds=custom_confidence_thresholds,
+      use_bandpass=use_bandpass,
+      bandpass_fmin=bandpass_fmin,
+      bandpass_fmax=bandpass_fmax,
+      apply_sigmoid=apply_sigmoid,
+      sigmoid_sensitivity=sigmoid_sensitivity,
+      custom_species_list=custom_species_list,
+      half_precision=half_precision,
+      max_audio_duration_min=max_audio_duration_min,
+      show_stats=show_stats,
+      device="CPU",
+      serial_io=serial_io,
+      inference_library=inference_library,
+    )
 
 
 class AcousticTFBackend(AcousticInferenceBackend):

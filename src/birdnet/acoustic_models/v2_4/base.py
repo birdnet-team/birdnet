@@ -481,7 +481,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     show_stats: Literal["no", "minimal", "progress", "benchmark"] = "no",
     device: str | list[str] = "CPU",
     serial_io: bool = False,
-    inference_library: Literal["tf", "litert"] = "tf",
+    inference_library: Literal["tf", "litert"] | None = "tf",
   ) -> PredictionResult:
     debug_log = False
 
