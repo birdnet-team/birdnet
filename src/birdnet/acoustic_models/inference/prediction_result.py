@@ -358,6 +358,6 @@ class PredictionResult:
 
 def hms_centis_fast(v: float) -> str:
   h, rem = divmod(v, 3600)
-  m, s = divmod(rem, 60)  # s bleibt Float
+  m, s = divmod(rem, 60)
   result = f"{int(h):02}:{int(m):02}:{s:05.2f}"
   return result

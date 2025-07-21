@@ -59,9 +59,7 @@ class AcousticModelBase(ModelBase):
   def __init__(
     self, model_path: Path, species_list: OrderedSet[str], precision: MODEL_PRECISIONS
   ) -> None:
-    super().__init__()
-    self._model_path = model_path
-    self._species_list = species_list
+    super().__init__(model_path, species_list)
     self._precision = precision
 
   @classmethod
@@ -74,15 +72,3 @@ class AcousticModelBase(ModelBase):
     Returns the precision of the model.
     """
     return self._precision  # type: ignore
-
-  @property
-  def model_path(self) -> Path:
-    return self._model_path
-
-  @property
-  def species_list(self) -> OrderedSet[str]:
-    return self._species_list
-
-  @property
-  def n_species(self) -> int:
-    return len(self.species_list)

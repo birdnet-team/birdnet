@@ -19,14 +19,16 @@ from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.base import AcousticInferenceBackend
 from birdnet.acoustic_models.inference.prediction_result import PredictionResult
-from birdnet.acoustic_models.v2_4.base import AVAILABLE_LANGUAGES, AcousticModelBaseV2_4
+from birdnet.acoustic_models.v2_4.base import AcousticModelBaseV2_4
 from birdnet.base import (
   MODEL_BACKEND_PB,
   MODEL_BACKENDS,
   MODEL_PRECISION_FLOAT32,
 )
+from birdnet.helper import ModelInfo
 from birdnet.local_data import get_local_model_root_dir
 from birdnet.logging_utils import get_logger
+from birdnet.translations import AVAILABLE_LANGUAGES_V2_4
 from birdnet.utils import download_file_tqdm, get_species_from_file
 
 
@@ -61,7 +63,7 @@ class AcousticPBDownloaderV2_4:
     model_is_downloaded &= check_protobuf_model_files_exist(model_path)
 
     model_is_downloaded &= lang_dir.is_dir()
-    for lang in AVAILABLE_LANGUAGES:
+    for lang in AVAILABLE_LANGUAGES_V2_4:
       model_is_downloaded &= (lang_dir / f"{lang}.txt").is_file()
 
     return model_is_downloaded
@@ -145,18 +147,11 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
     return result
 
   @classmethod
-  def load_custom(cls, model_path: Path, species_list: Path) -> AcousticPBModelV2_4:
-    assert model_path.is_file()
+  def load_custom(
+    cls, model: Path, species_list: Path, check_validity: bool = True
+  ) -> AcousticPBModelV2_4:
+    assert model.is_dir()
     assert species_list.is_file()
-
-    import tensorflow as tf
-
-    try:
-      tf.saved_model.load(model_path)
-    except ValueError as e:
-      raise ValueError(
-        f"Failed to load model '{model_path.absolute()}'. Ensure it is a valid TFLite model."
-      ) from e
 
     loaded_species_list: OrderedSet[str]
     try:
@@ -166,8 +161,24 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
         f"Failed to read species list from '{species_list.absolute()}'. Ensure it is a valid text file."
       ) from e
 
+    import tensorflow as tf
+
+    if check_validity:
+      try:
+        interp = tf.saved_model.load(model)
+      except ValueError as e:
+        raise ValueError(
+          f"Failed to load model '{model.absolute()}'. Ensure it is a valid TFLite model."
+        ) from e
+
+      n_species_in_model = interp.get_output_details()[0]["shape"][1]
+      if n_species_in_model != len(loaded_species_list):
+        raise ValueError(
+          f"Model '{model.absolute()}' has {n_species_in_model} outputs, but species list '{species_list.absolute()}' has {len(loaded_species_list)} species!"
+        )
+
     result = AcousticPBModelV2_4(
-      model_path=model_path, species_list=loaded_species_list, use_custom_model=True
+      model_path=model, species_list=loaded_species_list, use_custom_model=True
     )
 
     return result
@@ -255,7 +266,7 @@ class PBAcousticInferenceBackend(AcousticInferenceBackend):
     #   tf.config.experimental.set_memory_growth(physical_gpu_device, True)
 
     start = time.perf_counter()
-    audio_model = tf.saved_model.load(self._model_path)
+    model = tf.saved_model.load(self._model_path)
     end = time.perf_counter()
     logger = get_logger(__name__)
     logger.debug(f"Model loaded from {self._model_path} in {end - start:.2f} seconds.")
@@ -263,7 +274,7 @@ class PBAcousticInferenceBackend(AcousticInferenceBackend):
     absl.logging.set_verbosity(absl_verbosity_before)
     logging.getLogger("tensorflow").setLevel(tf_verbosity_before)
 
-    self._infer_fn = audio_model.signatures["basic"]  # type: ignore
+    self._infer_fn = model.signatures["basic"]  # type: ignore
 
   def _set_logical_device(self, device_name: str) -> None:
     assert "GPU" in device_name or "CPU" in device_name

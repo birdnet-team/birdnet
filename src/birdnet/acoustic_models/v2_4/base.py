@@ -42,6 +42,7 @@ from birdnet.acoustic_models.v2_4.banchmarking import (
 from birdnet.base import (
   ACOUSTIC_MODEL_VERSION_V2_4,
   ACOUSTIC_MODEL_VERSIONS,
+  MODEL_BACKEND_TF,
   MODEL_PRECISIONS,
   MODEL_TYPE_ACOUSTIC,
   MODEL_TYPES,
@@ -58,39 +59,6 @@ from birdnet.helper import (
 )
 from birdnet.local_data import get_benchmark_dir
 from birdnet.logging_utils import QueueFileWriter, get_package_logging_level
-
-# Can't be a property of base class, because in custom models, the languages are not known
-AVAILABLE_LANGUAGES: OrderedSet[str] = OrderedSet(
-  (
-    "af",
-    "ar",
-    "cs",
-    "da",
-    "de",
-    "en_uk",
-    "en_us",
-    "es",
-    "fi",
-    "fr",
-    "hu",
-    "it",
-    "ja",
-    "ko",
-    "nl",
-    "no",
-    "pl",
-    "pt",
-    "ro",
-    "ru",
-    "sk",
-    "sl",
-    "sv",
-    "th",
-    "tr",
-    "uk",
-    "zh",
-  )
-)
 
 
 class AcousticModelBaseV2_4(AcousticModelBase):
@@ -255,7 +223,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
 
     devices = device if isinstance(device, list) else [device] * workers
 
-    if self.get_backend() == "tf":
+    if self.get_backend() == MODEL_BACKEND_TF:
       for d in devices:
         if "GPU" in d:
           raise ValueError(

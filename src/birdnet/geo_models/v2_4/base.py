@@ -13,25 +13,8 @@ from birdnet.geo_models.base import GeoModelBase
 
 
 class GeoModelBaseV2_4(GeoModelBase):
-  def __init__(self) -> None:
-    super().__init__()
-    self._model_path: Path | None = None
-    self._species_list: OrderedSet[str] | None = None
-    self._use_custom_model: bool | None = None
-
-  @property
-  def n_species(self) -> int:
-    return len(self.species_list)
-
-  @property
-  def model_path(self) -> Path:
-    assert self._model_path is not None
-    return self._model_path
-
-  @property
-  def species_list(self) -> OrderedSet[str]:
-    assert self._species_list is not None
-    return self._species_list
+  def __init__(self, model_path: Path, species_list: OrderedSet[str]) -> None:
+    super().__init__(model_path, species_list)
 
   @classmethod
   @final

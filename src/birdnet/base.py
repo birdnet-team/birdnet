@@ -1,5 +1,16 @@
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Literal
+
+from ordered_set import OrderedSet
+
+LIBRARY_TF = "tf"
+LIBRARY_LITERT = "litert"
+LIBRARY_TYPES = Literal["tf", "litert"]
+VALID_LIBRARY_TYPES = [
+  LIBRARY_TF,
+  LIBRARY_LITERT,
+]
 
 MODEL_TYPE_ACOUSTIC = "acoustic"
 MODEL_TYPE_GEO = "geo"
@@ -67,9 +78,23 @@ MODEL_LANGUAGES = Literal[
 
 
 class ModelBase(ABC):
-  def __init__(self) -> None:
+  def __init__(self, model_path: Path, species_list: OrderedSet[str]) -> None:
     super().__init__()
+    self._model_path = model_path
+    self._species_list = species_list
 
   @classmethod
   @abstractmethod
   def get_backend(cls) -> MODEL_BACKENDS: ...
+
+  @property
+  def model_path(self) -> Path:
+    return self._model_path
+
+  @property
+  def species_list(self) -> OrderedSet[str]:
+    return self._species_list
+
+  @property
+  def n_species(self) -> int:
+    return len(self.species_list)

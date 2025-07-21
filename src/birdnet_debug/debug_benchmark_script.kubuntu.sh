@@ -1,4 +1,4 @@
-birdnet-benchmark example/soundscape.wav /tmp/soundscape.csv
+birdnet-benchmark example/soundscape.wav
 
 birdnet-benchmark.exe example/soundscape.wav soundscape.csv
 birdnet-benchmark src\\birdnet_v2_debug /tmp/soundscape2.csv -w 1

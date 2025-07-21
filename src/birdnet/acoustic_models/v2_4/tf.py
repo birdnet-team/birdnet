@@ -9,7 +9,13 @@ from birdnet.acoustic_models.base import (
   AcousticInferenceBackend,
 )
 from birdnet.acoustic_models.inference.prediction_result import PredictionResult
-from birdnet.helper import load_litert_model, load_tf_model
+from birdnet.helper import (
+  litert_installed,
+  load_litert_model,
+  load_tf_model,
+  tf_installed,
+)
+from birdnet.translations import AVAILABLE_LANGUAGES_V2_4
 
 if TYPE_CHECKING:
   from ai_edge_litert.interpreter import Interpreter as TFLiteInterpreter
@@ -26,8 +32,11 @@ from typing import Literal, final
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.base import AcousticInferenceBackend
-from birdnet.acoustic_models.v2_4.base import AVAILABLE_LANGUAGES, AcousticModelBaseV2_4
+from birdnet.acoustic_models.v2_4.base import AcousticModelBaseV2_4
 from birdnet.base import (
+  LIBRARY_LITERT,
+  LIBRARY_TF,
+  LIBRARY_TYPES,
   MODEL_BACKEND_TF,
   MODEL_BACKENDS,
   MODEL_LANGUAGES,
@@ -35,6 +44,7 @@ from birdnet.base import (
   MODEL_PRECISION_FLOAT32,
   MODEL_PRECISION_INT8,
   MODEL_PRECISIONS,
+  VALID_LIBRARY_TYPES,
 )
 from birdnet.helper import ModelInfo, load_litert_model
 from birdnet.local_data import get_local_model_root_dir
@@ -90,7 +100,9 @@ class AcousticTFDownloaderV2_4:
     if not lang_dir.is_dir():
       return False
 
-    return all((lang_dir / f"{lang}.txt").is_file() for lang in AVAILABLE_LANGUAGES)
+    return all(
+      (lang_dir / f"{lang}.txt").is_file() for lang in AVAILABLE_LANGUAGES_V2_4
+    )
 
   @classmethod
   def _download_acoustic_model(cls, precision: MODEL_PRECISIONS) -> None:
@@ -123,7 +135,7 @@ class AcousticTFDownloaderV2_4:
   def get_model_path_and_labels(
     cls, lang_id: str, precision: MODEL_PRECISIONS
   ) -> tuple[Path, OrderedSet[str]]:
-    assert lang_id in AVAILABLE_LANGUAGES
+    assert lang_id in AVAILABLE_LANGUAGES_V2_4
     if not cls._check_acoustic_model_available(precision):
       cls._download_acoustic_model(precision)
     assert cls._check_acoustic_model_available(precision)
@@ -168,12 +180,14 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
 
   @classmethod
   def load_custom(
-    cls, model_path: Path, species_list: Path, precision: MODEL_PRECISIONS
+    cls,
+    model: Path,
+    species_list: Path,
+    precision: MODEL_PRECISIONS,
+    check_validity: bool = True,
   ) -> AcousticTFModelV2_4:
-    assert model_path.is_file()
+    assert model.is_file()
     assert species_list.is_file()
-
-    interp = load_litert_model(model_path, allocate_tensors=False)
 
     loaded_species_list: OrderedSet[str]
     try:
@@ -183,14 +197,22 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
         f"Failed to read species list from '{species_list.absolute()}'. Ensure it is a valid text file."
       ) from e
 
-    n_species_in_model = interp.get_output_details()[0]["shape"][1]
-    if n_species_in_model != len(loaded_species_list):
-      raise ValueError(
-        f"Model '{model_path.absolute()}' has {n_species_in_model} outputs, but species list '{species_list.absolute()}' has {len(loaded_species_list)} species!"
-      )
+    if check_validity:
+      try:
+        interp = load_tf_model(model, allocate_tensors=False)
+      except ValueError as e:
+        raise ValueError(
+          f"Failed to load model '{model.absolute()}'. Ensure it is a valid TFLite model."
+        ) from e
+
+      n_species_in_model = interp.get_output_details()[0]["shape"][1]
+      if n_species_in_model != len(loaded_species_list):
+        raise ValueError(
+          f"Model '{model.absolute()}' has {n_species_in_model} outputs, but species list '{species_list.absolute()}' has {len(loaded_species_list)} species!"
+        )
 
     result = AcousticTFModelV2_4(
-      model_path, loaded_species_list, precision, use_custom_model=True
+      model, loaded_species_list, precision, use_custom_model=True
     )
 
     return result
@@ -217,8 +239,22 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     half_precision: bool = True,
     max_audio_duration_min: float | None = None,
     show_stats: Literal["no", "minimal", "progress", "benchmark"] = "no",
-    inference_library: Literal["tf", "litert"] = "tf",
+    inference_library: LIBRARY_TYPES = LIBRARY_TF,
   ) -> PredictionResult:
+    if inference_library not in VALID_LIBRARY_TYPES:
+      raise ValueError(
+        f"Unsupported inference library: {inference_library}. Supported libraries are: {', '.join(VALID_LIBRARY_TYPES)}."
+      )
+    if inference_library == LIBRARY_TF:
+      assert tf_installed()
+    elif inference_library == LIBRARY_LITERT:
+      if not litert_installed():
+        raise ValueError(
+          f"Parameter 'inference_library': Library '{LIBRARY_LITERT}' is not available. Install birdnet with [litert] option."
+        )
+    else:
+      raise AssertionError()
+
     return super()._analyze(
       inp,
       TFAcousticInferenceBackend,
@@ -248,9 +284,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
 
 
 class TFAcousticInferenceBackend(AcousticInferenceBackend):
-  def __init__(
-    self, model_path: Path, inference_library: Literal["tf", "litert"]
-  ) -> None:
+  def __init__(self, model_path: Path, inference_library: LIBRARY_TYPES) -> None:
     super().__init__()
     self._model_path = model_path
     self._interp: TFLiteInterpreter | TFInterpreter | None = None
@@ -266,9 +300,9 @@ class TFAcousticInferenceBackend(AcousticInferenceBackend):
 
   def load(self) -> None:
     assert self._interp is None
-    if self._inference_library == "tf":
+    if self._inference_library == LIBRARY_TF:
       self._interp = load_tf_model(self._model_path, allocate_tensors=True)
-    elif self._inference_library == "litert":
+    elif self._inference_library == LIBRARY_LITERT:
       self._interp = load_litert_model(self._model_path, allocate_tensors=True)
     else:
       raise AssertionError()

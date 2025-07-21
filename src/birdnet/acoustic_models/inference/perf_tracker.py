@@ -253,6 +253,10 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       self._prd_4_flush_dur_tracker.add_value(flush_duration)
 
   def _print_stats(self) -> None:
+    received_at_least_one_prediction = len(self._wkr_wall_times) > 0
+    if not received_at_least_one_prediction:
+      return
+
     wall_time = time.perf_counter() - self._start
     # perf_duration_workers = t - self._workers_start
     # avg = sum(self._pred_dur_deque) / sum(self._batch_sizes_deque)
@@ -285,7 +289,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       self._prd_total_segments_processed * self._segment_size_s
     )
 
-    received_at_least_one_prediction = len(self._wkr_wall_times) > 0
     _summed_wkr_duration = sum(self._wkr_wall_times.values())
     _summed_prd_duration = sum(self._prd_wall_times.values())
 

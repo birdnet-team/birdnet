@@ -8,7 +8,7 @@ import numpy as np
 
 from birdnet.acoustic_models.inference.prediction_result import PredictionResult
 from birdnet.logging_utils import get_package_logger
-from birdnet.model_loader import load
+from birdnet.model_loader import load_acoustic_model
 from birdnet_debug.hsn_downloader import get_hsn_file_paths
 from birdnet_debug.pow_downloader import get_pow_file_paths
 
@@ -156,7 +156,6 @@ if __name__ == "__main__":
   audio_paths = "test-dataset/test_dataset_1x7.3s_flac/0.flac"
 
   audio_paths = get_pow_file_paths()
-  audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
   audio_paths = [
     Path("test-dataset/test_dataset_4x60min/0.wav"),
     Path("test-dataset/test_dataset_4x60min/1.wav"),
@@ -166,6 +165,8 @@ if __name__ == "__main__":
   audio_paths = "test-dataset/test_dataset_1000x0.2s_flac"
   audio_paths = "test-dataset/test_dataset_100000x4s_flac"
   audio_paths = "test-dataset/test_dataset_100x1.3s_flac"
+  audio_paths = "example/soundscape.wav"
+  audio_paths = "test-dataset/test_dataset_1x10min/0.wav"
   audio_paths = [
     Path("test-dataset/test_dataset_120x60min/000.wav"),
     Path("test-dataset/test_dataset_120x60min/001.wav"),
@@ -177,14 +178,13 @@ if __name__ == "__main__":
     Path("test-dataset/test_dataset_120x60min/007.wav"),
     Path("test-dataset/test_dataset_120x60min/008.wav"),
   ]
-  audio_paths = "example/soundscape.wav"
-  audio_paths = "test-dataset/test_dataset_1x10min/0.wav"
+  audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
   params = {
     "n_workers": 12,
     "n_producers": 1,
     "batch_size": 1,
     "prefetch_ratio": 2,
-    "backend": "pb",
+    "backend": "tf",
     "precision": "fp32",
     "device": "CPU",
     "top_k": 5,
@@ -195,7 +195,7 @@ if __name__ == "__main__":
 
   start = time.perf_counter()
   if params["backend"] == "tf":
-    model = load(backend="tf", precision=params["precision"])
+    model = load_acoustic_model(backend="tf", precision=params["precision"])
     # model = load_custom(
     #   "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/tf/model-fp32.tflite",
     #   "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/tf/labels/en_us.txt",
@@ -217,7 +217,7 @@ if __name__ == "__main__":
       default_confidence_threshold=-np.inf,
       half_precision=False,
       show_stats="benchmark",
-      inference_library="litert",
+      inference_library="tf",
       # custom_confidence_thresholds={
       #   "Junco hyemalis_Dark-eyed Junco": -np.inf,
       #   "Haemorhous mexicanus_House Finch": 0.1,
@@ -233,7 +233,7 @@ if __name__ == "__main__":
       # },
     )
   elif params["backend"] == "pb":
-    model = load(backend="pb", precision=params["precision"])
+    model = load_acoustic_model(backend="pb", precision=params["precision"])
     result = model.analyze(
       audio_paths,
       workers=params["n_workers"],

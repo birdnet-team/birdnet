@@ -17,11 +17,15 @@ from birdnet.argparse_helper import (
   parse_positive_integer,
 )
 from birdnet.base import (
+  LIBRARY_TF,
   MODEL_BACKEND_PB,
   MODEL_BACKEND_TF,
   MODEL_PRECISION_FLOAT16,
   MODEL_PRECISION_FLOAT32,
   MODEL_PRECISION_INT8,
+  VALID_LIBRARY_TYPES,
+  VALID_MODEL_BACKENDS,
+  VALID_MODEL_PRECISIONS,
 )
 from birdnet.logging_utils import get_package_logger
 
@@ -61,7 +65,7 @@ def run_benchmark_from_args(args: list[str]) -> None:
     "-b",
     "--backend",
     type=str,
-    choices=[MODEL_BACKEND_TF, MODEL_BACKEND_PB],
+    choices=VALID_MODEL_BACKENDS,
     metavar="BACKEND",
     help=f"use this backend (default: {MODEL_BACKEND_TF})",
     default=MODEL_BACKEND_TF,
@@ -70,17 +74,17 @@ def run_benchmark_from_args(args: list[str]) -> None:
   parser.add_argument(
     "--tf-library",
     type=str,
-    choices=["tf", "litert"],
+    choices=VALID_LIBRARY_TYPES,
     metavar="TF-LIBRARY",
-    help=f"use this tensorflow library (default: tf)",
-    default="tf",
+    help=f"use this tensorflow library (default: {LIBRARY_TF})",
+    default=LIBRARY_TF,
   )
 
   parser.add_argument(
     "-p",
     "--precision",
     type=str,
-    choices=[MODEL_PRECISION_INT8, MODEL_PRECISION_FLOAT16, MODEL_PRECISION_FLOAT32],
+    choices=VALID_MODEL_PRECISIONS,
     metavar="PRECISION",
     help=f"model precision (default: {MODEL_PRECISION_FLOAT32})",
     default=MODEL_PRECISION_FLOAT32,
@@ -173,7 +177,7 @@ def run_benchmark_from_args(args: list[str]) -> None:
 
 def run_benchmark_from_ns(ns: Namespace) -> None:
   if ns.backend == MODEL_BACKEND_TF:
-    model: AcousticModelBaseV2_4 = birdnet.model_loader.load(
+    model: AcousticModelBaseV2_4 = birdnet.model_loader.load_acoustic_model(
       version="2.4",
       backend=MODEL_BACKEND_TF,
       precision=ns.precision,
@@ -201,7 +205,7 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
       inference_library=ns.tf_library,
     )
   elif ns.backend == MODEL_BACKEND_PB:
-    model: AcousticModelBaseV2_4 = birdnet.model_loader.load(
+    model: AcousticModelBaseV2_4 = birdnet.model_loader.load_acoustic_model(
       version="2.4",
       backend=MODEL_BACKEND_PB,
       precision=ns.precision,
