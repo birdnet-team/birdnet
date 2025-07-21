@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod
 import numpy as np
 
 from birdnet.base import ACOUSTIC_MODEL_VERSIONS, MODEL_PRECISIONS, ModelBase
-from birdnet.io_lock import IOLockHandler
 
 
 class AcousticInferenceBackend(ABC):

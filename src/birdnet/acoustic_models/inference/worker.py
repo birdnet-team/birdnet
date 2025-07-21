@@ -21,7 +21,6 @@ from birdnet.globals import (
   WRITING_FLAG,
 )
 from birdnet.helper import RingField, uint_dtype_for
-from birdnet.io_lock import IOLockHandler
 from birdnet.utils import flat_sigmoid_logaddexp_fast
 
 

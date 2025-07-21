@@ -9,7 +9,6 @@ from multiprocessing import Queue
 from pathlib import Path
 
 from birdnet.globals import PKG_NAME
-from birdnet.io_lock import IOLockHandler, LockedMemoryHandler
 
 
 def get_package_logger():

@@ -8,7 +8,6 @@ from ordered_set import OrderedSet
 import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.inference.producer import get_audio_duration_s
 from birdnet.helper import RingField, get_max_n_segments, max_value_for_uint_dtype
-from birdnet.io_lock import IOLockHandler
 
 
 class FilesAnalyzer(bn_logging.LogableProcessBase):

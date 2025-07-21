@@ -64,7 +64,6 @@ from birdnet.helper import (
   uint_ctype_from_dtype,
   uint_dtype_for,
 )
-from birdnet.io_lock import IOLockHandler
 from birdnet.local_data import get_benchmark_dir, get_package_version
 from birdnet.logging_utils import QueueFileWriter, get_package_logging_level
 

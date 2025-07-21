@@ -7,11 +7,9 @@ import numpy as np
 
 from birdnet.acoustic_models.base import (
   AcousticInferenceBackend,
-  AcousticInferenceBackendLoader,
 )
 from birdnet.acoustic_models.inference.prediction_result import PredictionResult
 from birdnet.helper import load_litert_model, load_tf_model
-from birdnet.io_lock import IOLockHandler
 
 if TYPE_CHECKING:
   from ai_edge_litert.interpreter import Interpreter as TFLiteInterpreter

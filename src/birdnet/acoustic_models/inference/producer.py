@@ -27,7 +27,6 @@ from birdnet.helper import (
   get_max_n_segments,
   max_value_for_uint_dtype,
 )
-from birdnet.io_lock import IOLockHandler
 from birdnet.utils import (
   bandpass_signal,
   fillup_with_silence,

@@ -6,7 +6,7 @@ import math
 import os
 import time
 from collections.abc import Generator
-from contextlib import contextmanager, nullcontext, suppress
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from multiprocessing import shared_memory
 from pathlib import Path
