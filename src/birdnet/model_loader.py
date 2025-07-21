@@ -13,9 +13,7 @@ from birdnet.base import (
   MODEL_BACKEND_TF,
   MODEL_BACKENDS,
   MODEL_LANGUAGES,
-  MODEL_PRECISION_FLOAT16,
   MODEL_PRECISION_FLOAT32,
-  MODEL_PRECISION_INT8,
   MODEL_PRECISIONS,
   VALID_ACOUSTIC_MODEL_VERSIONS,
   VALID_MODEL_BACKENDS,
@@ -147,23 +145,19 @@ def load_custom(
   backend: MODEL_BACKENDS = MODEL_BACKEND_TF,
   precision: MODEL_PRECISIONS = MODEL_PRECISION_FLOAT32,
 ) -> ModelBase:
-  if version != ACOUSTIC_MODEL_VERSION_V2_4:
+  if version not in VALID_ACOUSTIC_MODEL_VERSIONS:
     raise ValueError(
-      f"Parameter 'version': Unsupported model version: {version}. Available version is: {ACOUSTIC_MODEL_VERSION_V2_4}."
+      f"Parameter 'version': Unsupported model version: {version}. Available versions are: {', '.join(VALID_ACOUSTIC_MODEL_VERSIONS)}."
     )
 
-  if backend not in (MODEL_BACKEND_TF, MODEL_BACKEND_PB):
+  if backend not in VALID_MODEL_BACKENDS:
     raise ValueError(
-      f"Parameter 'backend': Unknown model backend: {backend}. Available backends are: {MODEL_BACKEND_TF}, {MODEL_BACKEND_PB}."
+      f"Parameter 'backend': Unknown model backend: {backend}. Available backends are: {', '.join(VALID_MODEL_BACKENDS)}."
     )
 
-  if precision not in (
-    MODEL_PRECISION_INT8,
-    MODEL_PRECISION_FLOAT16,
-    MODEL_PRECISION_FLOAT32,
-  ):
+  if precision not in VALID_MODEL_PRECISIONS:
     raise ValueError(
-      f"Parameter 'precision': Unsupported model precision: {precision}. Currently supported precisions: {MODEL_PRECISION_INT8}, {MODEL_PRECISION_FLOAT16}, {MODEL_PRECISION_FLOAT32}."
+      f"Parameter 'precision': Unsupported model precision: {precision}. Currently supported precisions: {', '.join(VALID_MODEL_PRECISIONS)}."
     )
 
   model_path = Path(model)

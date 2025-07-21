@@ -68,6 +68,15 @@ def run_benchmark_from_args(args: list[str]) -> None:
   )
 
   parser.add_argument(
+    "--tf-library",
+    type=str,
+    choices=["tf", "litert"],
+    metavar="TF-LIBRARY",
+    help=f"use this tensorflow library (default: tf)",
+    default="tf",
+  )
+
+  parser.add_argument(
     "-p",
     "--precision",
     type=str,
@@ -119,7 +128,7 @@ def run_benchmark_from_args(args: list[str]) -> None:
     type=parse_non_empty_or_whitespace,
     nargs="+",
     metavar="DEVICE",
-    help="device(s) to use for processing, e.g., 'CPU', 'GPU', 'GPU:0', 'GPU:1', ...,  (default: 'CPU'); either string or list of strings, latter is useful for multi-GPU setups, the first GPU will be used for the first feeder, the second for the second feeder, etc.; GPU is only available for the Protobuf backend",
+    help="device(s) to use for processing (only available for the Protobuf backend), e.g., 'CPU', 'GPU', 'GPU:0', 'GPU:1', ...,  (default: 'CPU'); either string or list of strings, latter is useful for multi-GPU setups, the first GPU will be used for the first feeder, the second for the second feeder, etc.",
     default=["CPU"],
   )
 
@@ -163,31 +172,61 @@ def run_benchmark_from_args(args: list[str]) -> None:
 
 
 def run_benchmark_from_ns(ns: Namespace) -> None:
-  model: AcousticModelBaseV2_4 = birdnet.model_loader.load(
-    version="2.4",
-    backend=ns.backend,
-    precision=ns.precision,
-  )
+  if ns.backend == MODEL_BACKEND_TF:
+    model: AcousticModelBaseV2_4 = birdnet.model_loader.load(
+      version="2.4",
+      backend=MODEL_BACKEND_TF,
+      precision=ns.precision,
+    )
 
-  assert isinstance(model, AcousticModelBaseV2_4)
-  model.analyze(
-    ns.inputs,
-    top_k=ns.top_k,
-    feeders=ns.feeders,
-    workers=ns.workers,
-    batch_size=ns.batch_size,
-    overlap_duration_s=ns.overlap,
-    default_confidence_threshold=ns.confidence,
-    custom_confidence_thresholds=None,
-    apply_sigmoid=True,
-    sigmoid_sensitivity=1.0,
-    custom_species_list=None,
-    half_precision=True,
-    max_audio_duration_min=None,
-    show_stats=ns.show_stats,
-    device=ns.devices if len(ns.devices) > 1 else ns.devices[0],
-    prefetch_ratio=ns.prefetch_ratio,
-    use_bandpass=False,
-    bandpass_fmax=None,
-    bandpass_fmin=None,
-  )
+    model.analyze(
+      ns.inputs,
+      top_k=ns.top_k,
+      feeders=ns.feeders,
+      workers=ns.workers,
+      batch_size=ns.batch_size,
+      overlap_duration_s=ns.overlap,
+      default_confidence_threshold=ns.confidence,
+      custom_confidence_thresholds=None,
+      apply_sigmoid=True,
+      sigmoid_sensitivity=1.0,
+      custom_species_list=None,
+      half_precision=True,
+      max_audio_duration_min=None,
+      show_stats=ns.show_stats,
+      prefetch_ratio=ns.prefetch_ratio,
+      use_bandpass=False,
+      bandpass_fmax=None,
+      bandpass_fmin=None,
+      inference_library=ns.tf_library,
+    )
+  elif ns.backend == MODEL_BACKEND_PB:
+    model: AcousticModelBaseV2_4 = birdnet.model_loader.load(
+      version="2.4",
+      backend=MODEL_BACKEND_PB,
+      precision=ns.precision,
+    )
+
+    model.analyze(
+      ns.inputs,
+      top_k=ns.top_k,
+      feeders=ns.feeders,
+      workers=ns.workers,
+      batch_size=ns.batch_size,
+      overlap_duration_s=ns.overlap,
+      default_confidence_threshold=ns.confidence,
+      custom_confidence_thresholds=None,
+      apply_sigmoid=True,
+      sigmoid_sensitivity=1.0,
+      custom_species_list=None,
+      half_precision=True,
+      max_audio_duration_min=None,
+      show_stats=ns.show_stats,
+      device=ns.devices if len(ns.devices) > 1 else ns.devices[0],
+      prefetch_ratio=ns.prefetch_ratio,
+      use_bandpass=False,
+      bandpass_fmax=None,
+      bandpass_fmin=None,
+    )
+  else:
+    raise AssertionError()

@@ -1,1 +1,1 @@
-from birdnet.model_loader import load, load_custom  # noqa: F401
+from birdnet.model_loader import load, load_custom, load_geo  # noqa: F401

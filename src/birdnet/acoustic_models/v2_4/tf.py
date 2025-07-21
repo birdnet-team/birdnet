@@ -7,6 +7,7 @@ import numpy as np
 
 from birdnet.acoustic_models.base import (
   AcousticInferenceBackend,
+  AcousticInferenceBackendLoader,
 )
 from birdnet.acoustic_models.inference.prediction_result import PredictionResult
 from birdnet.helper import load_litert_model, load_tf_model
@@ -150,7 +151,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
   @final
   @classmethod
   def get_inference_backend_type(cls) -> type[AcousticInferenceBackend]:
-    return AcousticTFBackend
+    return TFAcousticInferenceBackend
 
   @final
   def get_inference_backend_args(self) -> dict:
@@ -227,15 +228,20 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     show_stats: Literal["no", "minimal", "progress", "benchmark"] = "no",
     inference_library: Literal["tf", "litert"] = "tf",
   ) -> PredictionResult:
-    # backend_loader = AcousticInferenceBackendLoader(
-    #   backend_kwargs={
-    #     "model_path": self.model_path,
-    #     "inference_library": inference_library,
-    #   }
-    #   backend_type= AcousticTFBackend,
-    # )
-    return super().analyze(
+    backend_loader = AcousticInferenceBackendLoader(
+      backend_type=TFAcousticInferenceBackend,
+      backend_kwargs={
+        "model_path": self.model_path,
+        "inference_library": inference_library,
+      },
+    )
+    return super()._analyze(
       inp,
+      TFAcousticInferenceBackend,
+      {
+        "model_path": self.model_path,
+        "inference_library": inference_library,
+      },
       top_k=top_k,
       feeders=feeders,
       workers=workers,
@@ -254,11 +260,10 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       max_audio_duration_min=max_audio_duration_min,
       show_stats=show_stats,
       device="CPU",
-      inference_library=inference_library,
     )
 
 
-class AcousticTFBackend(AcousticInferenceBackend):
+class TFAcousticInferenceBackend(AcousticInferenceBackend):
   def __init__(
     self, model_path: Path, inference_library: Literal["tf", "litert"]
   ) -> None:
