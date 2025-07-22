@@ -18,6 +18,7 @@ from birdnet.base import (
   MODEL_BACKENDS,
 )
 from birdnet.geo_models.base import GeoInferenceBackend
+from birdnet.geo_models.inference.prediction_result import PredictionResult
 from birdnet.geo_models.v2_4.base import GeoDownloaderBaseV2_4, GeoModelBaseV2_4
 from birdnet.helper import check_protobuf_model_files_exist
 from birdnet.local_data import get_local_model_root_dir
@@ -166,8 +167,32 @@ class GeoPBModelV2_4(GeoModelBaseV2_4):
 
     return result
 
+  def predict(
+    self,
+    latitude: float,
+    longitude: float,
+    /,
+    *,
+    week: int | None = None,
+    min_confidence: float = 0.03,
+    half_precision: bool = True,
+    device: str = "CPU",
+  ) -> PredictionResult:
+    return super()._predict_species_at_location_and_time(
+      latitude,
+      longitude,
+      GeoPBInferenceBackend,
+      {
+        "model_path": self.model_path,
+      },
+      week=week,
+      min_confidence=min_confidence,
+      device=device,
+      half_precision=half_precision,
+    )
 
-class PBGeoInferenceBackend(GeoInferenceBackend):
+
+class GeoPBInferenceBackend(GeoInferenceBackend):
   def __init__(self, model_path: Path) -> None:
     super().__init__()
     self._model_path = str(model_path.absolute())
@@ -207,7 +232,7 @@ class PBGeoInferenceBackend(GeoInferenceBackend):
     absl.logging.set_verbosity(absl_verbosity_before)
     logging.getLogger("tensorflow").setLevel(tf_verbosity_before)
 
-    self._infer_fn = audio_model.signatures["basic"]  # type: ignore
+    self._infer_fn = audio_model.signatures["serving_default"]  # type: ignore
 
   def _set_logical_device(self, device_name: str) -> None:
     assert "GPU" in device_name or "CPU" in device_name
@@ -255,8 +280,8 @@ class PBGeoInferenceBackend(GeoInferenceBackend):
 
     with device(self._cached_logical_device.name):  # type: ignore
       # prediction = self._audio_model.basic(batch)["scores"]
-      predictions = self._infer_fn(inputs=batch)
-    scores: Tensor = predictions["scores"]
+      predictions = self._infer_fn(MNET_INPUT=batch)
+    scores: Tensor = predictions["MNET_CLASS_ACTIVATION"]
     assert scores.dtype == float32
     scores_np = scores.numpy()  # type: ignore
     assert scores_np.dtype == np.float32

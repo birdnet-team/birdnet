@@ -8,7 +8,13 @@ import numpy as np
 from birdnet.geo_models.base import (
   GeoInferenceBackend,
 )
-from birdnet.helper import load_litert_model, load_tf_model
+from birdnet.geo_models.inference.prediction_result import PredictionResult
+from birdnet.helper import (
+  litert_installed,
+  load_litert_model,
+  load_tf_model,
+  tf_installed,
+)
 
 if TYPE_CHECKING:
   from ai_edge_litert.interpreter import Interpreter as TFLiteInterpreter
@@ -31,6 +37,7 @@ from birdnet.base import (
   MODEL_BACKEND_TF,
   MODEL_BACKENDS,
   MODEL_LANGUAGES,
+  VALID_LIBRARY_TYPES,
 )
 from birdnet.geo_models.base import GeoInferenceBackend
 from birdnet.geo_models.v2_4.base import GeoDownloaderBaseV2_4, GeoModelBaseV2_4
@@ -180,8 +187,46 @@ class GeoTFModelV2_4(GeoModelBaseV2_4):
 
     return result
 
+  def predict(
+    self,
+    latitude: float,
+    longitude: float,
+    /,
+    *,
+    week: int | None = None,
+    min_confidence: float = 0.03,
+    half_precision: bool = True,
+    inference_library: LIBRARY_TYPES = LIBRARY_TF,
+  ) -> PredictionResult:
+    if inference_library not in VALID_LIBRARY_TYPES:
+      raise ValueError(
+        f"Unsupported inference library: {inference_library}. Supported libraries are: {', '.join(VALID_LIBRARY_TYPES)}."
+      )
+    if inference_library == LIBRARY_TF:
+      assert tf_installed()
+    elif inference_library == LIBRARY_LITERT:
+      if not litert_installed():
+        raise ValueError(
+          f"Parameter 'inference_library': Library '{LIBRARY_LITERT}' is not available. Install birdnet with [litert] option."
+        )
+    else:
+      raise AssertionError()
+    return super()._predict_species_at_location_and_time(
+      latitude,
+      longitude,
+      GeoTFInferenceBackend,
+      {
+        "model_path": self.model_path,
+        "inference_library": inference_library,
+      },
+      week=week,
+      min_confidence=min_confidence,
+      device="CPU",
+      half_precision=half_precision,
+    )
 
-class TFGeoInferenceBackend(GeoInferenceBackend):
+
+class GeoTFInferenceBackend(GeoInferenceBackend):
   def __init__(self, model_path: Path, inference_library: LIBRARY_TYPES) -> None:
     super().__init__()
     self._model_path = model_path
