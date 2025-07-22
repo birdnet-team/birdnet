@@ -1,6 +1,5 @@
-import os
 from pathlib import Path
-from typing import Self, final
+from typing import final
 
 import numpy as np
 from numpy.typing import DTypeLike

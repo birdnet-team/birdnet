@@ -6,14 +6,11 @@ from pathlib import Path
 
 import numpy as np
 
-from birdnet.acoustic_models.inference.prediction_result import PredictionResult
+from birdnet.geo_models.inference.prediction_result import PredictionResult
 from birdnet.logging_utils import get_package_logger
 from birdnet.model_loader import (
   load,
-  load_custom,
 )
-from birdnet_debug.hsn_downloader import get_hsn_file_paths
-from birdnet_debug.pow_downloader import get_pow_file_paths
 
 if __name__ == "__main__":
   # os.environ["TF_CPP_MIN_LOG_LEVEL"] = "0"  # sämtliche TF-Logs
@@ -41,6 +38,7 @@ if __name__ == "__main__":
 
   start = time.perf_counter()
   backend = "tf"
+  result = None
   if backend == "tf":
     model = load("geo", "2.4", "tf", precision="fp32")
     # model = load_custom(
@@ -91,18 +89,30 @@ if __name__ == "__main__":
     )
   end = time.perf_counter()
   print(f"Finished analysis in {end - start:.2f} seconds.")
+  assert result is not None
   import tempfile
 
   output_file = Path(tempfile.gettempdir()) / "predictions.npz"
   now = time.perf_counter()
   result.save(output_file)
   print(f"Saved to {output_file} in {time.perf_counter() - now:.2f} seconds.")
+  df = result.to_txt("/tmp/predictions.txt")
+  print(
+    f"Converted to text in {time.perf_counter() - now:.2f} seconds to /tmp/predictions.txt."
+  )
+  res_set = result.to_set()
+  result.to_csv("/tmp/predictions.csv", sort_by="confidences")
+  print(
+    f"Converted to CSV in {time.perf_counter() - now:.2f} seconds to /tmp/predictions.csv."
+  )
+  
+  df = result.to_dataframe()
 
-  # if True:
-  #   result_loaded = PredictionResult.load(output_file)
-  #   df = result.to_dataframe()
-  #   # for file in audio_paths:
-  #   #   file_df = result.get_file_results(file).to_dataframe()
-  #   #   file_df.to_csv(..)
-  #   if len(df.index) > 0:
-  #     print(f"Mean: {df['confidence'].mean()}, Shape: {df.shape}")
+  res_arrow = result.to_arrow_table()
+
+  if True:
+    result_loaded = PredictionResult.load(output_file)
+    df = result.to_txt("/tmp/predictions2.txt")
+    print(
+      f"Loaded from {output_file} in {time.perf_counter() - now:.2f} seconds to /tmp/predictions2.txt."
+    )

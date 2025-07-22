@@ -1,6 +1,6 @@
 from os import PathLike
 from pathlib import Path
-from typing import Literal, cast
+from typing import cast
 
 from birdnet.acoustic_models.base import AcousticModelBase
 from birdnet.acoustic_models.v2_4.base import AcousticModelBaseV2_4
