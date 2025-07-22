@@ -4,8 +4,6 @@ from typing import final
 from ordered_set import OrderedSet
 
 from birdnet.base import (
-  ACOUSTIC_MODEL_VERSION_V2_4,
-  ACOUSTIC_MODEL_VERSIONS,
   GEO_MODEL_VERSION_V2_4,
   GEO_MODEL_VERSIONS,
   MODEL_TYPE_GEO,

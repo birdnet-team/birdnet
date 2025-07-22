@@ -1,12 +1,11 @@
 from os import PathLike
 from pathlib import Path
-from typing import Literal, cast, overload
+from typing import Literal, cast
 
 from birdnet.acoustic_models.base import AcousticModelBase
 from birdnet.acoustic_models.v2_4.base import AcousticModelBaseV2_4
 from birdnet.acoustic_models.v2_4.pb import AcousticPBModelV2_4
 from birdnet.acoustic_models.v2_4.tf import AcousticTFModelV2_4
-from birdnet.acoustic_models.v3_0.tf import AcousticTFModelV3_0
 from birdnet.base import (
   ACOUSTIC_MODEL_VERSION_V2_4,
   ACOUSTIC_MODEL_VERSIONS,
@@ -15,6 +14,7 @@ from birdnet.base import (
   MODEL_BACKEND_PB,
   MODEL_BACKEND_TF,
   MODEL_BACKENDS,
+  MODEL_LANGUAGE_EN_US,
   MODEL_LANGUAGES,
   MODEL_PRECISION_FLOAT32,
   MODEL_PRECISIONS,
@@ -98,74 +98,14 @@ def _check_is_valid_tf_file(model: str | PathLike[str]) -> None:
     )
 
 
-@overload
-def load2(
-  model_type: Literal["acoustic"],
-  version: Literal["2.4"],
-  backend: Literal["tf"],
-  /,
-  *,
-  precision: MODEL_PRECISIONS = MODEL_PRECISION_FLOAT32,
-  lang: MODEL_LANGUAGES = "en_us",
-) -> AcousticTFModelV2_4: ...
-
-
-@overload
-def load2(
-  model_type: Literal["acoustic"],
-  version: Literal["3.0"],
-  backend: Literal["tf"],
-  /,
-  *,
-  precision: MODEL_PRECISIONS = MODEL_PRECISION_FLOAT32,
-  lang: MODEL_LANGUAGES = "en_us",
-) -> AcousticTFModelV3_0: ...
-
-
-@overload
-def load2(
-  model_type: Literal["acoustic"],
-  version: Literal["2.4"],
-  backend: Literal["pb"],
-  /,
-  *,
-  precision: Literal["fp32"] = MODEL_PRECISION_FLOAT32,
-  lang: MODEL_LANGUAGES = "en_us",
-) -> AcousticPBModelV2_4: ...
-
-
-@overload
-def load2(
-  model_type: Literal["geo"],
-  version: Literal["2.4"],
-  backend: Literal["tf"],
-  /,
-  *,
-  precision: Literal["fp32"] = MODEL_PRECISION_FLOAT32,
-  lang: MODEL_LANGUAGES = "en_us",
-) -> GeoTFModelV2_4: ...
-
-
-@overload
-def load2(
-  model_type: Literal["geo"],
-  version: Literal["2.4"],
-  backend: Literal["pb"],
-  /,
-  *,
-  precision: Literal["fp32"] = MODEL_PRECISION_FLOAT32,
-  lang: MODEL_LANGUAGES = "en_us",
-) -> GeoPBModelV2_4: ...
-
-
-def load2(
+def load(
   model_type: Literal["acoustic", "geo"],
   version: ACOUSTIC_MODEL_VERSIONS | GEO_MODEL_VERSIONS,
   backend: MODEL_BACKENDS,
   /,
   *,
   precision: MODEL_PRECISIONS = MODEL_PRECISION_FLOAT32,
-  lang: MODEL_LANGUAGES = "en_us",
+  lang: MODEL_LANGUAGES = MODEL_LANGUAGE_EN_US,
 ) -> ModelBase:
   _check_is_valid_model_type(model_type)
 
@@ -258,77 +198,7 @@ def _load_geo_model_V2_4(
     raise AssertionError()
 
 
-@overload
-def load_custom2(
-  model_type: Literal["acoustic"],
-  version: Literal["2.4"],
-  backend: Literal["tf"],
-  model: str | PathLike[str],
-  species_list: str | PathLike[str],
-  /,
-  *,
-  precision: MODEL_PRECISIONS = MODEL_PRECISION_FLOAT32,
-  check_validity: bool = True,
-) -> AcousticTFModelV2_4: ...
-
-
-@overload
-def load_custom2(
-  model_type: Literal["acoustic"],
-  version: Literal["3.0"],
-  backend: Literal["tf"],
-  model: str | PathLike[str],
-  species_list: str | PathLike[str],
-  /,
-  *,
-  precision: MODEL_PRECISIONS = MODEL_PRECISION_FLOAT32,
-  check_validity: bool = True,
-) -> AcousticTFModelV3_0: ...
-
-
-@overload
-def load_custom2(
-  model_type: Literal["acoustic"],
-  version: Literal["2.4"],
-  backend: Literal["pb"],
-  model: str | PathLike[str],
-  species_list: str | PathLike[str],
-  /,
-  *,
-  precision: Literal["fp32"] = MODEL_PRECISION_FLOAT32,
-  check_validity: bool = True,
-) -> AcousticPBModelV2_4: ...
-
-
-@overload
-def load_custom2(
-  model_type: Literal["geo"],
-  version: Literal["2.4"],
-  backend: Literal["tf"],
-  model: str | PathLike[str],
-  species_list: str | PathLike[str],
-  /,
-  *,
-  precision: Literal["fp32"] = MODEL_PRECISION_FLOAT32,
-  check_validity: bool = True,
-) -> GeoTFModelV2_4: ...
-
-
-@overload
-def load_custom2(
-  model_type: Literal["geo"],
-  version: Literal["2.4"],
-  backend: Literal["pb"],
-  model: str | PathLike[str],
-  species_list: str | PathLike[str],
-  /,
-  *,
-  precision: Literal["fp32"] = MODEL_PRECISION_FLOAT32,
-  check_validity: bool = True,
-) -> GeoPBModelV2_4: ...
-
-
-def load_custom2(
+def load_custom(
   model_type: Literal["acoustic", "geo"],
   version: ACOUSTIC_MODEL_VERSIONS | GEO_MODEL_VERSIONS,
   backend: MODEL_BACKENDS,
