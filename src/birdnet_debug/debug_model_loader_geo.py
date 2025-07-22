@@ -105,7 +105,7 @@ if __name__ == "__main__":
   print(
     f"Converted to CSV in {time.perf_counter() - now:.2f} seconds to /tmp/predictions.csv."
   )
-  
+
   df = result.to_dataframe()
 
   res_arrow = result.to_arrow_table()
