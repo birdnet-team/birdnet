@@ -1,11 +1,9 @@
 from os import PathLike
 from typing import Literal, overload
 
-from birdnet.acoustic_models.base import AcousticModelBase
 from birdnet.acoustic_models.v2_4.pb import AcousticPBModelV2_4
 from birdnet.acoustic_models.v2_4.tf import AcousticTFModelV2_4
 from birdnet.base import (
-  ACOUSTIC_MODEL_VERSIONS,
   MODEL_BACKENDS,
   MODEL_LANGUAGE_EN_US,
   MODEL_LANGUAGES,
@@ -44,7 +42,7 @@ def load(
   backend: MODEL_BACKENDS,
   /,
   *,
-  precision: MODEL_PRECISIONS = MODEL_PRECISION_FLOAT32,
+  precision: Literal["fp32"] = MODEL_PRECISION_FLOAT32,
   lang: MODEL_LANGUAGES = MODEL_LANGUAGE_EN_US,
 ) -> AcousticPBModelV2_4 | AcousticTFModelV2_4: ...
 

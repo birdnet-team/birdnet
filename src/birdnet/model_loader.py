@@ -18,6 +18,9 @@ from birdnet.base import (
   MODEL_LANGUAGES,
   MODEL_PRECISION_FLOAT32,
   MODEL_PRECISIONS,
+  MODEL_TYPE_ACOUSTIC,
+  MODEL_TYPE_GEO,
+  MODEL_TYPES,
   VALID_ACOUSTIC_MODEL_VERSIONS,
   VALID_GEO_MODEL_VERSIONS,
   VALID_MODEL_BACKENDS,
@@ -99,7 +102,7 @@ def _check_is_valid_tf_file(model: str | PathLike[str]) -> None:
 
 
 def load(
-  model_type: Literal["acoustic", "geo"],
+  model_type: MODEL_TYPES,
   version: ACOUSTIC_MODEL_VERSIONS | GEO_MODEL_VERSIONS,
   backend: MODEL_BACKENDS,
   /,
@@ -109,14 +112,14 @@ def load(
 ) -> ModelBase:
   _check_is_valid_model_type(model_type)
 
-  if model_type == "acoustic":
+  if model_type == MODEL_TYPE_ACOUSTIC:
     return _load_acoustic_model(
       version=cast(ACOUSTIC_MODEL_VERSIONS, version),
       backend=backend,
       precision=precision,
       lang=lang,
     )
-  elif model_type == "geo":
+  elif model_type == MODEL_TYPE_GEO:
     if precision != MODEL_PRECISION_FLOAT32:
       raise ValueError(
         f"Unsupported model precision for geo model: {precision}. Currently supported precision is: {MODEL_PRECISION_FLOAT32}."
@@ -199,7 +202,7 @@ def _load_geo_model_V2_4(
 
 
 def load_custom(
-  model_type: Literal["acoustic", "geo"],
+  model_type: MODEL_TYPES,
   version: ACOUSTIC_MODEL_VERSIONS | GEO_MODEL_VERSIONS,
   backend: MODEL_BACKENDS,
   model: str | PathLike[str],
@@ -211,7 +214,7 @@ def load_custom(
 ) -> ModelBase:
   _check_is_valid_model_type(model_type)
 
-  if model_type == "acoustic":
+  if model_type == MODEL_TYPE_ACOUSTIC:
     return _load_custom_acoustic_model(
       version=cast(ACOUSTIC_MODEL_VERSIONS, version),
       backend=backend,
@@ -220,7 +223,7 @@ def load_custom(
       species_list=Path(species_list),
       check_validity=check_validity,
     )
-  elif model_type == "geo":
+  elif model_type == MODEL_TYPE_GEO:
     if precision != MODEL_PRECISION_FLOAT32:
       raise ValueError(
         f"Unsupported model precision for geo model: {precision}. Currently supported precision is: {MODEL_PRECISION_FLOAT32}."
