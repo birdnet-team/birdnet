@@ -1,9 +1,11 @@
 from os import PathLike
 from typing import Literal, overload
 
+from birdnet.acoustic_models.base import AcousticModelBase
 from birdnet.acoustic_models.v2_4.pb import AcousticPBModelV2_4
 from birdnet.acoustic_models.v2_4.tf import AcousticTFModelV2_4
 from birdnet.base import (
+  ACOUSTIC_MODEL_VERSIONS,
   MODEL_BACKENDS,
   MODEL_LANGUAGE_EN_US,
   MODEL_LANGUAGES,
@@ -42,9 +44,21 @@ def load(
   backend: MODEL_BACKENDS,
   /,
   *,
-  precision: Literal["fp32"] = MODEL_PRECISION_FLOAT32,
+  precision: MODEL_PRECISIONS = MODEL_PRECISION_FLOAT32,
   lang: MODEL_LANGUAGES = MODEL_LANGUAGE_EN_US,
 ) -> AcousticPBModelV2_4 | AcousticTFModelV2_4: ...
+
+# if new versions are added, add this overload (also on the other places)
+# @overload
+# def load(
+#   model_type: Literal["acoustic"],
+#   version: ACOUSTIC_MODEL_VERSIONS,
+#   backend: MODEL_BACKENDS,
+#   /,
+#   *,
+#   precision: MODEL_PRECISIONS = MODEL_PRECISION_FLOAT32,
+#   lang: MODEL_LANGUAGES = MODEL_LANGUAGE_EN_US,
+# ) -> AcousticModelBase: ...
 @overload
 def load(
   model_type: Literal["geo"],
@@ -92,20 +106,6 @@ def load_custom(
   precision: MODEL_PRECISIONS = MODEL_PRECISION_FLOAT32,
   check_validity: bool = True,
 ) -> AcousticTFModelV2_4: ...
-
-# @overload
-# def load_custom(
-#   model_type: Literal["acoustic"],
-#   version: Literal["3.0"],
-#   backend: Literal["tf"],
-#   model: str | PathLike[str],
-#   species_list: str | PathLike[str],
-#   /,
-#   *,
-#   precision: MODEL_PRECISIONS = MODEL_PRECISION_FLOAT32,
-#   check_validity: bool = True,
-# ) -> AcousticTFModelV3_0: ...
-
 @overload
 def load_custom(
   model_type: Literal["acoustic"],
