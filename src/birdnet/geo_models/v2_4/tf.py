@@ -9,7 +9,6 @@ from birdnet.geo_models.base import (
   GeoInferenceBackend,
 )
 from birdnet.helper import load_litert_model, load_tf_model
-from birdnet.translations import AVAILABLE_LANGUAGES_V2_4
 
 if TYPE_CHECKING:
   from ai_edge_litert.interpreter import Interpreter as TFLiteInterpreter
@@ -34,7 +33,7 @@ from birdnet.base import (
   MODEL_LANGUAGES,
 )
 from birdnet.geo_models.base import GeoInferenceBackend
-from birdnet.geo_models.v2_4.base import GeoModelBaseV2_4
+from birdnet.geo_models.v2_4.base import GeoDownloaderBaseV2_4, GeoModelBaseV2_4
 from birdnet.helper import ModelInfo, load_litert_model
 from birdnet.local_data import get_local_model_root_dir
 from birdnet.utils import download_file_tqdm, get_species_from_file
@@ -48,7 +47,7 @@ model_info = ModelInfo(
 )
 
 
-class GeoTFDownloaderV2_4:
+class GeoTFDownloaderV2_4(GeoDownloaderBaseV2_4):
   @classmethod
   def _get_paths(cls) -> tuple[Path, Path]:
     model_root = get_local_model_root_dir(
@@ -76,9 +75,7 @@ class GeoTFDownloaderV2_4:
     if not lang_dir.is_dir():
       return False
 
-    return all(
-      (lang_dir / f"{lang}.txt").is_file() for lang in AVAILABLE_LANGUAGES_V2_4
-    )
+    return all((lang_dir / f"{lang}.txt").is_file() for lang in cls.AVAILABLE_LANGUAGES)
 
   @classmethod
   def _download_geo_model(cls) -> None:
@@ -109,7 +106,7 @@ class GeoTFDownloaderV2_4:
 
   @classmethod
   def get_model_path_and_labels(cls, lang: str) -> tuple[Path, OrderedSet[str]]:
-    assert lang in AVAILABLE_LANGUAGES_V2_4
+    assert lang in cls.AVAILABLE_LANGUAGES
     if not cls._check_geo_model_available():
       cls._download_geo_model()
     assert cls._check_geo_model_available()
@@ -129,8 +126,9 @@ class GeoTFModelV2_4(GeoModelBaseV2_4):
     self,
     model_path: Path,
     species_list: OrderedSet[str],
+    use_custom_model: bool,
   ) -> None:
-    super().__init__(model_path, species_list)
+    super().__init__(model_path, species_list, use_custom_model)
 
   @final
   @classmethod
@@ -143,7 +141,43 @@ class GeoTFModelV2_4(GeoModelBaseV2_4):
     lang: MODEL_LANGUAGES,
   ) -> GeoTFModelV2_4:
     model_path, species_list = GeoTFDownloaderV2_4.get_model_path_and_labels(lang)
-    result = GeoTFModelV2_4(model_path, species_list)
+    result = GeoTFModelV2_4(model_path, species_list, use_custom_model=False)
+    return result
+
+  @classmethod
+  def load_custom(
+    cls,
+    model: Path,
+    species_list: Path,
+    check_validity: bool,
+  ) -> GeoTFModelV2_4:
+    assert model.is_file()
+    assert species_list.is_file()
+
+    loaded_species_list: OrderedSet[str]
+    try:
+      loaded_species_list = get_species_from_file(species_list, encoding="utf8")
+    except Exception as e:
+      raise ValueError(
+        f"Failed to read species list from '{species_list.absolute()}'. Ensure it is a valid text file."
+      ) from e
+
+    if check_validity:
+      try:
+        interp = load_tf_model(model, allocate_tensors=False)
+      except ValueError as e:
+        raise ValueError(
+          f"Failed to load model '{model.absolute()}'. Ensure it is a valid TFLite model."
+        ) from e
+
+      n_species_in_model = interp.get_output_details()[0]["shape"][1]
+      if n_species_in_model != len(loaded_species_list):
+        raise ValueError(
+          f"Model '{model.absolute()}' has {n_species_in_model} outputs, but species list '{species_list.absolute()}' has {len(loaded_species_list)} species!"
+        )
+
+    result = GeoTFModelV2_4(model, loaded_species_list, use_custom_model=True)
+
     return result
 
 

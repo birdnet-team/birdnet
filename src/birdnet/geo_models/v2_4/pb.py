@@ -1,4 +1,3 @@
-# birdnet_batch_inference.py – raw‑audio version
 from __future__ import annotations
 
 import logging
@@ -12,9 +11,6 @@ from pathlib import Path
 from typing import Any, final
 
 import numpy as np
-
-# You'll need these imports in your own code
-# Next two import lines for this demo only
 from ordered_set import OrderedSet
 
 from birdnet.base import (
@@ -22,23 +18,14 @@ from birdnet.base import (
   MODEL_BACKENDS,
 )
 from birdnet.geo_models.base import GeoInferenceBackend
-from birdnet.geo_models.v2_4.base import GeoModelBaseV2_4
+from birdnet.geo_models.v2_4.base import GeoDownloaderBaseV2_4, GeoModelBaseV2_4
+from birdnet.helper import check_protobuf_model_files_exist
 from birdnet.local_data import get_local_model_root_dir
 from birdnet.logging_utils import get_logger
-from birdnet.translations import AVAILABLE_LANGUAGES_V2_4
 from birdnet.utils import download_file_tqdm, get_species_from_file
 
 
-def check_protobuf_model_files_exist(folder: Path) -> bool:
-  exists = True
-  exists &= (folder / "saved_model.pb").is_file()
-  exists &= (folder / "variables").is_dir()
-  exists &= (folder / "variables" / "variables.data-00000-of-00001").is_file()
-  exists &= (folder / "variables" / "variables.index").is_file()
-  return exists
-
-
-class GeoPBDownloaderV2_4:
+class GeoPBDownloaderV2_4(GeoDownloaderBaseV2_4):
   @classmethod
   def _get_paths(cls) -> tuple[Path, Path]:
     model_root = get_local_model_root_dir(
@@ -60,7 +47,7 @@ class GeoPBDownloaderV2_4:
     model_is_downloaded &= check_protobuf_model_files_exist(model_path)
 
     model_is_downloaded &= lang_dir.is_dir()
-    for lang in AVAILABLE_LANGUAGES_V2_4:
+    for lang in cls.AVAILABLE_LANGUAGES:
       model_is_downloaded &= (lang_dir / f"{lang}.txt").is_file()
 
     return model_is_downloaded
@@ -116,8 +103,10 @@ class GeoPBDownloaderV2_4:
 
 
 class GeoPBModelV2_4(GeoModelBaseV2_4):
-  def __init__(self, model_path: Path, species_list: OrderedSet[str]) -> None:
-    super().__init__(model_path, species_list)
+  def __init__(
+    self, model_path: Path, species_list: OrderedSet[str], use_custom_model: bool
+  ) -> None:
+    super().__init__(model_path, species_list, use_custom_model)
 
   @classmethod
   @final
@@ -130,7 +119,51 @@ class GeoPBModelV2_4(GeoModelBaseV2_4):
     result = GeoPBModelV2_4(
       model_path=model_path,
       species_list=species_list,
+      use_custom_model=False,
     )
+    return result
+
+  @classmethod
+  def load_custom(
+    cls, model: Path, species_list: Path, check_validity: bool
+  ) -> GeoPBModelV2_4:
+    assert model.is_dir()
+    assert species_list.is_file()
+
+    loaded_species_list: OrderedSet[str]
+    try:
+      loaded_species_list = get_species_from_file(species_list, encoding="utf8")
+    except Exception as e:
+      raise ValueError(
+        f"Failed to read species list from '{species_list.absolute()}'. Ensure it is a valid text file."
+      ) from e
+
+    if not check_protobuf_model_files_exist(model):
+      raise ValueError(
+        f"Model directory '{model.absolute()}' does not contain the required files for a Protobuf model!"
+      )
+
+    # check not possible currently because of tf loading
+    if False and check_validity:
+      try:
+        loaded_model = load_pb_model(model)
+      except ValueError as e:
+        raise ValueError(
+          f"Failed to load model '{model.absolute()}'. Ensure it is a valid TFLite model."
+        ) from e
+
+      n_species_in_model = (
+        loaded_model.signatures["basic"].output_shapes["scores"].dims[1].value  # type: ignore
+      )
+      if n_species_in_model != len(loaded_species_list):
+        raise ValueError(
+          f"Model '{model.absolute()}' has {n_species_in_model} outputs, but species list '{species_list.absolute()}' has {len(loaded_species_list)} species!"
+        )
+
+    result = GeoPBModelV2_4(
+      model_path=model, species_list=loaded_species_list, use_custom_model=True
+    )
+
     return result
 
 

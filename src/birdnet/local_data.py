@@ -2,7 +2,12 @@ import importlib.metadata
 import os
 from pathlib import Path
 
-from birdnet.base import ACOUSTIC_MODEL_VERSIONS, MODEL_BACKENDS, MODEL_TYPES
+from birdnet.base import (
+  ACOUSTIC_MODEL_VERSIONS,
+  GEO_MODEL_VERSIONS,
+  MODEL_BACKENDS,
+  MODEL_TYPES,
+)
 from birdnet.globals import PKG_NAME
 
 
@@ -50,7 +55,7 @@ def get_benchmark_dir(
 
 def get_local_model_root_dir(
   model: MODEL_TYPES,
-  version: ACOUSTIC_MODEL_VERSIONS,
+  version: ACOUSTIC_MODEL_VERSIONS | GEO_MODEL_VERSIONS,
   backend: MODEL_BACKENDS,
 ) -> Path:
   parent_dir = APP_DIR / f"{model}-models" / f"v{version}" / backend

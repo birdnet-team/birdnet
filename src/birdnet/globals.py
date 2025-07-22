@@ -1,4 +1,3 @@
-
 import numpy as np
 
 PKG_NAME = "birdnet"
@@ -14,4 +13,3 @@ READABLE_FLAG = np.uint8(2)
 
 # flag for "busy", i.e., currently being processed
 READING_FLAG = np.uint8(3)
-

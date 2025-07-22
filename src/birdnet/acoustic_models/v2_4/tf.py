@@ -15,7 +15,6 @@ from birdnet.helper import (
   load_tf_model,
   tf_installed,
 )
-from birdnet.translations import AVAILABLE_LANGUAGES_V2_4
 
 if TYPE_CHECKING:
   from ai_edge_litert.interpreter import Interpreter as TFLiteInterpreter
@@ -32,7 +31,10 @@ from typing import Literal, final
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.base import AcousticInferenceBackend
-from birdnet.acoustic_models.v2_4.base import AcousticModelBaseV2_4
+from birdnet.acoustic_models.v2_4.base import (
+  AcousticDownloaderBaseV2_4,
+  AcousticModelBaseV2_4,
+)
 from birdnet.base import (
   LIBRARY_LITERT,
   LIBRARY_TF,
@@ -72,7 +74,7 @@ models = {
 }
 
 
-class AcousticTFDownloaderV2_4:
+class AcousticTFDownloaderV2_4(AcousticDownloaderBaseV2_4):
   @classmethod
   def _get_paths(cls, precision: MODEL_PRECISIONS) -> tuple[Path, Path]:
     model_root = get_local_model_root_dir(
@@ -100,9 +102,7 @@ class AcousticTFDownloaderV2_4:
     if not lang_dir.is_dir():
       return False
 
-    return all(
-      (lang_dir / f"{lang}.txt").is_file() for lang in AVAILABLE_LANGUAGES_V2_4
-    )
+    return all((lang_dir / f"{lang}.txt").is_file() for lang in cls.AVAILABLE_LANGUAGES)
 
   @classmethod
   def _download_acoustic_model(cls, precision: MODEL_PRECISIONS) -> None:
@@ -135,7 +135,7 @@ class AcousticTFDownloaderV2_4:
   def get_model_path_and_labels(
     cls, lang: str, precision: MODEL_PRECISIONS
   ) -> tuple[Path, OrderedSet[str]]:
-    assert lang in AVAILABLE_LANGUAGES_V2_4
+    assert lang in cls.AVAILABLE_LANGUAGES
     if not cls._check_acoustic_model_available(precision):
       cls._download_acoustic_model(precision)
     assert cls._check_acoustic_model_available(precision)
@@ -174,8 +174,9 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     model_path, species_list = AcousticTFDownloaderV2_4.get_model_path_and_labels(
       lang, precision
     )
-    use_custom_model = False
-    result = AcousticTFModelV2_4(model_path, species_list, precision, use_custom_model)
+    result = AcousticTFModelV2_4(
+      model_path, species_list, precision, use_custom_model=False
+    )
     return result
 
   @classmethod
@@ -184,7 +185,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     model: Path,
     species_list: Path,
     precision: MODEL_PRECISIONS,
-    check_validity: bool = True,
+    check_validity: bool,
   ) -> AcousticTFModelV2_4:
     assert model.is_file()
     assert species_list.is_file()

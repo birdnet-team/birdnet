@@ -16,28 +16,21 @@ from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.base import AcousticInferenceBackend
 from birdnet.acoustic_models.inference.prediction_result import PredictionResult
-from birdnet.acoustic_models.v2_4.base import AcousticModelBaseV2_4
+from birdnet.acoustic_models.v2_4.base import (
+  AcousticDownloaderBaseV2_4,
+  AcousticModelBaseV2_4,
+)
 from birdnet.base import (
   MODEL_BACKEND_PB,
   MODEL_BACKENDS,
   MODEL_PRECISION_FLOAT32,
 )
-from birdnet.helper import load_pb_model
+from birdnet.helper import check_protobuf_model_files_exist, load_pb_model
 from birdnet.local_data import get_local_model_root_dir
-from birdnet.translations import AVAILABLE_LANGUAGES_V2_4
 from birdnet.utils import download_file_tqdm, get_species_from_file
 
 
-def check_protobuf_model_files_exist(folder: Path) -> bool:
-  exists = True
-  exists &= (folder / "saved_model.pb").is_file()
-  exists &= (folder / "variables").is_dir()
-  exists &= (folder / "variables" / "variables.data-00000-of-00001").is_file()
-  exists &= (folder / "variables" / "variables.index").is_file()
-  return exists
-
-
-class AcousticPBDownloaderV2_4:
+class AcousticPBDownloaderV2_4(AcousticDownloaderBaseV2_4):
   @classmethod
   def _get_paths(cls) -> tuple[Path, Path]:
     model_root = get_local_model_root_dir(
@@ -59,7 +52,7 @@ class AcousticPBDownloaderV2_4:
     model_is_downloaded &= check_protobuf_model_files_exist(model_path)
 
     model_is_downloaded &= lang_dir.is_dir()
-    for lang in AVAILABLE_LANGUAGES_V2_4:
+    for lang in cls.AVAILABLE_LANGUAGES:
       model_is_downloaded &= (lang_dir / f"{lang}.txt").is_file()
 
     return model_is_downloaded
@@ -142,7 +135,7 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
 
   @classmethod
   def load_custom(
-    cls, model: Path, species_list: Path, check_validity: bool = True
+    cls, model: Path, species_list: Path, check_validity: bool
   ) -> AcousticPBModelV2_4:
     assert model.is_dir()
     assert species_list.is_file()

@@ -61,6 +61,40 @@ from birdnet.local_data import get_benchmark_dir
 from birdnet.logging_utils import QueueFileWriter, get_package_logging_level
 
 
+class AcousticDownloaderBaseV2_4:
+  AVAILABLE_LANGUAGES: OrderedSet[str] = OrderedSet(
+    (
+      "af",
+      "ar",
+      "cs",
+      "da",
+      "de",
+      "en_uk",
+      "en_us",
+      "es",
+      "fi",
+      "fr",
+      "hu",
+      "it",
+      "ja",
+      "ko",
+      "nl",
+      "no",
+      "pl",
+      "pt",
+      "ro",
+      "ru",
+      "sk",
+      "sl",
+      "sv",
+      "th",
+      "tr",
+      "uk",
+      "zh",
+    )
+  )
+
+
 class AcousticModelBaseV2_4(AcousticModelBase):
   def __init__(
     self,
@@ -69,12 +103,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     precision: MODEL_PRECISIONS,
     use_custom_model: bool,
   ) -> None:
-    super().__init__(model_path, species_list, precision)
-    self._use_custom_model = use_custom_model
-
-  @property
-  def use_custom_model(self) -> bool:
-    return self._use_custom_model
+    super().__init__(model_path, species_list, precision, use_custom_model)
 
   @classmethod
   @final

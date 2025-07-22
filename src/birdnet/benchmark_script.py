@@ -175,7 +175,7 @@ def run_benchmark_from_args(args: list[str]) -> None:
 
 def run_benchmark_from_ns(ns: Namespace) -> None:
   if ns.backend == MODEL_BACKEND_TF:
-    model: AcousticModelBaseV2_4 = birdnet.model_loader.load_acoustic_model(
+    model: AcousticModelBaseV2_4 = birdnet.model_loader._load_acoustic_model(
       version="2.4",
       backend=MODEL_BACKEND_TF,
       precision=ns.precision,
@@ -203,7 +203,7 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
       inference_library=ns.tf_library,
     )
   elif ns.backend == MODEL_BACKEND_PB:
-    model: AcousticModelBaseV2_4 = birdnet.model_loader.load_acoustic_model(
+    model: AcousticModelBaseV2_4 = birdnet.model_loader._load_acoustic_model(
       version="2.4",
       backend=MODEL_BACKEND_PB,
       precision=ns.precision,

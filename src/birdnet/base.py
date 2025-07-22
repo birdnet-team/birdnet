@@ -15,15 +15,21 @@ VALID_LIBRARY_TYPES = [
 MODEL_TYPE_ACOUSTIC = "acoustic"
 MODEL_TYPE_GEO = "geo"
 MODEL_TYPES = Literal["acoustic", "geo"]
+VALID_MODEL_TYPES = [
+  MODEL_TYPE_ACOUSTIC,
+  MODEL_TYPE_GEO,
+]
 
 ACOUSTIC_MODEL_VERSION_V2_4 = "2.4"
-ACOUSTIC_MODEL_VERSIONS = Literal["2.4",]
+ACOUSTIC_MODEL_VERSION_V3_0 = "3.0"
+ACOUSTIC_MODEL_VERSIONS = Literal["2.4", "3.0"]
 VALID_ACOUSTIC_MODEL_VERSIONS = [
   ACOUSTIC_MODEL_VERSION_V2_4,
+  ACOUSTIC_MODEL_VERSION_V3_0,
 ]
 
 GEO_MODEL_VERSION_V2_4 = "2.4"
-GEO_MODEL_VERSIONS = Literal["2.4",]
+GEO_MODEL_VERSIONS = Literal["2.4", "2.5"]
 VALID_GEO_MODEL_VERSIONS = [
   GEO_MODEL_VERSION_V2_4,
 ]
@@ -75,13 +81,45 @@ MODEL_LANGUAGES = Literal[
   "uk",
   "zh",
 ]
+VALID_MODEL_LANGUAGES = [
+  "af",
+  "ar",
+  "cs",
+  "da",
+  "de",
+  "en_uk",
+  "en_us",
+  "es",
+  "fi",
+  "fr",
+  "hu",
+  "it",
+  "ja",
+  "ko",
+  "nl",
+  "no",
+  "pl",
+  "pt",
+  "ro",
+  "ru",
+  "sk",
+  "sl",
+  "sv",
+  "th",
+  "tr",
+  "uk",
+  "zh",
+]
 
 
 class ModelBase(ABC):
-  def __init__(self, model_path: Path, species_list: OrderedSet[str]) -> None:
+  def __init__(
+    self, model_path: Path, species_list: OrderedSet[str], use_custom_model: bool
+  ) -> None:
     super().__init__()
     self._model_path = model_path
     self._species_list = species_list
+    self._use_custom_model = use_custom_model
 
   @classmethod
   @abstractmethod
@@ -98,3 +136,7 @@ class ModelBase(ABC):
   @property
   def n_species(self) -> int:
     return len(self.species_list)
+
+  @property
+  def use_custom_model(self) -> bool:
+    return self._use_custom_model

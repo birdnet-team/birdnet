@@ -16,8 +16,10 @@ class GeoInferenceBackend(ABC):
 
 
 class GeoModelBase(ModelBase):
-  def __init__(self, model_path: Path, species_list: OrderedSet[str]) -> None:
-    super().__init__(model_path, species_list)
+  def __init__(
+    self, model_path: Path, species_list: OrderedSet[str], use_custom_model: bool
+  ) -> None:
+    super().__init__(model_path, species_list, use_custom_model)
 
   @classmethod
   @abstractmethod

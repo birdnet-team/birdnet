@@ -57,9 +57,13 @@ class AcousticInferenceBackendLoader:
 
 class AcousticModelBase(ModelBase):
   def __init__(
-    self, model_path: Path, species_list: OrderedSet[str], precision: MODEL_PRECISIONS
+    self,
+    model_path: Path,
+    species_list: OrderedSet[str],
+    precision: MODEL_PRECISIONS,
+    use_custom_model: bool,
   ) -> None:
-    super().__init__(model_path, species_list)
+    super().__init__(model_path, species_list, use_custom_model)
     self._precision = precision
 
   @classmethod

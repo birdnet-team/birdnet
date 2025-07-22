@@ -22,6 +22,15 @@ if TYPE_CHECKING:
   from tensorflow.lite.python.interpreter import Interpreter as TFInterpreter
 
 
+def check_protobuf_model_files_exist(folder: Path) -> bool:
+  exists = True
+  exists &= (folder / "saved_model.pb").is_file()
+  exists &= (folder / "variables").is_dir()
+  exists &= (folder / "variables" / "variables.data-00000-of-00001").is_file()
+  exists &= (folder / "variables" / "variables.index").is_file()
+  return exists
+
+
 def load_pb_model(model_path: Path):
   import absl.logging
 
