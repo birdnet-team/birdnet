@@ -18,7 +18,7 @@ from birdnet.globals import (
   WRITABLE_FLAG,
   WRITING_FLAG,
 )
-from birdnet.helper import RingField, uint_dtype_for
+from birdnet.helper import RingField
 
 
 class EmbeddingsWorker(bn_logging.LogableProcessBase):

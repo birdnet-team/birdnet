@@ -24,7 +24,6 @@ from birdnet.acoustic_models.base import (
   AcousticModelBase,
 )
 from birdnet.acoustic_models.inference.consumer import Consumer
-from birdnet.acoustic_models.inference.emb.consumer import EmbeddingsConsumer
 from birdnet.acoustic_models.inference.emb.emb_worker import EmbeddingsWorker
 from birdnet.acoustic_models.inference.emb.prediction_result import (
   EmbeddingsPredictionResult,
@@ -36,7 +35,6 @@ from birdnet.acoustic_models.inference.perf_tracker import (
   PerformanceTrackingResult,
 )
 from birdnet.acoustic_models.inference.producer import ChildProducer
-from birdnet.acoustic_models.inference.scores.consumer import ScoresConsumer
 from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
 from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
 from birdnet.acoustic_models.inference.scores.worker import ChildWorker
