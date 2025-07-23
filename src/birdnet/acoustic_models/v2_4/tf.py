@@ -4,8 +4,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Iterable, Literal, final
 
 from birdnet.acoustic_models.inference.prediction_result import PredictionResult
-from birdnet.backends import TFInferenceBackend
-from birdnet.helper import (
+from birdnet.backends import (
+  InferenceBackend,
+  TFInferenceBackend,
+  check_tf_model_can_be_loaded,
   litert_installed,
   load_tf_model,
   tf_installed,
@@ -160,14 +162,12 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
 
   @final
   @classmethod
-  def get_backend_type(cls) -> type:
+  def get_backend_type(cls) -> type[InferenceBackend]:
     return TFInferenceBackend
 
   @classmethod
   def load(
-    cls,
-    lang: MODEL_LANGUAGES,
-    precision: MODEL_PRECISIONS,
+    cls, lang: MODEL_LANGUAGES, precision: MODEL_PRECISIONS
   ) -> AcousticTFModelV2_4:
     model_path, species_list = AcousticTFDownloaderV2_4.get_model_path_and_labels(
       lang, precision
@@ -197,14 +197,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       ) from e
 
     if check_validity:
-      try:
-        interp = load_tf_model(model, allocate_tensors=False)
-      except ValueError as e:
-        raise ValueError(
-          f"Failed to load model '{model.absolute()}'. Ensure it is a valid TFLite model."
-        ) from e
-
-      n_species_in_model = interp.get_output_details()[0]["shape"][1]
+      n_species_in_model = check_tf_model_can_be_loaded(model)
       if n_species_in_model != len(loaded_species_list):
         raise ValueError(
           f"Model '{model.absolute()}' has {n_species_in_model} outputs, but species list '{species_list.absolute()}' has {len(loaded_species_list)} species!"

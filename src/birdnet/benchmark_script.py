@@ -2,12 +2,12 @@ import logging
 import os
 import sys
 from argparse import ArgumentParser, Namespace
+from typing import cast
 
 import psutil
 
 import birdnet
 import birdnet.model_loader
-from birdnet.acoustic_models.v2_4.base import AcousticModelBaseV2_4
 from birdnet.argparse_helper import (
   ConvertToSetAction,
   parse_float,
@@ -17,10 +17,13 @@ from birdnet.argparse_helper import (
   parse_positive_integer,
 )
 from birdnet.globals import (
+  ACOUSTIC_MODEL_VERSION_V2_4,
   LIBRARY_TF,
   MODEL_BACKEND_PB,
   MODEL_BACKEND_TF,
   MODEL_PRECISION_FLOAT32,
+  MODEL_PRECISIONS,
+  MODEL_TYPE_ACOUSTIC,
   VALID_LIBRARY_TYPES,
   VALID_MODEL_BACKENDS,
   VALID_MODEL_PRECISIONS,
@@ -175,13 +178,14 @@ def run_benchmark_from_args(args: list[str]) -> None:
 
 def run_benchmark_from_ns(ns: Namespace) -> None:
   if ns.backend == MODEL_BACKEND_TF:
-    model: AcousticModelBaseV2_4 = birdnet.model_loader._load_acoustic_model(
-      version="2.4",
-      backend=MODEL_BACKEND_TF,
-      precision=ns.precision,
+    model = birdnet.model_loader.load(
+      MODEL_TYPE_ACOUSTIC,
+      ACOUSTIC_MODEL_VERSION_V2_4,
+      MODEL_BACKEND_TF,
+      precision=cast(MODEL_PRECISIONS, ns.precision),
     )
 
-    model.analyze(
+    model.predict(
       ns.inputs,
       top_k=ns.top_k,
       feeders=ns.feeders,
@@ -203,13 +207,14 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
       inference_library=ns.tf_library,
     )
   elif ns.backend == MODEL_BACKEND_PB:
-    model: AcousticModelBaseV2_4 = birdnet.model_loader._load_acoustic_model(
-      version="2.4",
-      backend=MODEL_BACKEND_PB,
+    model = birdnet.model_loader.load(
+      MODEL_TYPE_ACOUSTIC,
+      ACOUSTIC_MODEL_VERSION_V2_4,
+      MODEL_BACKEND_PB,
       precision=ns.precision,
     )
 
-    model.analyze(
+    model.predict(
       ns.inputs,
       top_k=ns.top_k,
       feeders=ns.feeders,

@@ -4,27 +4,36 @@ import logging
 import multiprocessing
 import os
 import time
+from abc import ABC, abstractmethod
 from collections.abc import Callable
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, final
 
 import numpy as np
 
-from birdnet.base import InferenceBackend
 from birdnet.globals import (
   LIBRARY_LITERT,
   LIBRARY_TF,
   LIBRARY_TYPES,
 )
-from birdnet.helper import (
-  load_litert_model,
-  load_tf_model,
-)
 from birdnet.logging_utils import get_logger
 
 if TYPE_CHECKING:
-  from ai_edge_litert.interpreter import Interpreter as TFLiteInterpreter
+  from ai_edge_litert.interpreter import Interpreter as LiteRTInterpreter
   from tensorflow.lite.python.interpreter import Interpreter as TFInterpreter
+
+
+class InferenceBackend(ABC):
+  @abstractmethod
+  def load(self) -> None: ...
+
+  @abstractmethod
+  def infer(self, batch: np.ndarray, device_name: str) -> np.ndarray: ...
+
+  @classmethod
+  @abstractmethod
+  def supports_cow(cls) -> bool: ...
 
 
 class InferenceBackendLoader:
@@ -66,7 +75,7 @@ class TFInferenceBackend(InferenceBackend):
   def __init__(self, model_path: Path, inference_library: LIBRARY_TYPES) -> None:
     super().__init__()
     self._model_path = model_path
-    self._interp: TFLiteInterpreter | TFInterpreter | None = None
+    self._interp: LiteRTInterpreter | TFInterpreter | None = None
     self._inference_library = inference_library
     self._in_idx: int | None = None
     self._out_idx: int | None = None
@@ -106,10 +115,9 @@ class TFInferenceBackend(InferenceBackend):
   @final
   def infer(self, batch: np.ndarray, device_name: str) -> np.ndarray:
     # TODO: implement load on different CPUs
-    if "CPU" not in device_name:
-      raise ValueError("TensorFlow models can only be loaded on CPU!")
-
+    assert device_name == "CPU"
     assert self._interp is not None
+
     self._set_tensor(batch)
     self._interp.invoke()
     res: np.ndarray = self._interp.get_tensor(self._out_idx)
@@ -216,3 +224,186 @@ class PBInferenceBackend(InferenceBackend):
     scores_np = scores.numpy()  # type: ignore
     assert scores_np.dtype == np.float32
     return scores_np
+
+
+def load_pb_model(model_path: Path):
+  import absl.logging
+
+  absl_verbosity_before = absl.logging.get_verbosity()
+  absl.logging.set_verbosity(absl.logging.ERROR)
+  tf_verbosity_before = logging.getLogger("tensorflow").level
+  logging.getLogger("tensorflow").setLevel(logging.ERROR)
+  os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+  import tensorflow as tf
+
+  # Note: memory growth needs to be set before loading the model and maybe only once in the main process
+  # physical_gpu_device = gpus_with_name[0]
+  # if tf.config.experimental.get_memory_growth(physical_gpu_device) is False:
+  #   tf.config.experimental.set_memory_growth(physical_gpu_device, True)
+
+  start = time.perf_counter()
+  model = tf.saved_model.load(str(model_path.absolute()))
+  end = time.perf_counter()
+  logger = get_logger(__name__)
+  logger.debug(
+    f"Model loaded from {model_path.absolute()} in {end - start:.2f} seconds."
+  )
+
+  absl.logging.set_verbosity(absl_verbosity_before)
+  logging.getLogger("tensorflow").setLevel(tf_verbosity_before)
+  return model
+
+
+def load_tf_model(
+  model_path: Path,
+  allocate_tensors: bool = False,
+) -> TFInterpreter:
+  assert model_path.is_file()
+  assert tf_installed()
+
+  absl_verbosity_before: int | None = None
+  tf_verbosity_before: int | None = None
+
+  import absl.logging as absl_logging
+
+  absl_verbosity_before = absl_logging.get_verbosity()
+  absl_logging.set_verbosity(absl_logging.ERROR)
+  absl_logging.set_stderrthreshold("error")
+  os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+  tf_verbosity_before: int | None = None
+  tf_verbosity_before = logging.getLogger("tensorflow").level
+  logging.getLogger("tensorflow").setLevel(logging.ERROR)
+  # NOTE: import in this way is not possible:
+  # `import tensorflow.lite.python.interpreter as tflite`
+  from tensorflow.lite.python import interpreter as tflite
+
+  # memory_map not working for TF 2.15.1:
+  # f = open(self._model_path, "rb")
+  # self._mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+  start = time.perf_counter()
+  try:
+    interp = tflite.Interpreter(
+      str(model_path.absolute()),
+      num_threads=1,
+      experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,  # tensor#187 is a dynamic-sized tensor # type: ignore
+    )
+  except ValueError as e:
+    raise ValueError(
+      f"Failed to load model '{model_path.absolute()}' using 'tensorflow'. Ensure it is a valid TFLite model."
+    ) from e
+
+  end = time.perf_counter()
+  logger = get_logger(__name__)
+  logger.debug(
+    f"Model loaded from {model_path.absolute()} using 'tensorflow' in {end - start:.2f} seconds."
+  )
+
+  if allocate_tensors:
+    interp.allocate_tensors()
+
+  import absl.logging as absl_logging
+
+  assert absl_verbosity_before is not None
+  assert tf_verbosity_before is not None
+  absl_logging.set_verbosity(absl_verbosity_before)
+  logging.getLogger("tensorflow").setLevel(tf_verbosity_before)
+
+  return interp
+
+
+def load_litert_model(
+  model_path: Path,
+  allocate_tensors: bool = False,
+) -> LiteRTInterpreter:
+  assert model_path.is_file()
+  assert litert_installed()
+
+  from ai_edge_litert import interpreter as tflite
+
+  start = time.perf_counter()
+  try:
+    interp = tflite.Interpreter(
+      str(model_path.absolute()),
+      num_threads=1,
+      experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,  # tensor#187 is a dynamic-sized tensor # type: ignore
+    )
+  except ValueError as e:
+    raise ValueError(
+      f"Failed to load model '{model_path.absolute()}' using 'ai_edge_litert'. Ensure it is a valid TFLite model."
+    ) from e
+
+  end = time.perf_counter()
+  logger = get_logger(__name__)
+  logger.debug(
+    f"Model loaded from {model_path.absolute()} using 'ai_edge_litert' in {end - start:.2f} seconds."
+  )
+
+  if allocate_tensors:
+    interp.allocate_tensors()
+
+  return interp
+
+
+def tf_installed() -> bool:
+  import importlib.util
+
+  return importlib.util.find_spec("tensorflow") is not None
+
+
+def litert_installed() -> bool:
+  import importlib.util
+
+  return importlib.util.find_spec("ai_edge_litert") is not None
+
+
+def _get_pb_n_species(
+  model_path: Path, signature_name: str, prediction_key: str
+) -> int | None:
+  try:
+    loaded_model = load_pb_model(model_path)
+    n_species_in_model: int = (
+      loaded_model.signatures[signature_name]  # type: ignore
+      .output_shapes[prediction_key]
+      .dims[1]
+      .value  # type: ignore
+    )
+    return n_species_in_model
+  except Exception:
+    return None
+
+
+def check_pb_model_can_be_loaded(
+  model_path: Path, signature_name: str, prediction_key: str
+) -> int | None:
+  try:
+    with ProcessPoolExecutor(max_workers=1) as executor:
+      future = executor.submit(
+        _get_pb_n_species, model_path, signature_name, prediction_key
+      )
+      result = future.result(timeout=None)
+      return result
+  except Exception as e:
+    get_logger(__name__).error(f"Failed to load Protobuf model in subprocess: {e}")
+    return None
+
+
+def _get_tf_n_species(model_path: Path) -> int | None:
+  try:
+    loaded_model = load_tf_model(model_path, allocate_tensors=False)
+    n_species_in_model = loaded_model.get_output_details()[0]["shape"][1]
+    return n_species_in_model
+  except Exception:
+    return None
+
+
+def check_tf_model_can_be_loaded(
+  model_path: Path,
+) -> int | None:
+  try:
+    with ProcessPoolExecutor(max_workers=1) as executor:
+      future = executor.submit(_get_tf_n_species, model_path)
+      result = future.result(timeout=None)
+      return result
+  except Exception as e:
+    get_logger(__name__).error(f"Failed to load TensorFlow model in subprocess: {e}")
+    return None

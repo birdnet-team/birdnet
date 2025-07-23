@@ -10,6 +10,7 @@ from birdnet.geo_models.inference.prediction_result import PredictionResult
 from birdnet.logging_utils import get_package_logger
 from birdnet.model_loader import (
   load,
+  load_custom,
 )
 
 if __name__ == "__main__":
@@ -34,22 +35,22 @@ if __name__ == "__main__":
   # tf.config.experimental.enable_op_determinism()
   import time
 
-  set_start_method("fork", force=True)  # Linux, macOS
+  set_start_method("spawn", force=True)  # Linux, macOS
 
   start = time.perf_counter()
-  backend = "pb"
+  backend = "tf"
   result = None
   if backend == "tf":
     model = load("geo", "2.4", "tf", precision="fp32")
-    # model = load_custom(
-    #   "acoustic",
-    #   "2.4",
-    #   "tf",
-    #   "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/tf/model-fp32.tflite",
-    #   "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/tf/labels/en_us.txt",
-    #   precision="fp32",
-    #   check_validity=True,
-    # )
+    model = load_custom(
+      "geo",
+      "2.4",
+      "tf",
+      "/home/stefan/.local/share/birdnet/geo-models/v2.4/tf/model.tflite",
+      "/home/stefan/.local/share/birdnet/geo-models/v2.4/tf/labels/en_us.txt",
+      precision="fp32",
+      check_validity=True,
+    )
 
     # model = load_custom(
     #   "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/tf/model-fp32.tflite",
@@ -69,15 +70,15 @@ if __name__ == "__main__":
     )
   elif backend == "pb":
     model = load("geo", "2.4", "pb")
-    # model = load_custom(
-    #   "acoustic",
-    #   "2.4",
-    #   "pb",
-    #   "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/pb/model/",
-    #   "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/pb/labels/en_us.txt",
-    #   precision="fp32",
-    #   check_validity=True,
-    # )
+    model = load_custom(
+      "geo",
+      "2.4",
+      "pb",
+      "/home/stefan/.local/share/birdnet/geo-models/v2.4/pb/model/",
+      "/home/stefan/.local/share/birdnet/geo-models/v2.4/pb/labels/en_us.txt",
+      precision="fp32",
+      check_validity=True,
+    )
 
     result = model.predict(
       20,

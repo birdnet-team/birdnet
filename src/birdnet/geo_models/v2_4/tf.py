@@ -9,7 +9,14 @@ from typing import TYPE_CHECKING, final
 
 from ordered_set import OrderedSet
 
-from birdnet.backends import TFInferenceBackend
+from birdnet.backends import (
+  InferenceBackend,
+  TFInferenceBackend,
+  check_tf_model_can_be_loaded,
+  litert_installed,
+  load_tf_model,
+  tf_installed,
+)
 from birdnet.geo_models.inference.prediction_result import PredictionResult
 from birdnet.geo_models.v2_4.base import GeoDownloaderBaseV2_4, GeoModelBaseV2_4
 from birdnet.globals import (
@@ -23,9 +30,6 @@ from birdnet.globals import (
 )
 from birdnet.helper import (
   ModelInfo,
-  litert_installed,
-  load_tf_model,
-  tf_installed,
 )
 from birdnet.local_data import get_local_model_root_dir
 from birdnet.utils import download_file_tqdm, get_species_from_file
@@ -132,7 +136,7 @@ class GeoTFModelV2_4(GeoModelBaseV2_4):
 
   @final
   @classmethod
-  def get_backend_type(cls) -> type:
+  def get_backend_type(cls) -> type[InferenceBackend]:
     return TFInferenceBackend
 
   @classmethod
@@ -163,14 +167,7 @@ class GeoTFModelV2_4(GeoModelBaseV2_4):
       ) from e
 
     if check_validity:
-      try:
-        interp = load_tf_model(model, allocate_tensors=False)
-      except ValueError as e:
-        raise ValueError(
-          f"Failed to load model '{model.absolute()}'. Ensure it is a valid TFLite model."
-        ) from e
-
-      n_species_in_model = interp.get_output_details()[0]["shape"][1]
+      n_species_in_model = check_tf_model_can_be_loaded(model)
       if n_species_in_model != len(loaded_species_list):
         raise ValueError(
           f"Model '{model.absolute()}' has {n_species_in_model} outputs, but species list '{species_list.absolute()}' has {len(loaded_species_list)} species!"

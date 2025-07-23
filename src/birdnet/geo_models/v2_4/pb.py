@@ -8,7 +8,11 @@ from typing import final
 
 from ordered_set import OrderedSet
 
-from birdnet.backends import PBInferenceBackend
+from birdnet.backends import (
+  InferenceBackend,
+  PBInferenceBackend,
+  check_pb_model_can_be_loaded,
+)
 from birdnet.geo_models.inference.prediction_result import PredictionResult
 from birdnet.geo_models.v2_4.base import GeoDownloaderBaseV2_4, GeoModelBaseV2_4
 from birdnet.globals import (
@@ -110,7 +114,7 @@ class GeoPBModelV2_4(GeoModelBaseV2_4):
 
   @final
   @classmethod
-  def get_backend_type(cls) -> type:
+  def get_backend_type(cls) -> type[InferenceBackend]:
     return PBInferenceBackend
 
   @classmethod
@@ -143,17 +147,9 @@ class GeoPBModelV2_4(GeoModelBaseV2_4):
         f"Model directory '{model.absolute()}' does not contain the required files for a Protobuf model!"
       )
 
-    # check not possible currently because of tf loading
-    if False and check_validity:
-      try:
-        loaded_model = load_pb_model(model)
-      except ValueError as e:
-        raise ValueError(
-          f"Failed to load model '{model.absolute()}'. Ensure it is a valid TFLite model."
-        ) from e
-
-      n_species_in_model = (
-        loaded_model.signatures["basic"].output_shapes["scores"].dims[1].value  # type: ignore
+    if check_validity:
+      n_species_in_model = check_pb_model_can_be_loaded(
+        model, "serving_default", "MNET_CLASS_ACTIVATION"
       )
       if n_species_in_model != len(loaded_species_list):
         raise ValueError(

@@ -7,7 +7,6 @@ import zipfile
 from pathlib import Path
 from typing import Iterable, Literal, final
 
-
 # You'll need these imports in your own code
 # Next two import lines for this demo only
 from ordered_set import OrderedSet
@@ -17,13 +16,17 @@ from birdnet.acoustic_models.v2_4.base import (
   AcousticDownloaderBaseV2_4,
   AcousticModelBaseV2_4,
 )
-from birdnet.backends import PBInferenceBackend
+from birdnet.backends import (
+  InferenceBackend,
+  PBInferenceBackend,
+  check_pb_model_can_be_loaded,
+)
 from birdnet.globals import (
   MODEL_BACKEND_PB,
   MODEL_BACKENDS,
   MODEL_PRECISION_FLOAT32,
 )
-from birdnet.helper import check_protobuf_model_files_exist, load_pb_model
+from birdnet.helper import check_protobuf_model_files_exist
 from birdnet.local_data import get_local_model_root_dir
 from birdnet.utils import download_file_tqdm, get_species_from_file
 
@@ -123,7 +126,7 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
 
   @classmethod
   @final
-  def get_backend_type(cls) -> type:
+  def get_backend_type(cls) -> type[InferenceBackend]:
     return PBInferenceBackend
 
   @classmethod
@@ -156,18 +159,8 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
         f"Model directory '{model.absolute()}' does not contain the required files for a Protobuf model!"
       )
 
-    # check not possible currently because of tf loading
-    if False and check_validity:
-      try:
-        loaded_model = load_pb_model(model)
-      except ValueError as e:
-        raise ValueError(
-          f"Failed to load model '{model.absolute()}'. Ensure it is a valid TFLite model."
-        ) from e
-
-      n_species_in_model = (
-        loaded_model.signatures["basic"].output_shapes["scores"].dims[1].value  # type: ignore
-      )
+    if check_validity:
+      n_species_in_model = check_pb_model_can_be_loaded(model, "basic", "scores")
       if n_species_in_model != len(loaded_species_list):
         raise ValueError(
           f"Model '{model.absolute()}' has {n_species_in_model} outputs, but species list '{species_list.absolute()}' has {len(loaded_species_list)} species!"

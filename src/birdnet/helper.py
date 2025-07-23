@@ -3,8 +3,6 @@ from __future__ import annotations
 import ctypes
 import logging
 import math
-import os
-import time
 from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
@@ -18,8 +16,7 @@ from numpy.typing import DTypeLike
 from birdnet.logging_utils import get_logger
 
 if TYPE_CHECKING:
-  from ai_edge_litert.interpreter import Interpreter as LiteRTInterpreter
-  from tensorflow.lite.python.interpreter import Interpreter as TFInterpreter
+  pass
 
 
 def check_protobuf_model_files_exist(folder: Path) -> bool:
@@ -30,135 +27,6 @@ def check_protobuf_model_files_exist(folder: Path) -> bool:
   exists &= (folder / "variables" / "variables.index").is_file()
   return exists
 
-
-def load_pb_model(model_path: Path):
-  import absl.logging
-
-  absl_verbosity_before = absl.logging.get_verbosity()
-  absl.logging.set_verbosity(absl.logging.ERROR)
-  tf_verbosity_before = logging.getLogger("tensorflow").level
-  logging.getLogger("tensorflow").setLevel(logging.ERROR)
-  os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-  import tensorflow as tf
-
-  # Note: memory growth needs to be set before loading the model and maybe only once in the main process
-  # physical_gpu_device = gpus_with_name[0]
-  # if tf.config.experimental.get_memory_growth(physical_gpu_device) is False:
-  #   tf.config.experimental.set_memory_growth(physical_gpu_device, True)
-
-  start = time.perf_counter()
-  model = tf.saved_model.load(str(model_path.absolute()))
-  end = time.perf_counter()
-  logger = get_logger(__name__)
-  logger.debug(
-    f"Model loaded from {model_path.absolute()} in {end - start:.2f} seconds."
-  )
-
-  absl.logging.set_verbosity(absl_verbosity_before)
-  logging.getLogger("tensorflow").setLevel(tf_verbosity_before)
-  return model
-
-
-def load_tf_model(
-  model_path: Path,
-  allocate_tensors: bool = False,
-) -> TFInterpreter:
-  assert model_path.is_file()
-  assert tf_installed()
-
-  absl_verbosity_before: int | None = None
-  tf_verbosity_before: int | None = None
-
-  import absl.logging as absl_logging
-
-  absl_verbosity_before = absl_logging.get_verbosity()
-  absl_logging.set_verbosity(absl_logging.ERROR)
-  absl_logging.set_stderrthreshold("error")
-  os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-  tf_verbosity_before: int | None = None
-  tf_verbosity_before = logging.getLogger("tensorflow").level
-  logging.getLogger("tensorflow").setLevel(logging.ERROR)
-  # NOTE: import in this way is not possible:
-  # `import tensorflow.lite.python.interpreter as tflite`
-  from tensorflow.lite.python import interpreter as tflite
-
-  # memory_map not working for TF 2.15.1:
-  # f = open(self._model_path, "rb")
-  # self._mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
-  start = time.perf_counter()
-  try:
-    interp = tflite.Interpreter(
-      str(model_path.absolute()),
-      num_threads=1,
-      experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,  # tensor#187 is a dynamic-sized tensor # type: ignore
-    )
-  except ValueError as e:
-    raise ValueError(
-      f"Failed to load model '{model_path.absolute()}' using 'tensorflow'. Ensure it is a valid TFLite model."
-    ) from e
-
-  end = time.perf_counter()
-  logger = get_logger(__name__)
-  logger.debug(
-    f"Model loaded from {model_path.absolute()} using 'tensorflow' in {end - start:.2f} seconds."
-  )
-
-  if allocate_tensors:
-    interp.allocate_tensors()
-
-  import absl.logging as absl_logging
-
-  assert absl_verbosity_before is not None
-  assert tf_verbosity_before is not None
-  absl_logging.set_verbosity(absl_verbosity_before)
-  logging.getLogger("tensorflow").setLevel(tf_verbosity_before)
-
-  return interp
-
-
-def load_litert_model(
-  model_path: Path,
-  allocate_tensors: bool = False,
-) -> LiteRTInterpreter:
-  assert model_path.is_file()
-  assert litert_installed()
-
-  from ai_edge_litert import interpreter as tflite
-
-  start = time.perf_counter()
-  try:
-    interp = tflite.Interpreter(
-      str(model_path.absolute()),
-      num_threads=1,
-      experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,  # tensor#187 is a dynamic-sized tensor # type: ignore
-    )
-  except ValueError as e:
-    raise ValueError(
-      f"Failed to load model '{model_path.absolute()}' using 'ai_edge_litert'. Ensure it is a valid TFLite model."
-    ) from e
-
-  end = time.perf_counter()
-  logger = get_logger(__name__)
-  logger.debug(
-    f"Model loaded from {model_path.absolute()} using 'ai_edge_litert' in {end - start:.2f} seconds."
-  )
-
-  if allocate_tensors:
-    interp.allocate_tensors()
-
-  return interp
-
-
-def tf_installed() -> bool:
-  import importlib.util
-
-  return importlib.util.find_spec("tensorflow") is not None
-
-
-def litert_installed() -> bool:
-  import importlib.util
-
-  return importlib.util.find_spec("ai_edge_litert") is not None
 
 
 @dataclass()
