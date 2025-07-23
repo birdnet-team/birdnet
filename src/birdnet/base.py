@@ -2,9 +2,22 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Self
 
+import numpy as np
 from ordered_set import OrderedSet
 
 from birdnet.globals import MODEL_BACKENDS
+
+
+class InferenceBackend(ABC):
+  @abstractmethod
+  def load(self) -> None: ...
+
+  @abstractmethod
+  def infer(self, batch: np.ndarray, device_name: str) -> np.ndarray: ...
+
+  @classmethod
+  @abstractmethod
+  def supports_cow(cls) -> bool: ...
 
 
 class PredictionResultBase:
@@ -28,6 +41,10 @@ class ModelBase(ABC):
   @classmethod
   @abstractmethod
   def get_backend(cls) -> MODEL_BACKENDS: ...
+
+  @classmethod
+  @abstractmethod
+  def get_backend_type(cls) -> type: ...
 
   @property
   def model_path(self) -> Path:

@@ -37,7 +37,7 @@ if __name__ == "__main__":
   set_start_method("fork", force=True)  # Linux, macOS
 
   start = time.perf_counter()
-  backend = "tf"
+  backend = "pb"
   result = None
   if backend == "tf":
     model = load("geo", "2.4", "tf", precision="fp32")

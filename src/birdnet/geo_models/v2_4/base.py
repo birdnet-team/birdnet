@@ -5,7 +5,8 @@ import numpy as np
 from numpy.typing import DTypeLike
 from ordered_set import OrderedSet
 
-from birdnet.geo_models.base import GeoInferenceBackend, GeoModelBase
+from birdnet.base import InferenceBackend
+from birdnet.geo_models.base import GeoModelBase
 from birdnet.geo_models.inference.prediction_result import PredictionResult
 from birdnet.globals import (
   GEO_MODEL_VERSION_V2_4,
@@ -70,7 +71,6 @@ class GeoModelBaseV2_4(GeoModelBase):
     self,
     latitude: float,
     longitude: float,
-    backend_type: type[GeoInferenceBackend],
     backend_kwargs: dict,
     /,
     *,
@@ -106,7 +106,7 @@ class GeoModelBaseV2_4(GeoModelBase):
     sample = np.expand_dims(np.array([latitude, longitude, week], dtype=np.float32), 0)
 
     try:
-      backend = backend_type(**backend_kwargs)
+      backend: InferenceBackend = self.get_backend_type()(**backend_kwargs)
       backend.load()
     except Exception as exc:
       raise ValueError("Failed to load backend.") from exc

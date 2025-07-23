@@ -1,19 +1,14 @@
 from __future__ import annotations
 
-import logging
-import os
 import shutil
 import tempfile
-import time
 import zipfile
-from collections.abc import Callable
 from pathlib import Path
-from typing import Any, final
+from typing import final
 
-import numpy as np
 from ordered_set import OrderedSet
 
-from birdnet.geo_models.base import GeoInferenceBackend
+from birdnet.backends import PBInferenceBackend
 from birdnet.geo_models.inference.prediction_result import PredictionResult
 from birdnet.geo_models.v2_4.base import GeoDownloaderBaseV2_4, GeoModelBaseV2_4
 from birdnet.globals import (
@@ -22,7 +17,6 @@ from birdnet.globals import (
 )
 from birdnet.helper import check_protobuf_model_files_exist
 from birdnet.local_data import get_local_model_root_dir
-from birdnet.logging_utils import get_logger
 from birdnet.utils import download_file_tqdm, get_species_from_file
 
 
@@ -114,6 +108,11 @@ class GeoPBModelV2_4(GeoModelBaseV2_4):
   def get_backend(cls) -> MODEL_BACKENDS:
     return MODEL_BACKEND_PB
 
+  @final
+  @classmethod
+  def get_backend_type(cls) -> type:
+    return PBInferenceBackend
+
   @classmethod
   def load(cls, lang: str) -> GeoPBModelV2_4:
     model_path, species_list = GeoPBDownloaderV2_4.get_model_path_and_labels(lang)
@@ -181,108 +180,14 @@ class GeoPBModelV2_4(GeoModelBaseV2_4):
     return super()._predict(
       latitude,
       longitude,
-      GeoPBInferenceBackend,
       {
         "model_path": self.model_path,
+        "signature_name": "serving_default",
+        "prediction_key": "MNET_CLASS_ACTIVATION",
+        "input_key": "MNET_INPUT",
       },
       week=week,
       min_confidence=min_confidence,
       device=device,
       half_precision=half_precision,
     )
-
-
-class GeoPBInferenceBackend(GeoInferenceBackend):
-  def __init__(self, model_path: Path) -> None:
-    super().__init__()
-    self._model_path = str(model_path.absolute())
-    self._cached_logical_device: Any | None = None
-    self._infer_fn: Callable | None = None
-    self._cached_device_name: str | None = None
-
-  @final
-  @classmethod
-  def supports_cow(cls) -> bool:
-    return False
-
-  @final
-  def load(self) -> None:
-    import absl.logging
-
-    absl_verbosity_before = absl.logging.get_verbosity()
-    absl.logging.set_verbosity(absl.logging.ERROR)
-    tf_verbosity_before = logging.getLogger("tensorflow").level
-    logging.getLogger("tensorflow").setLevel(logging.ERROR)
-    os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-    import tensorflow as tf
-
-    tf.random.set_seed(0)
-
-    # Note: memory growth needs to be set before loading the model and maybe only once in the main process
-    # physical_gpu_device = gpus_with_name[0]
-    # if tf.config.experimental.get_memory_growth(physical_gpu_device) is False:
-    #   tf.config.experimental.set_memory_growth(physical_gpu_device, True)
-
-    start = time.perf_counter()
-    audio_model = tf.saved_model.load(self._model_path)
-    end = time.perf_counter()
-    logger = get_logger(__name__)
-    logger.debug(f"Model loaded from {self._model_path} in {end - start:.2f} seconds.")
-
-    absl.logging.set_verbosity(absl_verbosity_before)
-    logging.getLogger("tensorflow").setLevel(tf_verbosity_before)
-
-    self._infer_fn = audio_model.signatures["serving_default"]  # type: ignore
-
-  def _set_logical_device(self, device_name: str) -> None:
-    assert "GPU" in device_name or "CPU" in device_name
-    import tensorflow as tf
-
-    if "GPU" in device_name:
-      physical_devices = tf.config.list_physical_devices("GPU")
-      if len(physical_devices) == 0:
-        raise ValueError(
-          "No GPU found! Please check your TensorFlow installation and ensure that a GPU is available."
-        )
-
-      gpus_with_name = [gpu for gpu in physical_devices if device_name in gpu.name]
-
-      if len(gpus_with_name) == 0:
-        raise ValueError(f"No GPU with name '{device_name}' found!")
-
-      self._cached_logical_device = [
-        log_dev
-        for log_dev in tf.config.list_logical_devices()
-        if device_name in log_dev.name
-      ][0]
-
-    elif "CPU" in device_name:
-      all_devices_with_name: list = [
-        log_dev
-        for log_dev in tf.config.list_logical_devices()
-        if device_name in log_dev.name
-      ]
-      if len(all_devices_with_name) == 0:
-        raise ValueError(f"No CPU with name '{device_name}' found!")
-      self._cached_logical_device = all_devices_with_name[0]
-    else:
-      raise ValueError(f"Unsupported device name: {device_name}")
-
-  @final
-  def infer(self, batch: np.ndarray, device_name: str) -> np.ndarray:
-    if self._cached_device_name is None or self._cached_device_name != device_name:
-      self._set_logical_device(device_name)
-      self._cached_device_name = device_name
-
-    assert self._cached_logical_device is not None
-    assert self._infer_fn is not None
-    from tensorflow import Tensor, device, float32
-
-    with device(self._cached_logical_device.name):  # type: ignore
-      # prediction = self._audio_model.basic(batch)["scores"]
-      predictions = self._infer_fn(MNET_INPUT=batch)
-    scores: Tensor = predictions["MNET_CLASS_ACTIVATION"]
-    assert scores.dtype == float32
-    scores_np = scores.numpy()  # type: ignore
-    assert scores_np.dtype == np.float32
-    return scores_np

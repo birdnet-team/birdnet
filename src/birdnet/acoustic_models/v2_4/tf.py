@@ -3,22 +3,16 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterable, Literal, final
 
-import numpy as np
-
-from birdnet.acoustic_models.base import (
-  AcousticInferenceBackend,
-)
 from birdnet.acoustic_models.inference.prediction_result import PredictionResult
+from birdnet.backends import TFInferenceBackend
 from birdnet.helper import (
   litert_installed,
-  load_litert_model,
   load_tf_model,
   tf_installed,
 )
 
 if TYPE_CHECKING:
-  from ai_edge_litert.interpreter import Interpreter as TFLiteInterpreter
-  from tensorflow.lite.python.interpreter import Interpreter as TFInterpreter
+  pass
 
 
 import os
@@ -30,7 +24,6 @@ from typing import Literal, final
 
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.base import AcousticInferenceBackend
 from birdnet.acoustic_models.v2_4.base import (
   AcousticDownloaderBaseV2_4,
   AcousticModelBaseV2_4,
@@ -48,7 +41,7 @@ from birdnet.globals import (
   MODEL_PRECISIONS,
   VALID_LIBRARY_TYPES,
 )
-from birdnet.helper import ModelInfo, load_litert_model
+from birdnet.helper import ModelInfo
 from birdnet.local_data import get_local_model_root_dir
 from birdnet.utils import download_file_tqdm, get_species_from_file
 
@@ -165,6 +158,11 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
   def get_backend(cls) -> MODEL_BACKENDS:
     return MODEL_BACKEND_TF
 
+  @final
+  @classmethod
+  def get_backend_type(cls) -> type:
+    return TFInferenceBackend
+
   @classmethod
   def load(
     cls,
@@ -258,7 +256,6 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
 
     return super()._predict(
       inp,
-      TFAcousticInferenceBackend,
       {
         "model_path": self.model_path,
         "inference_library": inference_library,
@@ -282,58 +279,3 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       show_stats=show_stats,
       device="CPU",
     )
-
-
-class TFAcousticInferenceBackend(AcousticInferenceBackend):
-  def __init__(self, model_path: Path, inference_library: LIBRARY_TYPES) -> None:
-    super().__init__()
-    self._model_path = model_path
-    self._interp: TFLiteInterpreter | TFInterpreter | None = None
-    self._inference_library = inference_library
-    self._in_idx: int | None = None
-    self._out_idx: int | None = None
-    self._cached_shape: tuple[int, ...] | None = None
-
-  @final
-  @classmethod
-  def supports_cow(cls) -> bool:
-    return True
-
-  def load(self) -> None:
-    assert self._interp is None
-    if self._inference_library == LIBRARY_TF:
-      self._interp = load_tf_model(self._model_path, allocate_tensors=True)
-    elif self._inference_library == LIBRARY_LITERT:
-      self._interp = load_litert_model(self._model_path, allocate_tensors=True)
-    else:
-      raise AssertionError()
-
-    self._in_idx = self._interp.get_input_details()[0]["index"]  # type: ignore
-    self._out_idx = self._interp.get_output_details()[0]["index"]  # type: ignore
-
-  def _set_tensor(self, batch: np.ndarray) -> None:
-    assert self._interp is not None
-    assert batch.flags["C_CONTIGUOUS"]
-    assert batch.ndim == 2
-    assert self._interp is not None
-
-    shape = batch.shape
-    if self._cached_shape != shape:
-      self._interp.resize_tensor_input(self._in_idx, shape, strict=True)
-      self._interp.allocate_tensors()
-      self._cached_shape = shape
-    # self._in_view[:n, :] = batch
-    self._interp.set_tensor(self._in_idx, batch)
-
-  @final
-  def infer(self, batch: np.ndarray, device_name: str) -> np.ndarray:
-    # TODO: implement load on different CPUs
-    if "CPU" not in device_name:
-      raise ValueError("TensorFlow models can only be loaded on CPU!")
-
-    assert self._interp is not None
-    self._set_tensor(batch)
-    self._interp.invoke()
-    res: np.ndarray = self._interp.get_tensor(self._out_idx)
-    assert res.dtype == np.float32
-    return res

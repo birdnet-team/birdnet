@@ -1,19 +1,10 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from pathlib import Path
 
-import numpy as np
 from ordered_set import OrderedSet
 
 from birdnet.base import ModelBase
 from birdnet.globals import GEO_MODEL_VERSIONS
-
-
-class GeoInferenceBackend(ABC):
-  @abstractmethod
-  def load(self) -> None: ...
-
-  @abstractmethod
-  def infer(self, batch: np.ndarray, device_name: str) -> np.ndarray: ...
 
 
 class GeoModelBase(ModelBase):

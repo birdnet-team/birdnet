@@ -11,9 +11,7 @@ import numpy as np
 from numpy.typing import DTypeLike
 
 import birdnet.logging_utils as bn_logging
-from birdnet.acoustic_models.base import (
-  AcousticInferenceBackendLoader,
-)
+from birdnet.backends import InferenceBackendLoader
 from birdnet.globals import (
   READABLE_FLAG,
   READING_FLAG,
@@ -27,7 +25,7 @@ from birdnet.utils import flat_sigmoid_logaddexp_fast
 class ChildWorker(bn_logging.LogableProcessBase):
   def __init__(
     self,
-    backend_loader: AcousticInferenceBackendLoader,
+    backend_loader: InferenceBackendLoader,
     top_k: int,
     species_thresholds: np.ndarray,
     species_blacklist: np.ndarray,

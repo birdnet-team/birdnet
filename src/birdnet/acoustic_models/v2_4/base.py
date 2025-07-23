@@ -21,8 +21,6 @@ from ordered_set import OrderedSet
 
 import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.base import (
-  AcousticInferenceBackend,
-  AcousticInferenceBackendLoader,
   AcousticModelBase,
 )
 from birdnet.acoustic_models.inference.consumer import Consumer
@@ -39,6 +37,7 @@ from birdnet.acoustic_models.v2_4.banchmarking import (
   FullBenchmarkMetaV2_4,
   MinimalBenchmarkMetaV2_4,
 )
+from birdnet.backends import InferenceBackendLoader
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V2_4,
   ACOUSTIC_MODEL_VERSIONS,
@@ -144,7 +143,6 @@ class AcousticModelBaseV2_4(AcousticModelBase):
   def _predict(
     self,
     inp: Path | str | Iterable[Path | str],
-    backend_type: type[AcousticInferenceBackend],
     backend_kwargs: dict,
     /,
     *,
@@ -566,8 +564,8 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       for p in producer_processes:
         p.start()
 
-      backend_loader = AcousticInferenceBackendLoader(
-        backend_type=backend_type,
+      backend_loader = InferenceBackendLoader(
+        backend_type=self.get_backend_type(),
         backend_kwargs=backend_kwargs,
       )
 

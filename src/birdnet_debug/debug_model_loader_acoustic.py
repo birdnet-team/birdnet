@@ -187,7 +187,7 @@ if __name__ == "__main__":
     "n_producers": 1,
     "batch_size": 1,
     "prefetch_ratio": 2,
-    "backend": "tf",
+    "backend": "pb",
     "precision": "fp32",
     "device": "CPU",
     "top_k": 5,
