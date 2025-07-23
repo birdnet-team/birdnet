@@ -15,16 +15,8 @@ class AcousticModelBase(ModelBase):
     precision: MODEL_PRECISIONS,
     use_custom_model: bool,
   ) -> None:
-    super().__init__(model_path, species_list, use_custom_model)
-    self._precision = precision
+    super().__init__(model_path, species_list, precision, use_custom_model)
 
   @classmethod
   @abstractmethod
   def get_version(cls) -> ACOUSTIC_MODEL_VERSIONS: ...
-
-  @property
-  def precision(self) -> MODEL_PRECISIONS:
-    """
-    Returns the precision of the model.
-    """
-    return self._precision  # type: ignore

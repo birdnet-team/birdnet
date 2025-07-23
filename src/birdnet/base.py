@@ -5,7 +5,7 @@ from typing import Self
 from ordered_set import OrderedSet
 
 from birdnet.backends import InferenceBackend
-from birdnet.globals import MODEL_BACKENDS
+from birdnet.globals import MODEL_BACKENDS, MODEL_PRECISIONS
 
 
 class PredictionResultBase:
@@ -19,12 +19,17 @@ class PredictionResultBase:
 
 class ModelBase(ABC):
   def __init__(
-    self, model_path: Path, species_list: OrderedSet[str], use_custom_model: bool
+    self,
+    model_path: Path,
+    species_list: OrderedSet[str],
+    precision: MODEL_PRECISIONS,
+    use_custom_model: bool,
   ) -> None:
     super().__init__()
     self._model_path = model_path
     self._species_list = species_list
     self._use_custom_model = use_custom_model
+    self._precision = precision
 
   @classmethod
   @abstractmethod
@@ -49,6 +54,13 @@ class ModelBase(ABC):
   @property
   def use_custom_model(self) -> bool:
     return self._use_custom_model
+
+  @property
+  def precision(self) -> MODEL_PRECISIONS:
+    """
+    Returns the precision of the model.
+    """
+    return self._precision  # type: ignore
 
   @classmethod
   @abstractmethod

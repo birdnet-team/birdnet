@@ -20,7 +20,7 @@ from birdnet.globals import (
   MODEL_BACKENDS,
   MODEL_LANGUAGE_EN_US,
   MODEL_LANGUAGES,
-  MODEL_PRECISION_FLOAT32,
+  MODEL_PRECISION_FP32,
   MODEL_PRECISIONS,
   MODEL_TYPE_ACOUSTIC,
   MODEL_TYPE_GEO,
@@ -107,7 +107,7 @@ def load(
   backend: MODEL_BACKENDS,
   /,
   *,
-  precision: MODEL_PRECISIONS = MODEL_PRECISION_FLOAT32,
+  precision: MODEL_PRECISIONS = MODEL_PRECISION_FP32,
   lang: MODEL_LANGUAGES = MODEL_LANGUAGE_EN_US,
 ) -> ModelBase:
   _check_is_valid_model_type(model_type)
@@ -120,13 +120,10 @@ def load(
       lang=lang,
     )
   elif model_type == MODEL_TYPE_GEO:
-    if precision != MODEL_PRECISION_FLOAT32:
-      raise ValueError(
-        f"Unsupported model precision for geo model: {precision}. Currently supported precision is: {MODEL_PRECISION_FLOAT32}."
-      )
     return _load_geo_model(
       version=cast(GEO_MODEL_VERSIONS, version),
       backend=backend,
+      precision=precision,
       lang=lang,
     )
   else:
@@ -163,9 +160,9 @@ def _load_acoustic_model_V2_4(
   if backend == MODEL_BACKEND_TF:
     return AcousticTFModelV2_4.load(lang, precision)
   elif backend == MODEL_BACKEND_PB:
-    if precision != MODEL_PRECISION_FLOAT32:
+    if precision != MODEL_PRECISION_FP32:
       raise ValueError(
-        f"Unsupported model precision for acoustic pb model: {precision}. Currently supported precision is: {MODEL_PRECISION_FLOAT32}."
+        f"Unsupported model precision for acoustic pb model: {precision}. Currently supported precision is: {MODEL_PRECISION_FP32}."
       )
 
     return AcousticPBModelV2_4.load(lang)
@@ -176,11 +173,16 @@ def _load_acoustic_model_V2_4(
 def _load_geo_model(
   version: GEO_MODEL_VERSIONS,
   backend: MODEL_BACKENDS,
+  precision: MODEL_PRECISIONS,
   lang: MODEL_LANGUAGES,
 ) -> GeoModelBase:
   _check_is_valid_geo_model_version(version)
 
   if version == GEO_MODEL_VERSION_V2_4:
+    if precision != MODEL_PRECISION_FP32:
+      raise ValueError(
+        f"Unsupported model precision for geo model: {precision}. Currently supported precision is: {MODEL_PRECISION_FP32}."
+      )
     return _load_geo_model_V2_4(backend, lang)
   else:
     raise AssertionError()
@@ -209,7 +211,7 @@ def load_custom(
   species_list: str | PathLike[str],
   /,
   *,
-  precision: MODEL_PRECISIONS = MODEL_PRECISION_FLOAT32,
+  precision: MODEL_PRECISIONS = MODEL_PRECISION_FP32,
   check_validity: bool = True,
 ) -> ModelBase:
   _check_is_valid_model_type(model_type)
@@ -224,14 +226,11 @@ def load_custom(
       check_validity=check_validity,
     )
   elif model_type == MODEL_TYPE_GEO:
-    if precision != MODEL_PRECISION_FLOAT32:
-      raise ValueError(
-        f"Unsupported model precision for geo model: {precision}. Currently supported precision is: {MODEL_PRECISION_FLOAT32}."
-      )
     return _load_custom_geo_model(
       version=cast(GEO_MODEL_VERSIONS, version),
       backend=backend,
       model=Path(model),
+      precision=precision,
       species_list=Path(species_list),
       check_validity=check_validity,
     )
@@ -281,9 +280,9 @@ def _load_custom_acoustic_model_V2_4(
       model, species_list, precision, check_validity
     )
   elif backend == MODEL_BACKEND_PB:
-    if precision != MODEL_PRECISION_FLOAT32:
+    if precision != MODEL_PRECISION_FP32:
       raise ValueError(
-        f"Unsupported model precision for acoustic pb model: {precision}. Currently supported precision is: {MODEL_PRECISION_FLOAT32}."
+        f"Unsupported model precision for acoustic pb model: {precision}. Currently supported precision is: {MODEL_PRECISION_FP32}."
       )
     _check_is_valid_pb_model_folder(model)
     return AcousticPBModelV2_4.load_custom(model, species_list, check_validity)
@@ -295,12 +294,17 @@ def _load_custom_geo_model(
   version: GEO_MODEL_VERSIONS,
   backend: MODEL_BACKENDS,
   model: Path,
+  precision: MODEL_PRECISIONS,
   species_list: Path,
   check_validity: bool,
 ) -> GeoModelBase:
   _check_is_valid_geo_model_version(version)
 
   if version == GEO_MODEL_VERSION_V2_4:
+    if precision != MODEL_PRECISION_FP32:
+      raise ValueError(
+        f"Unsupported model precision for geo model: {precision}. Currently supported precision is: {MODEL_PRECISION_FP32}."
+      )
     return _load_custom_geo_model_V2_4(backend, model, species_list, check_validity)
   else:
     raise AssertionError()

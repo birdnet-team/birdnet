@@ -9,7 +9,7 @@ from birdnet.globals import (
   MODEL_BACKENDS,
   MODEL_LANGUAGE_EN_US,
   MODEL_LANGUAGES,
-  MODEL_PRECISION_FLOAT32,
+  MODEL_PRECISION_FP32,
   MODEL_PRECISIONS,
 )
 
@@ -20,7 +20,7 @@ def load(
   backend: Literal["tf"],
   /,
   *,
-  precision: MODEL_PRECISIONS = MODEL_PRECISION_FLOAT32,
+  precision: MODEL_PRECISIONS = MODEL_PRECISION_FP32,
   lang: MODEL_LANGUAGES = MODEL_LANGUAGE_EN_US,
 ) -> AcousticTFModelV2_4: ...
 @overload
@@ -30,7 +30,7 @@ def load(
   backend: Literal["pb"],
   /,
   *,
-  precision: Literal["fp32"] = MODEL_PRECISION_FLOAT32,
+  precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   lang: MODEL_LANGUAGES = MODEL_LANGUAGE_EN_US,
 ) -> AcousticPBModelV2_4: ...
 
@@ -42,7 +42,7 @@ def load(
   backend: MODEL_BACKENDS,
   /,
   *,
-  precision: Literal["fp32"] = MODEL_PRECISION_FLOAT32,
+  precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   lang: MODEL_LANGUAGES = MODEL_LANGUAGE_EN_US,
 ) -> AcousticPBModelV2_4 | AcousticTFModelV2_4: ...
 
@@ -64,7 +64,7 @@ def load(
   backend: Literal["tf"],
   /,
   *,
-  precision: Literal["fp32"] = MODEL_PRECISION_FLOAT32,
+  precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   lang: MODEL_LANGUAGES = MODEL_LANGUAGE_EN_US,
 ) -> GeoTFModelV2_4: ...
 @overload
@@ -74,7 +74,7 @@ def load(
   backend: Literal["pb"],
   /,
   *,
-  precision: Literal["fp32"] = MODEL_PRECISION_FLOAT32,
+  precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   lang: MODEL_LANGUAGES = MODEL_LANGUAGE_EN_US,
 ) -> GeoPBModelV2_4: ...
 
@@ -86,7 +86,7 @@ def load(
   backend: MODEL_BACKENDS,
   /,
   *,
-  precision: Literal["fp32"] = MODEL_PRECISION_FLOAT32,
+  precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   lang: MODEL_LANGUAGES = MODEL_LANGUAGE_EN_US,
 ) -> GeoTFModelV2_4 | GeoPBModelV2_4: ...
 
@@ -101,7 +101,7 @@ def load_custom(
   species_list: str | PathLike[str],
   /,
   *,
-  precision: MODEL_PRECISIONS = MODEL_PRECISION_FLOAT32,
+  precision: MODEL_PRECISIONS = MODEL_PRECISION_FP32,
   check_validity: bool = True,
 ) -> AcousticTFModelV2_4: ...
 @overload
@@ -113,7 +113,7 @@ def load_custom(
   species_list: str | PathLike[str],
   /,
   *,
-  precision: Literal["fp32"] = MODEL_PRECISION_FLOAT32,
+  precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   check_validity: bool = True,
 ) -> AcousticPBModelV2_4: ...
 
@@ -127,7 +127,7 @@ def load_custom(
   species_list: str | PathLike[str],
   /,
   *,
-  precision: Literal["fp32"] = MODEL_PRECISION_FLOAT32,
+  precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   check_validity: bool = True,
 ) -> AcousticPBModelV2_4 | AcousticTFModelV2_4: ...
 @overload
@@ -139,7 +139,7 @@ def load_custom(
   species_list: str | PathLike[str],
   /,
   *,
-  precision: Literal["fp32"] = MODEL_PRECISION_FLOAT32,
+  precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   check_validity: bool = True,
 ) -> GeoTFModelV2_4: ...
 @overload
@@ -151,7 +151,7 @@ def load_custom(
   species_list: str | PathLike[str],
   /,
   *,
-  precision: Literal["fp32"] = MODEL_PRECISION_FLOAT32,
+  precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   check_validity: bool = True,
 ) -> GeoPBModelV2_4: ...
 
@@ -165,6 +165,6 @@ def load_custom(
   species_list: str | PathLike[str],
   /,
   *,
-  precision: Literal["fp32"] = MODEL_PRECISION_FLOAT32,
+  precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   check_validity: bool = True,
 ) -> GeoTFModelV2_4 | GeoPBModelV2_4: ...

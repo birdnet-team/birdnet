@@ -21,7 +21,7 @@ from birdnet.globals import (
   LIBRARY_TF,
   MODEL_BACKEND_PB,
   MODEL_BACKEND_TF,
-  MODEL_PRECISION_FLOAT32,
+  MODEL_PRECISION_FP32,
   MODEL_PRECISIONS,
   MODEL_TYPE_ACOUSTIC,
   VALID_LIBRARY_TYPES,
@@ -87,8 +87,8 @@ def run_benchmark_from_args(args: list[str]) -> None:
     type=str,
     choices=VALID_MODEL_PRECISIONS,
     metavar="PRECISION",
-    help=f"model precision (default: {MODEL_PRECISION_FLOAT32})",
-    default=MODEL_PRECISION_FLOAT32,
+    help=f"model precision (default: {MODEL_PRECISION_FP32})",
+    default=MODEL_PRECISION_FP32,
   )
 
   parser.add_argument(

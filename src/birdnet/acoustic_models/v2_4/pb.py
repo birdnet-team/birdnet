@@ -24,7 +24,7 @@ from birdnet.backends import (
 from birdnet.globals import (
   MODEL_BACKEND_PB,
   MODEL_BACKENDS,
-  MODEL_PRECISION_FLOAT32,
+  MODEL_PRECISION_FP32,
 )
 from birdnet.helper import check_protobuf_model_files_exist
 from birdnet.local_data import get_local_model_root_dir
@@ -115,9 +115,7 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
     species_list: OrderedSet[str],
     use_custom_model: bool,
   ) -> None:
-    super().__init__(
-      model_path, species_list, MODEL_PRECISION_FLOAT32, use_custom_model
-    )
+    super().__init__(model_path, species_list, MODEL_PRECISION_FP32, use_custom_model)
 
   @classmethod
   @final

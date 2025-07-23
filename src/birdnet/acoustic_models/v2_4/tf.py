@@ -37,8 +37,8 @@ from birdnet.globals import (
   MODEL_BACKEND_TF,
   MODEL_BACKENDS,
   MODEL_LANGUAGES,
-  MODEL_PRECISION_FLOAT16,
-  MODEL_PRECISION_FLOAT32,
+  MODEL_PRECISION_FP16,
+  MODEL_PRECISION_FP32,
   MODEL_PRECISION_INT8,
   MODEL_PRECISIONS,
   VALID_LIBRARY_TYPES,
@@ -54,13 +54,13 @@ models = {
     dl_size=45948867,
     file_size=41064296,
   ),
-  MODEL_PRECISION_FLOAT16: ModelInfo(
+  MODEL_PRECISION_FP16: ModelInfo(
     dl_url="https://zenodo.org/records/15050749/files/BirdNET_v2.4_tflite_fp16.zip",
     dl_file_name="audio-model-fp16.tflite",
     dl_size=53025528,
     file_size=25932528,
   ),
-  MODEL_PRECISION_FLOAT32: ModelInfo(
+  MODEL_PRECISION_FP32: ModelInfo(
     dl_url="https://zenodo.org/records/15050749/files/BirdNET_v2.4_tflite.zip",
     dl_file_name="audio-model.tflite",
     dl_size=76822925,
