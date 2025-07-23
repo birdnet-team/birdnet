@@ -72,13 +72,15 @@ class InferenceBackendLoader:
 
 
 class TFInferenceBackend(InferenceBackend):
-  def __init__(self, model_path: Path, inference_library: LIBRARY_TYPES) -> None:
+  def __init__(
+    self, model_path: Path, inference_library: LIBRARY_TYPES, in_idx: int, out_idx: int
+  ) -> None:
     super().__init__()
     self._model_path = model_path
     self._interp: LiteRTInterpreter | TFInterpreter | None = None
     self._inference_library = inference_library
-    self._in_idx: int | None = None
-    self._out_idx: int | None = None
+    self._in_idx: int = in_idx
+    self._out_idx: int = out_idx
     self._cached_shape: tuple[int, ...] | None = None
 
   @final
@@ -95,8 +97,8 @@ class TFInferenceBackend(InferenceBackend):
     else:
       raise AssertionError()
 
-    self._in_idx = self._interp.get_input_details()[0]["index"]  # type: ignore
-    self._out_idx = self._interp.get_output_details()[0]["index"]  # type: ignore
+    # self._in_idx = self._interp.get_input_details()[0]["index"]  # type: ignore
+    # self._out_idx = self._interp.get_output_details()[0]["index"]  # type: ignore
 
   def _set_tensor(self, batch: np.ndarray) -> None:
     assert self._interp is not None
@@ -218,7 +220,7 @@ class PBInferenceBackend(InferenceBackend):
 
     with device(self._cached_logical_device.name):  # type: ignore
       # prediction = self._audio_model.basic(batch)["scores"]
-      predictions = self._infer_fn(**{self._input_key: batch})  # MNET_INPUT oder inputs
+      predictions = self._infer_fn(**{self._input_key: batch})
     scores: Tensor = predictions[self._prediction_key]
     assert scores.dtype == float32
     scores_np = scores.numpy()  # type: ignore
@@ -387,7 +389,7 @@ def check_pb_model_can_be_loaded(
     return None
 
 
-def _get_tf_n_species(model_path: Path) -> int | None:
+def _get_tf_n_species(model_path: Path, out_idx: int) -> int | None:
   try:
     loaded_model = load_tf_model(model_path, allocate_tensors=False)
     n_species_in_model = loaded_model.get_output_details()[0]["shape"][1]
@@ -396,12 +398,10 @@ def _get_tf_n_species(model_path: Path) -> int | None:
     return None
 
 
-def check_tf_model_can_be_loaded(
-  model_path: Path,
-) -> int | None:
+def check_tf_model_can_be_loaded(model_path: Path, out_idx: int) -> int | None:
   try:
     with ProcessPoolExecutor(max_workers=1) as executor:
-      future = executor.submit(_get_tf_n_species, model_path)
+      future = executor.submit(_get_tf_n_species, model_path, out_idx)
       result = future.result(timeout=None)
       return result
   except Exception as e:

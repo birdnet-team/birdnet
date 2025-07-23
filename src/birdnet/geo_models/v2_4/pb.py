@@ -21,7 +21,7 @@ from birdnet.globals import (
   MODEL_PRECISION_FP32,
 )
 from birdnet.helper import check_protobuf_model_files_exist
-from birdnet.local_data import get_lang_dir, get_model_path, get_model_root_dir
+from birdnet.local_data import get_lang_dir, get_model_path
 from birdnet.utils import download_file_tqdm, get_species_from_file
 
 

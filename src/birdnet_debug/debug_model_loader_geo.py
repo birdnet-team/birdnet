@@ -46,7 +46,7 @@ if __name__ == "__main__":
       "geo",
       "2.4",
       "tf",
-      "/home/stefan/.local/share/birdnet/geo-models/v2.4/tf/model.tflite",
+      "/home/stefan/.local/share/birdnet/geo-models/v2.4/tf/model-fp32.tflite",
       "/home/stefan/.local/share/birdnet/geo-models/v2.4/tf/labels/en_us.txt",
       precision="fp32",
       check_validity=True,
