@@ -3,7 +3,7 @@ from pathlib import Path
 
 from ordered_set import OrderedSet
 
-from birdnet.base import ModelBase
+from birdnet.base import ModelBase, PredictionResultBase
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS, MODEL_PRECISIONS
 
 
@@ -20,3 +20,8 @@ class AcousticModelBase(ModelBase):
   @classmethod
   @abstractmethod
   def get_version(cls) -> ACOUSTIC_MODEL_VERSIONS: ...
+
+  @classmethod
+  @abstractmethod
+  def predict_embeddings(cls, *args, **kwargs) -> PredictionResultBase:
+    pass

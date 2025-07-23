@@ -11,6 +11,7 @@ from typing import Iterable, Literal, final
 # Next two import lines for this demo only
 from ordered_set import OrderedSet
 
+from birdnet.acoustic_models.inference.emb_prediction_result import EmbeddingsPredictionResult
 from birdnet.acoustic_models.inference.prediction_result import PredictionResult
 from birdnet.acoustic_models.v2_4.base import (
   AcousticDownloaderBaseV2_4,
@@ -173,6 +174,46 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
     )
 
     return result
+
+  def predict_embeddings(
+    self,
+    inp: Path | str | Iterable[Path | str],
+    /,
+    *,
+    feeders: int = 1,
+    workers: int = 4,
+    batch_size: int = 1,
+    prefetch_ratio: int = 1,
+    overlap_duration_s: float = 0,
+    use_bandpass: bool = False,
+    bandpass_fmin: int | None = None,
+    bandpass_fmax: int | None = None,
+    half_precision: bool = True,
+    max_audio_duration_min: float | None = None,
+    show_stats: Literal["no", "minimal", "progress", "benchmark"] = "no",
+    device: str | list[str] = "CPU",
+  ) -> EmbeddingsPredictionResult:
+    return super()._predict_embeddings(
+      inp,
+      {
+        "model_path": self.model_path,
+        "signature_name": "embeddings",
+        "prediction_key": "embeddings",
+        "input_key": "inputs",
+      },
+      feeders=feeders,
+      workers=workers,
+      batch_size=batch_size,
+      prefetch_ratio=prefetch_ratio,
+      overlap_duration_s=overlap_duration_s,
+      use_bandpass=use_bandpass,
+      bandpass_fmin=bandpass_fmin,
+      bandpass_fmax=bandpass_fmax,
+      half_precision=half_precision,
+      max_audio_duration_min=max_audio_duration_min,
+      show_stats=show_stats,
+      device=device,
+    )
 
   def predict(
     self,

@@ -461,7 +461,9 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     stats = PerformanceTrackingResult(
       worker_speed_xrt=(self._wkr_total_segments_processed * self._segment_size_s)
       / sum(self._wkr_wall_times.values())
-      * len(self._wkr_wall_times),
+      * len(self._wkr_wall_times)
+      if len(self._wkr_wall_times) > 0
+      else 0,
       worker_avg_wall_time_s=(
         sum(self._wkr_wall_times.values()) / len(self._wkr_wall_times)
         if len(self._wkr_wall_times) > 0
