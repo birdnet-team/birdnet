@@ -1,4 +1,3 @@
-# birdnet_batch_inference.py – raw‑audio version
 from __future__ import annotations
 
 import ctypes
