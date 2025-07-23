@@ -5,7 +5,7 @@ from multiprocessing.synchronize import Event
 from queue import Empty
 
 import birdnet.logging_utils as bn_logging
-from birdnet.acoustic_models.inference.species_tensor import SpeciesTensor
+from birdnet.acoustic_models.inference.tensor import TensorBase
 
 
 class Consumer:
@@ -13,14 +13,12 @@ class Consumer:
     self,
     n_workers: int,
     worker_queue: mp.Queue,
-    species_tensor: SpeciesTensor,
-    max_segment_index: mp.RawValue,
+    tensor: TensorBase,
     cancel_event: Event,
   ):
     self._n_workers = n_workers
     self._queue = worker_queue
-    self._tensor = species_tensor
-    self._max_segment_index = max_segment_index
+    self._tensor = tensor
     self._cancel_event = cancel_event
     self._logger = bn_logging.get_logger(__name__)
 
@@ -32,10 +30,10 @@ class Consumer:
         self._logger.debug("CONSUMER - Cancel event set. Exiting.")
         return
 
-      data = None
+      received_block = None
       while True:
         try:
-          data = self._queue.get(timeout=1.0)
+          received_block = self._queue.get(timeout=1.0)
           break
         except Empty:
           if self._cancel_event.is_set():
@@ -46,7 +44,7 @@ class Consumer:
         self._logger.debug("CONSUMER - Cancel event set. Exiting.")
         return
 
-      got_stop_signal_from_worker = data is None
+      got_stop_signal_from_worker = received_block is None
       if got_stop_signal_from_worker:
         self._logger.debug(
           f"CONSUMER - Received stop signal from worker. Finished workers: {finished_workers + 1}."
@@ -54,18 +52,11 @@ class Consumer:
         finished_workers += 1
         continue
 
-      assert data is not None
+      assert received_block is not None
 
-      file_indices, segment_indices, top_k_species, top_k_scores, top_k_mask = data
-      n_received_predictions += top_k_species.shape[0]
+      block = received_block
+      n_received_predictions += 1
       self._logger.debug(
-        f"CONSUMER - Received data from worker. Total received: {n_received_predictions}. Chunks: {segment_indices}"
+        f"CONSUMER - Received block with {len(block)} values from worker. Total received: {n_received_predictions}"
       )
-      self._tensor.write_block(
-        file_indices,
-        segment_indices,
-        top_k_species,
-        top_k_scores,
-        top_k_mask,
-        self._max_segment_index.value,
-      )
+      self._tensor.write_block(*block)

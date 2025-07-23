@@ -1,8 +1,8 @@
-from birdnet.acoustic_models.inference.benchmarking import (
+from birdnet.acoustic_models.inference.scores.benchmarking import (
   FullBenchmarkMeta,
   MinimalBenchmarkMeta,
 )
-from birdnet.acoustic_models.inference.emb_benchmarking import (
+from birdnet.acoustic_models.inference.emb.benchmarking import (
   FullBenchmarkEmbMeta,
   MinimalBenchmarkEmbMeta,
 )

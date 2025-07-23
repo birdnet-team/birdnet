@@ -24,21 +24,22 @@ from birdnet.acoustic_models.base import (
   AcousticModelBase,
 )
 from birdnet.acoustic_models.inference.consumer import Consumer
-from birdnet.acoustic_models.inference.emb_consumer import EmbeddingsConsumer
-from birdnet.acoustic_models.inference.emb_prediction_result import (
+from birdnet.acoustic_models.inference.emb.consumer import EmbeddingsConsumer
+from birdnet.acoustic_models.inference.emb.emb_worker import EmbeddingsWorker
+from birdnet.acoustic_models.inference.emb.prediction_result import (
   EmbeddingsPredictionResult,
 )
-from birdnet.acoustic_models.inference.emb_tensor import EmbeddingsTensor
-from birdnet.acoustic_models.inference.emb_worker import EmbeddingsWorker
+from birdnet.acoustic_models.inference.emb.tensor import EmbeddingsTensor
 from birdnet.acoustic_models.inference.files_analyzer import FilesAnalyzer
 from birdnet.acoustic_models.inference.perf_tracker import (
   PerformanceTracker,
   PerformanceTrackingResult,
 )
-from birdnet.acoustic_models.inference.prediction_result import PredictionResult
 from birdnet.acoustic_models.inference.producer import ChildProducer
-from birdnet.acoustic_models.inference.species_tensor import SpeciesTensor
-from birdnet.acoustic_models.inference.worker import ChildWorker
+from birdnet.acoustic_models.inference.scores.consumer import ScoresConsumer
+from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
+from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
+from birdnet.acoustic_models.inference.scores.worker import ChildWorker
 from birdnet.acoustic_models.v2_4.banchmarking import (
   FullBenchmarkEmbMetaV2_4,
   FullBenchmarkMetaV2_4,
@@ -582,11 +583,10 @@ class AcousticModelBaseV2_4(AcousticModelBase):
         )
         perf_tracker.start()
 
-      consumer = EmbeddingsConsumer(
+      consumer = Consumer(
         n_workers=workers,
         worker_queue=worker_queue,
-        species_tensor=result,
-        max_segment_index=max_segment_idx_ptr,
+        tensor=result,
         cancel_event=cancel_event,
       )
       consumer()
@@ -1148,7 +1148,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     rf_batch_sizes.cleanup()
     rf_flags.cleanup()
 
-    result = SpeciesTensor(
+    result = ScoresTensor(
       n_files,
       n_segments=reserve_n_segments,
       top_k=top_k,
@@ -1156,6 +1156,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       prob_dtype=prob_dtype,
       segment_indices_dtype=rf_segment_indices.dtype,
       files_dtype=rf_file_indices.dtype,
+      max_segment_index=max_segment_idx_ptr,
     )
 
     species_blacklist = ~species_whitelist[np.newaxis, :]
@@ -1343,8 +1344,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       consumer = Consumer(
         n_workers=workers,
         worker_queue=worker_queue,
-        species_tensor=result,
-        max_segment_index=max_segment_idx_ptr,
+        tensor=result,
         cancel_event=cancel_event,
       )
       consumer()

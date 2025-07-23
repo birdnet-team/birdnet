@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from birdnet.acoustic_models.inference.prediction_result import (
+from birdnet.acoustic_models.inference.scores.prediction_result import (
   PredictionResult,
 )
 

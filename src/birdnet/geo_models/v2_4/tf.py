@@ -14,7 +14,6 @@ from birdnet.backends import (
   TFInferenceBackend,
   check_tf_model_can_be_loaded,
   litert_installed,
-  load_tf_model,
   tf_installed,
 )
 from birdnet.geo_models.inference.prediction_result import PredictionResult
@@ -32,7 +31,7 @@ from birdnet.globals import (
 from birdnet.helper import (
   ModelInfo,
 )
-from birdnet.local_data import get_lang_dir, get_model_path, get_model_root_dir
+from birdnet.local_data import get_lang_dir, get_model_path
 from birdnet.utils import download_file_tqdm, get_species_from_file
 
 if TYPE_CHECKING:

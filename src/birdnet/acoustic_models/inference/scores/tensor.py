@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import multiprocessing as mp
+
 import numpy as np
 from numpy.typing import DTypeLike
 
 import birdnet.logging_utils as bn_logging
+from birdnet.acoustic_models.inference.tensor import TensorBase
 from birdnet.helper import uint_dtype_for
 
 
-class SpeciesTensor:
+class ScoresTensor(TensorBase):
   def __init__(
     self,
     n_files: int,
@@ -17,12 +20,14 @@ class SpeciesTensor:
     prob_dtype: DTypeLike,
     files_dtype: DTypeLike,
     segment_indices_dtype: DTypeLike,
+    max_segment_index: mp.RawValue,
   ) -> None:
     self._logger = bn_logging.get_logger(__name__)
 
     self._files_dtype = files_dtype
     self._segment_indices_dtype = segment_indices_dtype
     self._top_k = top_k
+    self._max_segment_index = max_segment_index
 
     self._species_ids = np.empty(
       (n_files, n_segments, self._top_k),
@@ -81,7 +86,6 @@ class SpeciesTensor:
     top_k_species: np.ndarray,  # 2dim
     top_k_scores: np.ndarray,  # 2dim
     top_k_mask: np.ndarray,  # 2dim
-    global_max_segment_idx: int,
   ) -> None:
     assert file_indices.dtype == self._files_dtype
     assert top_k_species.dtype == self._species_ids.dtype
@@ -89,7 +93,7 @@ class SpeciesTensor:
     assert top_k_mask.dtype == self._species_masked.dtype
     assert segment_indices.dtype == self._segment_indices_dtype
     block_max_segment_idx = segment_indices.max()
-    max_segment_size = max(block_max_segment_idx, global_max_segment_idx) + 1
+    max_segment_size = max(block_max_segment_idx, self._max_segment_index.value) + 1
     self._ensure_capacity(max_segment_size)
     self._species_ids[file_indices, segment_indices] = top_k_species
     self._species_probs[file_indices, segment_indices] = top_k_scores

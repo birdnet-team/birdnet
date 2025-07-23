@@ -2,19 +2,13 @@ from __future__ import annotations  # seit Py 3.7, ab Py 3.11 Standard
 
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Self
+from typing import Self
 
 import numpy as np  # alles, was du ohnehin brauchst
 from ordered_set import OrderedSet
-from tqdm import tqdm
 
-from birdnet.acoustic_models.inference.emb_tensor import EmbeddingsTensor
-from birdnet.acoustic_models.inference.species_tensor import SpeciesTensor
+from birdnet.acoustic_models.inference.emb.tensor import EmbeddingsTensor
 from birdnet.base import PredictionResultBase
-
-if TYPE_CHECKING:
-  import pandas as pd
-  import pyarrow as pa
 
 
 class EmbeddingsPredictionResult(PredictionResultBase):

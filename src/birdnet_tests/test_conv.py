@@ -2,7 +2,7 @@ import tempfile
 from hashlib import sha1
 from pathlib import Path
 
-from birdnet.acoustic_models.inference.prediction_result import PredictionResult
+from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
 from birdnet.model_loader import load
 from birdnet_tests.helper import duration_counter, memory_monitor
 

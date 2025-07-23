@@ -8,7 +8,7 @@ import numpy as np  # alles, was du ohnehin brauchst
 from ordered_set import OrderedSet
 from tqdm import tqdm
 
-from birdnet.acoustic_models.inference.species_tensor import SpeciesTensor
+from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
 from birdnet.base import PredictionResultBase
 
 if TYPE_CHECKING:
@@ -25,7 +25,7 @@ VAR_CONFIDENCE = "confidence"
 class PredictionResult(PredictionResultBase):
   def __init__(
     self,
-    tensor: SpeciesTensor,
+    tensor: ScoresTensor,
     files: OrderedSet[Path],
     species_list: OrderedSet[str],
     file_durations: np.ndarray,

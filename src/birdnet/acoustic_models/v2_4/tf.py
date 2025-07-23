@@ -3,16 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterable, Literal, final
 
-from birdnet.acoustic_models.inference.emb_prediction_result import (
+from birdnet.acoustic_models.inference.emb.prediction_result import (
   EmbeddingsPredictionResult,
 )
-from birdnet.acoustic_models.inference.prediction_result import PredictionResult
+from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
 from birdnet.backends import (
   InferenceBackend,
   TFInferenceBackend,
   check_tf_model_can_be_loaded,
   litert_installed,
-  load_tf_model,
   tf_installed,
 )
 
@@ -47,7 +46,7 @@ from birdnet.globals import (
   VALID_LIBRARY_TYPES,
 )
 from birdnet.helper import ModelInfo
-from birdnet.local_data import get_lang_dir, get_model_path, get_model_root_dir
+from birdnet.local_data import get_lang_dir, get_model_path
 from birdnet.utils import download_file_tqdm, get_species_from_file
 
 MODEL_EMB_IDX = 545

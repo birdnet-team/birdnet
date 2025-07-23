@@ -11,8 +11,8 @@ from typing import Iterable, Literal, final
 # Next two import lines for this demo only
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.emb_prediction_result import EmbeddingsPredictionResult
-from birdnet.acoustic_models.inference.prediction_result import PredictionResult
+from birdnet.acoustic_models.inference.emb.prediction_result import EmbeddingsPredictionResult
+from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
 from birdnet.acoustic_models.v2_4.base import (
   AcousticDownloaderBaseV2_4,
   AcousticModelBaseV2_4,
@@ -26,10 +26,9 @@ from birdnet.globals import (
   MODEL_BACKEND_PB,
   MODEL_BACKENDS,
   MODEL_PRECISION_FP32,
-  MODEL_PRECISIONS,
 )
 from birdnet.helper import check_protobuf_model_files_exist
-from birdnet.local_data import get_lang_dir, get_model_path, get_model_root_dir
+from birdnet.local_data import get_lang_dir, get_model_path
 from birdnet.utils import download_file_tqdm, get_species_from_file
 
 

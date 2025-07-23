@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import multiprocessing as mp
+
 import numpy as np
 from numpy.typing import DTypeLike
 
 import birdnet.logging_utils as bn_logging
+from birdnet.acoustic_models.inference.tensor import TensorBase
 
 
-class EmbeddingsTensor:
+class EmbeddingsTensor(TensorBase):
   def __init__(
     self,
     n_files: int,
@@ -15,11 +18,13 @@ class EmbeddingsTensor:
     emb_dtype: DTypeLike,
     files_dtype: DTypeLike,
     segment_indices_dtype: DTypeLike,
+    max_segment_index: mp.RawValue,
   ) -> None:
     self._logger = bn_logging.get_logger(__name__)
 
     self._files_dtype = files_dtype
     self._segment_indices_dtype = segment_indices_dtype
+    self._max_segment_index = max_segment_index
 
     self._emb = np.empty((n_files, n_segments, emb_dim), dtype=emb_dtype)
     self._emb_masked = np.full(self._emb.shape, True, dtype=bool)
@@ -64,13 +69,12 @@ class EmbeddingsTensor:
     file_indices: np.ndarray,
     segment_indices: np.ndarray,
     emb: np.ndarray,  # 2dim
-    global_max_segment_idx: int,
   ) -> None:
     assert file_indices.dtype == self._files_dtype
     assert emb.dtype == self._emb.dtype
     assert segment_indices.dtype == self._segment_indices_dtype
     block_max_segment_idx = segment_indices.max()
-    max_segment_size = max(block_max_segment_idx, global_max_segment_idx) + 1
+    max_segment_size = max(block_max_segment_idx, self._max_segment_index.value) + 1
     self._ensure_capacity(max_segment_size)
     self._emb[file_indices, segment_indices] = emb
     self._emb_masked[file_indices, segment_indices] = False

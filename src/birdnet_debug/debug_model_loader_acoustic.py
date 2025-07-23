@@ -3,10 +3,12 @@ import random
 import sys
 from multiprocessing import set_start_method
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 
-from birdnet.acoustic_models.inference.prediction_result import PredictionResult
+from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
+from birdnet.globals import MODEL_PRECISIONS
 from birdnet.logging_utils import get_package_logger
 from birdnet.model_loader import (
   load,
@@ -168,7 +170,6 @@ if __name__ == "__main__":
   audio_paths = "test-dataset/test_dataset_1000x0.2s_flac"
   audio_paths = "test-dataset/test_dataset_100000x4s_flac"
   audio_paths = "test-dataset/test_dataset_100x1.3s_flac"
-  audio_paths = "example/soundscape.wav"
   audio_paths = "test-dataset/test_dataset_1x10min/0.wav"
   audio_paths = [
     Path("test-dataset/test_dataset_120x60min/000.wav"),
@@ -182,8 +183,9 @@ if __name__ == "__main__":
     Path("test-dataset/test_dataset_120x60min/008.wav"),
   ]
   audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
+  audio_paths = "example/soundscape.wav"
   params = {
-    "n_workers": 12,
+    "n_workers": 1,
     "n_producers": 1,
     "batch_size": 1,
     "prefetch_ratio": 2,
@@ -192,22 +194,27 @@ if __name__ == "__main__":
     "device": "CPU",
     "top_k": 5,
     "start_method": "fork",  # "fork", "spawn" or "forkserver" for Linux, macOS
+    "load_custom": False,
   }
 
   set_start_method(params["start_method"], force=True)  # Linux, macOS
 
   start = time.perf_counter()
   if params["backend"] == "tf":
-    model = load("acoustic", "2.4", "tf", precision=params["precision"])
-    model = load_custom(
-      "acoustic",
-      "2.4",
-      "tf",
-      "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/tf/model-fp32.tflite",
-      "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/tf/labels/en_us.txt",
-      precision="fp32",
-      check_validity=True,
-    )
+    if params["load_custom"]:
+      model = load_custom(
+        "acoustic",
+        "2.4",
+        "tf",
+        "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/tf/model-fp32.tflite",
+        "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/tf/labels/en_us.txt",
+        precision="fp32",
+        check_validity=True,
+      )
+    else:
+      model = load(
+        "acoustic", "2.4", "tf", precision=cast(MODEL_PRECISIONS, params["precision"])
+      )
 
     # model = load_custom(
     #   "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/tf/model-fp32.tflite",
@@ -246,16 +253,18 @@ if __name__ == "__main__":
       # },
     )
   elif params["backend"] == "pb":
-    model = load("acoustic", "2.4", "pb")
-    model = load_custom(
-      "acoustic",
-      "2.4",
-      "pb",
-      "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/pb/model/",
-      "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/pb/labels/en_us.txt",
-      precision="fp32",
-      check_validity=True,
-    )
+    if params["load_custom"]:
+      model = load_custom(
+        "acoustic",
+        "2.4",
+        "pb",
+        "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/pb/model-fp32/",
+        "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/pb/labels/en_us.txt",
+        precision="fp32",
+        check_validity=True,
+      )
+    else:
+      model = load("acoustic", "2.4", "pb", precision="fp32")
 
     result = model.predict(
       audio_paths,
