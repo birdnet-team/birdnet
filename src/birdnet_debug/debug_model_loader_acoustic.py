@@ -187,7 +187,7 @@ if __name__ == "__main__":
     "n_producers": 1,
     "batch_size": 1,
     "prefetch_ratio": 2,
-    "backend": "pb",
+    "backend": "tf",
     "precision": "fp32",
     "device": "CPU",
     "top_k": 5,
@@ -217,7 +217,7 @@ if __name__ == "__main__":
     #   backend="tf",
     #   precision="fp32",
     # )
-    result = model.analyze(
+    result = model.predict(
       audio_paths,
       workers=params["n_workers"],
       feeders=params["n_producers"],
@@ -257,7 +257,7 @@ if __name__ == "__main__":
       check_validity=True,
     )
 
-    result = model.analyze(
+    result = model.predict(
       audio_paths,
       workers=params["n_workers"],
       feeders=params["n_producers"],

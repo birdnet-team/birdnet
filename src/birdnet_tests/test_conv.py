@@ -3,7 +3,7 @@ from hashlib import sha1
 from pathlib import Path
 
 from birdnet.acoustic_models.inference.prediction_result import PredictionResult
-from birdnet.model_loader import _load_acoustic_model
+from birdnet.model_loader import load
 from birdnet_tests.helper import duration_counter, memory_monitor
 
 
@@ -18,8 +18,8 @@ def get_cached_result(audio_paths: list[Path], k: int, conf: float) -> Predictio
   if npz_path.is_file():
     return PredictionResult.load(npz_path)
   else:
-    model = _load_acoustic_model()
-    result = model.analyze(
+    model = load("acoustic", "2.4", "tf")
+    result = model.predict(
       audio_paths,
       top_k=k,
       default_confidence_threshold=conf,

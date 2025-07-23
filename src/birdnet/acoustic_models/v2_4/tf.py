@@ -35,7 +35,7 @@ from birdnet.acoustic_models.v2_4.base import (
   AcousticDownloaderBaseV2_4,
   AcousticModelBaseV2_4,
 )
-from birdnet.base import (
+from birdnet.globals import (
   LIBRARY_LITERT,
   LIBRARY_TF,
   LIBRARY_TYPES,
@@ -166,7 +166,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     return MODEL_BACKEND_TF
 
   @classmethod
-  def load_official(
+  def load(
     cls,
     lang: MODEL_LANGUAGES,
     precision: MODEL_PRECISIONS,
@@ -218,7 +218,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
 
     return result
 
-  def analyze(
+  def predict(
     self,
     inp: Path | str | Iterable[Path | str],
     /,
@@ -256,7 +256,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     else:
       raise AssertionError()
 
-    return super()._analyze(
+    return super()._predict(
       inp,
       TFAcousticInferenceBackend,
       {

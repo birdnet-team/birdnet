@@ -9,6 +9,7 @@ from ordered_set import OrderedSet
 from tqdm import tqdm
 
 from birdnet.acoustic_models.inference.species_tensor import SpeciesTensor
+from birdnet.base import PredictionResultBase
 
 if TYPE_CHECKING:
   import pandas as pd
@@ -21,7 +22,7 @@ VAR_SPECIES_NAME = "species_name"
 VAR_CONFIDENCE = "confidence"
 
 
-class PredictionResult:
+class PredictionResult(PredictionResultBase):
   def __init__(
     self,
     tensor: SpeciesTensor,

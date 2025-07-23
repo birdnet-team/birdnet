@@ -13,13 +13,13 @@ from typing import Any, final
 import numpy as np
 from ordered_set import OrderedSet
 
-from birdnet.base import (
-  MODEL_BACKEND_PB,
-  MODEL_BACKENDS,
-)
 from birdnet.geo_models.base import GeoInferenceBackend
 from birdnet.geo_models.inference.prediction_result import PredictionResult
 from birdnet.geo_models.v2_4.base import GeoDownloaderBaseV2_4, GeoModelBaseV2_4
+from birdnet.globals import (
+  MODEL_BACKEND_PB,
+  MODEL_BACKENDS,
+)
 from birdnet.helper import check_protobuf_model_files_exist
 from birdnet.local_data import get_local_model_root_dir
 from birdnet.logging_utils import get_logger
@@ -115,7 +115,7 @@ class GeoPBModelV2_4(GeoModelBaseV2_4):
     return MODEL_BACKEND_PB
 
   @classmethod
-  def load_official(cls, lang: str) -> GeoPBModelV2_4:
+  def load(cls, lang: str) -> GeoPBModelV2_4:
     model_path, species_list = GeoPBDownloaderV2_4.get_model_path_and_labels(lang)
     result = GeoPBModelV2_4(
       model_path=model_path,
@@ -178,7 +178,7 @@ class GeoPBModelV2_4(GeoModelBaseV2_4):
     half_precision: bool = True,
     device: str = "CPU",
   ) -> PredictionResult:
-    return super()._predict_species_at_location_and_time(
+    return super()._predict(
       latitude,
       longitude,
       GeoPBInferenceBackend,

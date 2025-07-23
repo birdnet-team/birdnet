@@ -16,7 +16,7 @@ from birdnet.argparse_helper import (
   parse_path,
   parse_positive_integer,
 )
-from birdnet.base import (
+from birdnet.globals import (
   LIBRARY_TF,
   MODEL_BACKEND_PB,
   MODEL_BACKEND_TF,

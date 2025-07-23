@@ -4,7 +4,8 @@ from pathlib import Path
 import numpy as np
 from ordered_set import OrderedSet
 
-from birdnet.base import GEO_MODEL_VERSIONS, ModelBase
+from birdnet.base import ModelBase
+from birdnet.globals import GEO_MODEL_VERSIONS
 
 
 class GeoInferenceBackend(ABC):

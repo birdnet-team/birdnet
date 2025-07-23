@@ -5,7 +5,8 @@ from pathlib import Path
 import numpy as np
 from ordered_set import OrderedSet
 
-from birdnet.base import ACOUSTIC_MODEL_VERSIONS, MODEL_PRECISIONS, ModelBase
+from birdnet.base import ModelBase
+from birdnet.globals import ACOUSTIC_MODEL_VERSIONS, MODEL_PRECISIONS
 
 
 class AcousticInferenceBackend(ABC):

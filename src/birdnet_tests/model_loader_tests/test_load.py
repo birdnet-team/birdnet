@@ -2,9 +2,9 @@ from typing import Literal, cast
 
 from birdnet.acoustic_models.v2_4.pb import AcousticPBModelV2_4
 from birdnet.acoustic_models.v2_4.tf import AcousticTFModelV2_4
-from birdnet.base import MODEL_PRECISIONS
 from birdnet.geo_models.v2_4.pb import GeoPBModelV2_4
 from birdnet.geo_models.v2_4.tf import GeoTFModelV2_4
+from birdnet.globals import MODEL_PRECISIONS
 from birdnet.model_loader import load
 
 

@@ -6,7 +6,11 @@ from birdnet.acoustic_models.base import AcousticModelBase
 from birdnet.acoustic_models.v2_4.base import AcousticModelBaseV2_4
 from birdnet.acoustic_models.v2_4.pb import AcousticPBModelV2_4
 from birdnet.acoustic_models.v2_4.tf import AcousticTFModelV2_4
-from birdnet.base import (
+from birdnet.base import ModelBase
+from birdnet.geo_models.base import GeoModelBase
+from birdnet.geo_models.v2_4.pb import GeoPBModelV2_4
+from birdnet.geo_models.v2_4.tf import GeoTFModelV2_4
+from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V2_4,
   ACOUSTIC_MODEL_VERSIONS,
   GEO_MODEL_VERSION_V2_4,
@@ -27,11 +31,7 @@ from birdnet.base import (
   VALID_MODEL_LANGUAGES,
   VALID_MODEL_PRECISIONS,
   VALID_MODEL_TYPES,
-  ModelBase,
 )
-from birdnet.geo_models.base import GeoModelBase
-from birdnet.geo_models.v2_4.pb import GeoPBModelV2_4
-from birdnet.geo_models.v2_4.tf import GeoTFModelV2_4
 from birdnet.helper import check_protobuf_model_files_exist
 
 
@@ -161,14 +161,14 @@ def _load_acoustic_model_V2_4(
   _check_is_valid_language(lang)
 
   if backend == MODEL_BACKEND_TF:
-    return AcousticTFModelV2_4.load_official(lang, precision)
+    return AcousticTFModelV2_4.load(lang, precision)
   elif backend == MODEL_BACKEND_PB:
     if precision != MODEL_PRECISION_FLOAT32:
       raise ValueError(
         f"Unsupported model precision for acoustic pb model: {precision}. Currently supported precision is: {MODEL_PRECISION_FLOAT32}."
       )
 
-    return AcousticPBModelV2_4.load_official(lang)
+    return AcousticPBModelV2_4.load(lang)
   else:
     raise AssertionError()
 
@@ -194,9 +194,9 @@ def _load_geo_model_V2_4(
   _check_is_valid_language(lang)
 
   if backend == MODEL_BACKEND_TF:
-    return GeoTFModelV2_4.load_official(lang)
+    return GeoTFModelV2_4.load(lang)
   elif backend == MODEL_BACKEND_PB:
-    return GeoPBModelV2_4.load_official(lang)
+    return GeoPBModelV2_4.load(lang)
   else:
     raise AssertionError()
 

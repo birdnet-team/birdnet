@@ -30,7 +30,7 @@ from typing import final
 
 from ordered_set import OrderedSet
 
-from birdnet.base import (
+from birdnet.globals import (
   LIBRARY_LITERT,
   LIBRARY_TF,
   LIBRARY_TYPES,
@@ -143,7 +143,7 @@ class GeoTFModelV2_4(GeoModelBaseV2_4):
     return MODEL_BACKEND_TF
 
   @classmethod
-  def load_official(
+  def load(
     cls,
     lang: MODEL_LANGUAGES,
   ) -> GeoTFModelV2_4:
@@ -211,7 +211,7 @@ class GeoTFModelV2_4(GeoModelBaseV2_4):
         )
     else:
       raise AssertionError()
-    return super()._predict_species_at_location_and_time(
+    return super()._predict(
       latitude,
       longitude,
       GeoTFInferenceBackend,

@@ -20,7 +20,7 @@ from birdnet.acoustic_models.v2_4.base import (
   AcousticDownloaderBaseV2_4,
   AcousticModelBaseV2_4,
 )
-from birdnet.base import (
+from birdnet.globals import (
   MODEL_BACKEND_PB,
   MODEL_BACKENDS,
   MODEL_PRECISION_FLOAT32,
@@ -124,7 +124,7 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
     return MODEL_BACKEND_PB
 
   @classmethod
-  def load_official(cls, lang: str) -> AcousticPBModelV2_4:
+  def load(cls, lang: str) -> AcousticPBModelV2_4:
     model_path, species_list = AcousticPBDownloaderV2_4.get_model_path_and_labels(lang)
     result = AcousticPBModelV2_4(
       model_path=model_path,
@@ -176,7 +176,7 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
 
     return result
 
-  def analyze(
+  def predict(
     self,
     inp: Path | str | Iterable[Path | str],
     /,
@@ -200,7 +200,7 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
     show_stats: Literal["no", "minimal", "progress", "benchmark"] = "no",
     device: str | list[str] = "CPU",
   ) -> PredictionResult:
-    return super()._analyze(
+    return super()._predict(
       inp,
       PBAcousticInferenceBackend,
       {

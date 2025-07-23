@@ -39,15 +39,16 @@ from birdnet.acoustic_models.v2_4.banchmarking import (
   FullBenchmarkMetaV2_4,
   MinimalBenchmarkMetaV2_4,
 )
-from birdnet.base import (
+from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V2_4,
   ACOUSTIC_MODEL_VERSIONS,
   MODEL_BACKEND_TF,
   MODEL_PRECISIONS,
   MODEL_TYPE_ACOUSTIC,
   MODEL_TYPES,
+  PKG_NAME,
+  WRITABLE_FLAG,
 )
-from birdnet.globals import PKG_NAME, WRITABLE_FLAG
 from birdnet.helper import (
   SF_FORMATS,
   RingField,
@@ -140,7 +141,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
   def get_segment_size_samples(cls) -> int:
     return 144_000  # 3.0 * 48_000
 
-  def _analyze(
+  def _predict(
     self,
     inp: Path | str | Iterable[Path | str],
     backend_type: type[AcousticInferenceBackend],

@@ -2,13 +2,13 @@ import importlib.metadata
 import os
 from pathlib import Path
 
-from birdnet.base import (
+from birdnet.globals import (
   ACOUSTIC_MODEL_VERSIONS,
   GEO_MODEL_VERSIONS,
   MODEL_BACKENDS,
   MODEL_TYPES,
+  PKG_NAME,
 )
-from birdnet.globals import PKG_NAME
 
 
 def get_package_version() -> str:
