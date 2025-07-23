@@ -5,7 +5,10 @@ from pathlib import Path
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSIONS,
   GEO_MODEL_VERSIONS,
+  MODEL_BACKEND_PB,
+  MODEL_BACKEND_TF,
   MODEL_BACKENDS,
+  MODEL_PRECISIONS,
   MODEL_TYPES,
   PKG_NAME,
 )
@@ -53,13 +56,39 @@ def get_benchmark_dir(
   return result
 
 
-def get_local_model_root_dir(
+def get_model_root_dir(
   model: MODEL_TYPES,
   version: ACOUSTIC_MODEL_VERSIONS | GEO_MODEL_VERSIONS,
   backend: MODEL_BACKENDS,
 ) -> Path:
   parent_dir = APP_DIR / f"{model}-models" / f"v{version}" / backend
   return parent_dir
+
+
+def get_model_path(
+  model: MODEL_TYPES,
+  version: ACOUSTIC_MODEL_VERSIONS | GEO_MODEL_VERSIONS,
+  backend: MODEL_BACKENDS,
+  precision: MODEL_PRECISIONS,
+) -> Path:
+  root_dir = get_model_root_dir(model, version, backend)
+  if backend == MODEL_BACKEND_TF:
+    result = root_dir / f"model-{precision}.tflite"
+  elif backend == MODEL_BACKEND_PB:
+    result = root_dir / f"model-{precision}"
+  else:
+    raise AssertionError()
+  return result
+
+
+def get_lang_dir(
+  model: MODEL_TYPES,
+  version: ACOUSTIC_MODEL_VERSIONS | GEO_MODEL_VERSIONS,
+  backend: MODEL_BACKENDS,
+) -> Path:
+  root_dir = get_model_root_dir(model, version, backend)
+  result = root_dir / "labels"
+  return result
 
 
 if not APP_DIR.exists():

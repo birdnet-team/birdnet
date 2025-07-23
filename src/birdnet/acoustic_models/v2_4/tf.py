@@ -44,7 +44,7 @@ from birdnet.globals import (
   VALID_LIBRARY_TYPES,
 )
 from birdnet.helper import ModelInfo
-from birdnet.local_data import get_local_model_root_dir
+from birdnet.local_data import get_lang_dir, get_model_path, get_model_root_dir
 from birdnet.utils import download_file_tqdm, get_species_from_file
 
 models = {
@@ -72,14 +72,17 @@ models = {
 class AcousticTFDownloaderV2_4(AcousticDownloaderBaseV2_4):
   @classmethod
   def _get_paths(cls, precision: MODEL_PRECISIONS) -> tuple[Path, Path]:
-    model_root = get_local_model_root_dir(
+    model_path = get_model_path(
+      AcousticTFModelV2_4.get_model_type(),
+      AcousticTFModelV2_4.get_version(),
+      AcousticTFModelV2_4.get_backend(),
+      precision,
+    )
+    lang_dir = get_lang_dir(
       AcousticTFModelV2_4.get_model_type(),
       AcousticTFModelV2_4.get_version(),
       AcousticTFModelV2_4.get_backend(),
     )
-
-    model_path = model_root / f"model-{precision}.tflite"
-    lang_dir = model_root / "labels"
     return model_path, lang_dir
 
   @classmethod

@@ -26,12 +26,13 @@ from birdnet.globals import (
   MODEL_BACKEND_TF,
   MODEL_BACKENDS,
   MODEL_LANGUAGES,
+  MODEL_PRECISION_FP32,
   VALID_LIBRARY_TYPES,
 )
 from birdnet.helper import (
   ModelInfo,
 )
-from birdnet.local_data import get_local_model_root_dir
+from birdnet.local_data import get_lang_dir, get_model_path, get_model_root_dir
 from birdnet.utils import download_file_tqdm, get_species_from_file
 
 if TYPE_CHECKING:
@@ -49,14 +50,17 @@ model_info = ModelInfo(
 class GeoTFDownloaderV2_4(GeoDownloaderBaseV2_4):
   @classmethod
   def _get_paths(cls) -> tuple[Path, Path]:
-    model_root = get_local_model_root_dir(
+    model_path = get_model_path(
+      GeoTFModelV2_4.get_model_type(),
+      GeoTFModelV2_4.get_version(),
+      GeoTFModelV2_4.get_backend(),
+      MODEL_PRECISION_FP32,
+    )
+    lang_dir = get_lang_dir(
       GeoTFModelV2_4.get_model_type(),
       GeoTFModelV2_4.get_version(),
       GeoTFModelV2_4.get_backend(),
     )
-
-    model_path = model_root / "model.tflite"
-    lang_dir = model_root / "labels"
     return model_path, lang_dir
 
   @classmethod
