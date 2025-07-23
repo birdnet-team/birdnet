@@ -5,55 +5,59 @@ from birdnet.acoustic_models.v2_4.tf import AcousticTFModelV2_4
 from birdnet.geo_models.v2_4.pb import GeoPBModelV2_4
 from birdnet.geo_models.v2_4.tf import GeoTFModelV2_4
 from birdnet.globals import MODEL_PRECISIONS
-from birdnet.local_data import get_model_root_dir
+from birdnet.local_data import get_lang_dir, get_model_path, get_model_root_dir
 from birdnet.model_loader import load_custom
 
 
 def test_types_are_correct():
+  model_type, version, backend, precision = "acoustic", "2.4", "pb", "fp32"
   assert (
     type(
       load_custom(
-        "acoustic",
-        "2.4",
-        "pb",
-        get_model_root_dir("acoustic", "2.4", "pb") / "model",
-        get_model_root_dir("acoustic", "2.4", "pb") / "labels" / "en_us.txt",
+        model_type,
+        version,
+        backend,
+        get_model_path(model_type, version, backend, precision),
+        get_lang_dir(model_type, version, backend) / "en_us.txt",
       )
     )
     is AcousticPBModelV2_4
   )
+  model_type, version, backend, precision = "acoustic", "2.4", "tf", "fp32"
   assert (
     type(
       load_custom(
-        "acoustic",
-        "2.4",
-        "tf",
-        get_model_root_dir("acoustic", "2.4", "tf") / "model-fp32.tflite",
-        get_model_root_dir("acoustic", "2.4", "tf") / "labels" / "en_us.txt",
+        model_type,
+        version,
+        backend,
+        get_model_path(model_type, version, backend, precision),
+        get_lang_dir(model_type, version, backend) / "en_us.txt",
       )
     )
     is AcousticTFModelV2_4
   )
+  model_type, version, backend, precision = "geo", "2.4", "pb", "fp32"
   assert (
     type(
       load_custom(
-        "geo",
-        "2.4",
-        "pb",
-        get_model_root_dir("geo", "2.4", "pb") / "model",
-        get_model_root_dir("geo", "2.4", "pb") / "labels" / "en_us.txt",
+        model_type,
+        version,
+        backend,
+        get_model_path(model_type, version, backend, precision),
+        get_lang_dir(model_type, version, backend) / "en_us.txt",
       )
     )
     is GeoPBModelV2_4
   )
+  model_type, version, backend, precision = "geo", "2.4", "tf", "fp32"
   assert (
     type(
       load_custom(
-        "geo",
-        "2.4",
-        "tf",
-        get_model_root_dir("geo", "2.4", "tf") / "model.tflite",
-        get_model_root_dir("geo", "2.4", "tf") / "labels" / "en_us.txt",
+        model_type,
+        version,
+        backend,
+        get_model_path(model_type, version, backend, precision),
+        get_lang_dir(model_type, version, backend) / "en_us.txt",
       )
     )
     is GeoTFModelV2_4
