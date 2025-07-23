@@ -4,6 +4,7 @@ import multiprocessing as mp
 import multiprocessing.synchronize
 import os
 import time
+from abc import abstractmethod
 from multiprocessing import Queue, shared_memory
 from multiprocessing.synchronize import Event, Semaphore
 
@@ -21,9 +22,10 @@ from birdnet.globals import (
 from birdnet.helper import RingField
 
 
-class EmbeddingsWorker(bn_logging.LogableProcessBase):
+class WorkerBase(bn_logging.LogableProcessBase):
   def __init__(
     self,
+    name: str,
     backend_loader: InferenceBackendLoader,
     batch_size: int,
     n_slots: int,
@@ -38,7 +40,7 @@ class EmbeddingsWorker(bn_logging.LogableProcessBase):
     sem_free: Semaphore,
     sem_fill: Semaphore,
     sem_active_workers: Semaphore,
-    emb_dtype: DTypeLike,
+    infer_dtype: DTypeLike,
     wkr_stats_queue: mp.Queue,
     track_performance: bool,
     logging_queue: mp.Queue,
@@ -47,7 +49,7 @@ class EmbeddingsWorker(bn_logging.LogableProcessBase):
     cancel_event: Event,
     prd_all_done_event: Event,
   ):
-    super().__init__(__name__, logging_queue, logging_level)
+    super().__init__(name, logging_queue, logging_level)
 
     self._backend_loader = backend_loader
     self._prd_all_done_event = prd_all_done_event
@@ -55,14 +57,13 @@ class EmbeddingsWorker(bn_logging.LogableProcessBase):
     self._backend = None
     self._track_performance = track_performance
     self._wkr_stats_queue = wkr_stats_queue
-    # Setze für ungültige Spezies den Threshold auf inf, sodass (pred >= inf) immer False ist
     self._out_q = out_q
     self._sem_free = sem_free
     self._sem_filled = sem_fill
     self._sem_active_workers = sem_active_workers
     self._prediction_count = 0
-    assert np.dtype(emb_dtype) in (np.float16, np.float32)
-    self._emb_dtype = emb_dtype
+    assert np.dtype(infer_dtype) in (np.float16, np.float32)
+    self._infer_dtype = infer_dtype
     # Interpreter
     self._slot = 0
     self._batch_idx_cache = {}
@@ -117,7 +118,7 @@ class EmbeddingsWorker(bn_logging.LogableProcessBase):
     assert self._backend is not None
     res = self._backend.infer(batch, self._device_name)
     assert res.dtype == np.float32
-    res = res.astype(self._emb_dtype, copy=False)
+    res = res.astype(self._infer_dtype, copy=False)
     return res
 
   def _load_ring_buffers(self) -> None:
@@ -154,6 +155,14 @@ class EmbeddingsWorker(bn_logging.LogableProcessBase):
       self._log_debug("Received cancel event.")
       return True
     return False
+
+  @abstractmethod
+  def _get_block(
+    self,
+    file_indices: np.ndarray,
+    segment_indices: np.ndarray,
+    infer_result: np.ndarray,
+  ) -> tuple[np.ndarray, ...]: ...
 
   def __call__(self):
     start = time.perf_counter()
@@ -257,7 +266,7 @@ class EmbeddingsWorker(bn_logging.LogableProcessBase):
 
       perf_c = time.perf_counter()
       try:
-        embeddings = self._infer(audio_samples)
+        infer_result = self._infer(audio_samples)
       except Exception as e:
         self._log_debug(f"Error during inference: {e}")
         self._cancel_event.set()
@@ -270,21 +279,15 @@ class EmbeddingsWorker(bn_logging.LogableProcessBase):
       self._ring_flags[claimed_slot] = WRITABLE_FLAG
       self._sem_free.release()
 
-      assert embeddings.flags.aligned
-
-      perf_c = time.perf_counter()
-
       self._log_debug(
         f"Released FREE. Free slots remaining: {self._sem_free}; Filled slots: {self._sem_filled}"
       )
 
-      self._out_q.put(
-        (
-          file_indices,
-          segment_indices,
-          embeddings,
-        )
-      )
+      assert infer_result.flags.aligned
+
+      perf_c = time.perf_counter()
+      block = self._get_block(file_indices, segment_indices, infer_result)
+      self._out_q.put(block)
       dur_add_to_queue = time.perf_counter() - perf_c
 
       self._prediction_count += n

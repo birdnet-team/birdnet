@@ -30,15 +30,15 @@ class EmbeddingsPredictionResult(PredictionResultBase):
     self._segment_duration_s = np.float16(segment_duration_s)
     self._overlap_duration_s = np.float16(overlap_duration_s)
 
-    self._emb = tensor._emb
-    self._emb_masked = tensor._emb_masked
+    self._embeddings = tensor._emb
+    self._embeddings_masked = tensor._emb_masked
     self._file_durations = file_durations
 
   @property
   def memory_size_mb(self) -> float:
     return (
-      self._emb.nbytes
-      + self._emb_masked.nbytes
+      self._embeddings.nbytes
+      + self._embeddings_masked.nbytes
       + self._files.nbytes
       + self._segment_duration_s.nbytes
       + self._overlap_duration_s.nbytes
@@ -59,11 +59,11 @@ class EmbeddingsPredictionResult(PredictionResultBase):
 
   @property
   def embeddings(self) -> np.ndarray:
-    return self._emb
+    return self._embeddings
 
   @property
   def embeddings_masked(self) -> np.ndarray:
-    return self._emb_masked
+    return self._embeddings_masked
 
   @property
   def files(self) -> np.ndarray:
@@ -75,11 +75,11 @@ class EmbeddingsPredictionResult(PredictionResultBase):
 
   @property
   def emd_dim(self) -> int:
-    return self._emb.shape[-1]
+    return self._embeddings.shape[-1]
 
   @property
   def max_n_segments(self) -> int:
-    return self._emb.shape[1]
+    return self._embeddings.shape[1]
 
   def save(self, npz_out_path: os.PathLike | str, /, *, compress: bool = True) -> None:
     npz_out_path = Path(npz_out_path)
@@ -90,8 +90,8 @@ class EmbeddingsPredictionResult(PredictionResultBase):
 
     save_method(
       npz_out_path,
-      species_probs=self._emb,
-      species_masked=self._emb_masked,
+      embeddings=self._embeddings,
+      embeddings_masked=self._embeddings_masked,
       files=self._files,
       segment_duration_s=self._segment_duration_s,
       overlap_duration_s=self._overlap_duration_s,
@@ -104,8 +104,8 @@ class EmbeddingsPredictionResult(PredictionResultBase):
     with np.load(path, allow_pickle=True) as npz:
       data = {k: npz[k] for k in npz.files}
 
-    result._emb = data["species_probs"]
-    result._emb_masked = data["species_masked"]
+    result._embeddings = data["embeddings"]
+    result._embeddings_masked = data["embeddings_masked"]
     result._files = data["files"]
     result._segment_duration_s = data["segment_duration_s"]
     result._overlap_duration_s = data["overlap_duration_s"]

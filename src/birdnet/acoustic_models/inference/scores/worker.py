@@ -2,27 +2,19 @@ from __future__ import annotations
 
 import multiprocessing as mp
 import multiprocessing.synchronize
-import os
-import time
-from multiprocessing import Queue, shared_memory
+from multiprocessing import Queue
 from multiprocessing.synchronize import Event, Semaphore
 
 import numpy as np
 from numpy.typing import DTypeLike
 
-import birdnet.logging_utils as bn_logging
+from birdnet.acoustic_models.inference.worker import WorkerBase
 from birdnet.backends import InferenceBackendLoader
-from birdnet.globals import (
-  READABLE_FLAG,
-  READING_FLAG,
-  WRITABLE_FLAG,
-  WRITING_FLAG,
-)
 from birdnet.helper import RingField, uint_dtype_for
 from birdnet.utils import flat_sigmoid_logaddexp_fast
 
 
-class ChildWorker(bn_logging.LogableProcessBase):
+class ChildWorker(WorkerBase):
   def __init__(
     self,
     backend_loader: InferenceBackendLoader,
@@ -53,314 +45,86 @@ class ChildWorker(bn_logging.LogableProcessBase):
     cancel_event: Event,
     prd_all_done_event: Event,
   ):
-    super().__init__(__name__, logging_queue, logging_level)
-
     assert species_thresholds.shape[0] == 1
     assert species_blacklist.shape[0] == 1
     assert species_thresholds.shape[1] == species_blacklist.shape[1]
     assert species_thresholds.flags.aligned
     assert species_blacklist.flags.aligned
 
-    self._backend_loader = backend_loader
-    self._prd_all_done_event = prd_all_done_event
-    self._wkr_ring_access_lock = wkr_ring_access_lock
-    self._backend = None
-    self._track_performance = track_performance
-    self._wkr_stats_queue = wkr_stats_queue
     self._top_k = top_k
     self._thresholds = species_thresholds
     self._blacklist = species_blacklist
     # Setze für ungültige Spezies den Threshold auf inf, sodass (pred >= inf) immer False ist
-    self._out_q = out_q
-    self._sem_free = sem_free
-    self._sem_filled = sem_fill
-    self._sem_active_workers = sem_active_workers
-    self._prediction_count = 0
-    assert np.dtype(prob_dtype) in (np.float16, np.float32)
-    self._prob_dtype = prob_dtype
     self._apply_sigmoid = apply_sigmoid
     self._sigmoid_sensitivity = None
     if apply_sigmoid:
       assert sigmoid_sensitivity is not None
       self._sigmoid_sensitivity = sigmoid_sensitivity
-    # Interpreter
-    self._slot = 0
     self._batch_idx_cache = {}
 
-    # attatch to existing shared memory buffers
-    # NOTE: these handlers must be created that GC does not delete the shared memory access
-    self._n_slots = n_slots
-    self._batch_size = batch_size
-    self._segment_duration_samples = segment_duration_samples
-
     self._species_dtype: DTypeLike | None = None
-    # self._cached_shape: tuple[int, ...] | None = None
-    # self._model_path = str(model_path.absolute())
 
-    self._rf_file_indices = rf_file_indices
-    self._rf_segment_indices = rf_segment_indices
-    self._rf_audio_samples = rf_audio_samples
-    self._rf_batch_sizes = rf_batch_sizes
-    self._rf_flags = rf_flags
-
-    self._in_idx: int | None = None
-    self._out_idx: int | None = None
-
-    self._shm_file_indices: shared_memory.SharedMemory | None = None
-    self._shm_segment_indices: shared_memory.SharedMemory | None = None
-    self._shm_audio_samples: shared_memory.SharedMemory | None = None
-    self._shm_batch_sizes: shared_memory.SharedMemory | None = None
-    self._shm_ring_flags: shared_memory.SharedMemory | None = None
-
-    self._ring_file_indices: np.ndarray | None = None
-    self._ring_segment_indices: np.ndarray | None = None
-    self._ring_audio_samples: np.ndarray | None = None
-    self._ring_batch_sizes: np.ndarray | None = None
-    self._ring_flags: np.ndarray | None = None
-    self._device_name = device
-    # self._mm: mmap.mmap | None = None
-
-    self._cancel_event = cancel_event
-
-    self._lazy_init = mp.get_start_method() != "fork"
-
-    if not self._lazy_init:
-      self._init_logging()
-      self._load_ring_buffers()
-
-  def _load_model(self) -> None:
-    self._log_debug("Loading model...")
-    try:
-      self._backend = self._backend_loader.load_backend()
-    except ValueError as e:
-      self._log_debug(f"Failed to load model: {e}")
-      raise e
-    self._log_debug("Model loaded.")
-
-  def _infer(self, batch: np.ndarray) -> np.ndarray:
-    assert self._backend is not None
-    res = self._backend.infer(batch, self._device_name)
-    assert res.dtype == np.float32
-    res = res.astype(self._prob_dtype, copy=False)
-    return res
-
-  def _load_ring_buffers(self) -> None:
-    self._log_debug("Attaching ring buffers...")
-    # attach to existing shared memory buffers
-    # NOTE: these handlers must be created that GC does not delete the shared memory access
-    self._shm_file_indices, self._ring_file_indices = (
-      self._rf_file_indices.attach_and_get_array()
+    super().__init__(
+      name=__name__,
+      backend_loader=backend_loader,
+      batch_size=batch_size,
+      n_slots=n_slots,
+      rf_file_indices=rf_file_indices,
+      rf_segment_indices=rf_segment_indices,
+      rf_audio_samples=rf_audio_samples,
+      rf_batch_sizes=rf_batch_sizes,
+      rf_flags=rf_flags,
+      segment_duration_samples=segment_duration_samples,
+      out_q=out_q,
+      wkr_ring_access_lock=wkr_ring_access_lock,
+      sem_free=sem_free,
+      sem_fill=sem_fill,
+      sem_active_workers=sem_active_workers,
+      infer_dtype=prob_dtype,
+      wkr_stats_queue=wkr_stats_queue,
+      track_performance=track_performance,
+      logging_queue=logging_queue,
+      logging_level=logging_level,
+      device=device,
+      cancel_event=cancel_event,
+      prd_all_done_event=prd_all_done_event,
     )
-    self._shm_segment_indices, self._ring_segment_indices = (
-      self._rf_segment_indices.attach_and_get_array()
+
+  def _get_block(
+    self,
+    file_indices: np.ndarray,
+    segment_indices: np.ndarray,
+    infer_result: np.ndarray,
+  ) -> tuple[np.ndarray, ...]:
+    if self._species_dtype is None:
+      n_species = infer_result.shape[1]
+      self._species_dtype = uint_dtype_for(n_species - 1)
+
+    if self._apply_sigmoid:
+      assert self._sigmoid_sensitivity is not None
+      infer_result = flat_sigmoid_logaddexp_fast(
+        infer_result,
+        sensitivity=-self._sigmoid_sensitivity,
+      )
+
+    invalid_mask = (infer_result < self._thresholds) | self._blacklist
+
+    shadow = np.where(invalid_mask, -np.inf, infer_result)
+
+    top_k_species = np.argpartition(shadow, -self._top_k, axis=1)[
+      :, -self._top_k :
+    ].astype(self._species_dtype, copy=False)
+
+    batch_idx = self._get_batch_idx(infer_result.shape[0])
+    top_k_scores = infer_result[batch_idx, top_k_species]
+    top_k_mask = invalid_mask[batch_idx, top_k_species]
+    return (
+      file_indices,
+      segment_indices,
+      top_k_species,
+      top_k_scores,
+      top_k_mask,
     )
-    self._shm_audio_samples, self._ring_audio_samples = (
-      self._rf_audio_samples.attach_and_get_array()
-    )
-    self._shm_batch_sizes, self._ring_batch_sizes = (
-      self._rf_batch_sizes.attach_and_get_array()
-    )
-    self._shm_ring_flags, self._ring_flags = self._rf_flags.attach_and_get_array()
-    self._log_debug("Attached ring buffers.")
-
-  def _uninit(self) -> None:
-    self._uninit_logging()
-
-  @property
-  def _pid(self) -> int:
-    return os.getpid()
-
-  def _log_debug(self, msg: str) -> None:
-    self._logger.debug(f"WORKER({self._pid}) - {msg}")
-
-  def _check_cancel_event(self) -> bool:
-    if self._cancel_event.is_set():
-      self._log_debug("Received cancel event.")
-      return True
-    return False
-
-  def __call__(self):
-    start = time.perf_counter()
-
-    if self._lazy_init:
-      self._init_logging()
-      self._load_ring_buffers()
-
-    try:
-      self._load_model()
-    except ValueError:
-      self._cancel_event.set()
-      return
-    duration_init = time.perf_counter() - start
-    self._log_debug(f"Worker {self._pid} initialized in {duration_init:.4f} seconds.")
-
-    assert self._ring_flags is not None
-    assert self._ring_file_indices is not None
-    assert self._ring_segment_indices is not None
-    assert self._ring_audio_samples is not None
-    assert self._ring_batch_sizes is not None
-
-    start_time = time.perf_counter()
-
-    while True:
-      perf_c = time.perf_counter()
-      while not self._sem_filled.acquire(timeout=1.0):
-        if self._check_cancel_event():
-          return
-        if self._prd_all_done_event.is_set():
-          self._log_debug("Producer is done. Exiting worker.")
-          self._out_q.put(None)
-          return
-      dur_wait_for_filled_slot = time.perf_counter() - perf_c
-
-      self._log_debug(
-        f"Acquired FILL; Free slots remaining: {self._sem_free}; Filled slots: {self._sem_filled}"
-      )
-
-      if self._check_cancel_event():
-        return
-
-      claimed_slot = None
-      claimed_flag = None
-
-      perf_c = time.perf_counter()
-      with self._wkr_ring_access_lock:
-        for current_slot in range(self._n_slots):
-          current_slot_flag = self._ring_flags[current_slot]
-
-          # TODO: check if all ring_size slots = DONE
-          if current_slot_flag == READABLE_FLAG:
-            claimed_slot = current_slot
-            claimed_flag = current_slot_flag
-            self._ring_flags[claimed_slot] = READING_FLAG
-            break
-          else:
-            assert current_slot_flag in (
-              WRITABLE_FLAG,
-              WRITING_FLAG,
-              READING_FLAG,
-            )
-
-      dur_search_for_filled_slot = time.perf_counter() - perf_c
-
-      if claimed_slot is None:
-        if self._prd_all_done_event.is_set():
-          self._log_debug("Producer is done. Exiting worker.")
-          self._out_q.put(None)
-          break
-        # if n_done >= 1:
-        #   self._log_debug(
-        #     f"Slots are DONE_FLAG {claimed_slot}. No more work to d. Exiting."
-        #   )
-        #   self._out_q.put(None)
-        #   break
-        else:
-          raise AssertionError(
-            "No slot found in the ring buffer but sem_fill was available!"
-          )
-
-      assert claimed_flag == READABLE_FLAG
-
-      self._log_debug(
-        f"Acquired READ_FLAG for slot {claimed_slot}. Searched {dur_search_for_filled_slot:.4f} seconds for batch."
-      )
-
-      self._sem_active_workers.release()
-
-      perf_c = time.perf_counter()
-      n = self._ring_batch_sizes[claimed_slot]
-      audio_samples = self._ring_audio_samples[claimed_slot, :n]
-      file_indices = self._ring_file_indices[claimed_slot, :n].copy()  # copy needed
-      segment_indices = self._ring_segment_indices[
-        claimed_slot, :n
-      ].copy()  # copy needed
-      dur_get_job = time.perf_counter() - perf_c
-      self._log_debug(
-        f"Received job for slot {claimed_slot} with {n} segments: {segment_indices}"
-      )
-
-      perf_c = time.perf_counter()
-      try:
-        pred = self._infer(audio_samples)
-      except Exception as e:
-        self._log_debug(f"Error during inference: {e}")
-        self._cancel_event.set()
-        self._log_debug(
-          f"Exiting worker {self._pid} due to error during inference. Set cancel event."
-        )
-        return
-      dur_inference = time.perf_counter() - perf_c
-
-      self._ring_flags[claimed_slot] = WRITABLE_FLAG
-      self._sem_free.release()
-
-      assert pred.flags.aligned
-
-      if self._species_dtype is None:
-        n_species = pred.shape[1]
-        self._species_dtype = uint_dtype_for(n_species - 1)
-
-      perf_c = time.perf_counter()
-
-      self._log_debug(
-        f"Released FREE. Free slots remaining: {self._sem_free}; Filled slots: {self._sem_filled}"
-      )
-
-      if self._apply_sigmoid:
-        assert self._sigmoid_sensitivity is not None
-        pred = flat_sigmoid_logaddexp_fast(
-          pred,
-          sensitivity=-self._sigmoid_sensitivity,
-        )
-
-      invalid_mask = (pred < self._thresholds) | self._blacklist
-
-      shadow = np.where(invalid_mask, -np.inf, pred)
-
-      top_k_species = np.argpartition(shadow, -self._top_k, axis=1)[
-        :, -self._top_k :
-      ].astype(self._species_dtype, copy=False)
-
-      batch_idx = self._get_batch_idx(pred.shape[0])
-      top_k_scores = pred[batch_idx, top_k_species]
-      top_k_mask = invalid_mask[batch_idx, top_k_species]
-
-      self._out_q.put(
-        (
-          file_indices,
-          segment_indices,
-          top_k_species,
-          top_k_scores,
-          top_k_mask,
-        )
-      )
-      dur_add_to_queue = time.perf_counter() - perf_c
-
-      self._prediction_count += top_k_species.shape[0]
-      self._log_debug(
-        f"Prediction made ({dur_inference:.4} s). Total predictions: {self._prediction_count}. Chunks: {segment_indices}"
-      )
-
-      if self._track_performance:
-        wall_time = time.perf_counter() - start_time
-        self._wkr_stats_queue.put(
-          (
-            self._pid,
-            wall_time,
-            dur_wait_for_filled_slot,
-            dur_search_for_filled_slot,
-            dur_get_job,
-            dur_inference,
-            dur_add_to_queue,
-            n,
-          ),
-          block=False,
-        )
-
-      self._sem_active_workers.acquire(block=False)
-
-    self._log_debug("Finished.")
-    self._uninit()
 
   def _get_batch_idx(self, batch_size: int) -> np.ndarray:
     if batch_size not in self._batch_idx_cache:

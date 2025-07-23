@@ -192,6 +192,7 @@ if __name__ == "__main__":
     "precision": "fp32",
     "device": "CPU",
     "start_method": "fork",  # "fork", "spawn" or "forkserver" for Linux, macOS
+    "inference_library": "tf",
   }
 
   set_start_method(params["start_method"], force=True)  # Linux, macOS
@@ -229,7 +230,7 @@ if __name__ == "__main__":
       overlap_duration_s=0,
       half_precision=False,
       show_stats="benchmark",
-      inference_library="litert",
+      inference_library=params["inference_library"],
       # max_audio_duration_min=60,
     )
   elif params["backend"] == "pb":

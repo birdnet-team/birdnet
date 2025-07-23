@@ -24,11 +24,11 @@ from birdnet.acoustic_models.base import (
   AcousticModelBase,
 )
 from birdnet.acoustic_models.inference.consumer import Consumer
-from birdnet.acoustic_models.inference.emb.emb_worker import EmbeddingsWorker
 from birdnet.acoustic_models.inference.emb.prediction_result import (
   EmbeddingsPredictionResult,
 )
 from birdnet.acoustic_models.inference.emb.tensor import EmbeddingsTensor
+from birdnet.acoustic_models.inference.emb.worker import EmbeddingsWorker
 from birdnet.acoustic_models.inference.files_analyzer import FilesAnalyzer
 from birdnet.acoustic_models.inference.perf_tracker import (
   PerformanceTracker,
@@ -268,6 +268,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       benchmark_dir = get_benchmark_dir(
         model=AcousticModelBaseV2_4.get_model_type(),
         version=AcousticModelBaseV2_4.get_version(),
+        method="embeddings",
       )
 
       benchmark_run_out_dir = benchmark_dir / f"run-{iso_time}"
@@ -350,8 +351,9 @@ class AcousticModelBaseV2_4(AcousticModelBase):
 
     segments_code_type = uint_ctype_from_dtype(segments_dtype)
     max_segment_idx_ptr = mp.RawValue(
-      segments_code_type, max(0, reserve_n_segments - 1)
-    )  # type: ignore
+      segments_code_type,  # type: ignore
+      max(0, reserve_n_segments - 1),
+    )
 
     prob_dtype: DTypeLike = np.float16 if half_precision else np.float32
 
@@ -406,6 +408,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       emb_dtype=prob_dtype,
       segment_indices_dtype=rf_segment_indices.dtype,
       files_dtype=rf_file_indices.dtype,
+      max_segment_index=max_segment_idx_ptr,
     )
 
     worker_queue = mp.Queue()
@@ -987,6 +990,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
       benchmark_dir = get_benchmark_dir(
         model=AcousticModelBaseV2_4.get_model_type(),
         version=AcousticModelBaseV2_4.get_version(),
+        method="scores",
       )
 
       benchmark_run_out_dir = benchmark_dir / f"run-{iso_time}"
@@ -1095,8 +1099,9 @@ class AcousticModelBaseV2_4(AcousticModelBase):
 
     segments_code_type = uint_ctype_from_dtype(segments_dtype)
     max_segment_idx_ptr = mp.RawValue(
-      segments_code_type, max(0, reserve_n_segments - 1)
-    )  # type: ignore
+      segments_code_type,  # type: ignore
+      max(0, reserve_n_segments - 1),
+    )
 
     prob_dtype: DTypeLike = np.float16 if half_precision else np.float32
 
