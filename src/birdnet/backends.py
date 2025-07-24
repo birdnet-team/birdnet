@@ -25,6 +25,10 @@ if TYPE_CHECKING:
 
 
 class InferenceBackend(ABC):
+  def __init__(self, model_path: Path) -> None:
+    super().__init__()
+    self._model_path = model_path
+
   @abstractmethod
   def load(self) -> None: ...
 
@@ -39,16 +43,18 @@ class InferenceBackend(ABC):
 class InferenceBackendLoader:
   def __init__(
     self,
+    model_path: Path,
     backend_type: type[InferenceBackend],
     backend_kwargs: dict,
   ) -> None:
     self._backend_type = backend_type
     self._backend_kwargs = backend_kwargs
+    self._model_path = model_path
     self._backend: InferenceBackend | None = None
 
   def _load_backend(self) -> InferenceBackend:
     assert self._backend is None
-    backend = self._backend_type(**self._backend_kwargs)
+    backend = self._backend_type(self._model_path, **self._backend_kwargs)
     backend.load()
     self._backend = backend
     return backend
@@ -75,8 +81,7 @@ class TFInferenceBackend(InferenceBackend):
   def __init__(
     self, model_path: Path, inference_library: LIBRARY_TYPES, in_idx: int, out_idx: int
   ) -> None:
-    super().__init__()
-    self._model_path = model_path
+    super().__init__(model_path)
     self._interp: LiteRTInterpreter | TFInterpreter | None = None
     self._inference_library = inference_library
     self._in_idx: int = in_idx
@@ -131,8 +136,7 @@ class PBInferenceBackend(InferenceBackend):
   def __init__(
     self, model_path: Path, signature_name: str, prediction_key: str, input_key: str
   ) -> None:
-    super().__init__()
-    self._model_path = str(model_path.absolute())
+    super().__init__(model_path)
     self._cached_logical_device: Any | None = None
     self._infer_fn: Callable | None = None
     self._cached_device_name: str | None = None
@@ -147,32 +151,8 @@ class PBInferenceBackend(InferenceBackend):
 
   @final
   def load(self) -> None:
-    import absl.logging
-
-    absl_verbosity_before = absl.logging.get_verbosity()
-    absl.logging.set_verbosity(absl.logging.ERROR)
-    tf_verbosity_before = logging.getLogger("tensorflow").level
-    logging.getLogger("tensorflow").setLevel(logging.ERROR)
-    os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-    import tensorflow as tf
-
-    tf.random.set_seed(0)
-
-    # Note: memory growth needs to be set before loading the model and maybe only once in the main process
-    # physical_gpu_device = gpus_with_name[0]
-    # if tf.config.experimental.get_memory_growth(physical_gpu_device) is False:
-    #   tf.config.experimental.set_memory_growth(physical_gpu_device, True)
-
-    start = time.perf_counter()
-    audio_model = tf.saved_model.load(self._model_path)
-    end = time.perf_counter()
-    logger = get_logger(__name__)
-    logger.debug(f"Model loaded from {self._model_path} in {end - start:.2f} seconds.")
-
-    absl.logging.set_verbosity(absl_verbosity_before)
-    logging.getLogger("tensorflow").setLevel(tf_verbosity_before)
-
-    self._infer_fn = audio_model.signatures[self._signature_name]  # type: ignore
+    model = load_pb_model(self._model_path)
+    self._infer_fn = model.signatures[self._signature_name]  # type: ignore
 
   def _set_logical_device(self, device_name: str) -> None:
     assert "GPU" in device_name or "CPU" in device_name

@@ -49,8 +49,9 @@ from birdnet.helper import ModelInfo
 from birdnet.local_data import get_lang_dir, get_model_path
 from birdnet.utils import download_file_tqdm, get_species_from_file
 
-MODEL_EMB_IDX = 545
-MODEL_LOGITS_IDX = 546
+MODEL_IN_IDX = 0
+MODEL_EMB_OUT_IDX = 545
+MODEL_LOGITS_OUT_IDX = 546
 
 models = {
   MODEL_PRECISION_INT8: ModelInfo(
@@ -205,7 +206,9 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       ) from e
 
     if check_validity:
-      n_species_in_model = check_tf_model_can_be_loaded(model, out_idx=MODEL_LOGITS_IDX)
+      n_species_in_model = check_tf_model_can_be_loaded(
+        model, out_idx=MODEL_LOGITS_OUT_IDX
+      )
       if n_species_in_model != len(loaded_species_list):
         raise ValueError(
           f"Model '{model.absolute()}' has {n_species_in_model} outputs, but species list '{species_list.absolute()}' has {len(loaded_species_list)} species!"
@@ -252,10 +255,9 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     return super()._predict_embeddings(
       inp,
       {
-        "model_path": self.model_path,
         "inference_library": inference_library,
-        "in_idx": 0,
-        "out_idx": MODEL_EMB_IDX,
+        "in_idx": MODEL_IN_IDX,
+        "out_idx": MODEL_EMB_OUT_IDX,
       },
       feeders=feeders,
       workers=workers,
@@ -312,10 +314,9 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     return super()._predict(
       inp,
       {
-        "model_path": self.model_path,
         "inference_library": inference_library,
-        "in_idx": 0,
-        "out_idx": MODEL_LOGITS_IDX,
+        "in_idx": MODEL_IN_IDX,
+        "out_idx": MODEL_LOGITS_OUT_IDX,
       },
       top_k=top_k,
       feeders=feeders,

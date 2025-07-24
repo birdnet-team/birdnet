@@ -11,7 +11,9 @@ from typing import Iterable, Literal, final
 # Next two import lines for this demo only
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.emb.prediction_result import EmbeddingsPredictionResult
+from birdnet.acoustic_models.inference.emb.prediction_result import (
+  EmbeddingsPredictionResult,
+)
 from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
 from birdnet.acoustic_models.v2_4.base import (
   AcousticDownloaderBaseV2_4,
@@ -195,7 +197,6 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
     return super()._predict_embeddings(
       inp,
       {
-        "model_path": self.model_path,
         "signature_name": "embeddings",
         "prediction_key": "embeddings",
         "input_key": "inputs",
@@ -241,7 +242,6 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
     return super()._predict(
       inp,
       {
-        "model_path": self.model_path,
         "signature_name": "basic",
         "prediction_key": "scores",
         "input_key": "inputs",
