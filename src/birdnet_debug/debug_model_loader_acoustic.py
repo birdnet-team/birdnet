@@ -195,6 +195,7 @@ if __name__ == "__main__":
     "top_k": 5,
     "start_method": "fork",  # "fork", "spawn" or "forkserver" for Linux, macOS
     "load_custom": False,
+    "inference_library": "tf",
   }
 
   set_start_method(params["start_method"], force=True)  # Linux, macOS
@@ -210,10 +211,15 @@ if __name__ == "__main__":
         "/home/stefan/.local/share/birdnet/acoustic-models/v2.4/tf/labels/en_us.txt",
         precision="fp32",
         check_validity=True,
+        library=params["inference_library"],
       )
     else:
       model = load(
-        "acoustic", "2.4", "tf", precision=cast(MODEL_PRECISIONS, params["precision"])
+        "acoustic",
+        "2.4",
+        "tf",
+        precision=cast(MODEL_PRECISIONS, params["precision"]),
+        library=params["inference_library"],
       )
 
     # model = load_custom(
@@ -237,7 +243,6 @@ if __name__ == "__main__":
       default_confidence_threshold=-np.inf,
       half_precision=False,
       show_stats="benchmark",
-      inference_library="tf",
       # custom_confidence_thresholds={
       #   "Junco hyemalis_Dark-eyed Junco": -np.inf,
       #   "Haemorhous mexicanus_House Finch": 0.1,

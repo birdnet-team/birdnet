@@ -6,6 +6,7 @@ from birdnet.acoustic_models.base import AcousticModelBase
 from birdnet.acoustic_models.v2_4.base import AcousticModelBaseV2_4
 from birdnet.acoustic_models.v2_4.pb import AcousticPBModelV2_4
 from birdnet.acoustic_models.v2_4.tf import AcousticTFModelV2_4
+from birdnet.backends import litert_installed, tf_installed
 from birdnet.base import ModelBase
 from birdnet.geo_models.base import GeoModelBase
 from birdnet.geo_models.v2_4.pb import GeoPBModelV2_4
@@ -15,6 +16,7 @@ from birdnet.globals import (
   ACOUSTIC_MODEL_VERSIONS,
   GEO_MODEL_VERSION_V2_4,
   GEO_MODEL_VERSIONS,
+  LIBRARY_LITERT,
   LIBRARY_TF,
   LIBRARY_TYPES,
   MODEL_BACKEND_PB,
@@ -123,6 +125,15 @@ def _check_is_valid_library(library: str) -> LIBRARY_TYPES:
     raise ValueError(
       f"Unsupported TensorFlow library: {library}. Supported libraries are:  {', '.join(VALID_LIBRARY_TYPES)}."
     )
+  if library == LIBRARY_TF:
+    assert tf_installed()  # default
+  elif library == LIBRARY_LITERT:
+    if not litert_installed():
+      raise ValueError(
+        f"Parameter 'library': Library '{LIBRARY_LITERT}' is not available. Install birdnet with [litert] option."
+      )
+  else:
+    raise AssertionError()
   return cast(LIBRARY_TYPES, library)
 
 

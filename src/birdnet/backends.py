@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, final
+from typing import TYPE_CHECKING, Any, Literal, final, overload
 
 import numpy as np
 
@@ -83,7 +83,7 @@ class TFInferenceBackend(InferenceBackend):
   ) -> None:
     super().__init__(model_path)
     self._interp: LiteRTInterpreter | TFInterpreter | None = None
-    self._inference_library = inference_library
+    self._inference_library: LIBRARY_TYPES = inference_library
     self._in_idx: int = in_idx
     self._out_idx: int = out_idx
     self._cached_shape: tuple[int, ...] | None = None
@@ -95,12 +95,9 @@ class TFInferenceBackend(InferenceBackend):
 
   def load(self) -> None:
     assert self._interp is None
-    if self._inference_library == LIBRARY_TF:
-      self._interp = load_tf_model(self._model_path, allocate_tensors=True)
-    elif self._inference_library == LIBRARY_LITERT:
-      self._interp = load_litert_model(self._model_path, allocate_tensors=True)
-    else:
-      raise AssertionError()
+    self._interp = load_tf_model(
+      self._model_path, self._inference_library, allocate_tensors=True
+    )
 
     # self._in_idx = self._interp.get_input_details()[0]["index"]  # type: ignore
     # self._out_idx = self._interp.get_output_details()[0]["index"]  # type: ignore
@@ -236,7 +233,34 @@ def load_pb_model(model_path: Path):
   return model
 
 
+@overload
 def load_tf_model(
+  model_path: Path,
+  library: Literal["tf"],
+  allocate_tensors: bool = False,
+) -> TFInterpreter: ...
+@overload
+def load_tf_model(
+  model_path: Path,
+  library: Literal["litert"],
+  allocate_tensors: bool = False,
+) -> LiteRTInterpreter: ...
+
+
+def load_tf_model(
+  model_path: Path,
+  library: LIBRARY_TYPES,
+  allocate_tensors: bool = False,
+):
+  if library == LIBRARY_TF:
+    return load_lib_tf_model(model_path, allocate_tensors=allocate_tensors)
+  elif library == LIBRARY_LITERT:
+    return load_lib_litert_model(model_path, allocate_tensors=allocate_tensors)
+  else:
+    raise AssertionError()
+
+
+def load_lib_tf_model(
   model_path: Path,
   allocate_tensors: bool = False,
 ) -> TFInterpreter:
@@ -293,7 +317,7 @@ def load_tf_model(
   return interp
 
 
-def load_litert_model(
+def load_lib_litert_model(
   model_path: Path,
   allocate_tensors: bool = False,
 ) -> LiteRTInterpreter:
@@ -369,19 +393,23 @@ def check_pb_model_can_be_loaded(
     return None
 
 
-def _get_tf_n_species(model_path: Path, out_idx: int) -> int | None:
+def _get_tf_n_species(
+  model_path: Path, library: LIBRARY_TYPES, out_idx: int
+) -> int | None:
   try:
-    loaded_model = load_tf_model(model_path, allocate_tensors=False)
+    loaded_model = load_tf_model(model_path, library, allocate_tensors=False)
     n_species_in_model = loaded_model.get_output_details()[0]["shape"][1]
     return n_species_in_model
   except Exception:
     return None
 
 
-def check_tf_model_can_be_loaded(model_path: Path, out_idx: int) -> int | None:
+def check_tf_model_can_be_loaded(
+  model_path: Path, library: LIBRARY_TYPES, out_idx: int
+) -> int | None:
   try:
     with ProcessPoolExecutor(max_workers=1) as executor:
-      future = executor.submit(_get_tf_n_species, model_path, out_idx)
+      future = executor.submit(_get_tf_n_species, model_path, library, out_idx)
       result = future.result(timeout=None)
       return result
   except Exception as e:

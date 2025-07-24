@@ -157,8 +157,10 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     species_list: OrderedSet[str],
     precision: MODEL_PRECISIONS,
     use_custom_model: bool,
+    library: LIBRARY_TYPES,
   ) -> None:
     super().__init__(model_path, species_list, precision, use_custom_model)
+    self._library = library
 
   @final
   @classmethod
@@ -181,7 +183,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       lang, precision
     )
     result = AcousticTFModelV2_4(
-      model_path, species_list, precision, use_custom_model=False
+      model_path, species_list, precision, use_custom_model=False, library=library
     )
     return result
 
@@ -207,7 +209,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
 
     if check_validity:
       n_species_in_model = check_tf_model_can_be_loaded(
-        model, out_idx=MODEL_LOGITS_OUT_IDX
+        model, library, out_idx=MODEL_LOGITS_OUT_IDX
       )
       if n_species_in_model != len(loaded_species_list):
         raise ValueError(
@@ -215,7 +217,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
         )
 
     result = AcousticTFModelV2_4(
-      model, loaded_species_list, precision, use_custom_model=True
+      model, loaded_species_list, precision, use_custom_model=True, library=library
     )
 
     return result
@@ -236,26 +238,11 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     half_precision: bool = True,
     max_audio_duration_min: float | None = None,
     show_stats: Literal["no", "minimal", "progress", "benchmark"] = "no",
-    inference_library: LIBRARY_TYPES = LIBRARY_TF,
   ) -> EmbeddingsPredictionResult:
-    if inference_library not in VALID_LIBRARY_TYPES:
-      raise ValueError(
-        f"Unsupported inference library: {inference_library}. Supported libraries are: {', '.join(VALID_LIBRARY_TYPES)}."
-      )
-    if inference_library == LIBRARY_TF:
-      assert tf_installed()
-    elif inference_library == LIBRARY_LITERT:
-      if not litert_installed():
-        raise ValueError(
-          f"Parameter 'inference_library': Library '{LIBRARY_LITERT}' is not available. Install birdnet with [litert] option."
-        )
-    else:
-      raise AssertionError()
-
     return super()._predict_embeddings(
       inp=inp,
       backend_kwargs={
-        "inference_library": inference_library,
+        "inference_library": self._library,
         "in_idx": MODEL_IN_IDX,
         "out_idx": MODEL_EMB_OUT_IDX,
       },
@@ -295,26 +282,11 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     half_precision: bool = True,
     max_audio_duration_min: float | None = None,
     show_stats: Literal["no", "minimal", "progress", "benchmark"] = "no",
-    inference_library: LIBRARY_TYPES = LIBRARY_TF,
   ) -> PredictionResult:
-    if inference_library not in VALID_LIBRARY_TYPES:
-      raise ValueError(
-        f"Unsupported inference library: {inference_library}. Supported libraries are: {', '.join(VALID_LIBRARY_TYPES)}."
-      )
-    if inference_library == LIBRARY_TF:
-      assert tf_installed()
-    elif inference_library == LIBRARY_LITERT:
-      if not litert_installed():
-        raise ValueError(
-          f"Parameter 'inference_library': Library '{LIBRARY_LITERT}' is not available. Install birdnet with [litert] option."
-        )
-    else:
-      raise AssertionError()
-
     return super()._predict(
       inp=inp,
       backend_kwargs={
-        "inference_library": inference_library,
+        "inference_library": self._library,
         "in_idx": MODEL_IN_IDX,
         "out_idx": MODEL_LOGITS_OUT_IDX,
       },

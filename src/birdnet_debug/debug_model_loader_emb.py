@@ -201,7 +201,11 @@ if __name__ == "__main__":
   result = None
   if params["backend"] == "tf":
     model = load(
-      "acoustic", "2.4", "tf", precision=cast(MODEL_PRECISIONS, params["precision"])
+      "acoustic",
+      "2.4",
+      "tf",
+      precision=cast(MODEL_PRECISIONS, params["precision"]),
+      library=params["inference_library"],
     )
     # model = load_custom(
     #   "acoustic",
@@ -230,7 +234,6 @@ if __name__ == "__main__":
       overlap_duration_s=0,
       half_precision=False,
       show_stats="benchmark",
-      inference_library=params["inference_library"],
       # max_audio_duration_min=60,
     )
   elif params["backend"] == "pb":

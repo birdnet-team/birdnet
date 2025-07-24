@@ -131,8 +131,10 @@ class GeoTFModelV2_4(GeoModelBaseV2_4):
     model_path: Path,
     species_list: OrderedSet[str],
     use_custom_model: bool,
+    library: LIBRARY_TYPES,
   ) -> None:
     super().__init__(model_path, species_list, use_custom_model)
+    self._library = library
 
   @final
   @classmethod
@@ -151,7 +153,9 @@ class GeoTFModelV2_4(GeoModelBaseV2_4):
     library: LIBRARY_TYPES,
   ) -> GeoTFModelV2_4:
     model_path, species_list = GeoTFDownloaderV2_4.get_model_path_and_labels(lang)
-    result = GeoTFModelV2_4(model_path, species_list, use_custom_model=False)
+    result = GeoTFModelV2_4(
+      model_path, species_list, use_custom_model=False, library=library
+    )
     return result
 
   @classmethod
@@ -174,13 +178,17 @@ class GeoTFModelV2_4(GeoModelBaseV2_4):
       ) from e
 
     if check_validity:
-      n_species_in_model = check_tf_model_can_be_loaded(model, out_idx=MODEL_LOGITS_IDX)
+      n_species_in_model = check_tf_model_can_be_loaded(
+        model, library, out_idx=MODEL_LOGITS_IDX
+      )
       if n_species_in_model != len(loaded_species_list):
         raise ValueError(
           f"Model '{model.absolute()}' has {n_species_in_model} outputs, but species list '{species_list.absolute()}' has {len(loaded_species_list)} species!"
         )
 
-    result = GeoTFModelV2_4(model, loaded_species_list, use_custom_model=True)
+    result = GeoTFModelV2_4(
+      model, loaded_species_list, use_custom_model=True, library=library
+    )
 
     return result
 
@@ -193,27 +201,13 @@ class GeoTFModelV2_4(GeoModelBaseV2_4):
     week: int | None = None,
     min_confidence: float = 0.03,
     half_precision: bool = True,
-    inference_library: LIBRARY_TYPES = LIBRARY_TF,
   ) -> PredictionResult:
-    if inference_library not in VALID_LIBRARY_TYPES:
-      raise ValueError(
-        f"Unsupported inference library: {inference_library}. Supported libraries are: {', '.join(VALID_LIBRARY_TYPES)}."
-      )
-    if inference_library == LIBRARY_TF:
-      assert tf_installed()
-    elif inference_library == LIBRARY_LITERT:
-      if not litert_installed():
-        raise ValueError(
-          f"Parameter 'inference_library': Library '{LIBRARY_LITERT}' is not available. Install birdnet with [litert] option."
-        )
-    else:
-      raise AssertionError()
     return super()._predict(
       latitude,
       longitude,
       {
         "model_path": self.model_path,
-        "inference_library": inference_library,
+        "inference_library": self._library,
         "in_idx": 0,
         "out_idx": MODEL_LOGITS_IDX,
       },
