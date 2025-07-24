@@ -21,19 +21,19 @@ from birdnet.acoustic_models.inference.emb.worker import EmbeddingsWorker
 from birdnet.acoustic_models.inference.perf_tracker import (
   PerformanceTrackingResult,
 )
-from birdnet.acoustic_models.inference.pipelining.configs import (
+from birdnet.acoustic_models.inference.configs import (
   EmbeddingsConfig,
   PredictionConfig,
 )
-from birdnet.acoustic_models.inference.pipelining.pipeline import (
+from birdnet.acoustic_models.inference.pipeline import (
   predict_from_recordings_generic,
 )
-from birdnet.acoustic_models.inference.pipelining.states import (
+from birdnet.acoustic_models.inference.states import (
   MemoryLayout,
   ProcessingState,
   SharedResources,
 )
-from birdnet.acoustic_models.inference.pipelining.strategy import (
+from birdnet.acoustic_models.inference.strategy import (
   PredictionStrategy,
   get_file_formats,
 )

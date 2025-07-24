@@ -18,7 +18,7 @@ from ordered_set import OrderedSet
 
 import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.inference.perf_tracker import PerformanceTracker
-from birdnet.acoustic_models.inference.pipelining.configs import (
+from birdnet.acoustic_models.inference.configs import (
   PredictionConfig,
 )
 from birdnet.globals import (

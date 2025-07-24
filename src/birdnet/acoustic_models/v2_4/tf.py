@@ -16,7 +16,7 @@ from birdnet.acoustic_models.inference.emb.prediction_result import (
 from birdnet.acoustic_models.inference.emb.strategy import (
   predict_embeddings_from_recordings,
 )
-from birdnet.acoustic_models.inference.pipelining.configs import (
+from birdnet.acoustic_models.inference.configs import (
   EmbeddingsConfig,
   FilteringConfig,
   ModelConfig,

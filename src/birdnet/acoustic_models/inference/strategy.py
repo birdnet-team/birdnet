@@ -14,13 +14,13 @@ from birdnet.acoustic_models.inference.benchmarking import (
   MinimalBenchmarkMetaBase,
 )
 from birdnet.acoustic_models.inference.perf_tracker import PerformanceTrackingResult
-from birdnet.acoustic_models.inference.pipelining.configs import (
+from birdnet.acoustic_models.inference.configs import (
   ConfigType,
   PredictionConfig,
   ResultType,
   TensorType,
 )
-from birdnet.acoustic_models.inference.pipelining.states import (
+from birdnet.acoustic_models.inference.states import (
   MemoryLayout,
   ProcessingState,
   SharedResources,

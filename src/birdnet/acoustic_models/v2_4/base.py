@@ -12,7 +12,7 @@ from birdnet.acoustic_models.base import (
 from birdnet.acoustic_models.inference.emb.prediction_result import (
   EmbeddingsPredictionResult,
 )
-from birdnet.acoustic_models.inference.pipelines import (
+from birdnet.acoustic_models.inference.legacy_pipeline import (
   predict_embeddings_from_recordings,
   predict_species_from_recordings,
 )
