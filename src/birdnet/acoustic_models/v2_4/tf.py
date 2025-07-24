@@ -13,7 +13,22 @@ from ordered_set import OrderedSet
 from birdnet.acoustic_models.inference.emb.prediction_result import (
   EmbeddingsPredictionResult,
 )
+from birdnet.acoustic_models.inference.emb.strategy import (
+  predict_embeddings_from_recordings,
+)
+from birdnet.acoustic_models.inference.pipelining.configs import (
+  EmbeddingsConfig,
+  FilteringConfig,
+  ModelConfig,
+  OutputConfig,
+  PredictionConfig,
+  ProcessingConfig,
+  ScoresConfig,
+)
 from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
+from birdnet.acoustic_models.inference.scores.strategy import (
+  predict_species_from_recordings,
+)
 from birdnet.acoustic_models.v2_4.base import (
   AcousticDownloaderBaseV2_4,
   AcousticModelBaseV2_4,
@@ -22,12 +37,8 @@ from birdnet.backends import (
   InferenceBackend,
   TFInferenceBackend,
   check_tf_model_can_be_loaded,
-  litert_installed,
-  tf_installed,
 )
 from birdnet.globals import (
-  LIBRARY_LITERT,
-  LIBRARY_TF,
   LIBRARY_TYPES,
   MODEL_BACKEND_TF,
   MODEL_BACKENDS,
@@ -36,7 +47,6 @@ from birdnet.globals import (
   MODEL_PRECISION_FP32,
   MODEL_PRECISION_INT8,
   MODEL_PRECISIONS,
-  VALID_LIBRARY_TYPES,
 )
 from birdnet.helper import ModelInfo
 from birdnet.local_data import get_lang_dir, get_model_path
@@ -239,6 +249,49 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     max_audio_duration_min: float | None = None,
     show_stats: Literal["no", "minimal", "progress", "benchmark"] = "no",
   ) -> EmbeddingsPredictionResult:
+    return predict_embeddings_from_recordings(
+      conf=PredictionConfig(
+        input_files=inp,
+        model_conf=ModelConfig(
+          species_list=self.species_list,
+          path=self.model_path,
+          backend=self.get_backend(),
+          backend_kwargs={
+            "inference_library": self._library,
+            "in_idx": MODEL_IN_IDX,
+            "out_idx": MODEL_EMB_OUT_IDX,
+          },
+          is_custom=self.use_custom_model,
+          version=self.get_version(),
+          precision=self.precision,
+          segment_size_s=self.get_segment_size_s(),
+          sample_rate=self.get_sample_rate(),
+          sig_fmin=self.get_sig_fmin(),
+          sig_fmax=self.get_sig_fmax(),
+        ),
+        processing_conf=ProcessingConfig(
+          feeders=feeders,
+          workers=workers,
+          batch_size=batch_size,
+          prefetch_ratio=prefetch_ratio,
+          overlap_duration_s=overlap_duration_s,
+          half_precision=half_precision,
+          max_audio_duration_min=max_audio_duration_min,
+          device="CPU",  # Device is always CPU for TF models
+        ),
+        filtering_conf=FilteringConfig(
+          use_bandpass=use_bandpass,
+          bandpass_fmin=bandpass_fmin,
+          bandpass_fmax=bandpass_fmax,
+        ),
+        output_conf=OutputConfig(
+          show_stats=show_stats,
+        ),
+      ),
+      emb_config=EmbeddingsConfig(
+        emb_dim=self.get_embeddings_dim(),
+      ),
+    )
     return super()._predict_embeddings(
       inp=inp,
       backend_kwargs={
@@ -283,6 +336,54 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     max_audio_duration_min: float | None = None,
     show_stats: Literal["no", "minimal", "progress", "benchmark"] = "no",
   ) -> PredictionResult:
+    return predict_species_from_recordings(
+      conf=PredictionConfig(
+        input_files=inp,
+        model_conf=ModelConfig(
+          species_list=self.species_list,
+          path=self.model_path,
+          backend=self.get_backend(),
+          backend_kwargs={
+            "inference_library": self._library,
+            "in_idx": MODEL_IN_IDX,
+            "out_idx": MODEL_LOGITS_OUT_IDX,
+          },
+          is_custom=self.use_custom_model,
+          version=self.get_version(),
+          precision=self.precision,
+          segment_size_s=self.get_segment_size_s(),
+          sample_rate=self.get_sample_rate(),
+          sig_fmin=self.get_sig_fmin(),
+          sig_fmax=self.get_sig_fmax(),
+        ),
+        processing_conf=ProcessingConfig(
+          feeders=feeders,
+          workers=workers,
+          batch_size=batch_size,
+          prefetch_ratio=prefetch_ratio,
+          overlap_duration_s=overlap_duration_s,
+          half_precision=half_precision,
+          max_audio_duration_min=max_audio_duration_min,
+          device="CPU",  # Device is always CPU for TF models
+        ),
+        filtering_conf=FilteringConfig(
+          use_bandpass=use_bandpass,
+          bandpass_fmin=bandpass_fmin,
+          bandpass_fmax=bandpass_fmax,
+        ),
+        output_conf=OutputConfig(
+          show_stats=show_stats,
+        ),
+      ),
+      scores_conf=ScoresConfig(
+        top_k=top_k,
+        default_confidence_threshold=default_confidence_threshold,
+        custom_confidence_thresholds=custom_confidence_thresholds,
+        apply_sigmoid=apply_sigmoid,
+        sigmoid_sensitivity=sigmoid_sensitivity,
+        custom_species_list=custom_species_list,
+      ),
+    )
     return super()._predict(
       inp=inp,
       backend_kwargs={

@@ -182,7 +182,7 @@ def predict_embeddings_from_recordings(
   if show_stats == "benchmark":
     benchmark_dir = get_benchmark_dir(
       model=MODEL_TYPE_ACOUSTIC,
-      method="embeddings",
+      dir_name="embeddings",
     )
 
     benchmark_run_out_dir = benchmark_dir / f"run-{iso_time}"
@@ -411,7 +411,7 @@ def predict_embeddings_from_recordings(
           fmax=model_sig_fmax,
           max_segment_idx_ptr=max_segment_idx_ptr,
           prod_done_ptr=prod_done_ptr,
-          n_prods=feeders,
+          n_feeders=feeders,
           cancel_event=cancel_event,
         ),
         name=f"ChildProducer-{i}",
@@ -752,6 +752,7 @@ def predict_embeddings_from_recordings(
   shutil.copyfile(log_file, global_log_file_iso)
   return res
 
+
 def predict_species_from_recordings(
   inp: Path | str | Iterable[Path | str],
   model_species_list: OrderedSet[str],
@@ -910,7 +911,7 @@ def predict_species_from_recordings(
   if show_stats == "benchmark":
     benchmark_dir = get_benchmark_dir(
       model=MODEL_TYPE_ACOUSTIC,
-      method="scores",
+      dir_name="scores",
     )
 
     benchmark_run_out_dir = benchmark_dir / f"run-{iso_time}"
@@ -1173,7 +1174,7 @@ def predict_species_from_recordings(
           fmin=model_sig_fmin,
           max_segment_idx_ptr=max_segment_idx_ptr,
           prod_done_ptr=prod_done_ptr,
-          n_prods=feeders,
+          n_feeders=feeders,
           cancel_event=cancel_event,
         ),
         name=f"ChildProducer-{i}",

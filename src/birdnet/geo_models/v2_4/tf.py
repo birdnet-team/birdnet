@@ -13,20 +13,15 @@ from birdnet.backends import (
   InferenceBackend,
   TFInferenceBackend,
   check_tf_model_can_be_loaded,
-  litert_installed,
-  tf_installed,
 )
 from birdnet.geo_models.inference.prediction_result import PredictionResult
 from birdnet.geo_models.v2_4.base import GeoDownloaderBaseV2_4, GeoModelBaseV2_4
 from birdnet.globals import (
-  LIBRARY_LITERT,
-  LIBRARY_TF,
   LIBRARY_TYPES,
   MODEL_BACKEND_TF,
   MODEL_BACKENDS,
   MODEL_LANGUAGES,
   MODEL_PRECISION_FP32,
-  VALID_LIBRARY_TYPES,
 )
 from birdnet.helper import (
   ModelInfo,

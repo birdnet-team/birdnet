@@ -127,7 +127,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
     | Synchronized[ctypes.c_uint16]
     | Synchronized[ctypes.c_uint32]
     | Synchronized[ctypes.c_uint64],
-    n_prods: int,
+    n_feeders: int,
     prd_ring_access_lock: multiprocessing.synchronize.Lock,
     logging_queue: Queue,
     logging_level: int,
@@ -160,7 +160,7 @@ class ChildProducer(bn_logging.LogableProcessBase):
     self._use_bandpass = use_bandpass
     self._max_segment_idx_ptr = max_segment_idx_ptr  # type: ignore
     self._prod_done_ptr: Synchronized[int] = prod_done_ptr  # type: ignore
-    self._n_producers = n_prods
+    self._n_producers = n_feeders
 
     if use_bandpass:
       assert bandpass_fmin is not None

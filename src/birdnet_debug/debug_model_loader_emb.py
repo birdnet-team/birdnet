@@ -163,7 +163,6 @@ if __name__ == "__main__":
   audio_paths = "test-dataset/test_dataset_1000x0.2s_flac"
   audio_paths = "test-dataset/test_dataset_100000x4s_flac"
   audio_paths = "test-dataset/test_dataset_100x1.3s_flac"
-  audio_paths = "example/soundscape.wav"
   audio_paths = "test-dataset/test_dataset_1x10min/0.wav"
   audio_paths = [
     Path("test-dataset/test_dataset_120x60min/000.wav"),
@@ -177,6 +176,7 @@ if __name__ == "__main__":
     Path("test-dataset/test_dataset_120x60min/008.wav"),
   ]
   audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
+  audio_paths = "example/soundscape.wav"
   audio_paths = [
     Path("test-dataset/test_dataset_4x60min/0.wav"),
     Path("test-dataset/test_dataset_4x60min/1.wav"),
@@ -188,7 +188,7 @@ if __name__ == "__main__":
     "n_producers": 1,
     "batch_size": 1,
     "prefetch_ratio": 2,
-    "backend": "tf",
+    "backend": "pb",
     "precision": "fp32",
     "device": "CPU",
     "start_method": "fork",  # "fork", "spawn" or "forkserver" for Linux, macOS

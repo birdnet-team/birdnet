@@ -41,7 +41,7 @@ if __name__ == "__main__":
   backend = "tf"
   result = None
   if backend == "tf":
-    model = load("geo", "2.4", "tf", precision="fp32")
+    model = load("geo", "2.4", "tf", precision="fp32", library="litert")
     model = load_custom(
       "geo",
       "2.4",
@@ -50,6 +50,7 @@ if __name__ == "__main__":
       "/home/stefan/.local/share/birdnet/geo-models/v2.4/tf/labels/en_us.txt",
       precision="fp32",
       check_validity=True,
+      library="litert",
     )
 
     # model = load_custom(
@@ -66,7 +67,6 @@ if __name__ == "__main__":
       week=1,
       min_confidence=0.03,
       half_precision=True,
-      inference_library="litert",
     )
   elif backend == "pb":
     model = load("geo", "2.4", "pb")

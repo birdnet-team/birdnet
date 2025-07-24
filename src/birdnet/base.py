@@ -16,6 +16,10 @@ class PredictionResultBase:
   @abstractmethod
   def load(cls, *args, **kwargs) -> Self: ...
 
+  @property
+  @abstractmethod
+  def memory_size_mb(self) -> float: ...
+
 
 class ModelBase(ABC):
   def __init__(

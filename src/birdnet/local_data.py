@@ -1,7 +1,6 @@
 import importlib.metadata
 import os
 from pathlib import Path
-from typing import Literal
 
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSIONS,
@@ -47,14 +46,10 @@ APP_DIR = get_birdnet_app_data_folder()
 
 def get_benchmark_dir(
   model: MODEL_TYPES,
-  method: Literal["scores", "embeddings"],
+  dir_name: str,
 ) -> Path:
   result = (
-    # Path(tempfile.gettempdir()) / f"{PKG_NAME}-benchmarks" / f"{model}-v{version}"
-    APP_DIR
-    / f"{model}-benchmarks"
-    / f"lib-v{get_package_version()}"
-    / f"{'emb' if method == 'embeddings' else method}"
+    APP_DIR / f"{model}-benchmarks" / f"lib-v{get_package_version()}" / f"{dir_name}"
   )
   result.mkdir(parents=True, exist_ok=True)
   return result
