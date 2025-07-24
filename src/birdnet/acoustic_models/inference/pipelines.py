@@ -122,9 +122,9 @@ def predict_embeddings_from_recordings(
       "Value for 'prefetch_ratio' is invalid! It needs to be larger than or equal to 0."
     )
 
-  if not 0 <= overlap_duration_s < 3:
+  if not 0 <= overlap_duration_s < model_segment_size_s:
     raise ValueError(
-      "Value for 'overlap_duration_s' is invalid! It needs to be in interval [0.0, 3.0)."
+      f"Value for 'overlap_duration_s' is invalid! It needs to be in interval [0.0, {model_segment_size_s})."
     )
 
   if use_bandpass:
@@ -819,9 +819,9 @@ def predict_species_from_recordings(
       "Value for 'prefetch_ratio' is invalid! It needs to be larger than or equal to 0."
     )
 
-  if not 0 <= overlap_duration_s < 3:
+  if not 0 <= overlap_duration_s < model_segment_size_s:
     raise ValueError(
-      "Value for 'overlap_duration_s' is invalid! It needs to be in interval [0.0, 3.0)."
+      f"Value for 'overlap_duration_s' is invalid! It needs to be in interval [0.0, {model_segment_size_s})."
     )
 
   if apply_sigmoid:
