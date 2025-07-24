@@ -301,18 +301,6 @@ def _start_workers(
   return worker_processes
 
 
-def _run_consumer(
-  config: PredictionConfig, result_tensor: TensorBase, shared_resources: SharedResources
-) -> None:
-  consumer = Consumer(
-    n_workers=config.processing_conf.workers,
-    worker_queue=shared_resources.worker_queue,
-    tensor=result_tensor,
-    cancel_event=shared_resources.cancel_event,
-  )
-  consumer()
-
-
 def _create_backend_loader(config: PredictionConfig) -> InferenceBackendLoader:
   """Erstellt Backend Loader"""
   if config.model_conf.backend == MODEL_BACKEND_TF:
@@ -334,6 +322,18 @@ def _create_backend_loader(config: PredictionConfig) -> InferenceBackendLoader:
     raise RuntimeError(f"Error during backend initialization: {exc}")
 
   return backend_loader
+
+
+def _run_consumer(
+  config: PredictionConfig, result_tensor: TensorBase, shared_resources: SharedResources
+) -> None:
+  consumer = Consumer(
+    n_workers=config.processing_conf.workers,
+    worker_queue=shared_resources.worker_queue,
+    tensor=result_tensor,
+    cancel_event=shared_resources.cancel_event,
+  )
+  consumer()
 
 
 def _cleanup_processes(
