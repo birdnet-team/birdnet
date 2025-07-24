@@ -102,7 +102,6 @@ def setup_memory_layout(conf: PredictionConfig, n_files: int) -> MemoryLayout:
     shape=(n_slots,),
   )
 
-  # Cleanup existing RingFields if they exist
   rf_file_indices.cleanup()
   rf_segment_indices.cleanup()
   rf_audio_samples.cleanup()

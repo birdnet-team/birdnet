@@ -105,7 +105,7 @@ def validate_common_config(config: PredictionConfig) -> None:
     < config.model_conf.segment_size_s
   ):
     raise ValueError(
-      f"overlap_duration_s must be in [0.0, {config.model_conf.segment_size_s})"
+      f"overlap_duration_s must be in [0, {config.model_conf.segment_size_s})"
     )
 
   if config.filtering_conf.use_bandpass:
@@ -113,12 +113,12 @@ def validate_common_config(config: PredictionConfig) -> None:
       config.filtering_conf.bandpass_fmin is None
       or config.filtering_conf.bandpass_fmax is None
     ):
-      raise ValueError("Bandpass frequencies required when use_bandpass=True")
+      raise ValueError("bandpass frequencies required when use_bandpass=True")
     if (
       config.filtering_conf.bandpass_fmin < 0
       or config.filtering_conf.bandpass_fmax <= config.filtering_conf.bandpass_fmin
     ):
-      raise ValueError("Invalid bandpass frequency range")
+      raise ValueError("invalid bandpass frequency range")
 
   if (
     config.processing_conf.max_audio_duration_min is not None
@@ -131,7 +131,7 @@ def validate_common_config(config: PredictionConfig) -> None:
     and len(config.processing_conf.device) != config.processing_conf.workers
   ):
     raise ValueError(
-      f"Device list length must match workers count ({config.processing_conf.workers})"
+      f"device list length must match workers count ({config.processing_conf.workers})"
     )
 
   devices = (
