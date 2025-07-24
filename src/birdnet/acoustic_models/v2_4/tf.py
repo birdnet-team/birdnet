@@ -172,7 +172,10 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
 
   @classmethod
   def load(
-    cls, lang: MODEL_LANGUAGES, precision: MODEL_PRECISIONS
+    cls,
+    lang: MODEL_LANGUAGES,
+    precision: MODEL_PRECISIONS,
+    library: LIBRARY_TYPES,
   ) -> AcousticTFModelV2_4:
     model_path, species_list = AcousticTFDownloaderV2_4.get_model_path_and_labels(
       lang, precision
@@ -189,6 +192,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     species_list: Path,
     precision: MODEL_PRECISIONS,
     check_validity: bool,
+    library: LIBRARY_TYPES,
   ) -> AcousticTFModelV2_4:
     assert model.is_file()
     assert species_list.is_file()

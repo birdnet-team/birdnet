@@ -6,6 +6,8 @@ from birdnet.acoustic_models.v2_4.tf import AcousticTFModelV2_4
 from birdnet.geo_models.v2_4.pb import GeoPBModelV2_4
 from birdnet.geo_models.v2_4.tf import GeoTFModelV2_4
 from birdnet.globals import (
+  LIBRARY_TF,
+  LIBRARY_TYPES,
   MODEL_BACKENDS,
   MODEL_LANGUAGE_EN_US,
   MODEL_LANGUAGES,
@@ -22,6 +24,7 @@ def load(
   *,
   precision: MODEL_PRECISIONS = MODEL_PRECISION_FP32,
   lang: MODEL_LANGUAGES = MODEL_LANGUAGE_EN_US,
+  library: LIBRARY_TYPES = LIBRARY_TF,
 ) -> AcousticTFModelV2_4: ...
 @overload
 def load(
@@ -66,6 +69,7 @@ def load(
   *,
   precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   lang: MODEL_LANGUAGES = MODEL_LANGUAGE_EN_US,
+  library: LIBRARY_TYPES = LIBRARY_TF,
 ) -> GeoTFModelV2_4: ...
 @overload
 def load(
@@ -103,6 +107,7 @@ def load_custom(
   *,
   precision: MODEL_PRECISIONS = MODEL_PRECISION_FP32,
   check_validity: bool = True,
+  library: LIBRARY_TYPES = LIBRARY_TF,
 ) -> AcousticTFModelV2_4: ...
 @overload
 def load_custom(
@@ -141,6 +146,7 @@ def load_custom(
   *,
   precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   check_validity: bool = True,
+  library: LIBRARY_TYPES = LIBRARY_TF,
 ) -> GeoTFModelV2_4: ...
 @overload
 def load_custom(

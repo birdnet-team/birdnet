@@ -752,7 +752,6 @@ def predict_embeddings_from_recordings(
   shutil.copyfile(log_file, global_log_file_iso)
   return res
 
-
 def predict_species_from_recordings(
   inp: Path | str | Iterable[Path | str],
   model_species_list: OrderedSet[str],

@@ -2,7 +2,7 @@ from typing import Literal
 
 import numpy as np
 
-LIBRARY_TF = "tf"
+LIBRARY_TF = "tf" # default
 LIBRARY_LITERT = "litert"
 LIBRARY_TYPES = Literal["tf", "litert"]
 VALID_LIBRARY_TYPES = [

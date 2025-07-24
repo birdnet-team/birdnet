@@ -148,6 +148,7 @@ class GeoTFModelV2_4(GeoModelBaseV2_4):
   def load(
     cls,
     lang: MODEL_LANGUAGES,
+    library: LIBRARY_TYPES,
   ) -> GeoTFModelV2_4:
     model_path, species_list = GeoTFDownloaderV2_4.get_model_path_and_labels(lang)
     result = GeoTFModelV2_4(model_path, species_list, use_custom_model=False)
@@ -159,6 +160,7 @@ class GeoTFModelV2_4(GeoModelBaseV2_4):
     model: Path,
     species_list: Path,
     check_validity: bool,
+    library: LIBRARY_TYPES,
   ) -> GeoTFModelV2_4:
     assert model.is_file()
     assert species_list.is_file()
