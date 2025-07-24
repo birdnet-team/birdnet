@@ -324,6 +324,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     # max_raw_segments_per_s = max(max_raw_segments_per_s, raw_segments_per_s_old)
 
     # avg_segments_per_s.append(raw_segments_per_s_old)
+    assert self._ring_flags is not None
 
     output_msg_fields = [
       # f"inference speed: {self._summed_raw_pred_duration / self._total_segments_processed * 1000:.0f} ms/segment",
