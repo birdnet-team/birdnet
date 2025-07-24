@@ -10,12 +10,6 @@ from typing import TYPE_CHECKING, Literal, final
 
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.emb.prediction_result import (
-  EmbeddingsPredictionResult,
-)
-from birdnet.acoustic_models.inference.emb.strategy import (
-  predict_embeddings_from_recordings,
-)
 from birdnet.acoustic_models.inference.configs import (
   EmbeddingsConfig,
   FilteringConfig,
@@ -24,6 +18,12 @@ from birdnet.acoustic_models.inference.configs import (
   PredictionConfig,
   ProcessingConfig,
   ScoresConfig,
+)
+from birdnet.acoustic_models.inference.emb.prediction_result import (
+  EmbeddingsPredictionResult,
+)
+from birdnet.acoustic_models.inference.emb.strategy import (
+  predict_embeddings_from_recordings,
 )
 from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
 from birdnet.acoustic_models.inference.scores.strategy import (
@@ -171,7 +171,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
   ) -> None:
     super().__init__(model_path, species_list, precision, use_custom_model)
     self._library = library
-
+    
   @final
   @classmethod
   def get_backend(cls) -> MODEL_BACKENDS:
@@ -292,26 +292,6 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
         emb_dim=self.get_embeddings_dim(),
       ),
     )
-    return super()._predict_embeddings(
-      inp=inp,
-      backend_kwargs={
-        "inference_library": self._library,
-        "in_idx": MODEL_IN_IDX,
-        "out_idx": MODEL_EMB_OUT_IDX,
-      },
-      feeders=feeders,
-      workers=workers,
-      batch_size=batch_size,
-      prefetch_ratio=prefetch_ratio,
-      overlap_duration_s=overlap_duration_s,
-      use_bandpass=use_bandpass,
-      bandpass_fmin=bandpass_fmin,
-      bandpass_fmax=bandpass_fmax,
-      half_precision=half_precision,
-      max_audio_duration_min=max_audio_duration_min,
-      show_stats=show_stats,
-      device="CPU",
-    )
 
   def predict(
     self,
@@ -383,30 +363,4 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
         sigmoid_sensitivity=sigmoid_sensitivity,
         custom_species_list=custom_species_list,
       ),
-    )
-    return super()._predict(
-      inp=inp,
-      backend_kwargs={
-        "inference_library": self._library,
-        "in_idx": MODEL_IN_IDX,
-        "out_idx": MODEL_LOGITS_OUT_IDX,
-      },
-      top_k=top_k,
-      feeders=feeders,
-      workers=workers,
-      batch_size=batch_size,
-      prefetch_ratio=prefetch_ratio,
-      overlap_duration_s=overlap_duration_s,
-      default_confidence_threshold=default_confidence_threshold,
-      custom_confidence_thresholds=custom_confidence_thresholds,
-      use_bandpass=use_bandpass,
-      bandpass_fmin=bandpass_fmin,
-      bandpass_fmax=bandpass_fmax,
-      apply_sigmoid=apply_sigmoid,
-      sigmoid_sensitivity=sigmoid_sensitivity,
-      custom_species_list=custom_species_list,
-      half_precision=half_precision,
-      max_audio_duration_min=max_audio_duration_min,
-      show_stats=show_stats,
-      device="CPU",
     )

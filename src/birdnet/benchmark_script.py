@@ -19,6 +19,7 @@ from birdnet.argparse_helper import (
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V2_4,
   LIBRARY_TF,
+  LIBRARY_TYPES,
   MODEL_BACKEND_PB,
   MODEL_BACKEND_TF,
   MODEL_PRECISION_FP32,
@@ -183,6 +184,7 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
       ACOUSTIC_MODEL_VERSION_V2_4,
       MODEL_BACKEND_TF,
       precision=cast(MODEL_PRECISIONS, ns.precision),
+      library=cast(LIBRARY_TYPES, ns.tf_library),
     )
 
     model.predict(
@@ -204,7 +206,6 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
       use_bandpass=False,
       bandpass_fmax=None,
       bandpass_fmin=None,
-      inference_library=ns.tf_library,
     )
   elif ns.backend == MODEL_BACKEND_PB:
     model = birdnet.model_loader.load(
