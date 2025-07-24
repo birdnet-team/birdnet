@@ -1,14 +1,12 @@
-# birdnet_batch_inference.py – raw‑audio version
 from __future__ import annotations
 
 import shutil
 import tempfile
 import zipfile
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, Literal, final
+from typing import Literal, final
 
-# You'll need these imports in your own code
-# Next two import lines for this demo only
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.emb.prediction_result import (
@@ -195,8 +193,8 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
     device: str | list[str] = "CPU",
   ) -> EmbeddingsPredictionResult:
     return super()._predict_embeddings(
-      inp,
-      {
+      inp=inp,
+      backend_kwargs={
         "signature_name": "embeddings",
         "prediction_key": "embeddings",
         "input_key": "inputs",
@@ -240,8 +238,8 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
     device: str | list[str] = "CPU",
   ) -> PredictionResult:
     return super()._predict(
-      inp,
-      {
+      inp=inp,
+      backend_kwargs={
         "signature_name": "basic",
         "prediction_key": "scores",
         "input_key": "inputs",

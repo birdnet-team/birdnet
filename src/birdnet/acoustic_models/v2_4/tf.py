@@ -1,36 +1,29 @@
 from __future__ import annotations
 
+import os
+import shutil
+import tempfile
+import zipfile
+from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable, Literal, final
+from typing import TYPE_CHECKING, Literal, final
+
+from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.emb.prediction_result import (
   EmbeddingsPredictionResult,
 )
 from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
+from birdnet.acoustic_models.v2_4.base import (
+  AcousticDownloaderBaseV2_4,
+  AcousticModelBaseV2_4,
+)
 from birdnet.backends import (
   InferenceBackend,
   TFInferenceBackend,
   check_tf_model_can_be_loaded,
   litert_installed,
   tf_installed,
-)
-
-if TYPE_CHECKING:
-  pass
-
-
-import os
-import shutil
-import tempfile
-import zipfile
-from pathlib import Path
-from typing import Literal, final
-
-from ordered_set import OrderedSet
-
-from birdnet.acoustic_models.v2_4.base import (
-  AcousticDownloaderBaseV2_4,
-  AcousticModelBaseV2_4,
 )
 from birdnet.globals import (
   LIBRARY_LITERT,
@@ -48,6 +41,9 @@ from birdnet.globals import (
 from birdnet.helper import ModelInfo
 from birdnet.local_data import get_lang_dir, get_model_path
 from birdnet.utils import download_file_tqdm, get_species_from_file
+
+if TYPE_CHECKING:
+  pass
 
 MODEL_IN_IDX = 0
 MODEL_EMB_OUT_IDX = 545
@@ -253,8 +249,8 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       raise AssertionError()
 
     return super()._predict_embeddings(
-      inp,
-      {
+      inp=inp,
+      backend_kwargs={
         "inference_library": inference_library,
         "in_idx": MODEL_IN_IDX,
         "out_idx": MODEL_EMB_OUT_IDX,
@@ -312,8 +308,8 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       raise AssertionError()
 
     return super()._predict(
-      inp,
-      {
+      inp=inp,
+      backend_kwargs={
         "inference_library": inference_library,
         "in_idx": MODEL_IN_IDX,
         "out_idx": MODEL_LOGITS_OUT_IDX,

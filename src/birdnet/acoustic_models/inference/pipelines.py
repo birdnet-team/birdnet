@@ -182,7 +182,6 @@ def predict_embeddings_from_recordings(
   if show_stats == "benchmark":
     benchmark_dir = get_benchmark_dir(
       model=MODEL_TYPE_ACOUSTIC,
-      version=model_version,
       method="embeddings",
     )
 
@@ -619,6 +618,7 @@ def predict_embeddings_from_recordings(
       model_path=str(model_path.absolute()),
       model_species=len(model_species_list),
       model_precision=model_precision,
+      model_emb_dim=model_emb_dim,
       _file_durations=file_durations,
       file_segments_maximum=max_segment_idx_ptr.value + 1,
       file_segments_total=tot_n_segments_ptr.value,
@@ -911,7 +911,6 @@ def predict_species_from_recordings(
   if show_stats == "benchmark":
     benchmark_dir = get_benchmark_dir(
       model=MODEL_TYPE_ACOUSTIC,
-      version=model_version,
       method="scores",
     )
 
