@@ -110,7 +110,6 @@ class PredictionConfig:
 
 
 def validate_common_config(config: PredictionConfig) -> None:
-  """Validiert gemeinsame Parameter"""
   if not config.processing_conf.batch_size >= 1:
     raise ValueError("batch_size must be >= 1")
   if not config.processing_conf.feeders >= 1:
