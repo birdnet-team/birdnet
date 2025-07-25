@@ -62,7 +62,8 @@ def predict_from_recordings_generic(
     return result
 
   finally:
-    process_manager.stop_logging()
+    resources.logging_resources.stop_logging_event.set()
+    process_manager.join_logging()
 
     shutil.copyfile(
       resources.logging_resources.log_file, resources.logging_resources.global_log_file

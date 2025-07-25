@@ -6,25 +6,25 @@ import threading
 import time
 
 import birdnet.logging_utils as bn_logging
-from birdnet.acoustic_models.inference_pipeline.configs import (
-  ConfigType,
-  PredictionConfig,
-  ResultType,
-  TensorType,
-)
 from birdnet.acoustic_models.inference.consumer import Consumer
 from birdnet.acoustic_models.inference.files_analyzer import FilesAnalyzer
 from birdnet.acoustic_models.inference.perf_tracker import (
   PerformanceTracker,
 )
 from birdnet.acoustic_models.inference.producer import Producer
+from birdnet.acoustic_models.inference.tensor import TensorBase
+from birdnet.acoustic_models.inference_pipeline.configs import (
+  ConfigType,
+  PredictionConfig,
+  ResultType,
+  TensorType,
+)
 from birdnet.acoustic_models.inference_pipeline.resources import (
   PipelineResources,
 )
 from birdnet.acoustic_models.inference_pipeline.strategy import (
   PredictionStrategy,
 )
-from birdnet.acoustic_models.inference.tensor import TensorBase
 
 
 class ProcessManager:
@@ -59,6 +59,7 @@ class ProcessManager:
       daemon=True,
     )
     logging_listener.start()
+    assert self._logging_thread is None
     self._logging_thread = logging_listener
     return logging_listener
 
@@ -95,6 +96,7 @@ class ProcessManager:
     )
     perf_tracker_proc.start()
 
+    assert self._perf_tracker_process is None
     self._perf_tracker_process = perf_tracker_proc
     return perf_tracker_proc
 
@@ -116,6 +118,8 @@ class ProcessManager:
       daemon=True,
     )
     file_analyzer_proc.start()
+
+    assert self._analyzer_thread is None
     self._analyzer_thread = file_analyzer_proc
     return file_analyzer_proc
 
@@ -160,6 +164,7 @@ class ProcessManager:
     for p in producer_processes:
       p.start()
 
+    assert self._producer_processes is None
     self._producer_processes = producer_processes
     return producer_processes
 
@@ -236,8 +241,7 @@ class ProcessManager:
       self._perf_tracker_process = None
       logger.debug("Performance tracker finished.")
 
-  def stop_logging(self):
-    self._res.logging_resources.stop_logging_event.set()
+  def join_logging(self):
     assert self._logging_thread is not None
     self._logging_thread.join()
     self._logging_thread = None
