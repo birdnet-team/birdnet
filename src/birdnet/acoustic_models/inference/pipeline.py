@@ -2,14 +2,10 @@ from __future__ import annotations
 
 import json
 import multiprocessing as mp
-import os
 import shutil
 import threading
-import time
+from contextlib import contextmanager
 from dataclasses import asdict
-from typing import cast
-
-import numpy as np
 
 import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.inference.configs import (
@@ -19,14 +15,7 @@ from birdnet.acoustic_models.inference.configs import (
   TensorType,
   validate_common_config,
 )
-from birdnet.acoustic_models.inference.consumer import Consumer
-from birdnet.acoustic_models.inference.files_analyzer import FilesAnalyzer
-from birdnet.acoustic_models.inference.perf_tracker import (
-  PerformanceTracker,
-  PerformanceTrackingResult,
-)
 from birdnet.acoustic_models.inference.processes import ProcessManager
-from birdnet.acoustic_models.inference.producer import Producer
 from birdnet.acoustic_models.inference.resources import (
   LoggingResources,
   PipelineResources,
@@ -35,7 +24,6 @@ from birdnet.acoustic_models.inference.resources import (
 from birdnet.acoustic_models.inference.strategy import (
   PredictionStrategy,
 )
-from birdnet.acoustic_models.inference.tensor import TensorBase
 from birdnet.globals import WRITABLE_FLAG
 from birdnet.helper import create_shm_ring
 
@@ -52,109 +40,48 @@ def predict_from_recordings_generic(
   resources = resource_manager.create_all_resources()
 
   process_manager = ProcessManager(conf, strategy, specific_config, resources)
-  logging_thread = process_manager.start_logging()
+  process_manager.start_logging()
 
-  result_tensor = strategy.create_tensor(
-    conf,
-    specific_config,
-    resources.ring_buffer_resources,
-    resources.analyzer_resources,
-  )
+  result_tensor = strategy.create_tensor(conf, specific_config, resources)
 
   try:
-    with (
-      create_shm_ring(resources.ring_buffer_resources.rf_file_indices),
-      create_shm_ring(resources.ring_buffer_resources.rf_segment_indices),
-      create_shm_ring(resources.ring_buffer_resources.rf_audio_samples),
-      create_shm_ring(resources.ring_buffer_resources.rf_batch_sizes),
-      create_shm_ring(resources.ring_buffer_resources.rf_flags) as shm_ring_flags,
-    ):
-      flags = resources.ring_buffer_resources.rf_flags.get_array(shm_ring_flags)
-      flags[:] = WRITABLE_FLAG
-
-      file_analyzer_thread = process_manager.start_file_analyzer()
-
-      producer_processes = process_manager.start_producers()
-
-      worker_processes = process_manager.start_workers()
-
-      perf_tracker_process = (
-        process_manager.start_performance_tracker()
-        if resources.stats_resources.track_performance
-        else None
-      )
-
+    with shared_memory_context(resources):
+      process_manager.start_main_processes()
       process_manager.run_consumer(result_tensor)
-
-      file_durations, perf_result = _cleanup_processes(
-        file_analyzer_thread,
-        producer_processes,
-        worker_processes,
-        perf_tracker_process,
-        resources,
-      )
-
-    resources.stats_resources.mark_stop()
+      resources.processing_state.processing_finished_event.set()
+      resources.stats_resources.mark_stop()
+      resources.stats_resources.collect_performance_results()
+      resources.analyzer_resources.collect_file_durations()
+      process_manager.join_main_processes()
 
     if resources.processing_state.cancel_event.is_set():
       raise RuntimeError(
         f"Analysis was cancelled due to an error. Please check the logs: {resources.logging_resources.log_file.absolute()}"
       )
 
-    result = strategy.create_result(
-      result_tensor, conf, resources.analyzer_resources.file_paths, file_durations
-    )
+    result = strategy.create_result(result_tensor, conf, resources)
 
-    _handle_statistics(
-      conf, strategy, specific_config, result, file_durations, perf_result, resources
-    )
+    _handle_statistics(conf, strategy, specific_config, result, resources)
 
     return result
 
   finally:
-    _cleanup_logging(resources.logging_resources, logging_thread)
+    process_manager.stop_logging()
+    _cleanup_logging(resources.logging_resources)
 
 
-def _cleanup_processes(
-  file_analyzer_proc: threading.Thread,
-  producer_processes: list[mp.Process],
-  worker_processes: list[mp.Process],
-  perf_tracking_process: mp.Process | None,
-  resources: PipelineResources,
-) -> tuple[np.ndarray, PerformanceTrackingResult | None]:
-  logger = bn_logging.get_logger(__name__)
-
-  resources.processing_state.processing_finished_event.set()
-
-  file_durations = np.array(
-    cast(list[float], resources.analyzer_resources.analyzer_queue.get()),
-    dtype=np.float16,
-  )
-  resources.analyzer_resources.analyzer_queue.close()
-  file_analyzer_proc.join()
-  logger.debug("File analyzer finished.")
-
-  for p in producer_processes:
-    p.join()
-    logger.debug(f"Producer '{p.name}' finished.")
-  logger.debug("All producers finished.")
-
-  for w in worker_processes:
-    w.join()
-    logger.debug(f"Worker '{w.name}' finished.")
-  logger.debug("All workers finished.")
-
-  perf_result = None
-  if resources.stats_resources.track_performance:
-    assert resources.stats_resources.perf_res_queue is not None
-    assert perf_tracking_process is not None
-    perf_result = cast(
-      PerformanceTrackingResult, resources.stats_resources.perf_res_queue.get()
-    )
-    perf_tracking_process.join()
-    logger.debug("Performance tracker finished.")
-
-  return file_durations, perf_result
+@contextmanager
+def shared_memory_context(resources: PipelineResources):
+  with (
+    create_shm_ring(resources.ring_buffer_resources.rf_file_indices),
+    create_shm_ring(resources.ring_buffer_resources.rf_segment_indices),
+    create_shm_ring(resources.ring_buffer_resources.rf_audio_samples),
+    create_shm_ring(resources.ring_buffer_resources.rf_batch_sizes),
+    create_shm_ring(resources.ring_buffer_resources.rf_flags) as shm_ring_flags,
+  ):
+    flags = resources.ring_buffer_resources.rf_flags.get_array(shm_ring_flags)
+    flags[:] = WRITABLE_FLAG
+    yield
 
 
 def _handle_statistics(
@@ -162,8 +89,6 @@ def _handle_statistics(
   strategy: PredictionStrategy[ResultType, ConfigType, TensorType],
   specific_config: ConfigType,
   result: ResultType,
-  file_durations: np.ndarray,
-  perf_result: PerformanceTrackingResult | None,
   resources: PipelineResources,
 ) -> None:
   if config.output_conf.show_stats in ("minimal", "progress"):
@@ -173,18 +98,14 @@ def _handle_statistics(
       resources,
       specific_config,
       result,
-      file_durations,
     )
   elif config.output_conf.show_stats == "benchmark":
-    assert perf_result is not None
     _create_benchmark_statistics(
       config,
       strategy,
       resources,
       specific_config,
       result,
-      file_durations,
-      perf_result,
     )
 
 
@@ -194,10 +115,9 @@ def _show_minimal_statistics(
   resources: PipelineResources,
   specific_config: ConfigType,
   result: ResultType,
-  file_durations: np.ndarray,
 ) -> None:
   bmm = strategy.create_minimal_benchmark_meta(
-    config, specific_config, resources, result, file_durations
+    config, specific_config, resources, result
   )
 
   summary = (
@@ -228,12 +148,10 @@ def _create_benchmark_statistics(
   resources: PipelineResources,
   specific_config: ConfigType,
   result: ResultType,
-  file_durations: np.ndarray,
-  perf_result: PerformanceTrackingResult,
 ) -> None:
-  bmm = strategy.create_full_benchmark_meta(
-    config, specific_config, resources, result, file_durations, perf_result
-  )
+  assert resources.stats_resources.tracking_result is not None
+
+  bmm = strategy.create_full_benchmark_meta(config, specific_config, resources, result)
 
   benchmark_dir = resources.stats_resources.benchmark_dir
   benchmark_run_out_dir = resources.stats_resources.benchmark_run_dir
@@ -317,10 +235,7 @@ def _create_benchmark_statistics(
 
 def _cleanup_logging(
   logging_resources: LoggingResources,
-  logging_thread: threading.Thread,
 ) -> None:
-  logging_resources.stop_logging_event.set()
-  logging_thread.join()
   logging_resources.logging_queue.close()
   logging_resources.logging_queue.join_thread()
   bn_logging.remove_queue_handler(logging_resources.queue_handler)

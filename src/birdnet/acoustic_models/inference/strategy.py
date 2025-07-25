@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import multiprocessing as mp
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Generic
 
-import numpy as np
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.benchmarking import (
@@ -18,16 +16,17 @@ from birdnet.acoustic_models.inference.configs import (
   ResultType,
   TensorType,
 )
-from birdnet.acoustic_models.inference.perf_tracker import PerformanceTrackingResult
 from birdnet.acoustic_models.inference.resources import (
-  FilesAnalyzerResources,
   PipelineResources,
-  RingBufferResources,
 )
 from birdnet.acoustic_models.inference.worker import WorkerBase
 
 
 class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
+  # def __init__(self, config: PredictionConfig, specific_config: ConfigType) -> None:
+  #   self._config = config
+  #   self._specific_config = specific_config
+
   @abstractmethod
   def validate_config(
     self, config: PredictionConfig, specific_config: ConfigType
@@ -38,8 +37,7 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
     self,
     config: PredictionConfig,
     specific_config: ConfigType,
-    memory_layout: RingBufferResources,
-    analyzer_resources: FilesAnalyzerResources,
+    resources: PipelineResources,
   ) -> TensorType: ...
 
   @abstractmethod
@@ -55,8 +53,7 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
     self,
     tensor: TensorType,
     config: PredictionConfig,
-    file_paths: OrderedSet[Path],
-    file_durations: np.ndarray,
+    resources: PipelineResources,
   ) -> ResultType: ...
 
   @abstractmethod
@@ -66,7 +63,6 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
     specific_config: ConfigType,
     resources: PipelineResources,
     pred_result: ResultType,
-    file_durations: np.ndarray,
   ) -> MinimalBenchmarkMetaBase: ...
 
   @abstractmethod
@@ -76,8 +72,6 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
     specific_config: ConfigType,
     resources: PipelineResources,
     pred_result: ResultType,
-    file_durations: np.ndarray,
-    perf_result: PerformanceTrackingResult,
   ) -> FullBenchmarkMetaBase: ...
 
   @abstractmethod

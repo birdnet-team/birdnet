@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import multiprocessing as mp
 import os
 from pathlib import Path
 
@@ -12,16 +11,11 @@ from birdnet.acoustic_models.inference.configs import (
   PredictionConfig,
   ScoresConfig,
 )
-from birdnet.acoustic_models.inference.perf_tracker import (
-  PerformanceTrackingResult,
-)
 from birdnet.acoustic_models.inference.pipeline import (
   predict_from_recordings_generic,
 )
 from birdnet.acoustic_models.inference.resources import (
-  FilesAnalyzerResources,
   PipelineResources,
-  RingBufferResources,
 )
 from birdnet.acoustic_models.inference.scores.benchmarking import (
   FullBenchmarkMeta,
@@ -45,6 +39,9 @@ from birdnet.globals import (
 class ScoresStrategy(
   PredictionStrategy[ScoresPredictionResult, ScoresConfig, ScoresTensor]
 ):
+  # def __init__(self, config: PredictionConfig, specific_config: ScoresConfig) -> None:
+  #   super().__init__(config, specific_config)
+
   def validate_config(
     self, config: PredictionConfig, specific_config: ScoresConfig
   ) -> None:
@@ -75,17 +72,16 @@ class ScoresStrategy(
     self,
     config: PredictionConfig,
     specific_config: ScoresConfig,
-    memory_layout: RingBufferResources,
-    analyzer_resources: FilesAnalyzerResources,
+    resources: PipelineResources,
   ) -> ScoresTensor:
     return ScoresTensor(
-      analyzer_resources.n_files,
+      resources.analyzer_resources.n_files,
       top_k=self.get_top_k(config, specific_config),
       n_species=config.model_conf.n_species,
       prob_dtype=config.processing_conf.result_dtype,
-      segment_indices_dtype=memory_layout.rf_segment_indices.dtype,
-      files_dtype=memory_layout.rf_file_indices.dtype,
-      max_segment_index=analyzer_resources.max_segment_idx_ptr,
+      segment_indices_dtype=resources.ring_buffer_resources.rf_segment_indices.dtype,
+      files_dtype=resources.ring_buffer_resources.rf_file_indices.dtype,
+      max_segment_index=resources.analyzer_resources.max_segment_idx_ptr,
     )
 
   def get_top_k(self, config: PredictionConfig, specific_config: ScoresConfig) -> int:
@@ -141,16 +137,17 @@ class ScoresStrategy(
     self,
     tensor: ScoresTensor,
     config: PredictionConfig,
-    file_paths: OrderedSet[Path],
-    file_durations: np.ndarray,
+    resources: PipelineResources,
   ) -> ScoresPredictionResult:
+    assert resources.analyzer_resources.file_durations is not None
+
     return ScoresPredictionResult(
       tensor=tensor,
-      files=file_paths,
+      files=resources.analyzer_resources.file_paths,
       segment_duration_s=config.model_conf.segment_size_s,
       overlap_duration_s=config.processing_conf.overlap_duration_s,
       species_list=config.model_conf.species_list,
-      file_durations=file_durations,
+      file_durations=resources.analyzer_resources.file_durations,
     )
 
   def create_minimal_benchmark_meta(
@@ -159,16 +156,17 @@ class ScoresStrategy(
     specific_config: ScoresConfig,
     resources: PipelineResources,
     pred_result: ScoresPredictionResult,
-    file_durations: np.ndarray,
   ) -> MinimalBenchmarkMeta:
     assert resources.stats_resources.end_timepoint is not None
     assert resources.stats_resources.stop is not None
     wall_time_s = resources.stats_resources.stop - resources.stats_resources.start
+    assert resources.analyzer_resources.file_durations is not None
+
     return MinimalBenchmarkMeta(
       _start_timepoint=resources.stats_resources.start_timepoint,
       _end_timepoint=resources.stats_resources.end_timepoint,
       _time_wall_time_s=wall_time_s,
-      _file_durations=file_durations,
+      _file_durations=resources.analyzer_resources.file_durations,
       mem_result_total_memory_usage_MiB=pred_result.memory_size_mb,
       mem_shm_size_file_indices_MiB=resources.ring_buffer_resources.rf_file_indices.nbytes
       / 1024**2,
@@ -190,12 +188,14 @@ class ScoresStrategy(
     specific_config: ScoresConfig,
     resources: PipelineResources,
     pred_result: ScoresPredictionResult,
-    file_durations: np.ndarray,
-    perf_result: PerformanceTrackingResult,
   ) -> FullBenchmarkMeta:
+    perf_result = resources.stats_resources.tracking_result
+    assert perf_result is not None
+
     assert resources.stats_resources.end_timepoint is not None
     assert resources.stats_resources.stop is not None
     wall_time_s = resources.stats_resources.stop - resources.stats_resources.start
+    assert resources.analyzer_resources.file_durations is not None
 
     device_str = (
       ", ".join(config.processing_conf.device)
@@ -216,7 +216,7 @@ class ScoresStrategy(
       model_path=str(config.model_conf.path.absolute()),
       model_species=len(config.model_conf.species_list),
       model_precision=config.model_conf.precision,
-      _file_durations=file_durations,
+      _file_durations=resources.analyzer_resources.file_durations,
       file_segments_maximum=resources.analyzer_resources.max_segment_idx_ptr.value + 1,
       file_segments_total=resources.analyzer_resources.tot_n_segments_ptr.value,
       model_segment_duration_seconds=config.model_conf.segment_size_s,

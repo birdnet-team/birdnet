@@ -160,7 +160,6 @@ if __name__ == "__main__":
 
   audio_paths = "test-dataset/test_dataset_10000x0.2s_flac"
   audio_paths = "test-dataset/test_dataset_100x1.3s_flac/000.flac"
-  audio_paths = "test-dataset/test_dataset_1x7.3s_flac/0.flac"
 
   audio_paths = get_pow_file_paths()
   audio_paths = "test-dataset/test_dataset_1000x0.2s_flac"
@@ -179,6 +178,7 @@ if __name__ == "__main__":
     Path("test-dataset/test_dataset_120x60min/008.wav"),
   ]
   audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
+  audio_paths = "test-dataset/test_dataset_1x7.3s_flac/0.flac"
   audio_paths = [
     Path("test-dataset/test_dataset_4x60min/0.wav"),
     Path("test-dataset/test_dataset_4x60min/1.wav"),
@@ -188,7 +188,7 @@ if __name__ == "__main__":
   audio_paths = "example/soundscape.wav"
   params = {
     "n_workers": 12,
-    "n_producers": 2,
+    "n_producers": 12,
     "batch_size": 1,
     "prefetch_ratio": 2,
     "backend": "tf",
@@ -198,6 +198,7 @@ if __name__ == "__main__":
     "start_method": "spawn",  # "fork", "spawn" or "forkserver" for Linux, macOS
     "load_custom": False,
     "inference_library": "tf",
+    "show_stats": "minimal",
   }
 
   set_start_method(params["start_method"], force=True)  # Linux, macOS
@@ -244,7 +245,7 @@ if __name__ == "__main__":
       sigmoid_sensitivity=1,
       default_confidence_threshold=-np.inf,
       half_precision=False,
-      show_stats="benchmark",
+      show_stats=params["show_stats"],
       # custom_confidence_thresholds={
       #   "Junco hyemalis_Dark-eyed Junco": -np.inf,
       #   "Haemorhous mexicanus_House Finch": 0.1,
@@ -286,7 +287,7 @@ if __name__ == "__main__":
       default_confidence_threshold=-np.inf,
       half_precision=False,
       device=params["device"],
-      show_stats="benchmark",
+      show_stats=params["show_stats"],
     )
   end = time.perf_counter()
   print(f"Finished analysis in {end - start:.2f} seconds.")

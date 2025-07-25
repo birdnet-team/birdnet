@@ -11,7 +11,7 @@ from datetime import datetime
 from logging.handlers import QueueHandler
 from multiprocessing.sharedctypes import Synchronized
 from pathlib import Path
-from typing import final
+from typing import cast, final
 
 import numpy as np
 from ordered_set import OrderedSet
@@ -20,6 +20,7 @@ import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.inference.configs import (
   PredictionConfig,
 )
+from birdnet.acoustic_models.inference.perf_tracker import PerformanceTrackingResult
 from birdnet.backends import (
   InferenceBackendLoader,
   PBInferenceBackend,
@@ -245,6 +246,20 @@ class FilesAnalyzerResources:
   def n_files(self) -> int:
     return len(self.file_paths)
 
+  _file_durations: np.ndarray | None = None
+
+  @property
+  def file_durations(self) -> np.ndarray | None:
+    return self._file_durations
+
+  def collect_file_durations(self) -> np.ndarray:
+    file_durations = np.array(
+      cast(list[float], self.analyzer_queue.get(block=True, timeout=None)),
+      dtype=np.float16,
+    )
+    object.__setattr__(self, "_file_durations", file_durations)
+    return file_durations
+
 
 def create_analyzer_resources(conf: PredictionConfig) -> FilesAnalyzerResources:
   file_paths = _parse_input_files(conf.input_files)
@@ -352,6 +367,10 @@ class StatisticsResources:
     return self._end_timepoint
 
   @property
+  def tracking_result(self) -> PerformanceTrackingResult | None:
+    return self._tracking_result
+
+  @property
   def start_iso_time(self) -> str:
     return get_iso_time(self.start_timepoint)
 
@@ -360,16 +379,27 @@ class StatisticsResources:
   prd_stats_queue: mp.Queue | None
   sem_active_workers: multiprocessing.synchronize.Semaphore | None
   perf_res_queue: mp.Queue | None
+
   benchmarking: bool
   benchmark_dir: Path | None
   benchmark_run_dir: Path | None
 
   _stop: float | None = None
   _end_timepoint: datetime | None = None
+  _tracking_result: PerformanceTrackingResult | None = None
 
   def mark_stop(self) -> None:
     object.__setattr__(self, "_stop", time.perf_counter())
     object.__setattr__(self, "_end_timepoint", datetime.now())
+
+  def collect_performance_results(self) -> None:
+    if self.track_performance:
+      assert self.perf_res_queue is not None
+      # TODO handle cancel event?
+      perf_result = cast(
+        PerformanceTrackingResult, self.perf_res_queue.get(block=True, timeout=None)
+      )
+      object.__setattr__(self, "_tracking_result", perf_result)
 
 
 def create_statistics_resources(
@@ -383,11 +413,16 @@ def create_statistics_resources(
   track_performance = conf.output_conf.show_stats in ("progress", "benchmark")
   benchmarking = conf.output_conf.show_stats == "benchmark"
 
-  perf_res_queue = mp.Queue()
-  wkr_stats_queue = mp.Queue()
-  prd_stats_queue = mp.Queue()
+  perf_res_queue = None
+  wkr_stats_queue = None
+  prd_stats_queue = None
+  sem_active_workers = None
 
-  sem_active_workers = mp.Semaphore(0)
+  if track_performance:
+    perf_res_queue = mp.Queue()
+    wkr_stats_queue = mp.Queue()
+    prd_stats_queue = mp.Queue()
+    sem_active_workers = mp.Semaphore(0)
 
   benchmark_dir = None
   benchmark_run_out_dir = None
@@ -400,17 +435,17 @@ def create_statistics_resources(
     benchmark_run_out_dir.mkdir(parents=True, exist_ok=True)
 
   return StatisticsResources(
-    track_performance=track_performance,
-    benchmarking=benchmarking,
-    prd_stats_queue=prd_stats_queue,
-    wkr_stats_queue=wkr_stats_queue,
-    benchmark_dir=benchmark_dir,
-    benchmark_run_dir=benchmark_run_out_dir,
-    perf_res_queue=perf_res_queue,
-    sem_active_workers=sem_active_workers,
     start=start,
     start_time=start_time,
     start_timepoint=start_timepoint,
+    track_performance=track_performance,
+    prd_stats_queue=prd_stats_queue,
+    wkr_stats_queue=wkr_stats_queue,
+    perf_res_queue=perf_res_queue,
+    sem_active_workers=sem_active_workers,
+    benchmarking=benchmarking,
+    benchmark_dir=benchmark_dir,
+    benchmark_run_dir=benchmark_run_out_dir,
   )
 
 

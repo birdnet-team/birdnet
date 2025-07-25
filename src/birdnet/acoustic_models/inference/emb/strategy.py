@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import multiprocessing as mp
 import os
 from pathlib import Path
 
-import numpy as np
 import psutil
 from ordered_set import OrderedSet
 
@@ -21,16 +19,11 @@ from birdnet.acoustic_models.inference.emb.prediction_result import (
 )
 from birdnet.acoustic_models.inference.emb.tensor import EmbeddingsTensor
 from birdnet.acoustic_models.inference.emb.worker import EmbeddingsWorker
-from birdnet.acoustic_models.inference.perf_tracker import (
-  PerformanceTrackingResult,
-)
 from birdnet.acoustic_models.inference.pipeline import (
   predict_from_recordings_generic,
 )
 from birdnet.acoustic_models.inference.resources import (
-  FilesAnalyzerResources,
   PipelineResources,
-  RingBufferResources,
 )
 from birdnet.acoustic_models.inference.strategy import (
   PredictionStrategy,
@@ -54,16 +47,15 @@ class EmbeddingsStrategy(
     self,
     config: PredictionConfig,
     specific_config: EmbeddingsConfig,
-    memory_layout: RingBufferResources,
-    analyzer_resources: FilesAnalyzerResources,
+    resources: PipelineResources,
   ) -> EmbeddingsTensor:
     return EmbeddingsTensor(
-      analyzer_resources.n_files,
+      resources.analyzer_resources.n_files,
       emb_dim=specific_config.emb_dim,
       emb_dtype=config.processing_conf.result_dtype,
-      segment_indices_dtype=memory_layout.rf_segment_indices.dtype,
-      files_dtype=memory_layout.rf_file_indices.dtype,
-      max_segment_index=analyzer_resources.max_segment_idx_ptr,
+      segment_indices_dtype=resources.ring_buffer_resources.rf_segment_indices.dtype,
+      files_dtype=resources.ring_buffer_resources.rf_file_indices.dtype,
+      max_segment_index=resources.analyzer_resources.max_segment_idx_ptr,
     )
 
   def create_workers(
@@ -103,15 +95,16 @@ class EmbeddingsStrategy(
     self,
     tensor: EmbeddingsTensor,
     config: PredictionConfig,
-    file_paths: OrderedSet[Path],
-    file_durations: np.ndarray,
+    resources: PipelineResources,
   ) -> EmbeddingsPredictionResult:
+    assert resources.analyzer_resources.file_durations is not None
+
     return EmbeddingsPredictionResult(
       tensor=tensor,
-      files=file_paths,
+      files=resources.analyzer_resources.file_paths,
       segment_duration_s=config.model_conf.segment_size_s,
       overlap_duration_s=config.processing_conf.overlap_duration_s,
-      file_durations=file_durations,
+      file_durations=resources.analyzer_resources.file_durations,
     )
 
   def create_minimal_benchmark_meta(
@@ -120,17 +113,17 @@ class EmbeddingsStrategy(
     specific_config: EmbeddingsConfig,
     resources: PipelineResources,
     pred_result: EmbeddingsPredictionResult,
-    file_durations: np.ndarray,
   ) -> MinimalBenchmarkEmbMeta:
     assert resources.stats_resources.end_timepoint is not None
     assert resources.stats_resources.stop is not None
     wall_time_s = resources.stats_resources.stop - resources.stats_resources.start
+    assert resources.analyzer_resources.file_durations is not None
 
     return MinimalBenchmarkEmbMeta(
       _start_timepoint=resources.stats_resources.start_timepoint,
       _end_timepoint=resources.stats_resources.end_timepoint,
       _time_wall_time_s=wall_time_s,
-      _file_durations=file_durations,
+      _file_durations=resources.analyzer_resources.file_durations,
       mem_result_total_memory_usage_MiB=pred_result.memory_size_mb,
       mem_shm_size_file_indices_MiB=resources.ring_buffer_resources.rf_file_indices.nbytes
       / 1024**2,
@@ -152,12 +145,14 @@ class EmbeddingsStrategy(
     specific_config: EmbeddingsConfig,
     resources: PipelineResources,
     pred_result: EmbeddingsPredictionResult,
-    file_durations: np.ndarray,
-    perf_result: PerformanceTrackingResult,
   ) -> FullBenchmarkEmbMeta:
+    perf_result = resources.stats_resources.tracking_result
+    assert perf_result is not None
+
     assert resources.stats_resources.end_timepoint is not None
     assert resources.stats_resources.stop is not None
     wall_time_s = resources.stats_resources.stop - resources.stats_resources.start
+    assert resources.analyzer_resources.file_durations is not None
 
     device_str = (
       ", ".join(config.processing_conf.device)
@@ -179,7 +174,7 @@ class EmbeddingsStrategy(
       model_species=len(config.model_conf.species_list),
       model_precision=config.model_conf.precision,
       model_emb_dim=specific_config.emb_dim,
-      _file_durations=file_durations,
+      _file_durations=resources.analyzer_resources.file_durations,
       file_segments_maximum=resources.analyzer_resources.max_segment_idx_ptr.value + 1,
       file_segments_total=resources.analyzer_resources.tot_n_segments_ptr.value,
       model_segment_duration_seconds=config.model_conf.segment_size_s,

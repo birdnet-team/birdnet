@@ -1,15 +1,9 @@
 from __future__ import annotations
 
-import json
 import multiprocessing as mp
 import os
-import shutil
 import threading
 import time
-from dataclasses import asdict
-from typing import cast
-
-import numpy as np
 
 import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.inference.configs import (
@@ -17,26 +11,20 @@ from birdnet.acoustic_models.inference.configs import (
   PredictionConfig,
   ResultType,
   TensorType,
-  validate_common_config,
 )
 from birdnet.acoustic_models.inference.consumer import Consumer
 from birdnet.acoustic_models.inference.files_analyzer import FilesAnalyzer
 from birdnet.acoustic_models.inference.perf_tracker import (
   PerformanceTracker,
-  PerformanceTrackingResult,
 )
 from birdnet.acoustic_models.inference.producer import Producer
 from birdnet.acoustic_models.inference.resources import (
-  LoggingResources,
   PipelineResources,
-  ResourceManager,
 )
 from birdnet.acoustic_models.inference.strategy import (
   PredictionStrategy,
 )
 from birdnet.acoustic_models.inference.tensor import TensorBase
-from birdnet.globals import WRITABLE_FLAG
-from birdnet.helper import create_shm_ring
 
 
 class ProcessManager:
@@ -195,6 +183,7 @@ class ProcessManager:
     for w in worker_processes:
       w.start()
 
+    assert self._worker_processes is None
     self._worker_processes = worker_processes
     return worker_processes
 
@@ -206,3 +195,49 @@ class ProcessManager:
       cancel_event=self._res.processing_state.cancel_event,
     )
     consumer()
+
+  def start_main_processes(self) -> None:
+    self.start_file_analyzer()
+    self.start_producers()
+    self.start_workers()
+
+    if self._res.stats_resources.track_performance:
+      self.start_performance_tracker()
+
+  def join_main_processes(self):
+    logger = bn_logging.get_logger(__name__)
+
+    logger.debug("Joining file analyzer thread...")
+    assert self._analyzer_thread is not None
+    self._analyzer_thread.join()
+    self._analyzer_thread = None
+    logger.debug("File analyzer finished.")
+
+    logger.debug("Joining producer processes...")
+    assert self._producer_processes is not None
+    for p in self._producer_processes:
+      p.join()
+      logger.debug(f"Producer '{p.name}' finished.")
+    self._producer_processes = None
+    logger.debug("All producers finished.")
+
+    logger.debug("Joining worker processes...")
+    assert self._worker_processes is not None
+    for w in self._worker_processes:
+      w.join()
+      logger.debug(f"Worker '{w.name}' finished.")
+    self._worker_processes = None
+    logger.debug("All workers finished.")
+
+    if self._res.stats_resources.track_performance:
+      logger.debug("Joining performance tracker process...")
+      assert self._perf_tracker_process is not None
+      self._perf_tracker_process.join()
+      self._perf_tracker_process = None
+      logger.debug("Performance tracker finished.")
+
+  def stop_logging(self):
+    self._res.logging_resources.stop_logging_event.set()
+    assert self._logging_thread is not None
+    self._logging_thread.join()
+    self._logging_thread = None

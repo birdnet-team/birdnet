@@ -139,7 +139,6 @@ class Producer(bn_logging.LogableProcessBase):
     bandpass_fmax: int | None,
     fmin: int | None,
     fmax: int | None,
-    xxx_track_performance: bool | None = None,
   ):
     super().__init__(__name__, logging_queue, logging_level)
 
@@ -416,6 +415,7 @@ class Producer(bn_logging.LogableProcessBase):
     if is_last_producer:
       self._logger.debug(f"PRODUCER({os.getpid()}) - Last producer finished.")
       self._prd_all_done_event.set()
+      assert self._files_queue.qsize() == 0
 
   def _check_cancel_event(self) -> bool:
     if self._cancel_event.is_set():
