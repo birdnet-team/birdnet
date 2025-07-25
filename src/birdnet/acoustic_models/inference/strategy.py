@@ -24,6 +24,7 @@ from birdnet.acoustic_models.inference.resources import (
   PipelineResources,
   RingBufferResources,
 )
+from birdnet.acoustic_models.inference.worker import WorkerBase
 
 
 class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
@@ -47,7 +48,7 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
     config: PredictionConfig,
     specific_config: ConfigType,
     resources: PipelineResources,
-  ) -> list[mp.Process]: ...
+  ) -> list[WorkerBase]: ...
 
   @abstractmethod
   def create_result(

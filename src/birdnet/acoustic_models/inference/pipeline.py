@@ -25,6 +25,7 @@ from birdnet.acoustic_models.inference.perf_tracker import (
   PerformanceTracker,
   PerformanceTrackingResult,
 )
+from birdnet.acoustic_models.inference.processes import ProcessManager
 from birdnet.acoustic_models.inference.producer import Producer
 from birdnet.acoustic_models.inference.resources import (
   LoggingResources,
@@ -50,7 +51,8 @@ def predict_from_recordings_generic(
   resource_manager = ResourceManager(conf, strategy.get_benchmark_dir_name())
   resources = resource_manager.create_all_resources()
 
-  logging_thread = _start_logging(resources)
+  process_manager = ProcessManager(conf, strategy, specific_config, resources)
+  logging_thread = process_manager.start_logging()
 
   result_tensor = strategy.create_tensor(
     conf,
@@ -70,19 +72,19 @@ def predict_from_recordings_generic(
       flags = resources.ring_buffer_resources.rf_flags.get_array(shm_ring_flags)
       flags[:] = WRITABLE_FLAG
 
-      file_analyzer_thread = _start_file_analyzer(conf, resources)
+      file_analyzer_thread = process_manager.start_file_analyzer()
 
-      producer_processes = _start_producers(conf, resources)
+      producer_processes = process_manager.start_producers()
 
-      worker_processes = _start_workers(conf, strategy, specific_config, resources)
+      worker_processes = process_manager.start_workers()
 
       perf_tracker_process = (
-        _start_performance_tracker(conf, resources)
+        process_manager.start_performance_tracker()
         if resources.stats_resources.track_performance
         else None
       )
 
-      _run_consumer(conf, result_tensor, resources)
+      process_manager.run_consumer(result_tensor)
 
       file_durations, perf_result = _cleanup_processes(
         file_analyzer_thread,
@@ -111,165 +113,6 @@ def predict_from_recordings_generic(
 
   finally:
     _cleanup_logging(resources.logging_resources, logging_thread)
-
-
-def _start_logging(resources: PipelineResources) -> threading.Thread:
-  logging_listener = threading.Thread(
-    target=bn_logging.QueueFileWriter(
-      log_queue=resources.logging_resources.logging_queue,
-      logging_level=resources.logging_resources.logging_level,
-      log_file=resources.logging_resources.log_file,
-      cancel_event=resources.processing_state.cancel_event,
-      stop_event=resources.logging_resources.stop_logging_event,
-      processing_finished_event=resources.processing_state.processing_finished_event,
-    ),
-    name="QueueFileWriter",
-    daemon=True,
-  )
-  logging_listener.start()
-  return logging_listener
-
-
-def _start_performance_tracker(
-  config: PredictionConfig, resources: PipelineResources
-) -> mp.Process:
-  assert resources.stats_resources.track_performance
-  assert resources.stats_resources.sem_active_workers is not None
-  assert resources.stats_resources.perf_res_queue is not None
-  assert resources.stats_resources.wkr_stats_queue is not None
-  assert resources.stats_resources.prd_stats_queue is not None
-
-  perf_tracker = mp.Process(
-    target=PerformanceTracker(
-      pred_dur_queue=resources.stats_resources.wkr_stats_queue,
-      processing_finished_event=resources.processing_state.processing_finished_event,
-      update_interval=0.5,
-      print_interval=1,
-      prod_stats_queue=resources.stats_resources.prd_stats_queue,
-      n_workers=config.processing_conf.workers,
-      start=resources.stats_resources.start,
-      sem_filled_slots=resources.ring_buffer_resources.sem_filled_slots,
-      workers_start=time.perf_counter(),
-      segment_size_s=config.model_conf.segment_size_s,
-      logging_queue=resources.logging_resources.logging_queue,
-      logging_level=resources.logging_resources.logging_level,
-      perf_res=resources.stats_resources.perf_res_queue,
-      parent_process_id=os.getpid(),
-      rf_flags=resources.ring_buffer_resources.rf_flags,
-      tot_n_segments_ptr=resources.analyzer_resources.tot_n_segments_ptr,
-      cancel_event=resources.processing_state.cancel_event,
-      sem_active_workers=resources.stats_resources.sem_active_workers,
-    ),
-    name="PerformanceTracker",
-    daemon=True,
-  )
-  perf_tracker.start()
-
-  return perf_tracker
-
-
-def _start_file_analyzer(
-  config: PredictionConfig,
-  resources: PipelineResources,
-) -> threading.Thread:
-  file_analyzer_proc = threading.Thread(
-    target=FilesAnalyzer(
-      files=resources.analyzer_resources.file_paths,
-      logging_level=resources.logging_resources.logging_level,
-      logging_queue=resources.logging_resources.logging_queue,
-      segment_duration_s=config.model_conf.segment_size_s,
-      overlap_duration_s=config.processing_conf.overlap_duration_s,
-      max_segment_idx_ptr=resources.analyzer_resources.max_segment_idx_ptr,
-      rf_segment_indices=resources.ring_buffer_resources.rf_segment_indices,
-      analyzing_result=resources.analyzer_resources.analyzer_queue,
-      tot_n_segments=resources.analyzer_resources.tot_n_segments_ptr,
-      cancel_event=resources.processing_state.cancel_event,
-    ),
-    name="FileAnalyzer",
-    daemon=True,
-  )
-  file_analyzer_proc.start()
-  return file_analyzer_proc
-
-
-def _start_producers(
-  config: PredictionConfig,
-  resources: PipelineResources,
-) -> list[mp.Process]:
-  producer_processes = [
-    mp.Process(
-      target=Producer(
-        files_queue=resources.producer_resources.files_queue,
-        batch_size=config.processing_conf.batch_size,
-        prd_all_done_event=resources.producer_resources.prd_all_done_event,
-        n_slots=config.processing_conf.n_slots,
-        prd_ring_access_lock=resources.producer_resources.ring_access_lock,
-        prod_stats_queue=resources.stats_resources.prd_stats_queue,
-        rf_file_indices=resources.ring_buffer_resources.rf_file_indices,
-        rf_segment_indices=resources.ring_buffer_resources.rf_segment_indices,
-        rf_audio_samples=resources.ring_buffer_resources.rf_audio_samples,
-        rf_batch_sizes=resources.ring_buffer_resources.rf_batch_sizes,
-        rf_flags=resources.ring_buffer_resources.rf_flags,
-        logging_queue=resources.logging_resources.logging_queue,
-        logging_level=resources.logging_resources.logging_level,
-        sem_free_slots=resources.ring_buffer_resources.sem_free_slots,
-        sem_filled_slots=resources.ring_buffer_resources.sem_filled_slots,
-        segment_duration_s=config.model_conf.segment_size_s,
-        overlap_duration_s=config.processing_conf.overlap_duration_s,
-        target_sample_rate=config.model_conf.sample_rate,
-        use_bandpass=config.filtering_conf.use_bandpass,
-        bandpass_fmax=config.filtering_conf.bandpass_fmax,
-        bandpass_fmin=config.filtering_conf.bandpass_fmin,
-        fmin=config.model_conf.sig_fmin,
-        fmax=config.model_conf.sig_fmax,
-        max_segment_idx_ptr=resources.analyzer_resources.max_segment_idx_ptr,
-        prod_done_ptr=resources.producer_resources.n_finished_pointer,
-        n_feeders=resources.producer_resources.n_producers,
-        cancel_event=resources.processing_state.cancel_event,
-      ),
-      name=f"ChildProducer-{i}",
-      daemon=True,
-    )
-    for i in range(resources.producer_resources.n_producers)
-  ]
-
-  for p in producer_processes:
-    p.start()
-
-  return producer_processes
-
-
-def _start_workers(
-  config: PredictionConfig,
-  strategy: PredictionStrategy[ResultType, ConfigType, TensorType],
-  specific_config: ConfigType,
-  resources: PipelineResources,
-) -> list[mp.Process]:
-  try:
-    resources.worker_resources.backend_loader.on_before_worker_initialized()
-  except Exception as exc:
-    raise RuntimeError(f"Error during backend initialization: {exc}")
-
-  worker_processes = strategy.create_workers(
-    config,
-    specific_config,
-    resources,
-  )
-  for w in worker_processes:
-    w.start()
-  return worker_processes
-
-
-def _run_consumer(
-  config: PredictionConfig, result_tensor: TensorBase, resources: PipelineResources
-) -> None:
-  consumer = Consumer(
-    n_workers=config.processing_conf.workers,
-    worker_queue=resources.worker_resources.results_queue,
-    tensor=result_tensor,
-    cancel_event=resources.processing_state.cancel_event,
-  )
-  consumer()
 
 
 def _cleanup_processes(

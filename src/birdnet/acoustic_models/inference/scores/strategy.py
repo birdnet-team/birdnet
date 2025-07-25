@@ -36,6 +36,7 @@ from birdnet.acoustic_models.inference.strategy import (
   PredictionStrategy,
   get_file_formats,
 )
+from birdnet.acoustic_models.inference.worker import WorkerBase
 from birdnet.globals import (
   MODEL_TYPE_ACOUSTIC,
 )
@@ -99,43 +100,39 @@ class ScoresStrategy(
     config: PredictionConfig,
     specific_config: ScoresConfig,
     resources: PipelineResources,
-  ) -> list[mp.Process]:
+  ) -> list[WorkerBase]:
     species_blacklist = create_species_blacklist(config, specific_config)
     species_thresholds = create_thresholds(config, specific_config)
     top_k = self.get_top_k(config, specific_config)
 
     return [
-      mp.Process(
-        target=ScoresWorker(
-          backend_loader=resources.worker_resources.backend_loader,
-          device=resources.worker_resources.devices[i],
-          top_k=top_k,
-          species_thresholds=species_thresholds,
-          species_blacklist=species_blacklist,
-          batch_size=config.processing_conf.batch_size,
-          wkr_ring_access_lock=resources.worker_resources.ring_access_lock,
-          n_slots=config.processing_conf.n_slots,
-          segment_duration_samples=config.model_conf.segment_size_samples,
-          out_q=resources.worker_resources.results_queue,
-          logging_queue=resources.logging_resources.logging_queue,
-          logging_level=resources.logging_resources.logging_level,
-          prd_all_done_event=resources.producer_resources.prd_all_done_event,
-          rf_file_indices=resources.ring_buffer_resources.rf_file_indices,
-          rf_segment_indices=resources.ring_buffer_resources.rf_segment_indices,
-          rf_audio_samples=resources.ring_buffer_resources.rf_audio_samples,
-          rf_batch_sizes=resources.ring_buffer_resources.rf_batch_sizes,
-          rf_flags=resources.ring_buffer_resources.rf_flags,
-          sem_fill=resources.ring_buffer_resources.sem_filled_slots,
-          sem_free=resources.ring_buffer_resources.sem_free_slots,
-          apply_sigmoid=specific_config.apply_sigmoid,
-          prob_dtype=config.processing_conf.result_dtype,
-          sigmoid_sensitivity=specific_config.sigmoid_sensitivity,
-          wkr_stats_queue=resources.stats_resources.wkr_stats_queue,
-          cancel_event=resources.processing_state.cancel_event,
-          sem_active_workers=resources.stats_resources.sem_active_workers,
-        ),
-        name=f"ScoresWorker-{i}",
-        daemon=True,
+      ScoresWorker(
+        backend_loader=resources.worker_resources.backend_loader,
+        device=resources.worker_resources.devices[i],
+        top_k=top_k,
+        species_thresholds=species_thresholds,
+        species_blacklist=species_blacklist,
+        batch_size=config.processing_conf.batch_size,
+        wkr_ring_access_lock=resources.worker_resources.ring_access_lock,
+        n_slots=config.processing_conf.n_slots,
+        segment_duration_samples=config.model_conf.segment_size_samples,
+        out_q=resources.worker_resources.results_queue,
+        logging_queue=resources.logging_resources.logging_queue,
+        logging_level=resources.logging_resources.logging_level,
+        prd_all_done_event=resources.producer_resources.prd_all_done_event,
+        rf_file_indices=resources.ring_buffer_resources.rf_file_indices,
+        rf_segment_indices=resources.ring_buffer_resources.rf_segment_indices,
+        rf_audio_samples=resources.ring_buffer_resources.rf_audio_samples,
+        rf_batch_sizes=resources.ring_buffer_resources.rf_batch_sizes,
+        rf_flags=resources.ring_buffer_resources.rf_flags,
+        sem_fill=resources.ring_buffer_resources.sem_filled_slots,
+        sem_free=resources.ring_buffer_resources.sem_free_slots,
+        apply_sigmoid=specific_config.apply_sigmoid,
+        prob_dtype=config.processing_conf.result_dtype,
+        sigmoid_sensitivity=specific_config.sigmoid_sensitivity,
+        wkr_stats_queue=resources.stats_resources.wkr_stats_queue,
+        cancel_event=resources.processing_state.cancel_event,
+        sem_active_workers=resources.stats_resources.sem_active_workers,
       )
       for i in range(config.processing_conf.workers)
     ]
