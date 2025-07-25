@@ -19,16 +19,11 @@ from birdnet.acoustic_models.inference.configs import (
   TensorType,
 )
 from birdnet.acoustic_models.inference.perf_tracker import PerformanceTrackingResult
-from birdnet.acoustic_models.inference.states import (
+from birdnet.acoustic_models.inference.resources import (
   FilesAnalyzerResources,
-  LoggingResources,
-  ProcessingResources,
-  ProducerResources,
+  PipelineResources,
   RingBufferResources,
-  StatisticsResources,
-  WorkerResources,
 )
-from birdnet.backends import InferenceBackendLoader
 
 
 class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
@@ -51,12 +46,7 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
     self,
     config: PredictionConfig,
     specific_config: ConfigType,
-    logging_resources: LoggingResources,
-    ring_buffer_resources: RingBufferResources,
-    producer_resources: ProducerResources,
-    processing_state: ProcessingResources,
-    stats_resources: StatisticsResources,
-    worker_resources: WorkerResources,
+    resources: PipelineResources,
   ) -> list[mp.Process]: ...
 
   @abstractmethod
@@ -73,11 +63,9 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
     self,
     config: PredictionConfig,
     specific_config: ConfigType,
+    resources: PipelineResources,
     pred_result: ResultType,
     file_durations: np.ndarray,
-    memory_layout: RingBufferResources,
-    analyzer_resources: FilesAnalyzerResources,
-    stats_resources: StatisticsResources,
   ) -> MinimalBenchmarkMetaBase: ...
 
   @abstractmethod
@@ -85,12 +73,10 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
     self,
     config: PredictionConfig,
     specific_config: ConfigType,
+    resources: PipelineResources,
     pred_result: ResultType,
     file_durations: np.ndarray,
-    memory_layout: RingBufferResources,
     perf_result: PerformanceTrackingResult,
-    analyzer_resources: FilesAnalyzerResources,
-    stats_resources: StatisticsResources,
   ) -> FullBenchmarkMetaBase: ...
 
   @abstractmethod

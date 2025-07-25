@@ -45,6 +45,45 @@ from birdnet.logging_utils import get_package_logging_level
 
 
 @dataclass(frozen=True)
+class PipelineResources:
+  stats_resources: StatisticsResources
+  logging_resources: LoggingResources
+  processing_state: ProcessingResources
+  analyzer_resources: FilesAnalyzerResources
+  producer_resources: ProducerResources
+  worker_resources: WorkerResources
+  ring_buffer_resources: RingBufferResources
+
+
+class ResourceManager:
+  def __init__(self, conf: PredictionConfig, benchmark_dir_name: str):
+    self.conf = conf
+    self.benchmark_dir_name = benchmark_dir_name
+    self.resources: PipelineResources | None = None
+
+  def create_all_resources(self) -> PipelineResources:
+    assert self.resources is None
+    stats_resources = create_statistics_resources(self.conf, self.benchmark_dir_name)
+    logging_resources = create_logging_resources(stats_resources)
+    processing_resources = create_processing_resources()
+    analyzer_resources = create_analyzer_resources(self.conf)
+    producer_resources = create_producer_resources(self.conf, analyzer_resources)
+    worker_resources = create_worker_resources(self.conf)
+    buf_resources = create_ring_buffer_resources(self.conf, analyzer_resources)
+
+    self.resources = PipelineResources(
+      stats_resources=stats_resources,
+      logging_resources=logging_resources,
+      processing_state=processing_resources,
+      analyzer_resources=analyzer_resources,
+      producer_resources=producer_resources,
+      worker_resources=worker_resources,
+      ring_buffer_resources=buf_resources,
+    )
+    return self.resources
+
+
+@dataclass(frozen=True)
 class RingBufferResources:
   rf_file_indices: RingField
   rf_segment_indices: RingField

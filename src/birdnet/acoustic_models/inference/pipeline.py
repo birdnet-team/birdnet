@@ -26,39 +26,17 @@ from birdnet.acoustic_models.inference.perf_tracker import (
   PerformanceTrackingResult,
 )
 from birdnet.acoustic_models.inference.producer import Producer
-from birdnet.acoustic_models.inference.states import (
-  FilesAnalyzerResources,
+from birdnet.acoustic_models.inference.resources import (
   LoggingResources,
-  ProcessingResources,
-  ProducerResources,
-  RingBufferResources,
-  StatisticsResources,
-  WorkerResources,
-  create_analyzer_resources,
-  create_logging_resources,
-  create_processing_resources,
-  create_producer_resources,
-  create_ring_buffer_resources,
-  create_statistics_resources,
-  create_worker_resources,
+  PipelineResources,
+  ResourceManager,
 )
 from birdnet.acoustic_models.inference.strategy import (
   PredictionStrategy,
 )
 from birdnet.acoustic_models.inference.tensor import TensorBase
-from birdnet.backends import (
-  InferenceBackendLoader,
-  PBInferenceBackend,
-  TFInferenceBackend,
-)
-from birdnet.globals import (
-  MODEL_BACKEND_PB,
-  MODEL_BACKEND_TF,
-  WRITABLE_FLAG,
-)
-from birdnet.helper import (
-  create_shm_ring,
-)
+from birdnet.globals import WRITABLE_FLAG
+from birdnet.helper import create_shm_ring
 
 
 def predict_from_recordings_generic(
@@ -69,128 +47,81 @@ def predict_from_recordings_generic(
   validate_common_config(conf)
   strategy.validate_config(conf, specific_config)
 
-  stats_resources = create_statistics_resources(conf, strategy.get_benchmark_dir_name())
-  logging_resources = create_logging_resources(stats_resources)
+  resource_manager = ResourceManager(conf, strategy.get_benchmark_dir_name())
+  resources = resource_manager.create_all_resources()
 
-  processing_resources = create_processing_resources()
-  analyzer_resources = create_analyzer_resources(conf)
-  producer_resources = create_producer_resources(conf, analyzer_resources)
-  worker_resources = create_worker_resources(conf)
-  buf_resources = create_ring_buffer_resources(conf, analyzer_resources)
-
-  logging_thread = _start_logging(logging_resources, processing_resources)
+  logging_thread = _start_logging(resources)
 
   result_tensor = strategy.create_tensor(
-    conf, specific_config, buf_resources, analyzer_resources
+    conf,
+    specific_config,
+    resources.ring_buffer_resources,
+    resources.analyzer_resources,
   )
 
   try:
     with (
-      create_shm_ring(buf_resources.rf_file_indices),
-      create_shm_ring(buf_resources.rf_segment_indices),
-      create_shm_ring(buf_resources.rf_audio_samples),
-      create_shm_ring(buf_resources.rf_batch_sizes),
-      create_shm_ring(buf_resources.rf_flags) as shm_ring_flags,
+      create_shm_ring(resources.ring_buffer_resources.rf_file_indices),
+      create_shm_ring(resources.ring_buffer_resources.rf_segment_indices),
+      create_shm_ring(resources.ring_buffer_resources.rf_audio_samples),
+      create_shm_ring(resources.ring_buffer_resources.rf_batch_sizes),
+      create_shm_ring(resources.ring_buffer_resources.rf_flags) as shm_ring_flags,
     ):
-      flags = buf_resources.rf_flags.get_array(shm_ring_flags)
+      flags = resources.ring_buffer_resources.rf_flags.get_array(shm_ring_flags)
       flags[:] = WRITABLE_FLAG
 
-      file_analyzer_thread = _start_file_analyzer(
-        conf,
-        buf_resources,
-        processing_resources,
-        logging_resources,
-        analyzer_resources,
-      )
+      file_analyzer_thread = _start_file_analyzer(conf, resources)
 
-      producer_processes = _start_producers(
-        conf,
-        buf_resources,
-        logging_resources,
-        producer_resources,
-        processing_resources,
-        stats_resources,
-        analyzer_resources,
-      )
+      producer_processes = _start_producers(conf, resources)
 
-      worker_processes = _start_workers(
-        conf,
-        strategy,
-        specific_config,
-        logging_resources,
-        buf_resources,
-        producer_resources,
-        processing_resources,
-        stats_resources,
-        worker_resources,
-      )
+      worker_processes = _start_workers(conf, strategy, specific_config, resources)
 
       perf_tracker_process = (
-        _start_performance_tracker(
-          conf,
-          processing_resources,
-          logging_resources,
-          buf_resources,
-          stats_resources,
-          analyzer_resources,
-        )
-        if stats_resources.track_performance
+        _start_performance_tracker(conf, resources)
+        if resources.stats_resources.track_performance
         else None
       )
 
-      _run_consumer(conf, result_tensor, processing_resources, worker_resources)
+      _run_consumer(conf, result_tensor, resources)
 
       file_durations, perf_result = _cleanup_processes(
         file_analyzer_thread,
         producer_processes,
         worker_processes,
         perf_tracker_process,
-        processing_resources,
-        stats_resources,
-        analyzer_resources,
+        resources,
       )
 
-    stats_resources.mark_stop()
+    resources.stats_resources.mark_stop()
 
-    if processing_resources.cancel_event.is_set():
+    if resources.processing_state.cancel_event.is_set():
       raise RuntimeError(
-        f"Analysis was cancelled due to an error. Please check the logs: {logging_resources.log_file.absolute()}"
+        f"Analysis was cancelled due to an error. Please check the logs: {resources.logging_resources.log_file.absolute()}"
       )
 
     result = strategy.create_result(
-      result_tensor, conf, analyzer_resources.file_paths, file_durations
+      result_tensor, conf, resources.analyzer_resources.file_paths, file_durations
     )
 
     _handle_statistics(
-      conf,
-      strategy,
-      specific_config,
-      result,
-      file_durations,
-      buf_resources,
-      logging_resources,
-      perf_result,
-      analyzer_resources,
-      stats_resources,
+      conf, strategy, specific_config, result, file_durations, perf_result, resources
     )
 
     return result
 
   finally:
-    _cleanup_logging(logging_resources, logging_thread)
+    _cleanup_logging(resources.logging_resources, logging_thread)
 
 
-def _start_logging(
-  logging_resources: LoggingResources, processing_state: ProcessingResources
-) -> threading.Thread:
+def _start_logging(resources: PipelineResources) -> threading.Thread:
   logging_listener = threading.Thread(
     target=bn_logging.QueueFileWriter(
-      log_queue=logging_resources.logging_queue,
-      logging_level=logging_resources.logging_level,
-      log_file=logging_resources.log_file,
-      cancel_event=processing_state.cancel_event,
-      stop_event=logging_resources.stop_logging_event,
-      processing_finished_event=processing_state.processing_finished_event,
+      log_queue=resources.logging_resources.logging_queue,
+      logging_level=resources.logging_resources.logging_level,
+      log_file=resources.logging_resources.log_file,
+      cancel_event=resources.processing_state.cancel_event,
+      stop_event=resources.logging_resources.stop_logging_event,
+      processing_finished_event=resources.processing_state.processing_finished_event,
     ),
     name="QueueFileWriter",
     daemon=True,
@@ -200,39 +131,34 @@ def _start_logging(
 
 
 def _start_performance_tracker(
-  config: PredictionConfig,
-  processing_state: ProcessingResources,
-  logging_resources: LoggingResources,
-  ring_buffer_resources: RingBufferResources,
-  stats_resources: StatisticsResources,
-  analyzer_resources: FilesAnalyzerResources,
+  config: PredictionConfig, resources: PipelineResources
 ) -> mp.Process:
-  assert stats_resources.track_performance
-  assert stats_resources.sem_active_workers is not None
-  assert stats_resources.perf_res_queue is not None
-  assert stats_resources.wkr_stats_queue is not None
-  assert stats_resources.prd_stats_queue is not None
+  assert resources.stats_resources.track_performance
+  assert resources.stats_resources.sem_active_workers is not None
+  assert resources.stats_resources.perf_res_queue is not None
+  assert resources.stats_resources.wkr_stats_queue is not None
+  assert resources.stats_resources.prd_stats_queue is not None
 
   perf_tracker = mp.Process(
     target=PerformanceTracker(
-      pred_dur_queue=stats_resources.wkr_stats_queue,
-      processing_finished_event=processing_state.processing_finished_event,
+      pred_dur_queue=resources.stats_resources.wkr_stats_queue,
+      processing_finished_event=resources.processing_state.processing_finished_event,
       update_interval=0.5,
       print_interval=1,
-      prod_stats_queue=stats_resources.prd_stats_queue,
+      prod_stats_queue=resources.stats_resources.prd_stats_queue,
       n_workers=config.processing_conf.workers,
-      start=stats_resources.start,
-      sem_filled_slots=ring_buffer_resources.sem_filled_slots,
+      start=resources.stats_resources.start,
+      sem_filled_slots=resources.ring_buffer_resources.sem_filled_slots,
       workers_start=time.perf_counter(),
       segment_size_s=config.model_conf.segment_size_s,
-      logging_queue=logging_resources.logging_queue,
-      logging_level=logging_resources.logging_level,
-      perf_res=stats_resources.perf_res_queue,
+      logging_queue=resources.logging_resources.logging_queue,
+      logging_level=resources.logging_resources.logging_level,
+      perf_res=resources.stats_resources.perf_res_queue,
       parent_process_id=os.getpid(),
-      rf_flags=ring_buffer_resources.rf_flags,
-      tot_n_segments_ptr=analyzer_resources.tot_n_segments_ptr,
-      cancel_event=processing_state.cancel_event,
-      sem_active_workers=stats_resources.sem_active_workers,
+      rf_flags=resources.ring_buffer_resources.rf_flags,
+      tot_n_segments_ptr=resources.analyzer_resources.tot_n_segments_ptr,
+      cancel_event=resources.processing_state.cancel_event,
+      sem_active_workers=resources.stats_resources.sem_active_workers,
     ),
     name="PerformanceTracker",
     daemon=True,
@@ -244,23 +170,20 @@ def _start_performance_tracker(
 
 def _start_file_analyzer(
   config: PredictionConfig,
-  memory_layout: RingBufferResources,
-  processing_state: ProcessingResources,
-  logging_resources: LoggingResources,
-  analyzer_resources: FilesAnalyzerResources,
+  resources: PipelineResources,
 ) -> threading.Thread:
   file_analyzer_proc = threading.Thread(
     target=FilesAnalyzer(
-      files=analyzer_resources.file_paths,
-      logging_level=logging_resources.logging_level,
-      logging_queue=logging_resources.logging_queue,
+      files=resources.analyzer_resources.file_paths,
+      logging_level=resources.logging_resources.logging_level,
+      logging_queue=resources.logging_resources.logging_queue,
       segment_duration_s=config.model_conf.segment_size_s,
       overlap_duration_s=config.processing_conf.overlap_duration_s,
-      max_segment_idx_ptr=analyzer_resources.max_segment_idx_ptr,
-      rf_segment_indices=memory_layout.rf_segment_indices,
-      analyzing_result=analyzer_resources.analyzer_queue,
-      tot_n_segments=analyzer_resources.tot_n_segments_ptr,
-      cancel_event=processing_state.cancel_event,
+      max_segment_idx_ptr=resources.analyzer_resources.max_segment_idx_ptr,
+      rf_segment_indices=resources.ring_buffer_resources.rf_segment_indices,
+      analyzing_result=resources.analyzer_resources.analyzer_queue,
+      tot_n_segments=resources.analyzer_resources.tot_n_segments_ptr,
+      cancel_event=resources.processing_state.cancel_event,
     ),
     name="FileAnalyzer",
     daemon=True,
@@ -271,31 +194,26 @@ def _start_file_analyzer(
 
 def _start_producers(
   config: PredictionConfig,
-  ring_buffer_resources: RingBufferResources,
-  logging_resources: LoggingResources,
-  producer_resources: ProducerResources,
-  processing_state: ProcessingResources,
-  stats_resources: StatisticsResources,
-  analyzer_resources: FilesAnalyzerResources,
+  resources: PipelineResources,
 ) -> list[mp.Process]:
   producer_processes = [
     mp.Process(
       target=Producer(
-        files_queue=producer_resources.files_queue,
+        files_queue=resources.producer_resources.files_queue,
         batch_size=config.processing_conf.batch_size,
-        prd_all_done_event=producer_resources.prd_all_done_event,
+        prd_all_done_event=resources.producer_resources.prd_all_done_event,
         n_slots=config.processing_conf.n_slots,
-        prd_ring_access_lock=producer_resources.ring_access_lock,
-        prod_stats_queue=stats_resources.prd_stats_queue,
-        rf_file_indices=ring_buffer_resources.rf_file_indices,
-        rf_segment_indices=ring_buffer_resources.rf_segment_indices,
-        rf_audio_samples=ring_buffer_resources.rf_audio_samples,
-        rf_batch_sizes=ring_buffer_resources.rf_batch_sizes,
-        rf_flags=ring_buffer_resources.rf_flags,
-        logging_queue=logging_resources.logging_queue,
-        logging_level=logging_resources.logging_level,
-        sem_free_slots=ring_buffer_resources.sem_free_slots,
-        sem_filled_slots=ring_buffer_resources.sem_filled_slots,
+        prd_ring_access_lock=resources.producer_resources.ring_access_lock,
+        prod_stats_queue=resources.stats_resources.prd_stats_queue,
+        rf_file_indices=resources.ring_buffer_resources.rf_file_indices,
+        rf_segment_indices=resources.ring_buffer_resources.rf_segment_indices,
+        rf_audio_samples=resources.ring_buffer_resources.rf_audio_samples,
+        rf_batch_sizes=resources.ring_buffer_resources.rf_batch_sizes,
+        rf_flags=resources.ring_buffer_resources.rf_flags,
+        logging_queue=resources.logging_resources.logging_queue,
+        logging_level=resources.logging_resources.logging_level,
+        sem_free_slots=resources.ring_buffer_resources.sem_free_slots,
+        sem_filled_slots=resources.ring_buffer_resources.sem_filled_slots,
         segment_duration_s=config.model_conf.segment_size_s,
         overlap_duration_s=config.processing_conf.overlap_duration_s,
         target_sample_rate=config.model_conf.sample_rate,
@@ -304,15 +222,15 @@ def _start_producers(
         bandpass_fmin=config.filtering_conf.bandpass_fmin,
         fmin=config.model_conf.sig_fmin,
         fmax=config.model_conf.sig_fmax,
-        max_segment_idx_ptr=analyzer_resources.max_segment_idx_ptr,
-        prod_done_ptr=producer_resources.n_finished_pointer,
-        n_feeders=producer_resources.n_producers,
-        cancel_event=processing_state.cancel_event,
+        max_segment_idx_ptr=resources.analyzer_resources.max_segment_idx_ptr,
+        prod_done_ptr=resources.producer_resources.n_finished_pointer,
+        n_feeders=resources.producer_resources.n_producers,
+        cancel_event=resources.processing_state.cancel_event,
       ),
       name=f"ChildProducer-{i}",
       daemon=True,
     )
-    for i in range(producer_resources.n_producers)
+    for i in range(resources.producer_resources.n_producers)
   ]
 
   for p in producer_processes:
@@ -325,27 +243,17 @@ def _start_workers(
   config: PredictionConfig,
   strategy: PredictionStrategy[ResultType, ConfigType, TensorType],
   specific_config: ConfigType,
-  logging_resources: LoggingResources,
-  ring_buffer_resources: RingBufferResources,
-  producer_resources: ProducerResources,
-  processing_state: ProcessingResources,
-  stats_resources: StatisticsResources,
-  worker_resources: WorkerResources,
+  resources: PipelineResources,
 ) -> list[mp.Process]:
   try:
-    worker_resources.backend_loader.on_before_worker_initialized()
+    resources.worker_resources.backend_loader.on_before_worker_initialized()
   except Exception as exc:
     raise RuntimeError(f"Error during backend initialization: {exc}")
 
   worker_processes = strategy.create_workers(
     config,
     specific_config,
-    logging_resources,
-    ring_buffer_resources,
-    producer_resources,
-    processing_state,
-    stats_resources,
-    worker_resources,
+    resources,
   )
   for w in worker_processes:
     w.start()
@@ -353,16 +261,13 @@ def _start_workers(
 
 
 def _run_consumer(
-  config: PredictionConfig,
-  result_tensor: TensorBase,
-  processing_state: ProcessingResources,
-  worker_resources: WorkerResources,
+  config: PredictionConfig, result_tensor: TensorBase, resources: PipelineResources
 ) -> None:
   consumer = Consumer(
     n_workers=config.processing_conf.workers,
-    worker_queue=worker_resources.results_queue,
+    worker_queue=resources.worker_resources.results_queue,
     tensor=result_tensor,
-    cancel_event=processing_state.cancel_event,
+    cancel_event=resources.processing_state.cancel_event,
   )
   consumer()
 
@@ -372,18 +277,17 @@ def _cleanup_processes(
   producer_processes: list[mp.Process],
   worker_processes: list[mp.Process],
   perf_tracking_process: mp.Process | None,
-  processing_state: ProcessingResources,
-  stats_resources: StatisticsResources,
-  analyzer_resources: FilesAnalyzerResources,
+  resources: PipelineResources,
 ) -> tuple[np.ndarray, PerformanceTrackingResult | None]:
   logger = bn_logging.get_logger(__name__)
 
-  processing_state.processing_finished_event.set()
+  resources.processing_state.processing_finished_event.set()
 
   file_durations = np.array(
-    cast(list[float], analyzer_resources.analyzer_queue.get()), dtype=np.float16
+    cast(list[float], resources.analyzer_resources.analyzer_queue.get()),
+    dtype=np.float16,
   )
-  analyzer_resources.analyzer_queue.close()
+  resources.analyzer_resources.analyzer_queue.close()
   file_analyzer_proc.join()
   logger.debug("File analyzer finished.")
 
@@ -398,10 +302,12 @@ def _cleanup_processes(
   logger.debug("All workers finished.")
 
   perf_result = None
-  if stats_resources.track_performance:
-    assert stats_resources.perf_res_queue is not None
+  if resources.stats_resources.track_performance:
+    assert resources.stats_resources.perf_res_queue is not None
     assert perf_tracking_process is not None
-    perf_result = cast(PerformanceTrackingResult, stats_resources.perf_res_queue.get())
+    perf_result = cast(
+      PerformanceTrackingResult, resources.stats_resources.perf_res_queue.get()
+    )
     perf_tracking_process.join()
     logger.debug("Performance tracker finished.")
 
@@ -414,57 +320,41 @@ def _handle_statistics(
   specific_config: ConfigType,
   result: ResultType,
   file_durations: np.ndarray,
-  memory_layout: RingBufferResources,
-  logging_resources: LoggingResources,
   perf_result: PerformanceTrackingResult | None,
-  analyzer_resources: FilesAnalyzerResources,
-  stats_resources: StatisticsResources,
+  resources: PipelineResources,
 ) -> None:
   if config.output_conf.show_stats in ("minimal", "progress"):
     _show_minimal_statistics(
       config,
       strategy,
+      resources,
       specific_config,
       result,
       file_durations,
-      memory_layout,
-      analyzer_resources,
-      stats_resources,
     )
   elif config.output_conf.show_stats == "benchmark":
     assert perf_result is not None
     _create_benchmark_statistics(
       config,
       strategy,
+      resources,
       specific_config,
       result,
       file_durations,
-      memory_layout,
-      logging_resources,
       perf_result,
-      analyzer_resources,
-      stats_resources,
     )
 
 
 def _show_minimal_statistics(
   config: PredictionConfig,
   strategy: PredictionStrategy[ResultType, ConfigType, TensorType],
+  resources: PipelineResources,
   specific_config: ConfigType,
   result: ResultType,
   file_durations: np.ndarray,
-  memory_layout: RingBufferResources,
-  analyzer_resources: FilesAnalyzerResources,
-  stats_resources: StatisticsResources,
 ) -> None:
   bmm = strategy.create_minimal_benchmark_meta(
-    config,
-    specific_config,
-    result,
-    file_durations,
-    memory_layout,
-    analyzer_resources,
-    stats_resources,
+    config, specific_config, resources, result, file_durations
   )
 
   summary = (
@@ -492,29 +382,19 @@ def _show_minimal_statistics(
 def _create_benchmark_statistics(
   config: PredictionConfig,
   strategy: PredictionStrategy[ResultType, ConfigType, TensorType],
+  resources: PipelineResources,
   specific_config: ConfigType,
   result: ResultType,
   file_durations: np.ndarray,
-  memory_layout: RingBufferResources,
-  logging_resources: LoggingResources,
   perf_result: PerformanceTrackingResult,
-  analyzer_resources: FilesAnalyzerResources,
-  stats_resources: StatisticsResources,
 ) -> None:
   bmm = strategy.create_full_benchmark_meta(
-    config,
-    specific_config,
-    result,
-    file_durations,
-    memory_layout,
-    perf_result,
-    analyzer_resources,
-    stats_resources,
+    config, specific_config, resources, result, file_durations, perf_result
   )
 
-  benchmark_dir = stats_resources.benchmark_dir
-  benchmark_run_out_dir = stats_resources.benchmark_run_dir
-  iso_time = stats_resources.start_iso_time
+  benchmark_dir = resources.stats_resources.benchmark_dir
+  benchmark_run_out_dir = resources.stats_resources.benchmark_run_dir
+  iso_time = resources.stats_resources.start_iso_time
 
   assert benchmark_dir is not None
   assert benchmark_run_out_dir is not None
@@ -585,7 +465,9 @@ def _create_benchmark_statistics(
   )
   for saved_file in saved_files:
     summary += f"  {saved_file.absolute()}\n"
-  summary += f"Log file written to:\n  {logging_resources.log_file.absolute()}\n"
+  summary += (
+    f"Log file written to:\n  {resources.logging_resources.log_file.absolute()}\n"
+  )
 
   print(summary)
 

@@ -18,6 +18,11 @@ from birdnet.acoustic_models.inference.perf_tracker import (
 from birdnet.acoustic_models.inference.pipeline import (
   predict_from_recordings_generic,
 )
+from birdnet.acoustic_models.inference.resources import (
+  FilesAnalyzerResources,
+  PipelineResources,
+  RingBufferResources,
+)
 from birdnet.acoustic_models.inference.scores.benchmarking import (
   FullBenchmarkMeta,
   MinimalBenchmarkMeta,
@@ -27,21 +32,9 @@ from birdnet.acoustic_models.inference.scores.prediction_result import (
 )
 from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
 from birdnet.acoustic_models.inference.scores.worker import ScoresWorker
-from birdnet.acoustic_models.inference.states import (
-  FilesAnalyzerResources,
-  LoggingResources,
-  ProcessingResources,
-  ProducerResources,
-  RingBufferResources,
-  StatisticsResources,
-  WorkerResources,
-)
 from birdnet.acoustic_models.inference.strategy import (
   PredictionStrategy,
   get_file_formats,
-)
-from birdnet.backends import (
-  InferenceBackendLoader,
 )
 from birdnet.globals import (
   MODEL_TYPE_ACOUSTIC,
@@ -105,12 +98,7 @@ class ScoresStrategy(
     self,
     config: PredictionConfig,
     specific_config: ScoresConfig,
-    logging_resources: LoggingResources,
-    ring_buffer_resources: RingBufferResources,
-    producer_resources: ProducerResources,
-    processing_state: ProcessingResources,
-    stats_resources: StatisticsResources,
-    worker_resources: WorkerResources,
+    resources: PipelineResources,
   ) -> list[mp.Process]:
     species_blacklist = create_species_blacklist(config, specific_config)
     species_thresholds = create_thresholds(config, specific_config)
@@ -119,32 +107,32 @@ class ScoresStrategy(
     return [
       mp.Process(
         target=ScoresWorker(
-          backend_loader=worker_resources.backend_loader,
-          device=worker_resources.devices[i],
+          backend_loader=resources.worker_resources.backend_loader,
+          device=resources.worker_resources.devices[i],
           top_k=top_k,
           species_thresholds=species_thresholds,
           species_blacklist=species_blacklist,
           batch_size=config.processing_conf.batch_size,
-          wkr_ring_access_lock=worker_resources.ring_access_lock,
+          wkr_ring_access_lock=resources.worker_resources.ring_access_lock,
           n_slots=config.processing_conf.n_slots,
           segment_duration_samples=config.model_conf.segment_size_samples,
-          out_q=worker_resources.results_queue,
-          logging_queue=logging_resources.logging_queue,
-          logging_level=logging_resources.logging_level,
-          prd_all_done_event=producer_resources.prd_all_done_event,
-          rf_file_indices=ring_buffer_resources.rf_file_indices,
-          rf_segment_indices=ring_buffer_resources.rf_segment_indices,
-          rf_audio_samples=ring_buffer_resources.rf_audio_samples,
-          rf_batch_sizes=ring_buffer_resources.rf_batch_sizes,
-          rf_flags=ring_buffer_resources.rf_flags,
-          sem_fill=ring_buffer_resources.sem_filled_slots,
-          sem_free=ring_buffer_resources.sem_free_slots,
+          out_q=resources.worker_resources.results_queue,
+          logging_queue=resources.logging_resources.logging_queue,
+          logging_level=resources.logging_resources.logging_level,
+          prd_all_done_event=resources.producer_resources.prd_all_done_event,
+          rf_file_indices=resources.ring_buffer_resources.rf_file_indices,
+          rf_segment_indices=resources.ring_buffer_resources.rf_segment_indices,
+          rf_audio_samples=resources.ring_buffer_resources.rf_audio_samples,
+          rf_batch_sizes=resources.ring_buffer_resources.rf_batch_sizes,
+          rf_flags=resources.ring_buffer_resources.rf_flags,
+          sem_fill=resources.ring_buffer_resources.sem_filled_slots,
+          sem_free=resources.ring_buffer_resources.sem_free_slots,
           apply_sigmoid=specific_config.apply_sigmoid,
           prob_dtype=config.processing_conf.result_dtype,
           sigmoid_sensitivity=specific_config.sigmoid_sensitivity,
-          wkr_stats_queue=stats_resources.wkr_stats_queue,
-          cancel_event=processing_state.cancel_event,
-          sem_active_workers=stats_resources.sem_active_workers,
+          wkr_stats_queue=resources.stats_resources.wkr_stats_queue,
+          cancel_event=resources.processing_state.cancel_event,
+          sem_active_workers=resources.stats_resources.sem_active_workers,
         ),
         name=f"ScoresWorker-{i}",
         daemon=True,
@@ -172,28 +160,29 @@ class ScoresStrategy(
     self,
     config: PredictionConfig,
     specific_config: ScoresConfig,
+    resources: PipelineResources,
     pred_result: ScoresPredictionResult,
     file_durations: np.ndarray,
-    memory_layout: RingBufferResources,
-    analyzer_resources: FilesAnalyzerResources,
-    stats_resources: StatisticsResources,
   ) -> MinimalBenchmarkMeta:
-    assert stats_resources.end_timepoint is not None
-    assert stats_resources.stop is not None
-    wall_time_s = stats_resources.stop - stats_resources.start
+    assert resources.stats_resources.end_timepoint is not None
+    assert resources.stats_resources.stop is not None
+    wall_time_s = resources.stats_resources.stop - resources.stats_resources.start
     return MinimalBenchmarkMeta(
-      _start_timepoint=stats_resources.start_timepoint,
-      _end_timepoint=stats_resources.end_timepoint,
+      _start_timepoint=resources.stats_resources.start_timepoint,
+      _end_timepoint=resources.stats_resources.end_timepoint,
       _time_wall_time_s=wall_time_s,
       _file_durations=file_durations,
       mem_result_total_memory_usage_MiB=pred_result.memory_size_mb,
-      mem_shm_size_file_indices_MiB=memory_layout.rf_file_indices.nbytes / 1024**2,
-      mem_shm_size_segment_indices_MiB=memory_layout.rf_segment_indices.nbytes
+      mem_shm_size_file_indices_MiB=resources.ring_buffer_resources.rf_file_indices.nbytes
       / 1024**2,
-      mem_shm_size_audio_samples_MiB=memory_layout.rf_audio_samples.nbytes / 1024**2,
-      mem_shm_size_batch_sizes_MiB=memory_layout.rf_batch_sizes.nbytes / 1024**2,
-      mem_shm_size_flags_MiB=memory_layout.rf_flags.nbytes / 1024**2,
-      file_segments_total=analyzer_resources.tot_n_segments_ptr.value,
+      mem_shm_size_segment_indices_MiB=resources.ring_buffer_resources.rf_segment_indices.nbytes
+      / 1024**2,
+      mem_shm_size_audio_samples_MiB=resources.ring_buffer_resources.rf_audio_samples.nbytes
+      / 1024**2,
+      mem_shm_size_batch_sizes_MiB=resources.ring_buffer_resources.rf_batch_sizes.nbytes
+      / 1024**2,
+      mem_shm_size_flags_MiB=resources.ring_buffer_resources.rf_flags.nbytes / 1024**2,
+      file_segments_total=resources.analyzer_resources.tot_n_segments_ptr.value,
       model_segment_duration_seconds=config.model_conf.segment_size_s,
       file_formats=get_file_formats(OrderedSet(Path(x) for x in pred_result.files)),
     )
@@ -202,16 +191,14 @@ class ScoresStrategy(
     self,
     config: PredictionConfig,
     specific_config: ScoresConfig,
+    resources: PipelineResources,
     pred_result: ScoresPredictionResult,
     file_durations: np.ndarray,
-    memory_layout: RingBufferResources,
     perf_result: PerformanceTrackingResult,
-    analyzer_resources: FilesAnalyzerResources,
-    stats_resources: StatisticsResources,
   ) -> FullBenchmarkMeta:
-    assert stats_resources.end_timepoint is not None
-    assert stats_resources.stop is not None
-    wall_time_s = stats_resources.stop - stats_resources.start
+    assert resources.stats_resources.end_timepoint is not None
+    assert resources.stats_resources.stop is not None
+    wall_time_s = resources.stats_resources.stop - resources.stats_resources.start
 
     device_str = (
       ", ".join(config.processing_conf.device)
@@ -220,8 +207,8 @@ class ScoresStrategy(
     )
 
     return FullBenchmarkMeta(
-      _start_timepoint=stats_resources.start_timepoint,
-      _end_timepoint=stats_resources.end_timepoint,
+      _start_timepoint=resources.stats_resources.start_timepoint,
+      _end_timepoint=resources.stats_resources.end_timepoint,
       param_producers=config.processing_conf.feeders,
       param_workers=config.processing_conf.workers,
       _worker_avg_wall_time_s=perf_result.worker_avg_wall_time_s,
@@ -233,8 +220,8 @@ class ScoresStrategy(
       model_species=len(config.model_conf.species_list),
       model_precision=config.model_conf.precision,
       _file_durations=file_durations,
-      file_segments_maximum=analyzer_resources.max_segment_idx_ptr.value + 1,
-      file_segments_total=analyzer_resources.tot_n_segments_ptr.value,
+      file_segments_maximum=resources.analyzer_resources.max_segment_idx_ptr.value + 1,
+      file_segments_total=resources.analyzer_resources.tot_n_segments_ptr.value,
       model_segment_duration_seconds=config.model_conf.segment_size_s,
       param_overlap_seconds=config.processing_conf.overlap_duration_s,
       param_batch_size=config.processing_conf.batch_size,
@@ -259,16 +246,19 @@ class ScoresStrategy(
       )
       if specific_config.custom_confidence_thresholds
       else 0,
-      _time_rampup_first_line_s=stats_resources.start_time
+      _time_rampup_first_line_s=resources.stats_resources.start_time
       - psutil.Process(os.getpid()).create_time(),  # TODO: Berechnen
       _time_wall_time_s=wall_time_s,
       mem_result_total_memory_usage_MiB=pred_result.memory_size_mb,
-      mem_shm_size_file_indices_MiB=memory_layout.rf_file_indices.nbytes / 1024**2,
-      mem_shm_size_segment_indices_MiB=memory_layout.rf_segment_indices.nbytes
+      mem_shm_size_file_indices_MiB=resources.ring_buffer_resources.rf_file_indices.nbytes
       / 1024**2,
-      mem_shm_size_audio_samples_MiB=memory_layout.rf_audio_samples.nbytes / 1024**2,
-      mem_shm_size_batch_sizes_MiB=memory_layout.rf_batch_sizes.nbytes / 1024**2,
-      mem_shm_size_flags_MiB=memory_layout.rf_flags.nbytes / 1024**2,
+      mem_shm_size_segment_indices_MiB=resources.ring_buffer_resources.rf_segment_indices.nbytes
+      / 1024**2,
+      mem_shm_size_audio_samples_MiB=resources.ring_buffer_resources.rf_audio_samples.nbytes
+      / 1024**2,
+      mem_shm_size_batch_sizes_MiB=resources.ring_buffer_resources.rf_batch_sizes.nbytes
+      / 1024**2,
+      mem_shm_size_flags_MiB=resources.ring_buffer_resources.rf_flags.nbytes / 1024**2,
       mem_memory_usage_maximum_MiB=perf_result.max_memory_usages_MiB,
       mem_memory_usage_average_MiB=perf_result.avg_memory_usages_MiB,
       cpu_usage_maximum_pct=perf_result.max_cpu_usages_pct,
@@ -323,6 +313,7 @@ def create_thresholds(
     for species_name, threshold in scores_config.custom_confidence_thresholds.items():
       species_id = config.model_conf.species_list.index(species_name)
       thresholds[species_id] = threshold
+  thresholds = thresholds[np.newaxis, :]
   thresholds.setflags(write=False)
   return thresholds
 
