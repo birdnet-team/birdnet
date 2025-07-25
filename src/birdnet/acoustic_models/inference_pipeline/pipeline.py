@@ -1,13 +1,10 @@
 from __future__ import annotations
 
 import json
-import multiprocessing as mp
 import shutil
-import threading
 from contextlib import contextmanager
 from dataclasses import asdict
 
-import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.inference_pipeline.configs import (
   ConfigType,
   PredictionConfig,
@@ -17,7 +14,6 @@ from birdnet.acoustic_models.inference_pipeline.configs import (
 )
 from birdnet.acoustic_models.inference_pipeline.processes import ProcessManager
 from birdnet.acoustic_models.inference_pipeline.resources import (
-  LoggingResources,
   PipelineResources,
   ResourceManager,
 )
@@ -42,9 +38,9 @@ def predict_from_recordings_generic(
   process_manager = ProcessManager(conf, strategy, specific_config, resources)
   process_manager.start_logging()
 
-  result_tensor = strategy.create_tensor(conf, specific_config, resources)
-
   try:
+    result_tensor = strategy.create_tensor(conf, specific_config, resources)
+
     with shared_memory_context(resources):
       process_manager.start_main_processes()
       process_manager.run_consumer(result_tensor)
@@ -67,7 +63,10 @@ def predict_from_recordings_generic(
 
   finally:
     process_manager.stop_logging()
-    _cleanup_logging(resources.logging_resources)
+
+    shutil.copyfile(
+      resources.logging_resources.log_file, resources.logging_resources.global_log_file
+    )
 
 
 @contextmanager
@@ -231,13 +230,3 @@ def _create_benchmark_statistics(
   )
 
   print(summary)
-
-
-def _cleanup_logging(
-  logging_resources: LoggingResources,
-) -> None:
-  logging_resources.logging_queue.close()
-  logging_resources.logging_queue.join_thread()
-  bn_logging.remove_queue_handler(logging_resources.queue_handler)
-
-  shutil.copyfile(logging_resources.log_file, logging_resources.global_log_file)

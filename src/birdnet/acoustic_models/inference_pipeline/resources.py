@@ -17,10 +17,10 @@ import numpy as np
 from ordered_set import OrderedSet
 
 import birdnet.logging_utils as bn_logging
+from birdnet.acoustic_models.inference.perf_tracker import PerformanceTrackingResult
 from birdnet.acoustic_models.inference_pipeline.configs import (
   PredictionConfig,
 )
-from birdnet.acoustic_models.inference.perf_tracker import PerformanceTrackingResult
 from birdnet.backends import (
   InferenceBackendLoader,
   PBInferenceBackend,

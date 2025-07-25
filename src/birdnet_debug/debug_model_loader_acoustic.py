@@ -191,14 +191,14 @@ if __name__ == "__main__":
     "n_producers": 12,
     "batch_size": 1,
     "prefetch_ratio": 2,
-    "backend": "tf",
+    "backend": "pb",
     "precision": "fp32",
     "device": "CPU",
     "top_k": 5,
-    "start_method": "spawn",  # "fork", "spawn" or "forkserver" for Linux, macOS
+    "start_method": "fork",  # "fork", "spawn" or "forkserver" for Linux, macOS
     "load_custom": False,
     "inference_library": "tf",
-    "show_stats": "minimal",
+    "show_stats": "benchmark",  # "no", "minimal", "progress", "benchmark"
   }
 
   set_start_method(params["start_method"], force=True)  # Linux, macOS
