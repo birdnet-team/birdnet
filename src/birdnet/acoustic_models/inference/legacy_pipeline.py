@@ -35,7 +35,7 @@ from birdnet.acoustic_models.inference.perf_tracker import (
   PerformanceTracker,
   PerformanceTrackingResult,
 )
-from birdnet.acoustic_models.inference.producer import ChildProducer
+from birdnet.acoustic_models.inference.producer import Producer
 from birdnet.acoustic_models.inference.scores.benchmarking import (
   FullBenchmarkMeta,
   MinimalBenchmarkMeta,
@@ -384,7 +384,7 @@ def predict_embeddings_from_recordings(
 
     producer_processes = [
       mp.Process(
-        target=ChildProducer(
+        target=Producer(
           files_queue=files_queue,
           batch_size=batch_size,
           prd_all_done_event=prd_all_done_event,
@@ -1147,7 +1147,7 @@ def predict_species_from_recordings(
 
     producer_processes = [
       mp.Process(
-        target=ChildProducer(
+        target=Producer(
           files_queue=files_queue,
           batch_size=batch_size,
           prd_all_done_event=prd_all_done_event,

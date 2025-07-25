@@ -28,7 +28,7 @@ from birdnet.acoustic_models.inference.files_analyzer import FilesAnalyzer
 from birdnet.acoustic_models.inference.perf_tracker import (
   PerformanceTrackingResult,
 )
-from birdnet.acoustic_models.inference.producer import ChildProducer
+from birdnet.acoustic_models.inference.producer import Producer
 from birdnet.acoustic_models.inference.states import (
   LoggingResources,
   MemoryLayout,
@@ -234,7 +234,7 @@ def _start_producers(
   """Startet Producer-Prozesse"""
   producer_processes = [
     mp.Process(
-      target=ChildProducer(
+      target=Producer(
         files_queue=shared_resources.files_queue,
         batch_size=config.processing_conf.batch_size,
         prd_all_done_event=shared_resources.prd_all_done_event,

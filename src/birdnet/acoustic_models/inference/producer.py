@@ -105,7 +105,7 @@ def resample_array(
 import multiprocessing.synchronize
 
 
-class ChildProducer(bn_logging.LogableProcessBase):
+class Producer(bn_logging.LogableProcessBase):
   def __init__(
     self,
     files_queue: Queue,
