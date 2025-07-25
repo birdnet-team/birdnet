@@ -25,7 +25,9 @@ from birdnet.acoustic_models.inference.emb.prediction_result import (
 from birdnet.acoustic_models.inference.emb.strategy import (
   predict_embeddings_from_recordings,
 )
-from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
+from birdnet.acoustic_models.inference.scores.prediction_result import (
+  ScoresPredictionResult,
+)
 from birdnet.acoustic_models.inference.scores.strategy import (
   predict_species_from_recordings,
 )
@@ -171,7 +173,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
   ) -> None:
     super().__init__(model_path, species_list, precision, use_custom_model)
     self._library = library
-    
+
   @final
   @classmethod
   def get_backend(cls) -> MODEL_BACKENDS:
@@ -315,7 +317,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     half_precision: bool = True,
     max_audio_duration_min: float | None = None,
     show_stats: Literal["no", "minimal", "progress", "benchmark"] = "no",
-  ) -> PredictionResult:
+  ) -> ScoresPredictionResult:
     return predict_species_from_recordings(
       conf=PredictionConfig(
         input_files=inp,

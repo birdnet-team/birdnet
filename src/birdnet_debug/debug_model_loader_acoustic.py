@@ -7,7 +7,9 @@ from typing import cast
 
 import numpy as np
 
-from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
+from birdnet.acoustic_models.inference.scores.prediction_result import (
+  ScoresPredictionResult,
+)
 from birdnet.globals import MODEL_PRECISIONS
 from birdnet.logging_utils import get_package_logger
 from birdnet.model_loader import (
@@ -186,10 +188,10 @@ if __name__ == "__main__":
   ]
   params = {
     "n_workers": 12,
-    "n_producers": 1,
+    "n_producers": 2,
     "batch_size": 1,
     "prefetch_ratio": 2,
-    "backend": "pb",
+    "backend": "tf",
     "precision": "fp32",
     "device": "CPU",
     "top_k": 5,
@@ -296,7 +298,7 @@ if __name__ == "__main__":
   print(f"Saved to {output_file} in {time.perf_counter() - now:.2f} seconds.")
 
   if True:
-    result_loaded = PredictionResult.load(output_file)
+    result_loaded = ScoresPredictionResult.load(output_file)
     df = result.to_dataframe()
     # for file in audio_paths:
     #   file_df = result.get_file_results(file).to_dataframe()

@@ -1,14 +1,14 @@
 from pathlib import Path
 
 from birdnet.acoustic_models.inference.scores.prediction_result import (
-  PredictionResult,
+  ScoresPredictionResult,
 )
 
 if __name__ == "__main__":
   path = Path(
     "/home/stefan/.local/share/birdnet/acoustic-benchmarks/v2.4/lib-v0.2.0a0/run-20250711T155208/result-20250711T155208.npz"
   )
-  res = PredictionResult.load(path)  # Example usage
+  res = ScoresPredictionResult.load(path)  # Example usage
 
   out = path.with_suffix(".csv")
   df = res.to_csv(

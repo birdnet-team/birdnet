@@ -13,7 +13,6 @@ class EmbeddingsTensor(TensorBase):
   def __init__(
     self,
     n_files: int,
-    n_segments: int,
     emb_dim: int,
     emb_dtype: DTypeLike,
     files_dtype: DTypeLike,
@@ -26,7 +25,8 @@ class EmbeddingsTensor(TensorBase):
     self._segment_indices_dtype = segment_indices_dtype
     self._max_segment_index = max_segment_index
 
-    self._emb = np.empty((n_files, n_segments, emb_dim), dtype=emb_dtype)
+    initial_n_segments = max_segment_index.value + 1
+    self._emb = np.empty((n_files, initial_n_segments, emb_dim), dtype=emb_dtype)
     self._emb_masked = np.full(self._emb.shape, True, dtype=bool)
 
     self._logger.debug(f"Resulting array allocated: {self.memory_usage_mb:.2f} MB")

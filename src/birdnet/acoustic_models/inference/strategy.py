@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import multiprocessing as mp
 from abc import ABC, abstractmethod
-from datetime import datetime
 from pathlib import Path
 from typing import Generic
 
@@ -13,17 +12,21 @@ from birdnet.acoustic_models.inference.benchmarking import (
   FullBenchmarkMetaBase,
   MinimalBenchmarkMetaBase,
 )
-from birdnet.acoustic_models.inference.perf_tracker import PerformanceTrackingResult
 from birdnet.acoustic_models.inference.configs import (
   ConfigType,
   PredictionConfig,
   ResultType,
   TensorType,
 )
+from birdnet.acoustic_models.inference.perf_tracker import PerformanceTrackingResult
 from birdnet.acoustic_models.inference.states import (
-  MemoryLayout,
-  ProcessingState,
-  SharedResources,
+  FilesAnalyzerResources,
+  LoggingResources,
+  ProcessingResources,
+  ProducerResources,
+  RingBufferResources,
+  StatisticsResources,
+  WorkerResources,
 )
 from birdnet.backends import InferenceBackendLoader
 
@@ -39,7 +42,8 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
     self,
     config: PredictionConfig,
     specific_config: ConfigType,
-    memory_layout: MemoryLayout,
+    memory_layout: RingBufferResources,
+    analyzer_resources: FilesAnalyzerResources,
   ) -> TensorType: ...
 
   @abstractmethod
@@ -47,9 +51,12 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
     self,
     config: PredictionConfig,
     specific_config: ConfigType,
-    devices: list[str],
-    backend_loader: InferenceBackendLoader,
-    shared_resources: SharedResources,
+    logging_resources: LoggingResources,
+    ring_buffer_resources: RingBufferResources,
+    producer_resources: ProducerResources,
+    processing_state: ProcessingResources,
+    stats_resources: StatisticsResources,
+    worker_resources: WorkerResources,
   ) -> list[mp.Process]: ...
 
   @abstractmethod
@@ -67,12 +74,10 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
     config: PredictionConfig,
     specific_config: ConfigType,
     pred_result: ResultType,
-    processing_state: ProcessingState,
-    start_timepoint: datetime,
-    end_timepoint: datetime,
-    wall_time_s: float,
     file_durations: np.ndarray,
-    memory_layout: MemoryLayout,
+    memory_layout: RingBufferResources,
+    analyzer_resources: FilesAnalyzerResources,
+    stats_resources: StatisticsResources,
   ) -> MinimalBenchmarkMetaBase: ...
 
   @abstractmethod
@@ -81,23 +86,21 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
     config: PredictionConfig,
     specific_config: ConfigType,
     pred_result: ResultType,
-    processing_state: ProcessingState,
-    start_time: float,
-    start_timepoint: datetime,
-    end_timepoint: datetime,
-    wall_time_s: float,
     file_durations: np.ndarray,
-    memory_layout: MemoryLayout,
+    memory_layout: RingBufferResources,
     perf_result: PerformanceTrackingResult,
+    analyzer_resources: FilesAnalyzerResources,
+    stats_resources: StatisticsResources,
   ) -> FullBenchmarkMetaBase: ...
 
   @abstractmethod
   def get_benchmark_dir_name(self) -> str: ...
 
   @abstractmethod
-  def save_results(self, result: ResultType, npz_path: Path, csv_path: Path) -> str: ...
+  def save_results_extra(
+    self, result: ResultType, benchmark_run_out_dir: Path, iso_time: str
+  ) -> list[Path]: ...
 
 
 def get_file_formats(file_paths: OrderedSet[Path]) -> str:
-  """Extrahiert Dateiformate aus Pfaden"""
   return ", ".join(sorted({x.suffix[1:].upper() for x in file_paths}))

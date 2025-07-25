@@ -39,10 +39,9 @@ class WorkerBase(bn_logging.LogableProcessBase):
     wkr_ring_access_lock: multiprocessing.synchronize.Lock,
     sem_free: Semaphore,
     sem_fill: Semaphore,
-    sem_active_workers: Semaphore,
+    sem_active_workers: Semaphore | None,
     infer_dtype: DTypeLike,
-    wkr_stats_queue: mp.Queue,
-    track_performance: bool,
+    wkr_stats_queue: mp.Queue | None,
     logging_queue: mp.Queue,
     logging_level: int,
     device: str,
@@ -55,7 +54,6 @@ class WorkerBase(bn_logging.LogableProcessBase):
     self._prd_all_done_event = prd_all_done_event
     self._wkr_ring_access_lock = wkr_ring_access_lock
     self._backend = None
-    self._track_performance = track_performance
     self._wkr_stats_queue = wkr_stats_queue
     self._out_q = out_q
     self._sem_free = sem_free
@@ -250,7 +248,8 @@ class WorkerBase(bn_logging.LogableProcessBase):
         f"Acquired READ_FLAG for slot {claimed_slot}. Searched {dur_search_for_filled_slot:.4f} seconds for batch."
       )
 
-      self._sem_active_workers.release()
+      if self._sem_active_workers is not None:
+        self._sem_active_workers.release()
 
       perf_c = time.perf_counter()
       n = self._ring_batch_sizes[claimed_slot]
@@ -295,7 +294,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
         f"Prediction made ({dur_inference:.4} s). Total predictions: {self._prediction_count}. Chunks: {segment_indices}"
       )
 
-      if self._track_performance:
+      if self._wkr_stats_queue is not None:
         wall_time = time.perf_counter() - start_time
         self._wkr_stats_queue.put(
           (
@@ -311,7 +310,8 @@ class WorkerBase(bn_logging.LogableProcessBase):
           block=False,
         )
 
-      self._sem_active_workers.acquire(block=False)
+      if self._sem_active_workers is not None:
+        self._sem_active_workers.acquire(block=False)
 
     self._log_debug("Finished.")
     self._uninit()

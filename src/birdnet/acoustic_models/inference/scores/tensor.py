@@ -14,13 +14,12 @@ class ScoresTensor(TensorBase):
   def __init__(
     self,
     n_files: int,
-    n_segments: int,
     top_k: int,
     n_species: int,
     prob_dtype: DTypeLike,
     files_dtype: DTypeLike,
     segment_indices_dtype: DTypeLike,
-    max_segment_index: mp.RawValue,
+    max_segment_index: mp.RawValue,  # TODO: watch max_n_segments instead
   ) -> None:
     self._logger = bn_logging.get_logger(__name__)
 
@@ -29,16 +28,22 @@ class ScoresTensor(TensorBase):
     self._top_k = top_k
     self._max_segment_index = max_segment_index
 
+    initial_n_segments = max_segment_index.value + 1
+
     self._species_ids = np.empty(
-      (n_files, n_segments, self._top_k),
+      (n_files, initial_n_segments, self._top_k),
       dtype=uint_dtype_for(
         max(0, n_species - 1),
       ),
     )
 
-    self._species_probs = np.empty((n_files, n_segments, self._top_k), dtype=prob_dtype)
+    self._species_probs = np.empty(
+      (n_files, initial_n_segments, self._top_k), dtype=prob_dtype
+    )
 
-    self._species_masked = np.full((n_files, n_segments, self._top_k), True, dtype=bool)
+    self._species_masked = np.full(
+      (n_files, initial_n_segments, self._top_k), True, dtype=bool
+    )
     self._logger.debug(f"Resulting array allocated: {self.memory_usage_mb:.2f} MB")
 
   @property

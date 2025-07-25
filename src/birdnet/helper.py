@@ -28,7 +28,6 @@ def check_protobuf_model_files_exist(folder: Path) -> bool:
   return exists
 
 
-
 @dataclass()
 class ModelInfo:
   dl_url: str
@@ -71,10 +70,13 @@ SF_FORMATS = {
 
 def get_supported_audio_files(folder: Path) -> Generator[Path, None, None]:
   assert folder.is_dir()
-  result = (
-    p.absolute() for p in folder.rglob("**/*") if p.suffix.upper() in SF_FORMATS
-  )
+  result = (p.absolute() for p in folder.rglob("**/*") if is_supported_audio_file(p))
   yield from result
+
+
+def is_supported_audio_file(file_path: Path) -> bool:
+  assert file_path.is_file()
+  return file_path.suffix.upper() in SF_FORMATS
 
 
 def uint_dtype_for_files(n_files: int) -> np.dtype:

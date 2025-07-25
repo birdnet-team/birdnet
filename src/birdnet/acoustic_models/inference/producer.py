@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ctypes
+import multiprocessing.synchronize
 import os
 import time
 from collections.abc import Generator
@@ -102,9 +103,6 @@ def resample_array(
   return x_resampled
 
 
-import multiprocessing.synchronize
-
-
 class Producer(bn_logging.LogableProcessBase):
   def __init__(
     self,
@@ -116,7 +114,6 @@ class Producer(bn_logging.LogableProcessBase):
     rf_audio_samples: RingField,
     rf_batch_sizes: RingField,
     rf_flags: RingField,
-    track_performance: bool,
     sem_free_slots: Semaphore,
     sem_filled_slots: Semaphore,
     max_segment_idx_ptr: ctypes.c_uint8
@@ -131,7 +128,7 @@ class Producer(bn_logging.LogableProcessBase):
     prd_ring_access_lock: multiprocessing.synchronize.Lock,
     logging_queue: Queue,
     logging_level: int,
-    prod_stats_queue: Queue,
+    prod_stats_queue: Queue | None,
     segment_duration_s: float,
     overlap_duration_s: float,
     target_sample_rate: int,
@@ -142,12 +139,12 @@ class Producer(bn_logging.LogableProcessBase):
     bandpass_fmax: int | None,
     fmin: int | None,
     fmax: int | None,
+    xxx_track_performance: bool | None = None,
   ):
     super().__init__(__name__, logging_queue, logging_level)
 
     self._prd_all_done_event = prd_all_done_event
     self._prd_ring_access_lock = prd_ring_access_lock
-    self._track_performance = track_performance
     self._prod_stats_queue = prod_stats_queue
     self._segment_duration_s = segment_duration_s
     self._overlap_duration_s = overlap_duration_s
@@ -381,7 +378,7 @@ class Producer(bn_logging.LogableProcessBase):
         f"PRODUCER({os.getpid()}) - Producer released FILL. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
       )
 
-      if self._track_performance:
+      if self._prod_stats_queue is not None:
         now = time.perf_counter()
         process_total_duration = now - start_time
         n = len(file_indices)

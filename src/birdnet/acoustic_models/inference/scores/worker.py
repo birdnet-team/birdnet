@@ -14,7 +14,7 @@ from birdnet.helper import RingField, uint_dtype_for
 from birdnet.utils import flat_sigmoid_logaddexp_fast
 
 
-class ChildWorker(WorkerBase):
+class ScoresWorker(WorkerBase):
   def __init__(
     self,
     backend_loader: InferenceBackendLoader,
@@ -33,12 +33,11 @@ class ChildWorker(WorkerBase):
     wkr_ring_access_lock: multiprocessing.synchronize.Lock,
     sem_free: Semaphore,
     sem_fill: Semaphore,
-    sem_active_workers: Semaphore,
+    sem_active_workers: Semaphore | None,
     prob_dtype: DTypeLike,
     apply_sigmoid: bool,
     sigmoid_sensitivity: float | None,
-    wkr_stats_queue: mp.Queue,
-    track_performance: bool,
+    wkr_stats_queue: mp.Queue | None,
     logging_queue: mp.Queue,
     logging_level: int,
     device: str,
@@ -82,7 +81,6 @@ class ChildWorker(WorkerBase):
       sem_active_workers=sem_active_workers,
       infer_dtype=prob_dtype,
       wkr_stats_queue=wkr_stats_queue,
-      track_performance=track_performance,
       logging_queue=logging_queue,
       logging_level=logging_level,
       device=device,

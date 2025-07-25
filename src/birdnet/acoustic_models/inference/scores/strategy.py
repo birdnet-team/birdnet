@@ -2,39 +2,44 @@ from __future__ import annotations
 
 import multiprocessing as mp
 import os
-from datetime import datetime
 from pathlib import Path
 
 import numpy as np
 import psutil
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.perf_tracker import (
-  PerformanceTrackingResult,
-)
 from birdnet.acoustic_models.inference.configs import (
   PredictionConfig,
   ScoresConfig,
 )
+from birdnet.acoustic_models.inference.perf_tracker import (
+  PerformanceTrackingResult,
+)
 from birdnet.acoustic_models.inference.pipeline import (
   predict_from_recordings_generic,
-)
-from birdnet.acoustic_models.inference.states import (
-  MemoryLayout,
-  ProcessingState,
-  SharedResources,
-)
-from birdnet.acoustic_models.inference.strategy import (
-  PredictionStrategy,
-  get_file_formats,
 )
 from birdnet.acoustic_models.inference.scores.benchmarking import (
   FullBenchmarkMeta,
   MinimalBenchmarkMeta,
 )
-from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
+from birdnet.acoustic_models.inference.scores.prediction_result import (
+  ScoresPredictionResult,
+)
 from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
-from birdnet.acoustic_models.inference.scores.worker import ChildWorker
+from birdnet.acoustic_models.inference.scores.worker import ScoresWorker
+from birdnet.acoustic_models.inference.states import (
+  FilesAnalyzerResources,
+  LoggingResources,
+  ProcessingResources,
+  ProducerResources,
+  RingBufferResources,
+  StatisticsResources,
+  WorkerResources,
+)
+from birdnet.acoustic_models.inference.strategy import (
+  PredictionStrategy,
+  get_file_formats,
+)
 from birdnet.backends import (
   InferenceBackendLoader,
 )
@@ -43,7 +48,9 @@ from birdnet.globals import (
 )
 
 
-class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTensor]):
+class ScoresStrategy(
+  PredictionStrategy[ScoresPredictionResult, ScoresConfig, ScoresTensor]
+):
   def validate_config(
     self, config: PredictionConfig, specific_config: ScoresConfig
   ) -> None:
@@ -74,116 +81,76 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
     self,
     config: PredictionConfig,
     specific_config: ScoresConfig,
-    memory_layout: MemoryLayout,
+    memory_layout: RingBufferResources,
+    analyzer_resources: FilesAnalyzerResources,
   ) -> ScoresTensor:
-    prob_dtype = np.float16 if config.processing_conf.half_precision else np.float32
-    n_species = len(config.model_conf.species_list)
-    top_k = specific_config.top_k if specific_config.top_k is not None else n_species
-
     return ScoresTensor(
-      memory_layout.n_files,
-      n_segments=memory_layout.reserve_n_segments,
-      top_k=top_k,
-      n_species=n_species,
-      prob_dtype=prob_dtype,
+      analyzer_resources.n_files,
+      top_k=self.get_top_k(config, specific_config),
+      n_species=config.model_conf.n_species,
+      prob_dtype=config.processing_conf.result_dtype,
       segment_indices_dtype=memory_layout.rf_segment_indices.dtype,
       files_dtype=memory_layout.rf_file_indices.dtype,
-      max_segment_index=memory_layout.max_segment_idx_ptr,
+      max_segment_index=analyzer_resources.max_segment_idx_ptr,
+    )
+
+  def get_top_k(self, config: PredictionConfig, specific_config: ScoresConfig) -> int:
+    return (
+      specific_config.top_k
+      if specific_config.top_k is not None
+      else config.model_conf.n_species
     )
 
   def create_workers(
     self,
     config: PredictionConfig,
     specific_config: ScoresConfig,
-    devices: list[str],
-    backend_loader: InferenceBackendLoader,
-    shared_resources: SharedResources,
+    logging_resources: LoggingResources,
+    ring_buffer_resources: RingBufferResources,
+    producer_resources: ProducerResources,
+    processing_state: ProcessingResources,
+    stats_resources: StatisticsResources,
+    worker_resources: WorkerResources,
   ) -> list[mp.Process]:
-    n_species = len(config.model_conf.species_list)
-    species_whitelist, thresholds = self._setup_species_filtering(
-      config.model_conf.species_list, specific_config, n_species
-    )
-
-    species_blacklist = ~species_whitelist[np.newaxis, :]
-    species_blacklist.setflags(write=False)
-    species_thresholds = thresholds[np.newaxis, :]
-    species_thresholds.setflags(write=False)
-
-    top_k = specific_config.top_k if specific_config.top_k is not None else n_species
+    species_blacklist = create_species_blacklist(config, specific_config)
+    species_thresholds = create_thresholds(config, specific_config)
+    top_k = self.get_top_k(config, specific_config)
 
     return [
       mp.Process(
-        target=ChildWorker(
-          backend_loader=backend_loader,
-          device=devices[i],
+        target=ScoresWorker(
+          backend_loader=worker_resources.backend_loader,
+          device=worker_resources.devices[i],
           top_k=top_k,
           species_thresholds=species_thresholds,
           species_blacklist=species_blacklist,
           batch_size=config.processing_conf.batch_size,
-          wkr_ring_access_lock=shared_resources.wkr_ring_access_lock,
-          n_slots=shared_resources.n_slots,
-          segment_duration_samples=shared_resources.model_segment_size_samples,
-          out_q=shared_resources.worker_queue,
-          logging_queue=shared_resources.logging_queue,
-          prd_all_done_event=shared_resources.prd_all_done_event,
-          logging_level=shared_resources.logging_level,
-          rf_file_indices=shared_resources.rf_file_indices,
-          rf_segment_indices=shared_resources.rf_segment_indices,
-          rf_audio_samples=shared_resources.rf_audio_samples,
-          rf_batch_sizes=shared_resources.rf_batch_sizes,
-          rf_flags=shared_resources.rf_flags,
-          sem_fill=shared_resources.sem_filled_slots,
-          sem_free=shared_resources.sem_free_slots,
+          wkr_ring_access_lock=worker_resources.ring_access_lock,
+          n_slots=config.processing_conf.n_slots,
+          segment_duration_samples=config.model_conf.segment_size_samples,
+          out_q=worker_resources.results_queue,
+          logging_queue=logging_resources.logging_queue,
+          logging_level=logging_resources.logging_level,
+          prd_all_done_event=producer_resources.prd_all_done_event,
+          rf_file_indices=ring_buffer_resources.rf_file_indices,
+          rf_segment_indices=ring_buffer_resources.rf_segment_indices,
+          rf_audio_samples=ring_buffer_resources.rf_audio_samples,
+          rf_batch_sizes=ring_buffer_resources.rf_batch_sizes,
+          rf_flags=ring_buffer_resources.rf_flags,
+          sem_fill=ring_buffer_resources.sem_filled_slots,
+          sem_free=ring_buffer_resources.sem_free_slots,
           apply_sigmoid=specific_config.apply_sigmoid,
-          prob_dtype=shared_resources.result_dtype,
+          prob_dtype=config.processing_conf.result_dtype,
           sigmoid_sensitivity=specific_config.sigmoid_sensitivity,
-          wkr_stats_queue=shared_resources.wkr_stats_queue,
-          track_performance=shared_resources.track_performance,
-          cancel_event=shared_resources.cancel_event,
-          sem_active_workers=shared_resources.sem_active_workers,
+          wkr_stats_queue=stats_resources.wkr_stats_queue,
+          cancel_event=processing_state.cancel_event,
+          sem_active_workers=stats_resources.sem_active_workers,
         ),
-        name=f"ChildWorker-{i}",
+        name=f"ScoresWorker-{i}",
         daemon=True,
       )
       for i in range(config.processing_conf.workers)
     ]
-
-  def _setup_species_filtering(
-    self,
-    model_species_list: OrderedSet[str],
-    scores_config: ScoresConfig,
-    n_species: int,
-  ):
-    """Setup species filtering logic"""
-    # Species whitelist
-    if scores_config.custom_species_list and len(scores_config.custom_species_list) > 0:
-      species_ids_whitelist = np.empty(
-        len(scores_config.custom_species_list), dtype=int
-      )
-      for i, species_name in enumerate(scores_config.custom_species_list):
-        species_id = model_species_list.index(species_name)
-        species_ids_whitelist[i] = species_id
-
-      species_whitelist = np.full(n_species, fill_value=False, dtype=bool)
-      species_whitelist[species_ids_whitelist] = True
-    else:
-      species_whitelist = np.full(n_species, fill_value=True, dtype=bool)
-    species_whitelist.setflags(write=False)
-
-    # Thresholds
-    default_threshold = scores_config.default_confidence_threshold
-    if default_threshold is None:
-      default_threshold = -np.inf
-
-    thresholds = np.full(n_species, default_threshold, np.float32)
-
-    if scores_config.custom_confidence_thresholds:
-      for species_name, threshold in scores_config.custom_confidence_thresholds.items():
-        species_id = model_species_list.index(species_name)
-        thresholds[species_id] = threshold
-    thresholds.setflags(write=False)
-
-    return species_whitelist, thresholds
 
   def create_result(
     self,
@@ -191,8 +158,8 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
     config: PredictionConfig,
     file_paths: OrderedSet[Path],
     file_durations: np.ndarray,
-  ) -> PredictionResult:
-    return PredictionResult(
+  ) -> ScoresPredictionResult:
+    return ScoresPredictionResult(
       tensor=tensor,
       files=file_paths,
       segment_duration_s=config.model_conf.segment_size_s,
@@ -205,17 +172,18 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
     self,
     config: PredictionConfig,
     specific_config: ScoresConfig,
-    pred_result: PredictionResult,
-    processing_state: ProcessingState,
-    start_timepoint: datetime,
-    end_timepoint: datetime,
-    wall_time_s: float,
+    pred_result: ScoresPredictionResult,
     file_durations: np.ndarray,
-    memory_layout: MemoryLayout,
+    memory_layout: RingBufferResources,
+    analyzer_resources: FilesAnalyzerResources,
+    stats_resources: StatisticsResources,
   ) -> MinimalBenchmarkMeta:
+    assert stats_resources.end_timepoint is not None
+    assert stats_resources.stop is not None
+    wall_time_s = stats_resources.stop - stats_resources.start
     return MinimalBenchmarkMeta(
-      _start_timepoint=start_timepoint,
-      _end_timepoint=end_timepoint,
+      _start_timepoint=stats_resources.start_timepoint,
+      _end_timepoint=stats_resources.end_timepoint,
       _time_wall_time_s=wall_time_s,
       _file_durations=file_durations,
       mem_result_total_memory_usage_MiB=pred_result.memory_size_mb,
@@ -225,7 +193,7 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
       mem_shm_size_audio_samples_MiB=memory_layout.rf_audio_samples.nbytes / 1024**2,
       mem_shm_size_batch_sizes_MiB=memory_layout.rf_batch_sizes.nbytes / 1024**2,
       mem_shm_size_flags_MiB=memory_layout.rf_flags.nbytes / 1024**2,
-      file_segments_total=processing_state.tot_n_segments_ptr.value,
+      file_segments_total=analyzer_resources.tot_n_segments_ptr.value,
       model_segment_duration_seconds=config.model_conf.segment_size_s,
       file_formats=get_file_formats(OrderedSet(Path(x) for x in pred_result.files)),
     )
@@ -234,16 +202,17 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
     self,
     config: PredictionConfig,
     specific_config: ScoresConfig,
-    pred_result: PredictionResult,
-    processing_state: ProcessingState,
-    start_time: float,
-    start_timepoint: datetime,
-    end_timepoint: datetime,
-    wall_time_s: float,
+    pred_result: ScoresPredictionResult,
     file_durations: np.ndarray,
-    memory_layout: MemoryLayout,
+    memory_layout: RingBufferResources,
     perf_result: PerformanceTrackingResult,
+    analyzer_resources: FilesAnalyzerResources,
+    stats_resources: StatisticsResources,
   ) -> FullBenchmarkMeta:
+    assert stats_resources.end_timepoint is not None
+    assert stats_resources.stop is not None
+    wall_time_s = stats_resources.stop - stats_resources.start
+
     device_str = (
       ", ".join(config.processing_conf.device)
       if isinstance(config.processing_conf.device, list)
@@ -251,8 +220,8 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
     )
 
     return FullBenchmarkMeta(
-      _start_timepoint=start_timepoint,
-      _end_timepoint=end_timepoint,
+      _start_timepoint=stats_resources.start_timepoint,
+      _end_timepoint=stats_resources.end_timepoint,
       param_producers=config.processing_conf.feeders,
       param_workers=config.processing_conf.workers,
       _worker_avg_wall_time_s=perf_result.worker_avg_wall_time_s,
@@ -264,8 +233,8 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
       model_species=len(config.model_conf.species_list),
       model_precision=config.model_conf.precision,
       _file_durations=file_durations,
-      file_segments_maximum=memory_layout.max_segment_idx_ptr.value + 1,
-      file_segments_total=processing_state.tot_n_segments_ptr.value,
+      file_segments_maximum=analyzer_resources.max_segment_idx_ptr.value + 1,
+      file_segments_total=analyzer_resources.tot_n_segments_ptr.value,
       model_segment_duration_seconds=config.model_conf.segment_size_s,
       param_overlap_seconds=config.processing_conf.overlap_duration_s,
       param_batch_size=config.processing_conf.batch_size,
@@ -290,7 +259,7 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
       )
       if specific_config.custom_confidence_thresholds
       else 0,
-      _time_rampup_first_line_s=start_time
+      _time_rampup_first_line_s=stats_resources.start_time
       - psutil.Process(os.getpid()).create_time(),  # TODO: Berechnen
       _time_wall_time_s=wall_time_s,
       mem_result_total_memory_usage_MiB=pred_result.memory_size_mb,
@@ -324,19 +293,59 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
   def get_benchmark_dir_name(self) -> str:
     return "scores"
 
-  def save_results(
-    self, result: PredictionResult, npz_path: Path, csv_path: Path
-  ) -> str:
-    print("Saving result using internal format (.npz)...")
-    result.save(npz_path)
+  def save_results_extra(
+    self, result: ScoresPredictionResult, benchmark_run_out_dir: Path, iso_time: str
+  ) -> list[Path]:
     print("Saving result using CSV format (.csv)...")
+    csv_path = benchmark_run_out_dir / f"result-{iso_time}.csv"
     result.to_csv(csv_path, encoding="utf-8", silent=False)
-    return f"  {npz_path.absolute()}\n  {csv_path.absolute()}\n"
+    return [csv_path]
 
 
 def predict_species_from_recordings(
   conf: PredictionConfig,
   scores_conf: ScoresConfig,
-) -> PredictionResult:
+) -> ScoresPredictionResult:
   strategy = ScoresStrategy()
   return predict_from_recordings_generic(conf, strategy, scores_conf)
+
+
+def create_thresholds(
+  config: PredictionConfig, scores_config: ScoresConfig
+) -> np.ndarray:
+  default_threshold = scores_config.default_confidence_threshold
+  if default_threshold is None:
+    default_threshold = -np.inf
+
+  thresholds = np.full(config.model_conf.n_species, default_threshold, np.float32)
+
+  if scores_config.custom_confidence_thresholds:
+    for species_name, threshold in scores_config.custom_confidence_thresholds.items():
+      species_id = config.model_conf.species_list.index(species_name)
+      thresholds[species_id] = threshold
+  thresholds.setflags(write=False)
+  return thresholds
+
+
+def create_species_blacklist(config: PredictionConfig, scores_config: ScoresConfig):
+  """Setup species filtering logic"""
+  # Species whitelist
+  if scores_config.custom_species_list and len(scores_config.custom_species_list) > 0:
+    species_ids_whitelist = np.empty(len(scores_config.custom_species_list), dtype=int)
+    for i, species_name in enumerate(scores_config.custom_species_list):
+      species_id = config.model_conf.species_list.index(species_name)
+      species_ids_whitelist[i] = species_id
+
+    species_whitelist = np.full(
+      config.model_conf.n_species, fill_value=False, dtype=bool
+    )
+    species_whitelist[species_ids_whitelist] = True
+  else:
+    species_whitelist = np.full(
+      config.model_conf.n_species, fill_value=True, dtype=bool
+    )
+  species_whitelist.setflags(write=False)
+
+  species_blacklist = ~species_whitelist[np.newaxis, :]
+  species_blacklist.setflags(write=False)
+  return species_blacklist

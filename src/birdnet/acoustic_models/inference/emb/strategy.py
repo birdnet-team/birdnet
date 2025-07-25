@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import multiprocessing as mp
 import os
-from datetime import datetime
 from pathlib import Path
 
 import numpy as np
 import psutil
 from ordered_set import OrderedSet
 
+from birdnet.acoustic_models.inference.configs import (
+  EmbeddingsConfig,
+  PredictionConfig,
+)
 from birdnet.acoustic_models.inference.emb.benchmarking import (
   FullBenchmarkEmbMeta,
   MinimalBenchmarkEmbMeta,
@@ -21,17 +24,17 @@ from birdnet.acoustic_models.inference.emb.worker import EmbeddingsWorker
 from birdnet.acoustic_models.inference.perf_tracker import (
   PerformanceTrackingResult,
 )
-from birdnet.acoustic_models.inference.configs import (
-  EmbeddingsConfig,
-  PredictionConfig,
-)
 from birdnet.acoustic_models.inference.pipeline import (
   predict_from_recordings_generic,
 )
 from birdnet.acoustic_models.inference.states import (
-  MemoryLayout,
-  ProcessingState,
-  SharedResources,
+  FilesAnalyzerResources,
+  LoggingResources,
+  ProcessingResources,
+  ProducerResources,
+  RingBufferResources,
+  StatisticsResources,
+  WorkerResources,
 )
 from birdnet.acoustic_models.inference.strategy import (
   PredictionStrategy,
@@ -57,53 +60,53 @@ class EmbeddingsStrategy(
     self,
     config: PredictionConfig,
     specific_config: EmbeddingsConfig,
-    memory_layout: MemoryLayout,
+    memory_layout: RingBufferResources,
+    analyzer_resources: FilesAnalyzerResources,
   ) -> EmbeddingsTensor:
-    emb_dtype = np.float16 if config.processing_conf.half_precision else np.float32
-
     return EmbeddingsTensor(
-      memory_layout.n_files,
-      n_segments=memory_layout.reserve_n_segments,
+      analyzer_resources.n_files,
       emb_dim=specific_config.emb_dim,
-      emb_dtype=emb_dtype,
+      emb_dtype=config.processing_conf.result_dtype,
       segment_indices_dtype=memory_layout.rf_segment_indices.dtype,
       files_dtype=memory_layout.rf_file_indices.dtype,
-      max_segment_index=memory_layout.max_segment_idx_ptr,
+      max_segment_index=analyzer_resources.max_segment_idx_ptr,
     )
 
   def create_workers(
     self,
     config: PredictionConfig,
     specific_config: EmbeddingsConfig,
-    devices: list[str],
-    backend_loader: InferenceBackendLoader,
-    shared_resources: SharedResources,
+    logging_resources: LoggingResources,
+    ring_buffer_resources: RingBufferResources,
+    producer_resources: ProducerResources,
+    processing_state: ProcessingResources,
+    stats_resources: StatisticsResources,
+    worker_resources: WorkerResources,
   ) -> list[mp.Process]:
     return [
       mp.Process(
         target=EmbeddingsWorker(
-          backend_loader=backend_loader,
-          device=devices[i],
+          backend_loader=worker_resources.backend_loader,
+          device=worker_resources.devices[i],
           batch_size=config.processing_conf.batch_size,
-          wkr_ring_access_lock=shared_resources.wkr_ring_access_lock,
-          n_slots=shared_resources.n_slots,
-          segment_duration_samples=shared_resources.model_segment_size_samples,
-          out_q=shared_resources.worker_queue,
-          logging_queue=shared_resources.logging_queue,
-          prd_all_done_event=shared_resources.prd_all_done_event,
-          logging_level=shared_resources.logging_level,
-          rf_file_indices=shared_resources.rf_file_indices,
-          rf_segment_indices=shared_resources.rf_segment_indices,
-          rf_audio_samples=shared_resources.rf_audio_samples,
-          rf_batch_sizes=shared_resources.rf_batch_sizes,
-          rf_flags=shared_resources.rf_flags,
-          sem_fill=shared_resources.sem_filled_slots,
-          sem_free=shared_resources.sem_free_slots,
-          emb_dtype=shared_resources.result_dtype,
-          wkr_stats_queue=shared_resources.wkr_stats_queue,
-          track_performance=shared_resources.track_performance,
-          cancel_event=shared_resources.cancel_event,
-          sem_active_workers=shared_resources.sem_active_workers,
+          wkr_ring_access_lock=worker_resources.ring_access_lock,
+          n_slots=config.processing_conf.n_slots,
+          segment_duration_samples=config.model_conf.segment_size_samples,
+          out_q=worker_resources.results_queue,
+          logging_queue=logging_resources.logging_queue,
+          logging_level=logging_resources.logging_level,
+          prd_all_done_event=producer_resources.prd_all_done_event,
+          rf_file_indices=ring_buffer_resources.rf_file_indices,
+          rf_segment_indices=ring_buffer_resources.rf_segment_indices,
+          rf_audio_samples=ring_buffer_resources.rf_audio_samples,
+          rf_batch_sizes=ring_buffer_resources.rf_batch_sizes,
+          rf_flags=ring_buffer_resources.rf_flags,
+          sem_fill=ring_buffer_resources.sem_filled_slots,
+          sem_free=ring_buffer_resources.sem_free_slots,
+          emb_dtype=config.processing_conf.result_dtype,
+          wkr_stats_queue=stats_resources.wkr_stats_queue,
+          cancel_event=processing_state.cancel_event,
+          sem_active_workers=stats_resources.sem_active_workers,
         ),
         name=f"EmbeddingsWorker-{i}",
         daemon=True,
@@ -131,16 +134,18 @@ class EmbeddingsStrategy(
     config: PredictionConfig,
     specific_config: EmbeddingsConfig,
     pred_result: EmbeddingsPredictionResult,
-    processing_state: ProcessingState,
-    start_timepoint: datetime,
-    end_timepoint: datetime,
-    wall_time_s: float,
     file_durations: np.ndarray,
-    memory_layout: MemoryLayout,
+    memory_layout: RingBufferResources,
+    analyzer_resources: FilesAnalyzerResources,
+    stats_resources: StatisticsResources,
   ) -> MinimalBenchmarkEmbMeta:
+    assert stats_resources.end_timepoint is not None
+    assert stats_resources.stop is not None
+    wall_time_s = stats_resources.stop - stats_resources.start
+
     return MinimalBenchmarkEmbMeta(
-      _start_timepoint=start_timepoint,
-      _end_timepoint=end_timepoint,
+      _start_timepoint=stats_resources.start_timepoint,
+      _end_timepoint=stats_resources.end_timepoint,
       _time_wall_time_s=wall_time_s,
       _file_durations=file_durations,
       mem_result_total_memory_usage_MiB=pred_result.memory_size_mb,
@@ -150,7 +155,7 @@ class EmbeddingsStrategy(
       mem_shm_size_audio_samples_MiB=memory_layout.rf_audio_samples.nbytes / 1024**2,
       mem_shm_size_batch_sizes_MiB=memory_layout.rf_batch_sizes.nbytes / 1024**2,
       mem_shm_size_flags_MiB=memory_layout.rf_flags.nbytes / 1024**2,
-      file_segments_total=processing_state.tot_n_segments_ptr.value,
+      file_segments_total=analyzer_resources.tot_n_segments_ptr.value,
       model_segment_duration_seconds=config.model_conf.segment_size_s,
       file_formats=get_file_formats(OrderedSet(Path(x) for x in pred_result.files)),
     )
@@ -160,15 +165,16 @@ class EmbeddingsStrategy(
     config: PredictionConfig,
     specific_config: EmbeddingsConfig,
     pred_result: EmbeddingsPredictionResult,
-    processing_state: ProcessingState,
-    start_time: float,
-    start_timepoint: datetime,
-    end_timepoint: datetime,
-    wall_time_s: float,
     file_durations: np.ndarray,
-    memory_layout: MemoryLayout,
+    memory_layout: RingBufferResources,
     perf_result: PerformanceTrackingResult,
+    analyzer_resources: FilesAnalyzerResources,
+    stats_resources: StatisticsResources,
   ) -> FullBenchmarkEmbMeta:
+    assert stats_resources.end_timepoint is not None
+    assert stats_resources.stop is not None
+    wall_time_s = stats_resources.stop - stats_resources.start
+
     device_str = (
       ", ".join(config.processing_conf.device)
       if isinstance(config.processing_conf.device, list)
@@ -176,8 +182,8 @@ class EmbeddingsStrategy(
     )
 
     return FullBenchmarkEmbMeta(
-      _start_timepoint=start_timepoint,
-      _end_timepoint=end_timepoint,
+      _start_timepoint=stats_resources.start_timepoint,
+      _end_timepoint=stats_resources.end_timepoint,
       param_producers=config.processing_conf.feeders,
       param_workers=config.processing_conf.workers,
       _worker_avg_wall_time_s=perf_result.worker_avg_wall_time_s,
@@ -190,8 +196,8 @@ class EmbeddingsStrategy(
       model_precision=config.model_conf.precision,
       model_emb_dim=specific_config.emb_dim,
       _file_durations=file_durations,
-      file_segments_maximum=memory_layout.max_segment_idx_ptr.value + 1,
-      file_segments_total=processing_state.tot_n_segments_ptr.value,
+      file_segments_maximum=analyzer_resources.max_segment_idx_ptr.value + 1,
+      file_segments_total=analyzer_resources.tot_n_segments_ptr.value,
       model_segment_duration_seconds=config.model_conf.segment_size_s,
       param_overlap_seconds=config.processing_conf.overlap_duration_s,
       param_batch_size=config.processing_conf.batch_size,
@@ -202,7 +208,7 @@ class EmbeddingsStrategy(
       param_bandpass_fmin=config.filtering_conf.bandpass_fmin,
       param_bandpass_fmax=config.filtering_conf.bandpass_fmax,
       param_half_precision=config.processing_conf.half_precision,
-      _time_rampup_first_line_s=start_time
+      _time_rampup_first_line_s=stats_resources.start_time
       - psutil.Process(os.getpid()).create_time(),  # TODO: Berechnen
       _time_wall_time_s=wall_time_s,
       mem_result_total_memory_usage_MiB=pred_result.memory_size_mb,
@@ -236,12 +242,10 @@ class EmbeddingsStrategy(
   def get_benchmark_dir_name(self) -> str:
     return "emb"
 
-  def save_results(
-    self, result: EmbeddingsPredictionResult, npz_path: Path, csv_path: Path
-  ) -> str:
-    print("Saving result using internal format (.npz)...")
-    result.save(npz_path)
-    return f"  {npz_path.absolute()}\n"
+  def save_results_extra(
+    self, result: EmbeddingsPredictionResult, benchmark_run_out_dir: Path, iso_time: str
+  ) -> list[Path]:
+    return []
 
 
 def predict_embeddings_from_recordings(

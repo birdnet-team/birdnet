@@ -2,12 +2,16 @@ import tempfile
 from hashlib import sha1
 from pathlib import Path
 
-from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
+from birdnet.acoustic_models.inference.scores.prediction_result import (
+  ScoresPredictionResult,
+)
 from birdnet.model_loader import load
 from birdnet_tests.helper import duration_counter, memory_monitor
 
 
-def get_cached_result(audio_paths: list[Path], k: int, conf: float) -> PredictionResult:
+def get_cached_result(
+  audio_paths: list[Path], k: int, conf: float
+) -> ScoresPredictionResult:
   tmp_dir = Path(tempfile.gettempdir()) / "birdnet_tests" / "test_conv"
   tmp_dir.mkdir(parents=True, exist_ok=True)
   # get short name from list audio_paths
@@ -16,7 +20,7 @@ def get_cached_result(audio_paths: list[Path], k: int, conf: float) -> Predictio
   name_short = sha1(name.encode("utf-8")).hexdigest()[:20]
   npz_path = tmp_dir / f"{name_short}.npz"
   if npz_path.is_file():
-    return PredictionResult.load(npz_path)
+    return ScoresPredictionResult.load(npz_path)
   else:
     model = load("acoustic", "2.4", "tf")
     result = model.predict(

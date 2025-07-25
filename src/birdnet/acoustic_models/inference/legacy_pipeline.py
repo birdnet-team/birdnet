@@ -40,9 +40,11 @@ from birdnet.acoustic_models.inference.scores.benchmarking import (
   FullBenchmarkMeta,
   MinimalBenchmarkMeta,
 )
-from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
+from birdnet.acoustic_models.inference.scores.prediction_result import (
+  ScoresPredictionResult,
+)
 from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
-from birdnet.acoustic_models.inference.scores.worker import ChildWorker
+from birdnet.acoustic_models.inference.scores.worker import ScoresWorker
 from birdnet.backends import (
   InferenceBackendLoader,
   PBInferenceBackend,
@@ -319,7 +321,7 @@ def predict_embeddings_from_recordings(
 
   result = EmbeddingsTensor(
     n_files,
-    n_segments=reserve_n_segments,
+    initial_n_segments=reserve_n_segments,
     emb_dim=model_emb_dim,
     emb_dtype=prob_dtype,
     segment_indices_dtype=rf_segment_indices.dtype,
@@ -390,7 +392,7 @@ def predict_embeddings_from_recordings(
           prd_all_done_event=prd_all_done_event,
           n_slots=n_slots,
           prd_ring_access_lock=prd_ring_access_lock,
-          track_performance=track_performance,
+          xxx_track_performance=track_performance,
           prod_stats_queue=prd_stats_queue,
           rf_file_indices=rf_file_indices,
           rf_segment_indices=rf_segment_indices,
@@ -784,7 +786,7 @@ def predict_species_from_recordings(
   max_audio_duration_min: float | None = None,
   show_stats: Literal["no", "minimal", "progress", "benchmark"] = "no",
   device: str | list[str] = "CPU",
-) -> PredictionResult:
+) -> ScoresPredictionResult:
   debug_log = False
 
   start = time.perf_counter()
@@ -1077,7 +1079,7 @@ def predict_species_from_recordings(
 
   result = ScoresTensor(
     n_files,
-    n_segments=reserve_n_segments,
+    initial_n_segments=reserve_n_segments,
     top_k=top_k,
     n_species=n_species,
     prob_dtype=prob_dtype,
@@ -1153,7 +1155,7 @@ def predict_species_from_recordings(
           prd_all_done_event=prd_all_done_event,
           n_slots=n_slots,
           prd_ring_access_lock=prd_ring_access_lock,
-          track_performance=track_performance,
+          xxx_track_performance=track_performance,
           prod_stats_queue=prd_stats_queue,
           rf_file_indices=rf_file_indices,
           rf_segment_indices=rf_segment_indices,
@@ -1206,7 +1208,7 @@ def predict_species_from_recordings(
 
     worker_processes = [
       mp.Process(
-        target=ChildWorker(
+        target=ScoresWorker(
           backend_loader=backend_loader,
           device=devices[i],
           top_k=top_k,
@@ -1322,7 +1324,7 @@ def predict_species_from_recordings(
       f"Analysis was cancelled due to an error. Please check the logs for details: {log_file.absolute()}"
     )
 
-  res = PredictionResult(
+  res = ScoresPredictionResult(
     tensor=result,
     files=file_paths,
     segment_duration_s=model_segment_size_s,

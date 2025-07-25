@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, TypeVar
 
+import numpy as np
+from numpy.typing import DTypeLike
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.tensor import TensorBase
@@ -35,6 +37,14 @@ class ModelConfig:
   precision: MODEL_PRECISIONS
   is_custom: bool
 
+  @property
+  def segment_size_samples(self) -> int:
+    return int(self.segment_size_s * self.sample_rate)
+
+  @property
+  def n_species(self) -> int:
+    return len(self.species_list)
+
 
 @dataclass(frozen=True)
 class ProcessingConfig:
@@ -46,6 +56,16 @@ class ProcessingConfig:
   half_precision: bool
   max_audio_duration_min: float | None
   device: str | list[str]
+
+  @property
+  def result_dtype(self) -> DTypeLike:
+    result_dtype = np.float16 if self.half_precision else np.float32
+    return result_dtype
+
+  @property
+  def n_slots(self) -> int:
+    n_slots = self.workers + (self.workers * self.prefetch_ratio)
+    return n_slots
 
 
 @dataclass(frozen=True)

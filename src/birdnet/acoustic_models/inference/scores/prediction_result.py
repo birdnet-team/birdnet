@@ -22,7 +22,7 @@ VAR_SPECIES_NAME = "species_name"
 VAR_CONFIDENCE = "confidence"
 
 
-class PredictionResult(PredictionResultBase):
+class ScoresPredictionResult(PredictionResultBase):
   def __init__(
     self,
     tensor: ScoresTensor,

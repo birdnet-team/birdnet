@@ -24,7 +24,9 @@ from birdnet.acoustic_models.inference.emb.prediction_result import (
 from birdnet.acoustic_models.inference.emb.strategy import (
   predict_embeddings_from_recordings,
 )
-from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
+from birdnet.acoustic_models.inference.scores.prediction_result import (
+  ScoresPredictionResult,
+)
 from birdnet.acoustic_models.inference.scores.strategy import (
   predict_species_from_recordings,
 )
@@ -274,7 +276,7 @@ class AcousticPBModelV2_4(AcousticModelBaseV2_4):
     max_audio_duration_min: float | None = None,
     show_stats: Literal["no", "minimal", "progress", "benchmark"] = "no",
     device: str | list[str] = "CPU",
-  ) -> PredictionResult:
+  ) -> ScoresPredictionResult:
     return predict_species_from_recordings(
       conf=PredictionConfig(
         input_files=inp,

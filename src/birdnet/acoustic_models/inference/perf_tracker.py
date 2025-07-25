@@ -112,11 +112,9 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self,
     pred_dur_queue: mp.Queue,
     prod_stats_queue: mp.Queue,
-    stop_event: Event,
     processing_finished_event: Event,
     update_interval: float,
     print_interval: float,
-    use_stats_from_last_seconds: float,
     n_workers: int,
     start: float,
     workers_start: float,
@@ -151,7 +149,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
     self._sem_active_workers = sem_active_workers
     self._update_every = update_interval
-    self._stop_event = stop_event
     self._start = start
     self._segment_size_s = segment_size_s
 
