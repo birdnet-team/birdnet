@@ -10,13 +10,13 @@ from birdnet.acoustic_models.inference.benchmarking import (
   FullBenchmarkMetaBase,
   MinimalBenchmarkMetaBase,
 )
-from birdnet.acoustic_models.inference.configs import (
+from birdnet.acoustic_models.inference_pipeline.configs import (
   ConfigType,
   PredictionConfig,
   ResultType,
   TensorType,
 )
-from birdnet.acoustic_models.inference.resources import (
+from birdnet.acoustic_models.inference_pipeline.resources import (
   PipelineResources,
 )
 from birdnet.acoustic_models.inference.worker import WorkerBase

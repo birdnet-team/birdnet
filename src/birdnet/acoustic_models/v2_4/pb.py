@@ -9,7 +9,7 @@ from typing import Literal, final
 
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.configs import (
+from birdnet.acoustic_models.inference_pipeline.configs import (
   EmbeddingsConfig,
   FilteringConfig,
   ModelConfig,
@@ -21,13 +21,13 @@ from birdnet.acoustic_models.inference.configs import (
 from birdnet.acoustic_models.inference.emb.prediction_result import (
   EmbeddingsPredictionResult,
 )
-from birdnet.acoustic_models.inference.emb.strategy import (
+from birdnet.acoustic_models.inference_pipeline.emb_strategy import (
   predict_embeddings_from_recordings,
 )
 from birdnet.acoustic_models.inference.scores.prediction_result import (
   ScoresPredictionResult,
 )
-from birdnet.acoustic_models.inference.scores.strategy import (
+from birdnet.acoustic_models.inference_pipeline.scores_strategy import (
   predict_species_from_recordings,
 )
 from birdnet.acoustic_models.v2_4.base import (

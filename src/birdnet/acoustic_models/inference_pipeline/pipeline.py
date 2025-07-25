@@ -8,20 +8,20 @@ from contextlib import contextmanager
 from dataclasses import asdict
 
 import birdnet.logging_utils as bn_logging
-from birdnet.acoustic_models.inference.configs import (
+from birdnet.acoustic_models.inference_pipeline.configs import (
   ConfigType,
   PredictionConfig,
   ResultType,
   TensorType,
   validate_common_config,
 )
-from birdnet.acoustic_models.inference.processes import ProcessManager
-from birdnet.acoustic_models.inference.resources import (
+from birdnet.acoustic_models.inference_pipeline.processes import ProcessManager
+from birdnet.acoustic_models.inference_pipeline.resources import (
   LoggingResources,
   PipelineResources,
   ResourceManager,
 )
-from birdnet.acoustic_models.inference.strategy import (
+from birdnet.acoustic_models.inference_pipeline.strategy import (
   PredictionStrategy,
 )
 from birdnet.globals import WRITABLE_FLAG

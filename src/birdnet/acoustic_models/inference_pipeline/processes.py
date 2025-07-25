@@ -6,7 +6,7 @@ import threading
 import time
 
 import birdnet.logging_utils as bn_logging
-from birdnet.acoustic_models.inference.configs import (
+from birdnet.acoustic_models.inference_pipeline.configs import (
   ConfigType,
   PredictionConfig,
   ResultType,
@@ -18,10 +18,10 @@ from birdnet.acoustic_models.inference.perf_tracker import (
   PerformanceTracker,
 )
 from birdnet.acoustic_models.inference.producer import Producer
-from birdnet.acoustic_models.inference.resources import (
+from birdnet.acoustic_models.inference_pipeline.resources import (
   PipelineResources,
 )
-from birdnet.acoustic_models.inference.strategy import (
+from birdnet.acoustic_models.inference_pipeline.strategy import (
   PredictionStrategy,
 )
 from birdnet.acoustic_models.inference.tensor import TensorBase
