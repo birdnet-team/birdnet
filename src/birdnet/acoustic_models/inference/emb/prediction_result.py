@@ -9,6 +9,7 @@ from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.emb.tensor import EmbeddingsTensor
 from birdnet.base import PredictionResultBase
+from birdnet.helper import get_float_dtype
 
 
 class EmbeddingsPredictionResult(PredictionResultBase):
@@ -20,15 +21,19 @@ class EmbeddingsPredictionResult(PredictionResultBase):
     segment_duration_s: int | float,
     overlap_duration_s: int | float,
   ) -> None:
-    assert file_durations.dtype == np.float16
+    assert file_durations.dtype in (np.float16, np.float32, np.float64)
     assert tensor._emb.dtype in (np.float16, np.float32)
     assert tensor._emb_masked.dtype == bool
 
     all_files = [str(file.absolute()) for file in files]
     max_len = max(map(len, all_files))
     self._files = np.asarray(all_files, dtype=f"<U{max_len}")
-    self._segment_duration_s = np.float16(segment_duration_s)
-    self._overlap_duration_s = np.float16(overlap_duration_s)
+    self._segment_duration_s = np.array(
+      [segment_duration_s], dtype=get_float_dtype(segment_duration_s)
+    )
+    self._overlap_duration_s = np.array(
+      [overlap_duration_s], dtype=get_float_dtype(overlap_duration_s)
+    )
 
     self._embeddings = tensor._emb
     self._embeddings_masked = tensor._emb_masked

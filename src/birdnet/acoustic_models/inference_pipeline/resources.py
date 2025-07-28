@@ -35,6 +35,7 @@ from birdnet.globals import (
 from birdnet.helper import (
   SF_FORMATS,
   RingField,
+  get_float_dtype,
   get_max_n_segments,
   get_supported_audio_files,
   is_supported_audio_file,
@@ -253,10 +254,9 @@ class FilesAnalyzerResources:
     return self._file_durations
 
   def collect_file_durations(self) -> np.ndarray:
-    file_durations = np.array(
-      cast(list[float], self.analyzer_queue.get(block=True, timeout=None)),
-      dtype=np.float16,
-    )
+    durations: list[float] = self.analyzer_queue.get(block=True, timeout=None)
+    dtype = get_float_dtype(max(durations))
+    file_durations = np.array(durations, dtype=dtype)
     object.__setattr__(self, "_file_durations", file_durations)
     return file_durations
 

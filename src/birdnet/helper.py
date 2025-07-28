@@ -225,3 +225,12 @@ def uint_ctype_from_dtype(
   dtype = np.dtype(dtype).type  # z. B. <class 'numpy.uint16'>
   code = _UINT_DTYPE_TO_CTYPE[dtype]
   return code
+
+
+def get_float_dtype(max_value: float) -> DTypeLike:
+  if max_value <= 2**11:
+    return np.float16
+  elif max_value <= 2**24:
+    return np.float32
+  else:
+    return np.float64

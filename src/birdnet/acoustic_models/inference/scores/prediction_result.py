@@ -10,6 +10,7 @@ from tqdm import tqdm
 
 from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
 from birdnet.base import PredictionResultBase
+from birdnet.helper import get_float_dtype
 
 if TYPE_CHECKING:
   import pandas as pd
@@ -32,7 +33,7 @@ class ScoresPredictionResult(PredictionResultBase):
     segment_duration_s: int | float,
     overlap_duration_s: int | float,
   ) -> None:
-    assert file_durations.dtype == np.float16
+    assert file_durations.dtype in (np.float16, np.float32, np.float64)
     assert tensor._species_ids.dtype in (np.uint8, np.uint16, np.uint32, np.uint64)
     assert tensor._species_probs.dtype in (np.float16, np.float32)
     assert tensor._species_masked.dtype == bool
@@ -41,8 +42,12 @@ class ScoresPredictionResult(PredictionResultBase):
     all_files = [str(file.absolute()) for file in files]
     max_len = max(map(len, all_files))
     self._files = np.asarray(all_files, dtype=f"<U{max_len}")
-    self._segment_duration_s = np.float16(segment_duration_s)
-    self._overlap_duration_s = np.float16(overlap_duration_s)
+    self._segment_duration_s = np.array(
+      [segment_duration_s], dtype=get_float_dtype(segment_duration_s)
+    )
+    self._overlap_duration_s = np.array(
+      [overlap_duration_s], dtype=get_float_dtype(overlap_duration_s)
+    )
 
     max_len = max(map(len, species_list))
     self._species_list = np.array(list(species_list), dtype=f"<U{max_len}")
@@ -362,3 +367,41 @@ def hms_centis_fast(v: float) -> str:
   m, s = divmod(rem, 60)
   result = f"{int(h):02}:{int(m):02}:{s:05.2f}"
   return result
+
+
+def assert_species_masked_pattern(species_masked: np.ndarray) -> None:
+  """
+  Assert that species_masked has False entries first, then only True entries.
+  For 3D arrays (n_files, n_segments, top_k), checks the pattern along the top_k axis
+  for each (file, segment) combination.
+  """
+  if species_masked.size == 0:
+    return
+
+  assert species_masked.ndim == 3
+
+  # Reshape to (n_files * n_segments, top_k) for vectorized processing
+  n_files, n_segments, top_k = species_masked.shape
+  reshaped = species_masked.reshape(-1, top_k)
+
+  # For each row (file, segment combination), find first True
+  # Using argmax on the mask gives us the first True position
+  # If no True exists, argmax returns 0, but we handle this separately
+  has_true = np.any(reshaped, axis=1)
+  first_true_pos = np.argmax(reshaped, axis=1)
+
+  # Only check rows that have at least one True
+  if np.any(has_true):
+    valid_rows = np.where(has_true)[0]
+
+    for row_idx in valid_rows:
+      row = reshaped[row_idx]
+      first_true = first_true_pos[row_idx]
+
+      # Quick check: all before first_true should be False, all after should be True
+      if not (np.all(~row[:first_true]) and np.all(row[first_true:])):
+        file_idx, seg_idx = divmod(row_idx, n_segments)
+        raise AssertionError(
+          f"Invalid mask pattern at file {file_idx}, segment {seg_idx}: "
+          f"expected False...False,True...True pattern"
+        )

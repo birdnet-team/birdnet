@@ -52,3 +52,4 @@ def duration_counter() -> Generator[Callable, None, None]:
     yield get_duration
   finally:
     pass  # No cleanup needed
+
