@@ -75,10 +75,6 @@ If something goes wrong, you can find the log file in the following locations:
 - Windows: `C:\Users\{user}\AppData\Local\Temp\birdnet.log`
 - Linux/MacOS: `/tmp/birdnet.log`
 
-## Benchmark
-
-For a preliminary benchmark, see [benchmark/BENCHMARK.md](https://github.com/birdnet-team/birdnet/blob/main/benchmark/BENCHMARK.md)
-
 ## File formats
 
 The audio models support all formats compatible with the SoundFile library (see [here](https://python-soundfile.readthedocs.io/en/0.11.0/#read-write-functions)). This includes, but is not limited to, WAV, FLAC, OGG, and AIFF. The flexibility of supported formats ensures that the models can handle a wide variety of audio input types, making them adaptable to different use cases and environments.
