@@ -50,9 +50,9 @@ predictions.to_csv("example/predictions.csv")
 
 The resulting predictions look like this (excerpt, scores may vary):
 
-![Preview](./example/predictions.png)
+<img src="example/scores_preview.png" alt="Preview" style="max-width: 700px; height: auto;">
 
-For a more detailed prediction you can take a look at [example/predictions.csv](./example/predictions.csv).
+For a more detailed prediction you can take a look at [example/predictions.csv](example/scores.csv).
 
 ### Predict species for a given location and time
 
@@ -66,9 +66,9 @@ predictions = model.predict(42.5, -76.45, week=4)
 predictions.to_csv("example/location.csv")
 ```
 
-![Preview](./example/location_preview.png)
+<img src="example/location_preview.png" alt="Preview" style="max-width: 400px; height: auto;">
 
-The result is at [example/location.csv](./example/location.csv).
+The result is at [example/location.csv](example/location.csv).
 
 ### Location of Log File
 
