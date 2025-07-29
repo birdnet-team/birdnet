@@ -159,6 +159,3 @@ def test_large_file():
     array = result.to_csv("/tmp/test_conv.csv")
 
   print(f"CSV -> duration: {duration()} s; memory: {memory_footprint()} MB")
-
-
-test_large_file()

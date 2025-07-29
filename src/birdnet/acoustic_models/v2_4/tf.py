@@ -10,6 +10,12 @@ from typing import TYPE_CHECKING, Literal, final
 
 from ordered_set import OrderedSet
 
+from birdnet.acoustic_models.inference.emb.prediction_result import (
+  EmbeddingsPredictionResult,
+)
+from birdnet.acoustic_models.inference.scores.prediction_result import (
+  ScoresPredictionResult,
+)
 from birdnet.acoustic_models.inference_pipeline.configs import (
   EmbeddingsConfig,
   FilteringConfig,
@@ -19,14 +25,8 @@ from birdnet.acoustic_models.inference_pipeline.configs import (
   ProcessingConfig,
   ScoresConfig,
 )
-from birdnet.acoustic_models.inference.emb.prediction_result import (
-  EmbeddingsPredictionResult,
-)
 from birdnet.acoustic_models.inference_pipeline.emb_strategy import (
   predict_embeddings_from_recordings,
-)
-from birdnet.acoustic_models.inference.scores.prediction_result import (
-  ScoresPredictionResult,
 )
 from birdnet.acoustic_models.inference_pipeline.scores_strategy import (
   predict_species_from_recordings,
@@ -249,7 +249,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     bandpass_fmax: int | None = None,
     half_precision: bool = True,
     max_audio_duration_min: float | None = None,
-    show_stats: Literal["no", "minimal", "progress", "benchmark"] = "no",
+    show_stats: None | Literal["minimal", "progress", "benchmark"] = None,
   ) -> EmbeddingsPredictionResult:
     return predict_embeddings_from_recordings(
       conf=PredictionConfig(
@@ -316,7 +316,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     custom_species_list: set[str] | None = None,
     half_precision: bool = True,
     max_audio_duration_min: float | None = None,
-    show_stats: Literal["no", "minimal", "progress", "benchmark"] = "no",
+    show_stats: None | Literal["minimal", "progress", "benchmark"] = None,
   ) -> ScoresPredictionResult:
     return predict_species_from_recordings(
       conf=PredictionConfig(

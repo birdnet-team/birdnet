@@ -179,19 +179,20 @@ if __name__ == "__main__":
   ]
   audio_paths = "test-dataset/test_dataset_4x60min/0.wav"
   audio_paths = "test-dataset/test_dataset_1x7.3s_flac/0.flac"
+  audio_paths = "example/soundscape.wav"
+
   audio_paths = [
     Path("test-dataset/test_dataset_4x60min/0.wav"),
     Path("test-dataset/test_dataset_4x60min/1.wav"),
     Path("test-dataset/test_dataset_4x60min/2.wav"),
     Path("test-dataset/test_dataset_4x60min/3.wav"),
   ]
-  audio_paths = "example/soundscape.wav"
   params = {
     "n_workers": 12,
-    "n_producers": 12,
+    "n_producers": 1,
     "batch_size": 1,
     "prefetch_ratio": 2,
-    "backend": "pb",
+    "backend": "tf",
     "precision": "fp32",
     "device": "CPU",
     "top_k": 5,

@@ -10,7 +10,7 @@ from birdnet.globals import MODEL_PRECISIONS
 from birdnet.model_loader import load
 
 
-def test_types_are_correct():
+def test_types_are_correct() -> None:
   assert type(load("acoustic", "2.4", "pb")) is AcousticPBModelV2_4
   assert type(load("acoustic", "2.4", "tf")) is AcousticTFModelV2_4
   assert type(load("acoustic", "2.4", "tf", library="litert")) is AcousticTFModelV2_4
@@ -18,12 +18,12 @@ def test_types_are_correct():
   assert type(load("geo", "2.4", "tf")) is GeoTFModelV2_4
 
 
-def test_load_tf_with_custom_library():
+def test_load_tf_with_custom_library() -> None:
   assert type(load("acoustic", "2.4", "tf", library="litert")) is AcousticTFModelV2_4
   assert type(load("geo", "2.4", "tf", library="litert")) is GeoTFModelV2_4
 
 
-def test_load_pb_with_custom_library_raises_error():
+def test_load_pb_with_custom_library_raises_error() -> None:
   with pytest.raises(
     ValueError,
     match=r"Unexpected keyword arguments: library.",
@@ -31,7 +31,7 @@ def test_load_pb_with_custom_library_raises_error():
     load("acoustic", "2.4", "pb", library="litert")  # type: ignore
 
 
-def test_types_with_precisions_are_correct():
+def test_types_with_precisions_are_correct() -> None:
   assert (
     type(load("acoustic", "2.4", "pb", precision=cast(Literal["fp32"], f"fp{32}")))
     is AcousticPBModelV2_4

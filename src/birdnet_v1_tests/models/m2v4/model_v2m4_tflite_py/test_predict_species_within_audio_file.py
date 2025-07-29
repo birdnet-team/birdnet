@@ -46,12 +46,17 @@ def test_identical_predictions_return_same_result(model: AudioModelV2M4TFLite):
 
 def test_invalid_species_filter_raises_value_error(model: AudioModelV2M4TFLite):
   invalid_filter_species: Set[Species] = {"species"}
-  with pytest.raises(ValueError, match=rf"At least one species defined in 'filter_species' is invalid! They need to be known species, e.g., {', '.join(model.species[:3])}"):
-    next(predict_species_within_audio_file(
-      TEST_FILE_WAV,
-      species_filter=invalid_filter_species,
-      custom_model=model,
-    ))
+  with pytest.raises(
+    ValueError,
+    match=rf"At least one species defined in 'filter_species' is invalid! They need to be known species, e.g., {', '.join(model.species[:3])}",
+  ):
+    next(
+      predict_species_within_audio_file(
+        TEST_FILE_WAV,
+        species_filter=invalid_filter_species,
+        custom_model=model,
+      )
+    )
 
 
 def test_internal_predictions_are_correct(model: AudioModelV2M4TFLite):
@@ -60,8 +65,9 @@ def test_internal_predictions_are_correct(model: AudioModelV2M4TFLite):
 
   for test_case_dict, gt in tqdm(test_cases):
     test_case = AudioTestCase(**test_case_dict)
-    res = predict_species_within_audio_file_in_test_case(test_case,
-                                                         model, TEST_FILE_WAV)
+    res = predict_species_within_audio_file_in_test_case(
+      test_case, model, TEST_FILE_WAV
+    )
     assert species_predictions_are_equal(res, gt, decimal=5)
 
 

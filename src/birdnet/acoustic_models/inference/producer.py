@@ -250,7 +250,7 @@ class Producer(bn_logging.LogableProcessBase):
           )
           continue
         self._max_segment_idx_ptr.value = file_max_segment_index
-      segments = load_audio_in_segments_with_overlap_locked(
+      segments = load_audio_in_segments_with_overlap(
         path,
         segment_duration_s=self._segment_duration_s,
         overlap_duration_s=self._overlap_duration_s,
@@ -503,7 +503,7 @@ def get_audio_duration_s(audio_path: Path) -> float:
 #     yield audio
 
 
-def load_audio_in_segments_with_overlap_locked(
+def load_audio_in_segments_with_overlap(
   audio_path: Path,
   /,
   *,
@@ -534,7 +534,7 @@ def load_audio_in_segments_with_overlap_locked(
     start_samples = round(start * sample_rate)
     end_samples = round(end * sample_rate)
     audio, _ = sf.read(
-      audio_path, start=start_samples, stop=end_samples, dtype=np.float32
+      audio_path, start=start_samples, stop=end_samples, dtype="float32"
     )
 
     if audio.ndim == 2:

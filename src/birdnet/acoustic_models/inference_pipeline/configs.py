@@ -77,7 +77,7 @@ class FilteringConfig:
 
 @dataclass(frozen=True)
 class OutputConfig:
-  show_stats: Literal["no", "minimal", "progress", "benchmark"]
+  show_stats: None | Literal["minimal", "progress", "benchmark"]
 
 
 @dataclass(frozen=True)

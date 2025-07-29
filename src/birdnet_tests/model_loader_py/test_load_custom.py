@@ -9,7 +9,7 @@ from birdnet.local_data import get_lang_dir, get_model_path, get_model_root_dir
 from birdnet.model_loader import load_custom
 
 
-def test_types_are_correct():
+def test_types_are_correct() -> None:
   model_type, version, backend, precision = "acoustic", "2.4", "pb", "fp32"
   assert (
     type(
@@ -64,7 +64,7 @@ def test_types_are_correct():
   )
 
 
-def test_types_with_precisions_are_correct():
+def test_types_with_precisions_are_correct() -> None:
   assert (
     type(
       load_custom(
