@@ -135,8 +135,8 @@ class Producer(bn_logging.LogableProcessBase):
     cancel_event: Event,
     prd_all_done_event: Event,
     use_bandpass: bool,
-    bandpass_fmin: int | None,
-    bandpass_fmax: int | None,
+    bandpass_fmin: int,
+    bandpass_fmax: int,
     fmin: int | None,
     fmax: int | None,
   ):
@@ -469,40 +469,6 @@ def get_audio_duration_s(audio_path: Path) -> float:
   return result
 
 
-# def load_audio_in_segments_with_overlap(
-#   audio_path: Path,
-#   /,
-#   *,
-#   segment_duration_s: float = 3,
-#   overlap_duration_s: float = 0,
-#   # read_duration_s: Optional[float] = None,
-#   target_sample_rate: int = 48000,
-# ) -> Generator[npt.NDArray[np.float32], None, None]:
-#   assert audio_path.is_file()
-#   assert audio_path.suffix.upper() in SF_FORMATS
-
-#   sf_info = sf.info(audio_path)
-#   is_mono = sf_info.channels == 1
-#   assert is_mono
-
-#   sample_rate = sf_info.samplerate
-
-#   timestamps = get_segments_with_overlap(
-#     float(sf_info.duration),
-#     float(segment_duration_s),
-#     float(overlap_duration_s),
-#   )
-
-#   for start, end in timestamps:
-#     start_samples = round(start * sample_rate)
-#     end_samples = round(end * sample_rate)
-#     audio, _ = sf.read(
-#       audio_path, start=start_samples, stop=end_samples, dtype=np.float32
-#     )
-#     audio = resample_array(audio, sample_rate, target_sample_rate)
-#     yield audio
-
-
 def load_audio_in_segments_with_overlap(
   audio_path: Path,
   /,
@@ -516,11 +482,6 @@ def load_audio_in_segments_with_overlap(
   assert audio_path.suffix.upper() in SF_FORMATS
 
   sf_info = sf.info(audio_path)
-
-  if sf_info.channels > 2:
-    raise ValueError(
-      f"Audio file {audio_path} has {sf_info.channels} channels, but only mono or stereo audio is supported."
-    )
 
   sample_rate = sf_info.samplerate
 
@@ -538,6 +499,8 @@ def load_audio_in_segments_with_overlap(
     )
 
     if audio.ndim == 2:
+      n_channels = audio.shape[1]
+      assert n_channels > 1
       audio = np.mean(audio, axis=1, dtype=np.float32)
     audio = resample_array(audio, sample_rate, target_sample_rate)
     yield audio

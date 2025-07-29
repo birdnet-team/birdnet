@@ -7,6 +7,16 @@ import numpy as np
 import psutil
 from ordered_set import OrderedSet
 
+from birdnet.acoustic_models.inference.scores.benchmarking import (
+  FullBenchmarkMeta,
+  MinimalBenchmarkMeta,
+)
+from birdnet.acoustic_models.inference.scores.prediction_result import (
+  PredictionResult,
+)
+from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
+from birdnet.acoustic_models.inference.scores.worker import ScoresWorker
+from birdnet.acoustic_models.inference.worker import WorkerBase
 from birdnet.acoustic_models.inference_pipeline.configs import (
   PredictionConfig,
   ScoresConfig,
@@ -17,28 +27,16 @@ from birdnet.acoustic_models.inference_pipeline.pipeline import (
 from birdnet.acoustic_models.inference_pipeline.resources import (
   PipelineResources,
 )
-from birdnet.acoustic_models.inference.scores.benchmarking import (
-  FullBenchmarkMeta,
-  MinimalBenchmarkMeta,
-)
-from birdnet.acoustic_models.inference.scores.prediction_result import (
-  ScoresPredictionResult,
-)
-from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
-from birdnet.acoustic_models.inference.scores.worker import ScoresWorker
 from birdnet.acoustic_models.inference_pipeline.strategy import (
   PredictionStrategy,
   get_file_formats,
 )
-from birdnet.acoustic_models.inference.worker import WorkerBase
 from birdnet.globals import (
   MODEL_TYPE_ACOUSTIC,
 )
 
 
-class ScoresStrategy(
-  PredictionStrategy[ScoresPredictionResult, ScoresConfig, ScoresTensor]
-):
+class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTensor]):
   # def __init__(self, config: PredictionConfig, specific_config: ScoresConfig) -> None:
   #   super().__init__(config, specific_config)
 
@@ -138,10 +136,10 @@ class ScoresStrategy(
     tensor: ScoresTensor,
     config: PredictionConfig,
     resources: PipelineResources,
-  ) -> ScoresPredictionResult:
+  ) -> PredictionResult:
     assert resources.analyzer_resources.file_durations is not None
 
-    return ScoresPredictionResult(
+    return PredictionResult(
       tensor=tensor,
       files=resources.analyzer_resources.file_paths,
       segment_duration_s=config.model_conf.segment_size_s,
@@ -155,7 +153,7 @@ class ScoresStrategy(
     config: PredictionConfig,
     specific_config: ScoresConfig,
     resources: PipelineResources,
-    pred_result: ScoresPredictionResult,
+    pred_result: PredictionResult,
   ) -> MinimalBenchmarkMeta:
     assert resources.stats_resources.end_timepoint is not None
     assert resources.stats_resources.stop is not None
@@ -187,7 +185,7 @@ class ScoresStrategy(
     config: PredictionConfig,
     specific_config: ScoresConfig,
     resources: PipelineResources,
-    pred_result: ScoresPredictionResult,
+    pred_result: PredictionResult,
   ) -> FullBenchmarkMeta:
     perf_result = resources.stats_resources.tracking_result
     assert perf_result is not None
@@ -230,7 +228,6 @@ class ScoresStrategy(
       param_sigmoid_sensitivity=specific_config.sigmoid_sensitivity
       if specific_config.apply_sigmoid
       else None,
-      param_bandpass_use=config.filtering_conf.use_bandpass,
       param_bandpass_fmin=config.filtering_conf.bandpass_fmin,
       param_bandpass_fmax=config.filtering_conf.bandpass_fmax,
       param_half_precision=config.processing_conf.half_precision,
@@ -281,7 +278,7 @@ class ScoresStrategy(
     return "scores"
 
   def save_results_extra(
-    self, result: ScoresPredictionResult, benchmark_run_out_dir: Path, iso_time: str
+    self, result: PredictionResult, benchmark_run_out_dir: Path, iso_time: str
   ) -> list[Path]:
     print("Saving result using CSV format (.csv)...")
     csv_path = benchmark_run_out_dir / f"result-{iso_time}.csv"
@@ -292,7 +289,7 @@ class ScoresStrategy(
 def predict_species_from_recordings(
   conf: PredictionConfig,
   scores_conf: ScoresConfig,
-) -> ScoresPredictionResult:
+) -> PredictionResult:
   strategy = ScoresStrategy()
   return predict_from_recordings_generic(conf, strategy, scores_conf)
 

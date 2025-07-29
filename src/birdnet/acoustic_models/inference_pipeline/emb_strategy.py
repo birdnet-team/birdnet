@@ -6,19 +6,20 @@ from pathlib import Path
 import psutil
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference_pipeline.configs import (
-  EmbeddingsConfig,
-  PredictionConfig,
-)
 from birdnet.acoustic_models.inference.emb.benchmarking import (
   FullBenchmarkEmbMeta,
   MinimalBenchmarkEmbMeta,
 )
-from birdnet.acoustic_models.inference.emb.prediction_result import (
-  EmbeddingsPredictionResult,
+from birdnet.acoustic_models.inference.emb.encoding_result import (
+  EncodingResult,
 )
 from birdnet.acoustic_models.inference.emb.tensor import EmbeddingsTensor
 from birdnet.acoustic_models.inference.emb.worker import EmbeddingsWorker
+from birdnet.acoustic_models.inference.worker import WorkerBase
+from birdnet.acoustic_models.inference_pipeline.configs import (
+  EmbeddingsConfig,
+  PredictionConfig,
+)
 from birdnet.acoustic_models.inference_pipeline.pipeline import (
   predict_from_recordings_generic,
 )
@@ -29,14 +30,13 @@ from birdnet.acoustic_models.inference_pipeline.strategy import (
   PredictionStrategy,
   get_file_formats,
 )
-from birdnet.acoustic_models.inference.worker import WorkerBase
 from birdnet.globals import (
   MODEL_TYPE_ACOUSTIC,
 )
 
 
 class EmbeddingsStrategy(
-  PredictionStrategy[EmbeddingsPredictionResult, EmbeddingsConfig, EmbeddingsTensor]
+  PredictionStrategy[EncodingResult, EmbeddingsConfig, EmbeddingsTensor]
 ):
   def validate_config(
     self, config: PredictionConfig, specific_config: EmbeddingsConfig
@@ -96,10 +96,10 @@ class EmbeddingsStrategy(
     tensor: EmbeddingsTensor,
     config: PredictionConfig,
     resources: PipelineResources,
-  ) -> EmbeddingsPredictionResult:
+  ) -> EncodingResult:
     assert resources.analyzer_resources.file_durations is not None
 
-    return EmbeddingsPredictionResult(
+    return EncodingResult(
       tensor=tensor,
       files=resources.analyzer_resources.file_paths,
       segment_duration_s=config.model_conf.segment_size_s,
@@ -112,7 +112,7 @@ class EmbeddingsStrategy(
     config: PredictionConfig,
     specific_config: EmbeddingsConfig,
     resources: PipelineResources,
-    pred_result: EmbeddingsPredictionResult,
+    pred_result: EncodingResult,
   ) -> MinimalBenchmarkEmbMeta:
     assert resources.stats_resources.end_timepoint is not None
     assert resources.stats_resources.stop is not None
@@ -144,7 +144,7 @@ class EmbeddingsStrategy(
     config: PredictionConfig,
     specific_config: EmbeddingsConfig,
     resources: PipelineResources,
-    pred_result: EmbeddingsPredictionResult,
+    pred_result: EncodingResult,
   ) -> FullBenchmarkEmbMeta:
     perf_result = resources.stats_resources.tracking_result
     assert perf_result is not None
@@ -183,7 +183,6 @@ class EmbeddingsStrategy(
       param_prefetch_ratio=config.processing_conf.prefetch_ratio,
       mem_shm_ringsize=config.processing_conf.workers
       + (config.processing_conf.workers * config.processing_conf.prefetch_ratio),
-      param_bandpass_use=config.filtering_conf.use_bandpass,
       param_bandpass_fmin=config.filtering_conf.bandpass_fmin,
       param_bandpass_fmax=config.filtering_conf.bandpass_fmax,
       param_half_precision=config.processing_conf.half_precision,
@@ -225,7 +224,7 @@ class EmbeddingsStrategy(
     return "emb"
 
   def save_results_extra(
-    self, result: EmbeddingsPredictionResult, benchmark_run_out_dir: Path, iso_time: str
+    self, result: EncodingResult, benchmark_run_out_dir: Path, iso_time: str
   ) -> list[Path]:
     return []
 
@@ -233,6 +232,6 @@ class EmbeddingsStrategy(
 def predict_embeddings_from_recordings(
   conf: PredictionConfig,
   emb_config: EmbeddingsConfig,
-) -> EmbeddingsPredictionResult:
+) -> EncodingResult:
   strategy = EmbeddingsStrategy()
   return predict_from_recordings_generic(conf, strategy, emb_config)

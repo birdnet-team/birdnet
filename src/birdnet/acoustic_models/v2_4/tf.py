@@ -6,15 +6,20 @@ import tempfile
 import zipfile
 from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, final
+from typing import TYPE_CHECKING, Collection, Literal, final
 
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.emb.prediction_result import (
-  EmbeddingsPredictionResult,
+from birdnet.acoustic_models.inference.backends import (
+  InferenceBackend,
+  TFInferenceBackend,
+  check_tf_model_can_be_loaded,
+)
+from birdnet.acoustic_models.inference.emb.encoding_result import (
+  EncodingResult,
 )
 from birdnet.acoustic_models.inference.scores.prediction_result import (
-  ScoresPredictionResult,
+  PredictionResult,
 )
 from birdnet.acoustic_models.inference_pipeline.configs import (
   EmbeddingsConfig,
@@ -34,11 +39,6 @@ from birdnet.acoustic_models.inference_pipeline.scores_strategy import (
 from birdnet.acoustic_models.v2_4.base import (
   AcousticDownloaderBaseV2_4,
   AcousticModelBaseV2_4,
-)
-from birdnet.backends import (
-  InferenceBackend,
-  TFInferenceBackend,
-  check_tf_model_can_be_loaded,
 )
 from birdnet.globals import (
   LIBRARY_TYPES,
@@ -234,7 +234,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
 
     return result
 
-  def predict_embeddings(
+  def encode(
     self,
     inp: Path | str | Iterable[Path | str],
     /,
@@ -244,16 +244,42 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     batch_size: int = 1,
     prefetch_ratio: int = 1,
     overlap_duration_s: float = 0,
-    use_bandpass: bool = False,
-    bandpass_fmin: int | None = None,
-    bandpass_fmax: int | None = None,
+    bandpass_fmin: int = 0,
+    bandpass_fmax: int = 15_000,
     half_precision: bool = True,
     max_audio_duration_min: float | None = None,
     show_stats: None | Literal["minimal", "progress", "benchmark"] = None,
-  ) -> EmbeddingsPredictionResult:
+  ) -> EncodingResult:
+    input_files = PredictionConfig.validate_input_files(inp)
+
+    feeders = ProcessingConfig.validate_feeders(feeders)
+    workers = ProcessingConfig.validate_workers(workers)
+    batch_size = ProcessingConfig.validate_batch_size(batch_size)
+    prefetch_ratio = ProcessingConfig.validate_prefetch_ratio(prefetch_ratio)
+    overlap_duration_s = ProcessingConfig.validate_overlap_duration(
+      overlap_duration_s, self.get_segment_size_s()
+    )
+
+    bandpass_fmin, bandpass_fmax = FilteringConfig.validate_bandpass_frequencies(
+      bandpass_fmin,
+      bandpass_fmax,
+      self.get_sig_fmin(),
+      self.get_sig_fmax(),
+    )
+
+    half_precision = ProcessingConfig.validate_half_precision(half_precision)
+
+    if max_audio_duration_min is not None:
+      max_audio_duration_min = ProcessingConfig.validate_max_audio_duration_min(
+        max_audio_duration_min
+      )
+
+    if show_stats is not None:
+      show_stats = OutputConfig.validate_show_stats(show_stats)
+
     return predict_embeddings_from_recordings(
       conf=PredictionConfig(
-        input_files=inp,
+        input_files=input_files,
         model_conf=ModelConfig(
           species_list=self.species_list,
           path=self.model_path,
@@ -282,7 +308,6 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
           device="CPU",  # Device is always CPU for TF models
         ),
         filtering_conf=FilteringConfig(
-          use_bandpass=use_bandpass,
           bandpass_fmin=bandpass_fmin,
           bandpass_fmax=bandpass_fmax,
         ),
@@ -306,21 +331,64 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     batch_size: int = 1,
     prefetch_ratio: int = 1,
     overlap_duration_s: float = 0,
-    default_confidence_threshold: float | None = 0.1,
-    custom_confidence_thresholds: dict[str, float] | None = None,
-    use_bandpass: bool = False,
-    bandpass_fmin: int | None = None,
-    bandpass_fmax: int | None = None,
+    bandpass_fmin: int = 0,
+    bandpass_fmax: int = 15_000,
     apply_sigmoid: bool = True,
     sigmoid_sensitivity: float | None = 1.0,
-    custom_species_list: set[str] | None = None,
+    default_confidence_threshold: float | None = 0.1,
+    custom_confidence_thresholds: dict[str, float] | None = None,
+    custom_species_list: Collection[str] | None = None,
     half_precision: bool = True,
     max_audio_duration_min: float | None = None,
-    show_stats: None | Literal["minimal", "progress", "benchmark"] = None,
-  ) -> ScoresPredictionResult:
+    show_stats: Literal["minimal", "progress", "benchmark"] | None = None,
+  ) -> PredictionResult:
+    input_files = PredictionConfig.validate_input_files(inp)
+
+    if top_k is not None:
+      top_k = ScoresConfig.validate_top_k(top_k, len(self.species_list))
+    feeders = ProcessingConfig.validate_feeders(feeders)
+    workers = ProcessingConfig.validate_workers(workers)
+    batch_size = ProcessingConfig.validate_batch_size(batch_size)
+    prefetch_ratio = ProcessingConfig.validate_prefetch_ratio(prefetch_ratio)
+    overlap_duration_s = ProcessingConfig.validate_overlap_duration(
+      overlap_duration_s, self.get_segment_size_s()
+    )
+
+    bandpass_fmin, bandpass_fmax = FilteringConfig.validate_bandpass_frequencies(
+      bandpass_fmin,
+      bandpass_fmax,
+      self.get_sig_fmin(),
+      self.get_sig_fmax(),
+    )
+
+    half_precision = ProcessingConfig.validate_half_precision(half_precision)
+
+    if max_audio_duration_min is not None:
+      max_audio_duration_min = ProcessingConfig.validate_max_audio_duration_min(
+        max_audio_duration_min
+      )
+
+    if show_stats is not None:
+      show_stats = OutputConfig.validate_show_stats(show_stats)
+
+    if custom_confidence_thresholds is not None:
+      custom_confidence_thresholds = ScoresConfig.validate_custom_confidence_thresholds(
+        custom_confidence_thresholds, self.species_list
+      )
+
+    if custom_species_list is not None:
+      custom_species_list = ScoresConfig.validate_custom_species_list(
+        custom_species_list, self.species_list
+      )
+
+    if apply_sigmoid:
+      sigmoid_sensitivity = ScoresConfig.validate_sigmoid_sensitivity(
+        sigmoid_sensitivity
+      )
+
     return predict_species_from_recordings(
       conf=PredictionConfig(
-        input_files=inp,
+        input_files=input_files,
         model_conf=ModelConfig(
           species_list=self.species_list,
           path=self.model_path,
@@ -349,7 +417,6 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
           device="CPU",  # Device is always CPU for TF models
         ),
         filtering_conf=FilteringConfig(
-          use_bandpass=use_bandpass,
           bandpass_fmin=bandpass_fmin,
           bandpass_fmax=bandpass_fmax,
         ),

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, final
 
 from ordered_set import OrderedSet
 
-from birdnet.backends import (
+from birdnet.acoustic_models.inference.backends import (
   InferenceBackend,
   TFInferenceBackend,
   check_tf_model_can_be_loaded,

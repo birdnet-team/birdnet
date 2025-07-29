@@ -23,5 +23,5 @@ class AcousticModelBase(ModelBase):
 
   @classmethod
   @abstractmethod
-  def predict_embeddings(cls, *args, **kwargs) -> PredictionResultBase:
+  def encode(cls, *args, **kwargs) -> PredictionResultBase:
     pass

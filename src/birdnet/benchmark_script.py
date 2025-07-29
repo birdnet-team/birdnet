@@ -8,6 +8,7 @@ import psutil
 
 import birdnet
 import birdnet.model_loader
+from birdnet.acoustic_models.v2_4.base import AcousticModelBaseV2_4
 from birdnet.argparse_helper import (
   ConvertToSetAction,
   parse_float,
@@ -203,9 +204,8 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
       max_audio_duration_min=None,
       show_stats=ns.show_stats,
       prefetch_ratio=ns.prefetch_ratio,
-      use_bandpass=False,
-      bandpass_fmax=None,
-      bandpass_fmin=None,
+      bandpass_fmin=AcousticModelBaseV2_4.get_sig_fmin(),
+      bandpass_fmax=AcousticModelBaseV2_4.get_sig_fmax(),
     )
   elif ns.backend == MODEL_BACKEND_PB:
     model = birdnet.model_loader.load(
@@ -232,9 +232,8 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
       show_stats=ns.show_stats,
       device=ns.devices if len(ns.devices) > 1 else ns.devices[0],
       prefetch_ratio=ns.prefetch_ratio,
-      use_bandpass=False,
-      bandpass_fmax=None,
-      bandpass_fmin=None,
+      bandpass_fmin=AcousticModelBaseV2_4.get_sig_fmin(),
+      bandpass_fmax=AcousticModelBaseV2_4.get_sig_fmax(),
     )
   else:
     raise AssertionError()

@@ -124,6 +124,11 @@ class ProcessManager:
     return file_analyzer_proc
 
   def start_producers(self) -> list[mp.Process]:
+    use_bandpass = not (
+      self._cfg.model_conf.sig_fmin == self._cfg.filtering_conf.bandpass_fmin
+      and self._cfg.model_conf.sig_fmax == self._cfg.filtering_conf.bandpass_fmax
+    )
+
     producer_processes = [
       mp.Process(
         target=Producer(
@@ -145,7 +150,7 @@ class ProcessManager:
           segment_duration_s=self._cfg.model_conf.segment_size_s,
           overlap_duration_s=self._cfg.processing_conf.overlap_duration_s,
           target_sample_rate=self._cfg.model_conf.sample_rate,
-          use_bandpass=self._cfg.filtering_conf.use_bandpass,
+          use_bandpass=use_bandpass,
           bandpass_fmax=self._cfg.filtering_conf.bandpass_fmax,
           bandpass_fmin=self._cfg.filtering_conf.bandpass_fmin,
           fmin=self._cfg.model_conf.sig_fmin,

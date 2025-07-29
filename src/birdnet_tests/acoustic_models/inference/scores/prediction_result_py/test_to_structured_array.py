@@ -4,7 +4,7 @@ import numpy as np
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.scores.prediction_result import (
-  ScoresPredictionResult,
+  PredictionResult,
   assert_species_masked_pattern,
 )
 from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
@@ -29,10 +29,10 @@ def create_prediction_result(
   segment_duration_s: float,
   overlap_duration_s: float,
   rand_duration: bool = False,
-) -> ScoresPredictionResult:
+) -> PredictionResult:
   np.random.seed(0)
   species_ids = np.random.randint(
-    0, 10, size=(n_files, n_segments, top_k), dtype=np.uint16
+    0, 10, size=(n_files, n_segments, top_k), dtype=np.uint8
   )
   species_probs = np.random.random((n_files, n_segments, top_k)).astype(np.float32)
   species_masked = np.full((n_files, n_segments, top_k), False, dtype=bool)
@@ -54,7 +54,7 @@ def create_prediction_result(
       max_dur,
       dtype=get_float_dtype(max_dur),
     )
-  return ScoresPredictionResult(
+  return PredictionResult(
     tensor=tensor,
     files=files,
     species_list=species_list,
@@ -64,7 +64,7 @@ def create_prediction_result(
   )
 
 
-def test_empty_predictions():
+def test_empty_predictions() -> None:
   result = create_prediction_result(
     n_files=5, n_segments=3, top_k=2, segment_duration_s=3.0, overlap_duration_s=0.0
   )
@@ -82,7 +82,7 @@ def test_empty_predictions():
   )
 
 
-def test_single_prediction():
+def test_single_prediction() -> None:
   result = create_prediction_result(
     n_files=1, n_segments=1, top_k=1, segment_duration_s=3.0, overlap_duration_s=0.0
   )
@@ -97,7 +97,7 @@ def test_single_prediction():
   assert structured[0]["confidence"] >= 0
 
 
-def test_two_segments():
+def test_two_segments() -> None:
   result = create_prediction_result(
     n_files=1, n_segments=2, top_k=1, segment_duration_s=3.0, overlap_duration_s=0.0
   )
@@ -118,7 +118,7 @@ def test_two_segments():
   assert structured[1]["confidence"] >= 0
 
 
-def test_sorting_by_confidence():
+def test_sorting_by_confidence() -> None:
   result = create_prediction_result(
     n_files=1, n_segments=1, top_k=3, segment_duration_s=3.0, overlap_duration_s=0.0
   )
@@ -133,7 +133,7 @@ def test_sorting_by_confidence():
   )
 
 
-def test_time_calculations_with_overlap():
+def test_time_calculations_with_overlap() -> None:
   result = create_prediction_result(
     n_files=1, n_segments=2, top_k=1, segment_duration_s=3, overlap_duration_s=0.5
   )
@@ -146,7 +146,7 @@ def test_time_calculations_with_overlap():
   assert structured[1]["end_time"] == 5.5
 
 
-def test_end_time_clipping_one_segment():
+def test_end_time_clipping_one_segment() -> None:
   result = create_prediction_result(
     n_files=1,
     n_segments=1,
@@ -162,7 +162,7 @@ def test_end_time_clipping_one_segment():
   assert structured[0]["end_time"] < 3.0
 
 
-def test_end_time_clipping_two_segments():
+def test_end_time_clipping_two_segments() -> None:
   result = create_prediction_result(
     n_files=1,
     n_segments=2,
@@ -181,7 +181,9 @@ def test_end_time_clipping_two_segments():
   assert structured[1]["end_time"] < 6.0
 
 
-def _test_end_time_clipping_multiple_segments(max_duration: float):
+def _test_end_time_clipping_multiple_segments(
+  max_duration: float,
+) -> PredictionResult:
   n_segments = round(max_duration / 3)
   result = create_prediction_result(
     n_files=1,
@@ -205,23 +207,23 @@ def _test_end_time_clipping_multiple_segments(max_duration: float):
   return result
 
 
-def test_end_time_clipping_multiple_segments_float16():
+def test_end_time_clipping_multiple_segments_float16() -> None:
   result = _test_end_time_clipping_multiple_segments(2000)
   assert result.file_durations.dtype == np.float16
 
 
-def test_end_time_clipping_multiple_segments_float32():
+def test_end_time_clipping_multiple_segments_float32() -> None:
   result = _test_end_time_clipping_multiple_segments(5000)
   assert result.file_durations.dtype == np.float32
 
 
-def xtest_end_time_clipping_multiple_segments_float64():
+def xtest_end_time_clipping_multiple_segments_float64() -> None:
   # takes to long to test
   result = _test_end_time_clipping_multiple_segments(2**25)
   assert result.file_durations.dtype == np.float64
 
 
-def test_multiple_files():
+def test_multiple_files() -> None:
   result = create_prediction_result(
     n_files=5, n_segments=1, top_k=1, segment_duration_s=3, overlap_duration_s=0
   )
@@ -236,7 +238,7 @@ def test_multiple_files():
   assert structured[4]["file_path"] == "/test/file_4.wav"
 
 
-def test_dtype_structure():
+def test_dtype_structure() -> None:
   result = create_prediction_result(
     n_files=1, n_segments=1, top_k=1, segment_duration_s=3.0, overlap_duration_s=0.0
   )
@@ -258,7 +260,7 @@ def test_dtype_structure():
   assert structured.dtype["confidence"] == result._species_probs.dtype
 
 
-def test_masking_behavior():
+def test_masking_behavior() -> None:
   result = create_prediction_result(
     n_files=2, n_segments=1, top_k=3, segment_duration_s=3.0, overlap_duration_s=0.0
   )

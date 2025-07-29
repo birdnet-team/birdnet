@@ -20,13 +20,18 @@ from numpy.typing import DTypeLike
 from ordered_set import OrderedSet
 
 import birdnet.logging_utils as bn_logging
+from birdnet.acoustic_models.inference.backends import (
+  InferenceBackendLoader,
+  PBInferenceBackend,
+  TFInferenceBackend,
+)
 from birdnet.acoustic_models.inference.consumer import Consumer
 from birdnet.acoustic_models.inference.emb.benchmarking import (
   FullBenchmarkEmbMeta,
   MinimalBenchmarkEmbMeta,
 )
-from birdnet.acoustic_models.inference.emb.prediction_result import (
-  EmbeddingsPredictionResult,
+from birdnet.acoustic_models.inference.emb.encoding_result import (
+  EncodingResult,
 )
 from birdnet.acoustic_models.inference.emb.tensor import EmbeddingsTensor
 from birdnet.acoustic_models.inference.emb.worker import EmbeddingsWorker
@@ -41,15 +46,10 @@ from birdnet.acoustic_models.inference.scores.benchmarking import (
   MinimalBenchmarkMeta,
 )
 from birdnet.acoustic_models.inference.scores.prediction_result import (
-  ScoresPredictionResult,
+  PredictionResult,
 )
 from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
 from birdnet.acoustic_models.inference.scores.worker import ScoresWorker
-from birdnet.backends import (
-  InferenceBackendLoader,
-  PBInferenceBackend,
-  TFInferenceBackend,
-)
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSIONS,
   MODEL_BACKEND_PB,
@@ -99,7 +99,7 @@ def predict_embeddings_from_recordings(
   max_audio_duration_min: float | None = None,
   show_stats: Literal["no", "minimal", "progress", "benchmark"] = "no",
   device: str | list[str] = "CPU",
-) -> EmbeddingsPredictionResult:
+) -> EncodingResult:
   start = time.perf_counter()
   start_time = time.time()
   start_timepoint = datetime.now()
@@ -556,7 +556,7 @@ def predict_embeddings_from_recordings(
       f"Analysis was cancelled due to an error. Please check the logs for details: {log_file.absolute()}"
     )
 
-  res = EmbeddingsPredictionResult(
+  res = EncodingResult(
     tensor=result,
     files=file_paths,
     segment_duration_s=model_segment_size_s,
@@ -786,7 +786,7 @@ def predict_species_from_recordings(
   max_audio_duration_min: float | None = None,
   show_stats: Literal["no", "minimal", "progress", "benchmark"] = "no",
   device: str | list[str] = "CPU",
-) -> ScoresPredictionResult:
+) -> PredictionResult:
   debug_log = False
 
   start = time.perf_counter()
@@ -1324,7 +1324,7 @@ def predict_species_from_recordings(
       f"Analysis was cancelled due to an error. Please check the logs for details: {log_file.absolute()}"
     )
 
-  res = ScoresPredictionResult(
+  res = PredictionResult(
     tensor=result,
     files=file_paths,
     segment_duration_s=model_segment_size_s,

@@ -25,10 +25,10 @@ encode() {
 cp "$INFILE" "$OUTDIR/$BASENAME.wav"
 
 #  stereo
-ffmpeg -i "$INFILE" -filter_complex "[0:a]pan=stereo|c0=c0|c1=c0" "$OUTDIR/${BASENAME}_stereo.wav"
+encode -i "$INFILE" -filter_complex "[0:a]pan=stereo|c0=c0|c1=c0" "$OUTDIR/${BASENAME}_stereo.wav"
 
 # three channels
-ffmpeg -i "$INFILE" -filter_complex "[0:a]pan=3c|c0=c0|c1=c0|c2=c0" "$OUTDIR/${BASENAME}_3ch.wav"
+encode -i "$INFILE" -filter_complex "[0:a]pan=3c|c0=c0|c1=c0|c2=c0" "$OUTDIR/${BASENAME}_3ch.wav"
 
 # verlustbehaftet (komprimiert)                                #
 encode -i "$INFILE" -c:a libmp3lame    -b:a 192k  "$OUTDIR/$BASENAME.mp3"   # MP3

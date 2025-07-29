@@ -22,6 +22,10 @@ def test_stereo_can_be_read() -> None:
   assert format_can_be_read("soundscape_stereo.wav")
 
 
+def test_three_channels_can_be_read() -> None:
+  assert format_can_be_read("soundscape_3ch.wav")
+
+
 def test_aac_can_be_read() -> None:
   assert format_can_be_read("soundscape.aac")
 
@@ -134,7 +138,7 @@ def test_upsampling_to_96000() -> None:
     assert result[i].dtype == np.float32
 
 
-# region overlap tests
+# region overlap
 
 
 def test_overlap_0() -> None:

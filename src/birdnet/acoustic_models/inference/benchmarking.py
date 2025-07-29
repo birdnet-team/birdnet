@@ -11,7 +11,7 @@ from typing import Any
 import numpy as np
 import psutil
 
-from birdnet.backends import (
+from birdnet.acoustic_models.inference.backends import (
   litert_installed,
   tf_installed,
 )
@@ -225,9 +225,8 @@ class FullBenchmarkMetaBase(MinimalBenchmarkMetaBase):
   param_overlap_seconds: float
   param_batch_size: int
   param_prefetch_ratio: int
-  param_bandpass_use: bool
-  param_bandpass_fmin: int | None
-  param_bandpass_fmax: int | None
+  param_bandpass_fmin: int
+  param_bandpass_fmax: int
   param_half_precision: bool
   param_devices: str
   param_inference_library: str | None

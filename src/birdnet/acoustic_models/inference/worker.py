@@ -12,7 +12,7 @@ import numpy as np
 from numpy.typing import DTypeLike
 
 import birdnet.logging_utils as bn_logging
-from birdnet.backends import InferenceBackendLoader
+from birdnet.acoustic_models.inference.backends import InferenceBackendLoader
 from birdnet.globals import (
   READABLE_FLAG,
   READING_FLAG,

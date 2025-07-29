@@ -8,7 +8,7 @@ from typing import cast
 import numpy as np
 
 from birdnet.acoustic_models.inference.scores.prediction_result import (
-  ScoresPredictionResult,
+  PredictionResult,
 )
 from birdnet.globals import MODEL_PRECISIONS
 from birdnet.logging_utils import get_package_logger
@@ -247,6 +247,8 @@ if __name__ == "__main__":
       default_confidence_threshold=-np.inf,
       half_precision=False,
       show_stats=params["show_stats"],
+      bandpass_fmin=0,
+      bandpass_fmax=15000,
       # custom_confidence_thresholds={
       #   "Junco hyemalis_Dark-eyed Junco": -np.inf,
       #   "Haemorhous mexicanus_House Finch": 0.1,
@@ -300,7 +302,7 @@ if __name__ == "__main__":
   print(f"Saved to {output_file} in {time.perf_counter() - now:.2f} seconds.")
 
   if True:
-    result_loaded = ScoresPredictionResult.load(output_file)
+    result_loaded = PredictionResult.load(output_file)
     df = result.to_dataframe()
     # for file in audio_paths:
     #   file_df = result.get_file_results(file).to_dataframe()

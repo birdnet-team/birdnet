@@ -10,7 +10,6 @@ from birdnet.acoustic_models.inference_pipeline.configs import (
   PredictionConfig,
   ResultType,
   TensorType,
-  validate_common_config,
 )
 from birdnet.acoustic_models.inference_pipeline.processes import ProcessManager
 from birdnet.acoustic_models.inference_pipeline.resources import (
@@ -29,9 +28,6 @@ def predict_from_recordings_generic(
   strategy: PredictionStrategy[ResultType, ConfigType, TensorType],
   specific_config: ConfigType,
 ) -> ResultType:
-  validate_common_config(conf)
-  strategy.validate_config(conf, specific_config)
-
   resource_manager = ResourceManager(conf, strategy.get_benchmark_dir_name())
   resources = resource_manager.create_all_resources()
 

@@ -9,7 +9,7 @@ import numpy as np
 from numpy.typing import DTypeLike
 
 from birdnet.acoustic_models.inference.worker import WorkerBase
-from birdnet.backends import InferenceBackendLoader
+from birdnet.acoustic_models.inference.backends import InferenceBackendLoader
 from birdnet.helper import RingField, uint_dtype_for
 from birdnet.utils import flat_sigmoid_logaddexp_fast
 

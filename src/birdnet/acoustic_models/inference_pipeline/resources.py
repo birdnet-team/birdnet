@@ -17,14 +17,14 @@ import numpy as np
 from ordered_set import OrderedSet
 
 import birdnet.logging_utils as bn_logging
-from birdnet.acoustic_models.inference.perf_tracker import PerformanceTrackingResult
-from birdnet.acoustic_models.inference_pipeline.configs import (
-  PredictionConfig,
-)
-from birdnet.backends import (
+from birdnet.acoustic_models.inference.backends import (
   InferenceBackendLoader,
   PBInferenceBackend,
   TFInferenceBackend,
+)
+from birdnet.acoustic_models.inference.perf_tracker import PerformanceTrackingResult
+from birdnet.acoustic_models.inference_pipeline.configs import (
+  PredictionConfig,
 )
 from birdnet.globals import (
   MODEL_BACKEND_PB,
@@ -262,8 +262,6 @@ class FilesAnalyzerResources:
 
 
 def create_analyzer_resources(conf: PredictionConfig) -> FilesAnalyzerResources:
-  file_paths = _parse_input_files(conf.input_files)
-
   reserve_n_segments = 0
 
   if conf.processing_conf.max_audio_duration_min is not None:
@@ -290,11 +288,14 @@ def create_analyzer_resources(conf: PredictionConfig) -> FilesAnalyzerResources:
     max_segment_ptr_value,
   )
 
+  logger = bn_logging.get_logger(__name__)
+  logger.info(f"Got {len(conf.input_files)} audio files for analysis.")
+
   return FilesAnalyzerResources(
     analyzer_queue=mp.Queue(),
     tot_n_segments_ptr=mp.RawValue(ctypes.c_uint64, 0),
     max_segment_idx_ptr=max_segment_idx_ptr,
-    file_paths=file_paths,
+    file_paths=OrderedSet(sorted(conf.input_files)),
     segments_dtype=segments_dtype,
     max_segment_defined=max_segment_defined,
   )

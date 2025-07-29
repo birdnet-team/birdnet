@@ -1,12 +1,12 @@
 from os import PathLike
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 from birdnet.acoustic_models.base import AcousticModelBase
+from birdnet.acoustic_models.inference.backends import litert_installed, tf_installed
 from birdnet.acoustic_models.v2_4.base import AcousticModelBaseV2_4
 from birdnet.acoustic_models.v2_4.pb import AcousticPBModelV2_4
 from birdnet.acoustic_models.v2_4.tf import AcousticTFModelV2_4
-from birdnet.backends import litert_installed, tf_installed
 from birdnet.base import ModelBase
 from birdnet.geo_models.base import GeoModelBase
 from birdnet.geo_models.v2_4.pb import GeoPBModelV2_4
@@ -40,7 +40,7 @@ from birdnet.globals import (
 from birdnet.helper import check_protobuf_model_files_exist
 
 
-def _check_is_valid_model_type(model_type: str) -> MODEL_TYPES:
+def _validate_model_type(model_type: Any) -> MODEL_TYPES:  # noqa: ANN401
   if model_type not in VALID_MODEL_TYPES:
     raise ValueError(
       f"Unknown model type: {model_type}. Supported types are: {', '.join(VALID_MODEL_TYPES)}."
@@ -48,7 +48,7 @@ def _check_is_valid_model_type(model_type: str) -> MODEL_TYPES:
   return cast(MODEL_TYPES, model_type)
 
 
-def _check_is_valid_acoustic_model_version(version: str) -> ACOUSTIC_MODEL_VERSIONS:
+def _validate_acoustic_model_version(version: Any) -> ACOUSTIC_MODEL_VERSIONS:  # noqa: ANN401
   if version not in VALID_ACOUSTIC_MODEL_VERSIONS:
     raise ValueError(
       f"Unsupported model version: {version}. Available versions are: {', '.join(VALID_ACOUSTIC_MODEL_VERSIONS)}."
@@ -56,7 +56,7 @@ def _check_is_valid_acoustic_model_version(version: str) -> ACOUSTIC_MODEL_VERSI
   return cast(ACOUSTIC_MODEL_VERSIONS, version)
 
 
-def _check_is_valid_geo_model_version(version: str) -> GEO_MODEL_VERSIONS:
+def _validate_geo_model_version(version: Any) -> GEO_MODEL_VERSIONS:  # noqa: ANN401
   if version not in VALID_GEO_MODEL_VERSIONS:
     raise ValueError(
       f"Unsupported model version: {version}. Available versions are: {', '.join(VALID_GEO_MODEL_VERSIONS)}."
@@ -64,7 +64,7 @@ def _check_is_valid_geo_model_version(version: str) -> GEO_MODEL_VERSIONS:
   return cast(GEO_MODEL_VERSIONS, version)
 
 
-def _check_is_valid_backend(backend: str) -> MODEL_BACKENDS:
+def _validate_backend(backend: Any) -> MODEL_BACKENDS:  # noqa: ANN401
   if backend not in VALID_MODEL_BACKENDS:
     raise ValueError(
       f"Unknown model backend: {backend}. Available backends are: {', '.join(VALID_MODEL_BACKENDS)}."
@@ -72,7 +72,7 @@ def _check_is_valid_backend(backend: str) -> MODEL_BACKENDS:
   return cast(MODEL_BACKENDS, backend)
 
 
-def _check_is_valid_precision(precision: str) -> MODEL_PRECISIONS:
+def _validate_precision(precision: Any) -> MODEL_PRECISIONS:  # noqa: ANN401
   if precision not in VALID_MODEL_PRECISIONS:
     raise ValueError(
       f"Unsupported model precision: {precision}. Currently supported precisions: {', '.join(VALID_MODEL_PRECISIONS)}."
@@ -80,7 +80,7 @@ def _check_is_valid_precision(precision: str) -> MODEL_PRECISIONS:
   return cast(MODEL_PRECISIONS, precision)
 
 
-def _check_is_valid_language(lang: str) -> MODEL_LANGUAGES:
+def _validate_language(lang: Any) -> MODEL_LANGUAGES:  # noqa: ANN401
   if lang not in VALID_MODEL_LANGUAGES:
     raise ValueError(
       f"Language '{lang}' is not supported by the model. Available languages are: {', '.join(VALID_MODEL_LANGUAGES)}."
@@ -88,39 +88,43 @@ def _check_is_valid_language(lang: str) -> MODEL_LANGUAGES:
   return cast(MODEL_LANGUAGES, lang)
 
 
-def _check_is_valid_species_list_path(species_list: str | PathLike[str]) -> Path:
+def _validate_species_list_path(species_list: Any | PathLike[Any]) -> Path:  # noqa: ANN401
   species_list = Path(species_list)
   if not species_list.is_file():
     raise ValueError(f"Species list file '{species_list.absolute()}' does not exist!")
   return species_list
 
 
-def _check_is_valid_path(path: str | PathLike[str]) -> Path:
+def _validate_path(path: Any) -> Path:  # noqa: ANN401
   path = Path(path)
   if not path.exists():
     raise ValueError(f"Path '{path.absolute()}' does not exist!")
   return path
 
 
-def _check_is_valid_pb_model_folder(folder_path: Path) -> None:
-  if not folder_path.is_dir():
-    raise ValueError(f"Model folder '{folder_path.absolute()}' does not exist!")
-  if not check_protobuf_model_files_exist(folder_path):
+def _validate_pb_model_folder(folder_path: Any) -> Path:  # noqa: ANN401
+  path = Path(folder_path)
+  if not path.is_dir():
+    raise ValueError(f"Model folder '{path.absolute()}' does not exist!")
+  if not check_protobuf_model_files_exist(path):
     raise ValueError(
-      f"Model folder '{folder_path.absolute()}' does not contain valid protobuf model files!"
+      f"Model folder '{path.absolute()}' does not contain valid protobuf model files!"
     )
+  return path
 
 
-def _check_is_valid_tf_file(model_path: Path) -> None:
-  if not model_path.is_file():
-    raise ValueError(f"Model file '{model_path.absolute()}' does not exist!")
-  if not model_path.suffix == ".tflite":
+def _validate_tf_file(model_path: Any) -> Path:  # noqa: ANN401
+  path = Path(model_path)
+  if not path.is_file():
+    raise ValueError(f"Model file '{path.absolute()}' does not exist!")
+  if not path.suffix == ".tflite":
     raise ValueError(
-      f"Model file '{model_path.absolute()}' is not a valid TFLite model file!"
+      f"Model file '{path.absolute()}' is not a valid TFLite model file!"
     )
+  return path
 
 
-def _check_is_valid_library(library: str) -> LIBRARY_TYPES:
+def _validate_library(library: Any) -> LIBRARY_TYPES:  # noqa: ANN401
   if library not in VALID_LIBRARY_TYPES:
     raise ValueError(
       f"Unsupported TensorFlow library: {library}. Supported libraries are:  {', '.join(VALID_LIBRARY_TYPES)}."
@@ -137,13 +141,14 @@ def _check_is_valid_library(library: str) -> LIBRARY_TYPES:
   return cast(LIBRARY_TYPES, library)
 
 
-def _check_allowed_kwargs(model_kwargs: dict, allowed: set[str] | None) -> None:
+def _validate_kwargs(model_kwargs: dict, allowed: set[str] | None) -> dict[str, Any]:
   if allowed is None:
     not_allowed = set(model_kwargs.keys())
   else:
     not_allowed = set(model_kwargs.keys()) - allowed
   if len(not_allowed) > 0:
     raise ValueError(f"Unexpected keyword arguments: {', '.join(not_allowed)}. ")
+  return model_kwargs
 
 
 def load(
@@ -156,13 +161,13 @@ def load(
   lang: str = MODEL_LANGUAGE_EN_US,
   **model_kwargs: object,
 ) -> ModelBase:
-  model_type = _check_is_valid_model_type(model_type)
-  backend = _check_is_valid_backend(backend)
-  precision = _check_is_valid_precision(precision)
-  lang = _check_is_valid_language(lang)
+  model_type = _validate_model_type(model_type)
+  backend = _validate_backend(backend)
+  precision = _validate_precision(precision)
+  lang = _validate_language(lang)
 
   if model_type == MODEL_TYPE_ACOUSTIC:
-    version = _check_is_valid_acoustic_model_version(version)
+    version = _validate_acoustic_model_version(version)
     return _load_acoustic_model(
       version=version,
       backend=backend,
@@ -171,7 +176,7 @@ def load(
       **model_kwargs,
     )
   elif model_type == MODEL_TYPE_GEO:
-    version = _check_is_valid_geo_model_version(version)
+    version = _validate_geo_model_version(version)
     return _load_geo_model(
       version=version,
       backend=backend,
@@ -225,16 +230,15 @@ def _load_acoustic_model_V2_4(
   **model_kwargs: object,
 ) -> AcousticModelBaseV2_4:
   if backend == MODEL_BACKEND_TF:
-    _check_allowed_kwargs(model_kwargs, {"library"})
-    library = cast(str, model_kwargs.get("library", LIBRARY_TF))
-    library = _check_is_valid_library(library)
+    model_kwargs = _validate_kwargs(model_kwargs, {"library"})
+    library = _validate_library(model_kwargs.get("library", LIBRARY_TF))
     return AcousticTFModelV2_4.load(lang, precision, library)
   elif backend == MODEL_BACKEND_PB:
     if precision != MODEL_PRECISION_FP32:
       raise ValueError(
         f"Unsupported model precision for acoustic pb model: {precision}. Currently supported precision is: {MODEL_PRECISION_FP32}."
       )
-    _check_allowed_kwargs(model_kwargs, None)
+    model_kwargs = _validate_kwargs(model_kwargs, None)
 
     return AcousticPBModelV2_4.load(lang)
   else:
@@ -247,12 +251,11 @@ def _load_geo_model_V2_4(
   **model_kwargs: object,
 ) -> GeoModelBase:
   if backend == MODEL_BACKEND_TF:
-    _check_allowed_kwargs(model_kwargs, {"library"})
-    library = cast(str, model_kwargs.get("library", LIBRARY_TF))
-    library = _check_is_valid_library(library)
+    model_kwargs = _validate_kwargs(model_kwargs, {"library"})
+    library = _validate_library(model_kwargs.get("library", LIBRARY_TF))
     return GeoTFModelV2_4.load(lang, library)
   elif backend == MODEL_BACKEND_PB:
-    _check_allowed_kwargs(model_kwargs, None)
+    model_kwargs = _validate_kwargs(model_kwargs, None)
     return GeoPBModelV2_4.load(lang)
   else:
     raise AssertionError()
@@ -270,14 +273,14 @@ def load_custom(
   check_validity: bool = True,
   **model_kwargs: object,
 ) -> ModelBase:
-  model_type = _check_is_valid_model_type(model_type)
-  backend = _check_is_valid_backend(backend)
-  model = _check_is_valid_path(model)
-  species_list = _check_is_valid_species_list_path(species_list)
-  precision = _check_is_valid_precision(precision)
+  model_type = _validate_model_type(model_type)
+  backend = _validate_backend(backend)
+  model = _validate_path(model)
+  species_list = _validate_species_list_path(species_list)
+  precision = _validate_precision(precision)
 
   if model_type == MODEL_TYPE_ACOUSTIC:
-    version = _check_is_valid_acoustic_model_version(version)
+    version = _validate_acoustic_model_version(version)
     return _load_custom_acoustic_model(
       version=version,
       backend=backend,
@@ -288,7 +291,7 @@ def load_custom(
       **model_kwargs,
     )
   elif model_type == MODEL_TYPE_GEO:
-    version = _check_is_valid_geo_model_version(version)
+    version = _validate_geo_model_version(version)
     return _load_custom_geo_model(
       version=version,
       backend=backend,
@@ -354,10 +357,9 @@ def _load_custom_acoustic_model_V2_4(
   **model_kwargs: object,
 ) -> AcousticModelBaseV2_4:
   if backend == MODEL_BACKEND_TF:
-    _check_is_valid_tf_file(model)
-    _check_allowed_kwargs(model_kwargs, {"library"})
-    library = cast(str, model_kwargs.get("library", LIBRARY_TF))
-    library = _check_is_valid_library(library)
+    model = _validate_tf_file(model)
+    model_kwargs = _validate_kwargs(model_kwargs, {"library"})
+    library = _validate_library(model_kwargs.get("library", LIBRARY_TF))
 
     return AcousticTFModelV2_4.load_custom(
       model, species_list, precision, check_validity, library
@@ -367,8 +369,8 @@ def _load_custom_acoustic_model_V2_4(
       raise ValueError(
         f"Unsupported model precision for acoustic pb model: {precision}. Currently supported precision is: {MODEL_PRECISION_FP32}."
       )
-    _check_is_valid_pb_model_folder(model)
-    _check_allowed_kwargs(model_kwargs, None)
+    model = _validate_pb_model_folder(model)
+    model_kwargs = _validate_kwargs(model_kwargs, None)
     return AcousticPBModelV2_4.load_custom(model, species_list, check_validity)
   else:
     raise AssertionError()
@@ -382,14 +384,13 @@ def _load_custom_geo_model_V2_4(
   **model_kwargs: object,
 ) -> GeoModelBase:
   if backend == MODEL_BACKEND_TF:
-    _check_is_valid_tf_file(model)
-    _check_allowed_kwargs(model_kwargs, {"library"})
-    library = cast(str, model_kwargs.get("library", LIBRARY_TF))
-    library = _check_is_valid_library(library)
+    model = _validate_tf_file(model)
+    model_kwargs = _validate_kwargs(model_kwargs, {"library"})
+    library = _validate_library(model_kwargs.get("library", LIBRARY_TF))
     return GeoTFModelV2_4.load_custom(model, species_list, check_validity, library)
   elif backend == MODEL_BACKEND_PB:
-    _check_is_valid_pb_model_folder(model)
-    _check_allowed_kwargs(model_kwargs, None)
+    model = _validate_pb_model_folder(model)
+    model_kwargs = _validate_kwargs(model_kwargs, None)
     return GeoPBModelV2_4.load_custom(model, species_list, check_validity)
   else:
     raise AssertionError()
