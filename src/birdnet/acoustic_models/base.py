@@ -23,5 +23,5 @@ class AcousticModelBase(ModelBase):
 
   @classmethod
   @abstractmethod
-  def encode(cls, *args: object, **kwargs: object) -> PredictionResultBase:
-    pass
+  def encode(cls, *args, **kwargs) -> PredictionResultBase:  # noqa: ANN002, ANN003
+    ...

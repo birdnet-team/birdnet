@@ -6,7 +6,7 @@
 
 A Python library for identifying bird species by their sounds.
 
-The library is geared towards providing a robust workflow for ecological data analysis in bioacoustic projects. While it covers essential functionalities, it doesn’t include all the features found in BirdNET-Analyzer, which is available [here](https://github.com/kahst/BirdNET-Analyzer). Some features might only be available in the BirdNET Analyzer and not in this package.
+The library is geared towards providing a robust workflow for ecological data analysis in bioacoustic projects. While it covers essential functionalities, it doesn’t include all the features found in BirdNET-Analyzer, which is available [here](https://github.com/birdnet-team/BirdNET-Analyzer). Some features might only be available in the BirdNET Analyzer and not in this package.
 
 Please note that the project is under active development, so you might encounter changes that could affect your current workflow. We recommend checking for updates regularly.
 
@@ -20,38 +20,15 @@ pip install birdnet --user
 
 # For GPU users (NVIDIA GPU driver and CUDA need to be installed in advance)
 pip install birdnet[and-cuda] --user
+
+# For edge devices (e.g., Raspberry Pi)
+pip install birdnet[litert] --user
 ```
 
 ## Supported audio formats
 
-- AIFC
-- AIFF
-- AU
-- AVR
-- CAF
-- FLAC
-- HTK
-- IRCAM
-- MAT4
-- MAT5
-- MP3
-- MPC2K
-- NIST
-- OGG
-- OPUS
-- PAF
-- PVF
-- RAW
-- RF64
-- SD2
-- SDS
-- SVX
-- VOC
-- W64
-- WAV
-- WAVEX
-- WVE
-- XI
+- AIFC, AIFF, AU, AVR, CAF, FLAC, HTK, IRCAM, MAT4, MAT5, MP3, MPC2K, NIST, OGG, OPUS, PAF, PVF, RAW, RF64, SD2, SDS, SVX, VOC, W64, WAV, WAVEX, WVE, XI
+- Not supportet at the moment are: AAC, M4A, WMA 
 
 ## Location of Log File
 

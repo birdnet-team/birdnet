@@ -10,11 +10,11 @@ from birdnet.globals import MODEL_BACKENDS, MODEL_PRECISIONS
 
 class PredictionResultBase:
   @abstractmethod
-  def save(self, *args, **kwargs) -> None: ...
+  def save(self, *args, **kwargs) -> None: ...  # noqa: ANN002, ANN003
 
   @classmethod
   @abstractmethod
-  def load(cls, *args, **kwargs) -> Self: ...
+  def load(cls, *args, **kwargs) -> Self: ...  # noqa: ANN002, ANN003
 
   @property
   @abstractmethod
@@ -33,7 +33,7 @@ class ModelBase(ABC):
     self._model_path = model_path
     self._species_list = species_list
     self._use_custom_model = use_custom_model
-    self._precision = precision
+    self._precision: MODEL_PRECISIONS = precision
 
   @classmethod
   @abstractmethod
@@ -61,22 +61,19 @@ class ModelBase(ABC):
 
   @property
   def precision(self) -> MODEL_PRECISIONS:
-    """
-    Returns the precision of the model.
-    """
-    return self._precision  # type: ignore
+    return self._precision
 
   @classmethod
   @abstractmethod
-  def load(cls, *args, **kwargs) -> Self:
-    pass
+  def load(cls, *args, **kwargs) -> Self:  # noqa: ANN002, ANN003
+    ...
 
   @classmethod
   @abstractmethod
-  def load_custom(cls, *args, **kwargs) -> Self:
-    pass
+  def load_custom(cls, *args, **kwargs) -> Self:  # noqa: ANN002, ANN003
+    ...
 
   @classmethod
   @abstractmethod
-  def predict(cls, *args, **kwargs) -> PredictionResultBase:
-    pass
+  def predict(cls, *args, **kwargs) -> PredictionResultBase:  # noqa: ANN002, ANN003
+    ...

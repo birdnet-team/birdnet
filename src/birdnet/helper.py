@@ -8,15 +8,11 @@ from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from multiprocessing import shared_memory
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import numpy as np
 from numpy.typing import DTypeLike
 
 from birdnet.logging_utils import get_logger
-
-if TYPE_CHECKING:
-  pass
 
 
 def check_protobuf_model_files_exist(folder: Path) -> bool:
@@ -66,7 +62,16 @@ SF_FORMATS = {
   ".WVE",
   ".XI",
 }
-# Missing: {".AAC", ".WMA", ".M4A"}
+# Not supported: {".AAC", ".WMA", ".M4A"}
+
+
+# ---------------- Mapping -----------------
+_UINT_DTYPE_TO_CTYPE = {
+  np.uint8: ctypes.c_uint8,
+  np.uint16: ctypes.c_uint16,
+  np.uint32: ctypes.c_uint32,
+  np.uint64: ctypes.c_uint64,
+}
 
 
 def get_supported_audio_files(folder: Path) -> Generator[Path, None, None]:
@@ -175,49 +180,6 @@ def get_max_n_segments(
   assert effective_segment_duration_s > 0
   n_segments = math.ceil(max_duration_s / effective_segment_duration_s)
   return n_segments
-
-
-def get_max_n_segments_array(
-  max_duration_s: np.ndarray, segment_size_s: float, overlap_duration_s: float
-) -> np.ndarray:
-  max_val = get_max_n_segments(
-    np.max(max_duration_s), segment_size_s, overlap_duration_s
-  )
-  dtype = uint_dtype_for(max_val)
-
-  effective_segment_duration_s = segment_size_s - overlap_duration_s
-  assert effective_segment_duration_s > 0
-  n_segments = np.ceil(max_duration_s / effective_segment_duration_s).astype(dtype)
-  return n_segments
-
-
-# ---------------- Mapping -----------------
-_DTYPE_TO_CODE = {
-  np.uint8: "B",  # unsigned char
-  np.int8: "b",
-  np.uint16: "H",  # unsigned short
-  np.int16: "h",
-  np.uint32: "I",  # unsigned int
-  np.int32: "i",
-  np.uint64: "Q",  # unsigned long long
-  np.int64: "q",
-  np.float32: "f",
-  np.float64: "d",
-}
-
-# ---------------- Mapping -----------------
-_UINT_DTYPE_TO_CTYPE = {
-  np.uint8: ctypes.c_uint8,
-  np.uint16: ctypes.c_uint16,
-  np.uint32: ctypes.c_uint32,
-  np.uint64: ctypes.c_uint64,
-}
-
-
-def code_from_dtype(dtype: DTypeLike) -> str:
-  dtype = np.dtype(dtype).type  # z. B. <class 'numpy.uint16'>
-  code = _DTYPE_TO_CODE[dtype]
-  return code
 
 
 def uint_ctype_from_dtype(

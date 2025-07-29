@@ -21,8 +21,9 @@ def get_package_version() -> str:
 def get_app_data_path() -> Path:
   app_data_path: str
   if os.name == "nt":  # Windows
-    app_data_path = os.getenv("APPDATA")
-    assert app_data_path is not None
+    path = os.getenv("APPDATA")
+    assert path is not None
+    app_data_path = path
   elif os.name == "posix":
     if os.uname().sysname == "Darwin":  # Mac OS X
       app_data_path = os.path.expanduser("~/Library/Application Support")

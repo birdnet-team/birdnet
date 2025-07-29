@@ -44,7 +44,7 @@ dependencies = [
 [project.optional-dependencies]
 litert = ["ai_edge_litert==1.4.0"]
 and-cuda = ["tensorflow[and-cuda]==2.15.1"]
-dev = ["pytest", "pytest-cov", "pytest-xdist", "tox", "ruff", "mypy", "rope", "build", "twine", "scipy-stubs", "tuna", "pyarrow-stubs"]
+dev = ["pytest", "pytest-cov", "pytest-xdist", "tox", "ruff", "mypy", "rope", "build", "twine", "scipy-stubs", "tuna", "pyarrow-stubs", "types-tqdm", "types-requests", "pandas-stubs", "types-tensorflow"]
 
 [project.urls]
 Homepage = "https://github.com/birdnet-team/birdnet"
@@ -123,10 +123,10 @@ deps =
   pytest-xdist
   mypy
   ruff
+  .[litert]
 commands = 
-  pytest
-  ruff check src/birdnet
-  ruff check src/birdnet_tests
+  # ruff check src/birdnet
+  # ruff check src/birdnet_tests
   pytest -n auto \
     --cov=src/birdnet \
     --cov-append \

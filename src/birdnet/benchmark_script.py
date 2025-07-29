@@ -212,7 +212,7 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
       MODEL_TYPE_ACOUSTIC,
       ACOUSTIC_MODEL_VERSION_V2_4,
       MODEL_BACKEND_PB,
-      precision=ns.precision,
+      precision=MODEL_PRECISION_FP32,
     )
 
     model.predict(

@@ -59,69 +59,6 @@ def bandpass_signal(
   return sig_f32
 
 
-def segment_signal(
-  audio_signal: npt.NDArray[np.float32],
-  rate: int,
-  segment_size: float,
-  segment_overlap: float,
-  min_segment_size: float,
-) -> Generator[Tuple[float, float, npt.NDArray[np.float32]], None, None]:
-  """Split signal with overlap.
-
-  Args:
-      sig: The original signal to be split.
-      rate: The sampling rate.
-      seconds: The duration of a segment.
-      overlap: The overlapping seconds of segments.
-      minlen: Minimum length of a split.
-
-  Returns:
-      A list of splits.
-  """
-  assert rate > 0
-  assert min_segment_size > 0
-  assert segment_overlap >= 0
-  assert segment_overlap < segment_size
-
-  # Number of frames per segment, per step and per minimum signal
-  segment_frame_count = round(rate * segment_size)
-  segment_step_frame_count = round(rate * (segment_size - segment_overlap))
-  min_segment_frame_count = round(rate * min_segment_size)
-
-  # Start of last segment
-  last_segment_position = (
-    round(
-      (audio_signal.size - segment_frame_count + segment_step_frame_count - 1)
-      / segment_step_frame_count
-    )
-    * segment_step_frame_count
-  )
-  # Make sure at least one segment is returned
-  if last_segment_position < 0:
-    last_segment_position = 0
-  # Omit last segment if minimum signal duration is underrun
-  elif audio_signal.size - last_segment_position < min_segment_frame_count:
-    last_segment_position = last_segment_position - segment_step_frame_count
-
-  # Append empty signal of segment duration, so the last split has the desired length in any case
-  # TODO maybe add noise instead of empty signal
-  noise = np.zeros(shape=segment_frame_count, dtype=audio_signal.dtype)
-
-  data = np.concatenate((audio_signal, noise))
-  start: float = 0.0
-  end: float = segment_size
-
-  # Split signal with overlap
-  for i in range(0, 1 + last_segment_position, segment_step_frame_count):
-    segment = data[i : i + segment_frame_count]
-
-    yield start, end, segment
-
-    # Advance start and end
-    start += segment_size - segment_overlap
-    end = start + segment_size
-
-
 def fillup_with_silence(
   audio_segment: npt.NDArray[np.float32], target_length: int
 ) -> npt.NDArray[np.float32]:
@@ -138,17 +75,9 @@ def fillup_with_silence(
   return filled_segment
 
 
-def flat_sigmoid(
-  x: npt.NDArray[np.float32], sensitivity: float
-) -> npt.NDArray[np.float32]:
-  # DON'T Use because -> RuntimeWarning: overflow encountered in exp 1.0 + np.exp(sensitivity * np.clip(x, -15, 15))
-  result: npt.NDArray[np.float32] = 1.0 / (
-    1.0 + np.exp(sensitivity * np.clip(x, -15, 15))
-  )
-  return result
-
-
-def flat_sigmoid_logaddexp_fast(x: npt.NDArray, sensitivity: float, clip_val=15.0):
+def flat_sigmoid_logaddexp_fast(
+  x: npt.NDArray, sensitivity: float, clip_val: float = 15.0
+):
   y = sensitivity * np.clip(x, -clip_val, clip_val)
 
   positive_mask = y >= 0
@@ -160,53 +89,12 @@ def flat_sigmoid_logaddexp_fast(x: npt.NDArray, sensitivity: float, clip_val=15.
   return np.where(positive_mask, exp_neg_abs / one_plus_exp, 1.0 / one_plus_exp)
 
 
-def sigmoid_inverse(x: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
-  return np.log(x / (1 - x))
-
-
-def get_app_data_path() -> Path:
-  """Returns the appropriate application data path based on the operating system."""
-  if os.name == "nt":  # Windows
-    app_data_path = os.getenv("APPDATA")
-    assert app_data_path is not None
-  elif os.name == "posix":
-    if os.uname().sysname == "Darwin":  # Mac OS X
-      app_data_path = os.path.expanduser("~/Library/Application Support")
-    else:  # Linux
-      app_data_path = os.path.expanduser("~/.local/share")
-  else:
-    raise OSError("Unsupported operating system")
-
-  result = Path(app_data_path)
-  return result
-
-
-def get_birdnet_app_data_folder() -> Path:
-  app_data = get_app_data_path()
-  result = app_data / "birdnet"
-  return result
-
-
-def download_file(url: str, file_path: Path) -> None:
-  assert file_path.parent.is_dir()
-  import requests
-
-  response = requests.get(url, timeout=30)
-  if response.status_code == 200:
-    with open(file_path, "wb") as file:
-      file.write(response.content)
-  else:
-    raise ValueError(
-      f"Failed to download the file. Status code: {response.status_code}"
-    )
-
-
 def download_file_tqdm(
   url: str,
   file_path: Path,
   *,
-  download_size: Optional[int] = None,
-  description: Optional[str] = None,
+  download_size: int | None = None,
+  description: str | None = None,
 ) -> int:
   assert file_path.parent.is_dir()
   import requests
@@ -238,27 +126,3 @@ def itertools_batched(iterable: Iterable, n: int) -> Generator[Any, None, None]:
   iterator = iter(iterable)
   while batch := tuple(islice(iterator, n)):
     yield batch
-
-
-def iter_segments_with_overlap(
-  segment_duration_s: Union[int, float],
-  overlap_duration_s: Union[int, float],
-  /,
-  *,
-  start: Union[int, float] = 0.0,
-) -> Generator[Tuple[float, float], None, None]:
-  assert segment_duration_s > 0
-  assert 0 <= overlap_duration_s < segment_duration_s
-
-  if not isinstance(overlap_duration_s, float):
-    overlap_duration_s = float(overlap_duration_s)
-  if not isinstance(segment_duration_s, float):
-    segment_duration_s = float(segment_duration_s)
-  if not isinstance(start, float):
-    start = float(start)
-
-  step_duration = segment_duration_s - overlap_duration_s
-
-  for s in count(start, step_duration):
-    end = s + segment_duration_s
-    yield s, end

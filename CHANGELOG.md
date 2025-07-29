@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0a0] - 2025-07-29
+
+### Changed
+
+- Refactored the whole codebase
+
 ## [0.1.7] - 2025-03-19
 
 ### Changed
@@ -93,7 +99,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release
 
-[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v0.2.0a0...HEAD
+[0.1.5]: https://github.com/birdnet-team/birdnet/compare/v0.2.0a0...v0.1.5
 [0.1.5]: https://github.com/birdnet-team/birdnet/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/birdnet-team/birdnet/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/birdnet-team/birdnet/compare/v0.1.2...v0.1.3

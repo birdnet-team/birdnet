@@ -72,16 +72,6 @@ def init_package_logger(logging_level: int) -> None:
 init_package_logger(logging.INFO)
 
 
-class FakeQueue:
-  def put(self, item, block=True, timeout=None):
-    pass  # tut nichts
-
-  def get(self, block=True, timeout=None):
-    raise RuntimeError("FakeQueue: get() aufgerufen, obwohl sie leer ist.")
-
-  def empty(self):
-    return True
-
 
 class QueueFileWriter:
   def __init__(
@@ -114,7 +104,7 @@ class QueueFileWriter:
 
     h = logging.FileHandler(self._log_file, mode="w", encoding="utf-8")
 
-    LARGE_LOG_SIZE_THAT_WILL_NOT_BE_REACHED = 100000
+    LARGE_LOG_SIZE_THAT_WILL_NOT_BE_REACHED = 100_000
     mh = MemoryHandler(
       capacity=LARGE_LOG_SIZE_THAT_WILL_NOT_BE_REACHED,
       flushLevel=logging.WARNING,

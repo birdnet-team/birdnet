@@ -7,19 +7,17 @@ If you notice an error, please don't hesitate to open an issue.
 ```sh
 # update
 sudo apt update
-# install Python 3.9-3.11 for ensuring that tests can be run
+# install Python 3.11 for ensuring that tests can be run
 sudo apt install python3-pip \
-  python3.9 python3.9-dev python3.9-distutils python3.9-venv \
-  python3.10 python3.10-dev python3.10-distutils python3.10-venv \
   python3.11 python3.11-dev python3.11-distutils python3.11-venv
-# install pipenv for creation of virtual environments
-python3.8 -m pip install pipenv --user
 
 # check out repo
 git clone https://github.com/birdnet-team/birdnet.git
 cd birdnet
 # create virtual environment
-python3.8 -m pipenv install --dev
+python3.11 -m venv .venv-bn
+source .venv-bn/bin/activate
+python3.11 -m pip install -e .[dev,litert]
 ```
 
 ## Running the tests
@@ -29,7 +27,7 @@ python3.8 -m pipenv install --dev
 # then, navigate into the directory of the repo (if not already done)
 cd birdnet
 # activate environment
-python3.8 -m pipenv shell
+source .venv-bn/bin/activate
 # run tests
 tox
 ```
@@ -37,8 +35,6 @@ tox
 Final lines of test result output:
 
 ```log
-  py39: commands succeeded
-  py310: commands succeeded
   py311: commands succeeded
   congratulations :)
 ```
