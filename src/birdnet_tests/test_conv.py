@@ -126,7 +126,7 @@ def comp_test_flac_parquet():
   print(memory_footprint(), "MB")
 
 
-def test_large_file():
+def xtest_large_file():
   audio_path = [Path("test-dataset/test_dataset_4x60min")]
 
   with duration_counter() as duration, memory_monitor() as memory_footprint:

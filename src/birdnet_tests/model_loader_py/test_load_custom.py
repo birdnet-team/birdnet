@@ -71,8 +71,8 @@ def test_types_with_precisions_are_correct() -> None:
         "acoustic",
         "2.4",
         "pb",
-        get_model_root_dir("acoustic", "2.4", "pb") / "model",
-        get_model_root_dir("acoustic", "2.4", "pb") / "labels" / "en_us.txt",
+        get_model_path("acoustic", "2.4", "pb", "fp32"),
+        get_lang_dir("acoustic", "2.4", "pb") / "en_us.txt",
         precision=cast(Literal["fp32"], f"fp{32}"),
         check_validity=False,
       )
@@ -85,8 +85,8 @@ def test_types_with_precisions_are_correct() -> None:
         "acoustic",
         "2.4",
         "tf",
-        get_model_root_dir("acoustic", "2.4", "tf") / "model-fp32.tflite",
-        get_model_root_dir("acoustic", "2.4", "tf") / "labels" / "en_us.txt",
+        get_model_path("acoustic", "2.4", "tf", "fp32"),
+        get_lang_dir("acoustic", "2.4", "tf") / "en_us.txt",
         precision=cast(MODEL_PRECISIONS, f"fp{32}"),
         check_validity=False,
       )
@@ -99,8 +99,8 @@ def test_types_with_precisions_are_correct() -> None:
         "geo",
         "2.4",
         "pb",
-        get_model_root_dir("geo", "2.4", "pb") / "model",
-        get_model_root_dir("geo", "2.4", "pb") / "labels" / "en_us.txt",
+        get_model_path("geo", "2.4", "pb", "fp32"),
+        get_lang_dir("geo", "2.4", "pb") / "en_us.txt",
         precision=cast(Literal["fp32"], f"fp{32}"),
         check_validity=False,
       )
@@ -113,8 +113,8 @@ def test_types_with_precisions_are_correct() -> None:
         "geo",
         "2.4",
         "tf",
-        get_model_root_dir("geo", "2.4", "tf") / "model.tflite",
-        get_model_root_dir("geo", "2.4", "tf") / "labels" / "en_us.txt",
+        get_model_path("geo", "2.4", "tf", "fp32"),
+        get_lang_dir("geo", "2.4", "tf") / "en_us.txt",
         precision=cast(Literal["fp32"], f"fp{32}"),
         check_validity=False,
       )

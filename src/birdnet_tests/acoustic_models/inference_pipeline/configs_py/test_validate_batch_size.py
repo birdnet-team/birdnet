@@ -22,7 +22,7 @@ def test_negative_raises_error() -> None:
 
 
 def test_one_is_valid() -> None:
-  assert ProcessingConfig.validate_batch_size(1)
+  assert ProcessingConfig.validate_batch_size(1) == 1
 
 
 def test_non_integer_raises_error() -> None:

@@ -32,12 +32,12 @@ def test_non_integer_raises_error() -> None:
 
 
 def test_one_is_valid() -> None:
-  assert ProcessingConfig.validate_workers(1)
+  assert ProcessingConfig.validate_workers(1) == 1
 
 
 def test_max_cpus_is_valid() -> None:
   if max_logical_cpus := multiprocessing.cpu_count():
-    assert ProcessingConfig.validate_workers(max_logical_cpus)
+    assert ProcessingConfig.validate_workers(max_logical_cpus) == max_logical_cpus
 
 
 def test_more_than_max_cpus_is_raises_error() -> None:

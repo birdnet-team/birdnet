@@ -66,6 +66,7 @@ SF_FORMATS = {
   ".WVE",
   ".XI",
 }
+# Missing: {".AAC", ".WMA", ".M4A"}
 
 
 def get_supported_audio_files(folder: Path) -> Generator[Path, None, None]:

@@ -14,11 +14,11 @@ def test_negative_raises_error() -> None:
 
 
 def test_zero_is_valid() -> None:
-  assert ProcessingConfig.validate_prefetch_ratio(0)
+  assert ProcessingConfig.validate_prefetch_ratio(0) == 0
 
 
 def test_one_is_valid() -> None:
-  assert ProcessingConfig.validate_prefetch_ratio(1)
+  assert ProcessingConfig.validate_prefetch_ratio(1) == 1
 
 
 def test_non_integer_raises_error() -> None:

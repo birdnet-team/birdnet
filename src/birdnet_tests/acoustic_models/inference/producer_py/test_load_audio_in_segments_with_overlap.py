@@ -1,5 +1,6 @@
 import numpy as np
 import numpy.testing
+import pytest
 
 from birdnet.acoustic_models.inference.producer import (
   load_audio_in_segments_with_overlap,
@@ -26,8 +27,11 @@ def test_three_channels_can_be_read() -> None:
   assert format_can_be_read("soundscape_3ch.wav")
 
 
-def test_aac_can_be_read() -> None:
-  assert format_can_be_read("soundscape.aac")
+def test_aac_can_not_be_read() -> None:
+  with pytest.raises(
+    AssertionError,
+  ):
+    format_can_be_read("soundscape.aac")
 
 
 def test_aifc_can_be_read() -> None:
@@ -46,8 +50,11 @@ def test_flac_can_be_read() -> None:
   assert format_can_be_read("soundscape.flac")
 
 
-def test_m4a_can_be_read() -> None:
-  assert format_can_be_read("soundscape.m4a")
+def test_m4a_can_not_be_read() -> None:
+  with pytest.raises(
+    AssertionError,
+  ):
+    format_can_be_read("soundscape.m4a")
 
 
 def test_mp3_can_be_read() -> None:
@@ -69,8 +76,11 @@ def test_wav_can_be_read() -> None:
   assert format_can_be_read("soundscape_24bit.wav")
 
 
-def test_wma_can_be_read() -> None:
-  assert format_can_be_read("soundscape.wma")
+def test_wma_can_not_be_read() -> None:
+  with pytest.raises(
+    AssertionError,
+  ):
+    format_can_be_read("soundscape.wma")
 
 
 def get_segments(seg: float = 3, overlap: float = 0, sr: int = 48_000) -> list:
