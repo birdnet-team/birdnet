@@ -66,7 +66,7 @@ predictions = model.predict(42.5, -76.45, week=4)
 predictions.to_csv("example/location.csv")
 ```
 
-<img src="example/location_preview.png" alt="Preview" style="max-width: 300px; height: auto;">
+<img src="example/location_preview.png" alt="Preview" style="max-width: 10cm; height: auto;">
 
 The result is at [example/location.csv](example/location.csv).
 
