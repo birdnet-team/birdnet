@@ -2,11 +2,17 @@
 example/soundscape.BirdNET.selection.table.txt
 example/soundscape.birdnet_legacy.selection.table.txt
 src/birdnet_legacy
-src/birdnet_debug
+src/birdnet_v1_debug
 upload/
 scripts/
 .venv*/
 test-dataset/
+img/birdnet-structure-src/
+src/birdnet_debug/debug_model_loader_raven.py
+src/birdnet_debug
+src/birdnet_v1
+src/birdnet_v1_tests
+src/birdnet_v2_old
 
 # VSCode
 .vscode
@@ -122,3 +128,6 @@ src/birdnet_v2_debug/10min.wav
 src/birdnet_v2_debug/60min.wav
 install.md
 src/birdnet_v2/eagle.txt
+soundscape.csv
+src/birdnet_debug/benchmark_script.prof
+improvements.txt
