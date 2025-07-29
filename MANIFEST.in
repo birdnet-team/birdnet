@@ -2,6 +2,7 @@ graft src/birdnet_tests/
 
 include \
   pylintrc \
+  BENCHMARKING.md \
   CHANGELOG.md \
   CODE_OF_CONDUCT.md \
   CONTRIBUTING.md \

@@ -1,7 +1,7 @@
 import pytest
 
 from birdnet.acoustic_models.v2_4.tf import AcousticTFModelV2_4
-from birdnet_tests.test_files import NON_EXISTING_TEST_FILE_WAV, TEST_FILES_DIR
+from birdnet_tests.test_files import NON_EXISTING_TEST_FILE_WAV
 
 
 @pytest.fixture(name="model")

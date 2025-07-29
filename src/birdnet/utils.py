@@ -1,8 +1,7 @@
-import os
 from collections.abc import Generator, Iterable
-from itertools import count, islice
+from itertools import islice
 from pathlib import Path
-from typing import Any, Optional, Tuple, Union
+from typing import Any
 
 import numpy as np
 import numpy.typing as npt

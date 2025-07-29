@@ -267,9 +267,6 @@ def load_lib_tf_model(
   assert model_path.is_file()
   assert tf_installed()
 
-  absl_verbosity_before: int | None = None
-  tf_verbosity_before: int | None = None
-
   import absl.logging as absl_logging
 
   absl_verbosity_before = absl_logging.get_verbosity()

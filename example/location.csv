@@ -1,0 +1,65 @@
+species_name,confidence
+Acanthis flammea_Common Redpoll,0.044219970703125
+Accipiter cooperii_Cooper's Hawk,0.08123779296875
+Agelaius phoeniceus_Red-winged Blackbird,0.099609375
+Anas platyrhynchos_Mallard,0.44677734375
+Anas rubripes_American Black Duck,0.11004638671875
+Ardea herodias_Great Blue Heron,0.060699462890625
+Aythya collaris_Ring-necked Duck,0.050018310546875
+Aythya marila_Greater Scaup,0.052825927734375
+Baeolophus bicolor_Tufted Titmouse,0.63671875
+Bombycilla cedrorum_Cedar Waxwing,0.05706787109375
+Branta canadensis_Canada Goose,0.4853515625
+Bucephala albeola_Bufflehead,0.148193359375
+Bucephala clangula_Common Goldeneye,0.1796875
+Buteo jamaicensis_Red-tailed Hawk,0.30322265625
+Buteo lagopus_Rough-legged Hawk,0.039093017578125
+Cardinalis cardinalis_Northern Cardinal,0.8271484375
+Certhia americana_Brown Creeper,0.09234619140625
+Circus hudsonius_Northern Harrier,0.03472900390625
+Clangula hyemalis_Long-tailed Duck,0.077880859375
+Colaptes auratus_Northern Flicker,0.06317138671875
+Columba livia_Rock Pigeon,0.26220703125
+Corvus brachyrhynchos_American Crow,0.8056640625
+Corvus corax_Common Raven,0.1514892578125
+Cyanocitta cristata_Blue Jay,0.9287109375
+Cygnus olor_Mute Swan,0.105224609375
+Dryobates pubescens_Downy Woodpecker,0.794921875
+Dryobates villosus_Hairy Woodpecker,0.46142578125
+Dryocopus pileatus_Pileated Woodpecker,0.145263671875
+Eremophila alpestris_Horned Lark,0.08502197265625
+Falco sparverius_American Kestrel,0.055206298828125
+Gavia immer_Common Loon,0.05096435546875
+Haemorhous mexicanus_House Finch,0.384765625
+Haemorhous purpureus_Purple Finch,0.069091796875
+Haliaeetus leucocephalus_Bald Eagle,0.2269287109375
+Junco hyemalis_Dark-eyed Junco,0.82421875
+Larus argentatus_Herring Gull,0.2103271484375
+Larus delawarensis_Ring-billed Gull,0.2193603515625
+Larus marinus_Great Black-backed Gull,0.034881591796875
+Lophodytes cucullatus_Hooded Merganser,0.1370849609375
+Megaceryle alcyon_Belted Kingfisher,0.0616455078125
+Melanerpes carolinus_Red-bellied Woodpecker,0.55859375
+Meleagris gallopavo_Wild Turkey,0.1143798828125
+Melospiza melodia_Song Sparrow,0.194580078125
+Mergus merganser_Common Merganser,0.23095703125
+Mergus serrator_Red-breasted Merganser,0.10504150390625
+Mimus polyglottos_Northern Mockingbird,0.0684814453125
+Passer domesticus_House Sparrow,0.45654296875
+Plectrophenax nivalis_Snow Bunting,0.042694091796875
+Podiceps auritus_Horned Grebe,0.04669189453125
+Poecile atricapillus_Black-capped Chickadee,0.9033203125
+Quiscalus quiscula_Common Grackle,0.044219970703125
+Regulus satrapa_Golden-crowned Kinglet,0.06884765625
+Sialia sialis_Eastern Bluebird,0.09814453125
+Sitta canadensis_Red-breasted Nuthatch,0.2178955078125
+Sitta carolinensis_White-breasted Nuthatch,0.83251953125
+Spinus pinus_Pine Siskin,0.08935546875
+Spinus tristis_American Goldfinch,0.72802734375
+Spizelloides arborea_American Tree Sparrow,0.41015625
+Sturnus vulgaris_European Starling,0.53076171875
+Thryothorus ludovicianus_Carolina Wren,0.149169921875
+Turdus migratorius_American Robin,0.2020263671875
+Zenaida macroura_Mourning Dove,0.80615234375
+Zonotrichia albicollis_White-throated Sparrow,0.155517578125
+Zonotrichia leucophrys_White-crowned Sparrow,0.043060302734375

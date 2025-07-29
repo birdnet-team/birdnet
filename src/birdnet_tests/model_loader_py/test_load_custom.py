@@ -5,7 +5,7 @@ from birdnet.acoustic_models.v2_4.tf import AcousticTFModelV2_4
 from birdnet.geo_models.v2_4.pb import GeoPBModelV2_4
 from birdnet.geo_models.v2_4.tf import GeoTFModelV2_4
 from birdnet.globals import MODEL_PRECISIONS
-from birdnet.local_data import get_lang_dir, get_model_path, get_model_root_dir
+from birdnet.local_data import get_lang_dir, get_model_path
 from birdnet.model_loader import load_custom
 
 
