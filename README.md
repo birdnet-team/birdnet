@@ -35,9 +35,7 @@ from pathlib import Path
 import birdnet
 from birdnet.utils import get_species_from_file
 
-model = birdnet.load(
-  "acoustic", "2.4", "tf", precision="fp32", lang="en_us", library="tf"
-)
+model = birdnet.load("acoustic", "2.4", "tf", lang="en_us")
 
 # predict only the species from the file
 predictions = model.predict(
@@ -59,14 +57,14 @@ For a more detailed prediction you can take a look at [example/predictions.csv](
 ```py
 import birdnet
 
-model = birdnet.load("geo", "2.4", "tf", lang="en_us", library="tf")
+model = birdnet.load("geo", "2.4", "tf", lang="en_us")
 
 predictions = model.predict(42.5, -76.45, week=4)
 
 predictions.to_csv("example/location.csv")
 ```
 
-<img src="example/location_preview.png" alt="Preview" style="max-width: 10cm; height: auto;">
+<img src="example/location_preview.png" alt="Preview" style="max-width: 300px; height: auto;">
 
 The result is at [example/location.csv](example/location.csv).
 
