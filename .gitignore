@@ -9,6 +9,10 @@ scripts/
 test-dataset/
 img/birdnet-structure-src/
 src/birdnet_debug/debug_model_loader_raven.py
+src/birdnet_debug
+src/birdnet_v1
+src/birdnet_v1_tests
+src/birdnet_v2_old
 
 # VSCode
 .vscode
