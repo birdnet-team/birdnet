@@ -6,7 +6,7 @@ from birdnet.acoustic_models.inference.scores.prediction_result import (
   PredictionResult,
 )
 from birdnet.model_loader import load
-from birdnet_tests.helper import duration_counter, memory_monitor
+from birdnet_tests.test_files import TEST_FILE_WAV
 
 
 def get_cached_result(audio_paths: list[Path], k: int, conf: float) -> PredictionResult:
@@ -31,8 +31,8 @@ def get_cached_result(audio_paths: list[Path], k: int, conf: float) -> Predictio
     return result
 
 
-def comp_test_soundscape():
-  audio_path = [Path("example/soundscape.wav")]
+def test_soundscape() -> None:
+  audio_path = [TEST_FILE_WAV]
 
   result = get_cached_result(audio_path, 5, 0.1)
   array = result.to_structured_array()
@@ -44,116 +44,3 @@ def comp_test_soundscape():
     "species_name",
     "confidence",
   )
-
-
-def comp_test_flac():
-  audio_path = [
-    Path("example/soundscape.wav"),
-    Path("test-dataset/test_dataset_1x7.3s_flac/0.flac"),
-    Path("test-dataset/test_dataset_100x1.3s_flac/000.flac"),
-    Path("test-dataset/test_dataset_1000x0.2s_flac/0000.flac"),
-  ]
-
-  result = get_cached_result(audio_path, k=6500, conf=-1)
-  array = result.to_structured_array()
-  print(array)
-  assert array.dtype.names == (
-    "file_path",
-    "start_time",
-    "end_time",
-    "species_name",
-    "confidence",
-  )
-
-
-def comp_test_flac_pa():
-  audio_path = [
-    Path("example/soundscape.wav"),
-    Path("test-dataset/test_dataset_1x7.3s_flac/0.flac"),
-    Path("test-dataset/test_dataset_100x1.3s_flac/000.flac"),
-    Path("test-dataset/test_dataset_1000x0.2s_flac/0000.flac"),
-  ]
-
-  result = get_cached_result(audio_path, k=6500, conf=-1)
-  array = result.to_arrow_table()
-  array.to_pandas().to_csv("/tmp/test_conv.csv", index=False)
-  print(array)
-
-
-def comp_test_flac_csv():
-  audio_path = [
-    Path("example/soundscape.wav"),
-    Path("test-dataset/test_dataset_1x7.3s_flac/0.flac"),
-    Path("test-dataset/test_dataset_100x1.3s_flac/000.flac"),
-    Path("test-dataset/test_dataset_1000x0.2s_flac/0000.flac"),
-  ]
-
-  result = get_cached_result(audio_path, k=6500, conf=-1)
-  with duration_counter() as duration, memory_monitor() as memory_footprint:
-    array = result.to_csv("/tmp/test_conv.csv")
-  print(array)
-
-
-def comp_test_flac_pd():
-  audio_path = [
-    Path("example/soundscape.wav"),
-    Path("test-dataset/test_dataset_1x7.3s_flac/0.flac"),
-    Path("test-dataset/test_dataset_100x1.3s_flac/000.flac"),
-    Path("test-dataset/test_dataset_1000x0.2s_flac/0000.flac"),
-  ]
-
-  result = get_cached_result(audio_path, k=6500, conf=-1)
-  with duration_counter() as duration, memory_monitor() as memory_footprint:
-    array = result.to_dataframe()
-  print(array)
-  print(duration(), "s")
-  print(memory_footprint(), "MB")
-
-
-def comp_test_flac_parquet():
-  audio_path = [
-    Path("example/soundscape.wav"),
-    Path("test-dataset/test_dataset_1x7.3s_flac/0.flac"),
-    Path("test-dataset/test_dataset_100x1.3s_flac/000.flac"),
-    Path("test-dataset/test_dataset_1000x0.2s_flac/0000.flac"),
-  ]
-
-  result = get_cached_result(audio_path, k=6500, conf=-1)
-  with duration_counter() as duration, memory_monitor() as memory_footprint:
-    array = result.to_parquet("/tmp/test_conv.parquet")
-  print(array)
-  print(duration(), "s")
-  print(memory_footprint(), "MB")
-
-
-def xtest_large_file():
-  audio_path = [Path("test-dataset/test_dataset_4x60min")]
-
-  with duration_counter() as duration, memory_monitor() as memory_footprint:
-    result = get_cached_result(audio_path, k=6500, conf=-1)
-  print(f"Loading -> duration: {duration()} s; memory: {memory_footprint()} MB")
-
-  with duration_counter() as duration, memory_monitor() as memory_footprint:
-    array = result.to_parquet("/tmp/test_conv.parquet")
-
-  print(f"Parquet -> duration: {duration()} s; memory: {memory_footprint()} MB")
-
-  with duration_counter() as duration, memory_monitor() as memory_footprint:
-    array = result.to_structured_array()
-
-  print(f"Numpy -> duration: {duration()} s; memory: {memory_footprint()} MB")
-
-  with duration_counter() as duration, memory_monitor() as memory_footprint:
-    array = result.to_arrow_table()
-
-  print(f"Arrow -> duration: {duration()} s; memory: {memory_footprint()} MB")
-
-  with duration_counter() as duration, memory_monitor() as memory_footprint:
-    array = result.to_dataframe()
-
-  print(f"DataFrame -> duration: {duration()} s; memory: {memory_footprint()} MB")
-
-  with duration_counter() as duration, memory_monitor() as memory_footprint:
-    array = result.to_csv("/tmp/test_conv.csv")
-
-  print(f"CSV -> duration: {duration()} s; memory: {memory_footprint()} MB")
