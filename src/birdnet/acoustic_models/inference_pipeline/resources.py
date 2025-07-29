@@ -301,45 +301,6 @@ def create_analyzer_resources(conf: PredictionConfig) -> FilesAnalyzerResources:
   )
 
 
-def _parse_input_files(
-  input_files: Path | str | Iterable[Path | str],
-) -> OrderedSet[Path]:
-  logger = bn_logging.get_logger(__name__)
-  logger.info("Getting input files...")
-  parsed_audio_paths: set[Path] = set()
-
-  if isinstance(input_files, Path | str):
-    input_files = (Path(input_files),)
-
-  if isinstance(input_files, Iterable):
-    for inp_audio in input_files:
-      if isinstance(inp_audio, Path | str):
-        inp_path = Path(inp_audio)
-        if inp_path.is_file():
-          if is_supported_audio_file(inp_path):
-            parsed_audio_paths.add(inp_path.absolute())
-          else:
-            raise ValueError(
-              f"Input file '{inp_path}' is not a supported audio format! Supported formats: {sorted(SF_FORMATS)}."
-            )
-        elif inp_path.is_dir():
-          parsed_audio_paths.update(get_supported_audio_files(inp_path))
-        else:
-          raise ValueError(f"Input path '{inp_path}' was not found.")
-      else:
-        raise ValueError(f"Unsupported input type: {type(inp_audio)}")
-  else:
-    raise ValueError(f"Unsupported input type: {type(input_files)}")
-
-  for p in parsed_audio_paths:
-    assert p.is_absolute()
-
-  file_paths: OrderedSet[Path] = OrderedSet(sorted(set(parsed_audio_paths)))
-  logger.info(f"Got {len(file_paths)} audio files for analysis.")
-
-  return file_paths
-
-
 @dataclass(frozen=True)
 class ProcessingResources:
   processing_finished_event: multiprocessing.synchronize.Event
