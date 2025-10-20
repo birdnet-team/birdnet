@@ -10,18 +10,21 @@ from typing import TYPE_CHECKING, Collection, Literal, final
 
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.backends import (
+from birdnet.acoustic_models.inference2.backends import (
   InferenceBackend,
   TFInferenceBackend,
   check_tf_model_can_be_loaded,
 )
-from birdnet.acoustic_models.inference.emb.encoding_result import (
+from birdnet.acoustic_models.inference2.emb.encoding_result import (
   EncodingResult,
 )
-from birdnet.acoustic_models.inference.scores.prediction_result import (
+from birdnet.acoustic_models.inference2.scores.prediction_result import (
   PredictionResult,
 )
-from birdnet.acoustic_models.inference_pipeline.configs import (
+from birdnet.acoustic_models.inference_pipeline.emb_strategy import (
+  predict_embeddings_from_recordings,
+)
+from birdnet.acoustic_models.inference_pipeline2.configs import (
   EmbeddingsConfig,
   FilteringConfig,
   ModelConfig,
@@ -30,10 +33,7 @@ from birdnet.acoustic_models.inference_pipeline.configs import (
   ProcessingConfig,
   ScoresConfig,
 )
-from birdnet.acoustic_models.inference_pipeline.emb_strategy import (
-  predict_embeddings_from_recordings,
-)
-from birdnet.acoustic_models.inference_pipeline.scores_strategy import (
+from birdnet.acoustic_models.inference_pipeline2.scores_strategy import (
   predict_species_from_recordings,
 )
 from birdnet.acoustic_models.v2_4.base import (
