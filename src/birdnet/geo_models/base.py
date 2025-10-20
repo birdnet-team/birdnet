@@ -16,3 +16,4 @@ class GeoModelBase(ModelBase):
   @classmethod
   @abstractmethod
   def get_version(cls) -> GEO_MODEL_VERSIONS: ...
+

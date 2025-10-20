@@ -77,3 +77,4 @@ class ModelBase(ABC):
   @abstractmethod
   def predict(cls, *args, **kwargs) -> PredictionResultBase:  # noqa: ANN002, ANN003
     ...
+

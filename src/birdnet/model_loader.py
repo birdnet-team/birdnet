@@ -3,14 +3,29 @@ from pathlib import Path
 from typing import Any, cast
 
 from birdnet.acoustic_models.base import AcousticModelBase
-from birdnet.acoustic_models.inference.backends import litert_installed, tf_installed
+from birdnet.acoustic_models.inference.backends import (
+  InferenceBackendLoader,
+  TFInferenceBackend,
+  litert_installed,
+  tf_installed,
+)
+from birdnet.acoustic_models.inference.backends2 import (
+  InferenceBackendLoader2,
+  PBInferenceBackend2,
+  TFInferenceBackend2,
+)
 from birdnet.acoustic_models.v2_4.base import AcousticModelBaseV2_4
 from birdnet.acoustic_models.v2_4.pb import AcousticPBModelV2_4
 from birdnet.acoustic_models.v2_4.tf import AcousticTFModelV2_4
 from birdnet.base import ModelBase
 from birdnet.geo_models.base import GeoModelBase
-from birdnet.geo_models.v2_4.pb import GeoPBModelV2_4
-from birdnet.geo_models.v2_4.tf import GeoTFModelV2_4
+from birdnet.geo_models.v2_4.base import GeoModelV2_4
+from birdnet.geo_models.v2_4.pb import GeoPBDownloaderV2_4, GeoPBModelV2_4
+from birdnet.geo_models.v2_4.tf import (
+  MODEL_LOGITS_IDX,
+  GeoTFDownloaderV2_4,
+  GeoTFModelV2_4,
+)
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V2_4,
   ACOUSTIC_MODEL_VERSIONS,
@@ -219,6 +234,56 @@ def _load_geo_model(
         f"Unsupported model precision for geo model: {precision}. Currently supported precision is: {MODEL_PRECISION_FP32}."
       )
     return _load_geo_model_V2_4(backend, lang, **model_kwargs)
+  else:
+    raise AssertionError()
+
+
+def load_geo_model2(
+  version: GEO_MODEL_VERSIONS,
+  backend: MODEL_BACKENDS,
+  precision: MODEL_PRECISIONS,
+  lang: MODEL_LANGUAGES,
+  device: str,
+  **model_kwargs: object,
+) -> GeoModelBase:
+  if version == GEO_MODEL_VERSION_V2_4:
+    if precision != MODEL_PRECISION_FP32:
+      raise ValueError(
+        f"Unsupported model precision for geo model: {precision}. Currently supported precision is: {MODEL_PRECISION_FP32}."
+      )
+
+    backend_loader: InferenceBackendLoader2
+    if backend == MODEL_BACKEND_TF:
+      model_path, species_list = GeoTFDownloaderV2_4.get_model_path_and_labels(lang)
+      model_kwargs = _validate_kwargs(model_kwargs, {"library"})
+      library = _validate_library(model_kwargs.get("library", LIBRARY_TF))
+      backend_args = {
+        "model_path": model_path,
+        "inference_library": library,
+        "in_idx": 0,
+        "out_idx": MODEL_LOGITS_IDX,
+        "device_name": device,
+      }
+      backend_loader = InferenceBackendLoader2(TFInferenceBackend2, backend_args)
+    elif backend == MODEL_BACKEND_PB:
+      model_path, species_list = GeoPBDownloaderV2_4.get_model_path_and_labels(lang)
+      model_kwargs = _validate_kwargs(model_kwargs, None)
+      backend_args = {
+        "model_path": model_path,
+        "signature_name": "serving_default",
+        "prediction_key": "MNET_CLASS_ACTIVATION",
+        "input_key": "MNET_INPUT",
+        "device_name": device,
+      }
+      backend_loader = InferenceBackendLoader2(PBInferenceBackend2, backend_args)
+    else:
+      raise AssertionError()
+
+    model = GeoModelV2_4(
+      model_path, species_list, use_custom_model=False, backend_loader=backend_loader
+    )
+    model.load_model()
+    return model
   else:
     raise AssertionError()
 
