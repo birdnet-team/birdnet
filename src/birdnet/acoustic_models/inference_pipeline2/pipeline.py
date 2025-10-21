@@ -25,6 +25,22 @@ from birdnet.globals import WRITABLE_FLAG
 from birdnet.helper import create_shm_ring
 
 
+class PredictionPipeline():
+  def __init__(self) -> None:
+    pass
+  
+  def load():
+    pass
+  
+  def predict():
+    pass
+  
+  def cancel():
+    pass
+  
+  def end():
+    pass
+
 def predict_from_recordings_generic(
   conf: PredictionConfig,
   strategy: PredictionStrategy[ResultType, ConfigType, TensorType],
@@ -48,6 +64,12 @@ def predict_from_recordings_generic(
       resources.analyzer_resources.input_files_queue.put(
         file_paths, block=True, timeout=None
       )
+      
+      for file_idx, file_path in enumerate(file_paths):
+        resources.producer_resources.files_queue.put((file_idx, file_path), block=False)
+
+      for _ in range(resources.producer_resources.n_producers):
+        resources.producer_resources.files_queue.put(None, block=False)
 
       process_manager.run_consumer(result_tensor)
       resources.processing_state.processing_finished_event.set()

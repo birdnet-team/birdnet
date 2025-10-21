@@ -3,6 +3,7 @@ from __future__ import annotations
 import ctypes
 import multiprocessing.synchronize
 import os
+from queue import Empty
 import time
 from collections.abc import Generator
 from itertools import count
@@ -124,6 +125,7 @@ class Producer(bn_logging.LogableProcessBase):
     | Synchronized[ctypes.c_uint16]
     | Synchronized[ctypes.c_uint32]
     | Synchronized[ctypes.c_uint64],
+    end_event: Event,
     n_feeders: int,
     prd_ring_access_lock: multiprocessing.synchronize.Lock,
     logging_queue: Queue,
@@ -141,7 +143,7 @@ class Producer(bn_logging.LogableProcessBase):
     fmax: int | None,
   ):
     super().__init__(__name__, logging_queue, logging_level)
-
+    self._end_event = end_event
     self._prd_all_done_event = prd_all_done_event
     self._prd_ring_access_lock = prd_ring_access_lock
     self._prod_stats_queue = prod_stats_queue
@@ -228,8 +230,21 @@ class Producer(bn_logging.LogableProcessBase):
     while True:
       if self._check_cancel_event():
         break
+      
+      while True:
+        try:
+          queue_entry = self._files_queue.get(block=True, timeout=1.0)
+          break
+        except Empty:
+          if self._check_cancel_event():
+            return
 
-      queue_entry = self._files_queue.get(block=True)
+          if self._end_event.is_set():
+            self._logger.debug(
+              f"PRODUCER({os.getpid()}) - End event set while waiting for files. Exiting."
+            )
+            return
+          
       poison_pill = queue_entry is None
       if poison_pill:
         self._logger.debug(f"PRODUCER({os.getpid()}) - Received poison pill. Exiting.")
@@ -399,24 +414,30 @@ class Producer(bn_logging.LogableProcessBase):
 
   def __call__(self) -> None:
     self._init()
+    while waiting_for_input_files := True:
+      self._iter_files()
 
-    self._iter_files()
+      if self._check_cancel_event():
+        break
+      
+      with self._prod_done_ptr:
+        self._prod_done_ptr.value = self._prod_done_ptr.value + 1
+        self._logger.debug(
+          f"PRODUCER({os.getpid()}) - Set prod_done_ptr to {self._prod_done_ptr.value}."
+        )
+        is_last_producer = self._prod_done_ptr.value == self._n_producers
 
-    if self._check_cancel_event():
-      return
+      if is_last_producer:
+        self._logger.debug(f"PRODUCER({os.getpid()}) - Last producer finished.")
+        self._prd_all_done_event.set()
+        assert self._files_queue.qsize() == 0
 
-    with self._prod_done_ptr:
-      self._prod_done_ptr.value = self._prod_done_ptr.value + 1
-      self._logger.debug(
-        f"PRODUCER({os.getpid()}) - Set prod_done_ptr to {self._prod_done_ptr.value}."
-      )
-      is_last_producer = self._prod_done_ptr.value == self._n_producers
-
-    if is_last_producer:
-      self._logger.debug(f"PRODUCER({os.getpid()}) - Last producer finished.")
-      self._prd_all_done_event.set()
-      assert self._files_queue.qsize() == 0
-
+      if self._end_event.is_set():
+        self._logger.debug(
+          f"PRODUCER({os.getpid()}) - End event set. Exiting producer."
+        )
+        break
+        
   def _check_cancel_event(self) -> bool:
     if self._cancel_event.is_set():
       self._logger.debug(f"PRODUCER({os.getpid()}) - Received cancel event.")

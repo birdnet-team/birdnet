@@ -161,6 +161,7 @@ class ProcessManager:
           prod_done_ptr=self._res.producer_resources.n_finished_pointer,
           n_feeders=self._res.producer_resources.n_producers,
           cancel_event=self._res.processing_state.cancel_event,
+          end_event=self._res.processing_state.end_event,
         ),
         name=f"Producer-{i}",
         daemon=True,

@@ -169,23 +169,15 @@ class ProducerResources:
 def create_producer_resources(
   conf: PredictionConfig, analyzer_resources: FilesAnalyzerResources
 ) -> ProducerResources:
-  n_producers = min(conf.processing_conf.feeders, conf.n_files)
+  # n_producers = min(conf.processing_conf.feeders, conf.n_files)
   n_finished_pointer = mp.Value(
     uint_ctype_from_dtype(uint_dtype_for(n_producers)), 0, lock=True
   )
 
-  files_queue = mp.Queue(conf.n_files + n_producers)
-
-  for file_idx, file_path in enumerate(conf.input_files):
-    files_queue.put((file_idx, file_path), block=False)
-
-  for _ in range(n_producers):
-    files_queue.put(None, block=False)
-
   return ProducerResources(
-    n_producers=n_producers,
+    n_producers=conf.processing_conf.feeders,
     n_finished_pointer=n_finished_pointer,
-    files_queue=files_queue,
+    files_queue=mp.Queue(),
     ring_access_lock=mp.Lock(),
     prd_all_done_event=mp.Event(),
   )
@@ -303,6 +295,8 @@ def create_analyzer_resources(conf: PredictionConfig) -> FilesAnalyzerResources:
 class ProcessingResources:
   processing_finished_event: multiprocessing.synchronize.Event
   cancel_event: multiprocessing.synchronize.Event
+  
+  # end listening for new files
   end_event: multiprocessing.synchronize.Event
 
 
