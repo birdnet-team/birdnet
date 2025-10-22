@@ -417,7 +417,7 @@ class Producer(bn_logging.LogableProcessBase):
   def __call__(self) -> None:
     self._init()
     while True:
-      self._logger.info("Producer waiting for input files batch...")
+      self._logger.info(f"PRODUCER({os.getpid()}) waiting for start signal...")
       while not self._start_signal.wait(timeout=1.0):
         if self._check_cancel_event():
           # self._uninit_logging()

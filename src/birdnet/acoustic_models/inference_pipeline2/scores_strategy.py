@@ -127,6 +127,8 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
         wkr_stats_queue=resources.stats_resources.wkr_stats_queue,
         cancel_event=resources.processing_state.cancel_event,
         sem_active_workers=resources.stats_resources.sem_active_workers,
+        end_event=resources.processing_state.end_event,
+        start_signal=resources.worker_resources.start_signals[i],
       )
       for i in range(config.processing_conf.workers)
     ]

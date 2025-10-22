@@ -37,6 +37,8 @@ class EmbeddingsWorker(WorkerBase):
     device: str,
     cancel_event: Event,
     prd_all_done_event: Event,
+    start_signal: Event,
+    end_event: Event,
   ):
     super().__init__(
       name=__name__,
@@ -61,6 +63,8 @@ class EmbeddingsWorker(WorkerBase):
       device=device,
       cancel_event=cancel_event,
       all_producers_finished=prd_all_done_event,
+      start_signal=start_signal,
+      end_event=end_event,
     )
 
   def _get_block(

@@ -74,6 +74,10 @@ def predict_from_recordings_generic(
       for _ in range(resources.producer_resources.n_producers):
         resources.producer_resources.files_queue.put(None, block=False)
 
+      # start workers
+      for i in range(conf.processing_conf.workers):
+        resources.worker_resources.start_signals[i].set()
+
       process_manager.run_consumer(result_tensor)
       resources.processing_state.processing_finished_event.set()
       resources.stats_resources.mark_stop()

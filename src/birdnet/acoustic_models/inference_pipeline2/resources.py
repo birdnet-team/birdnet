@@ -71,7 +71,7 @@ class ResourceManager:
     processing_resources = create_processing_resources()
     analyzer_resources = create_analyzer_resources(self.conf)
     producer_resources = create_producer_resources(self.conf, analyzer_resources)
-    worker_resources = create_worker_resources(self.conf)
+    worker_resources = WorkerResources.create(self.conf)
     buf_resources = create_ring_buffer_resources(self.conf, analyzer_resources)
 
     self.resources = PipelineResources(
@@ -198,23 +198,30 @@ class WorkerResources:
   ring_access_lock: multiprocessing.synchronize.Lock
   devices: list[str]
   backend_loader: InferenceBackendLoader
+  start_signals: list[multiprocessing.synchronize.Event]
 
+  @classmethod
+  def create(cls, config: PredictionConfig) -> WorkerResources:
+    n_workers = config.processing_conf.workers
+    devices = (
+      config.processing_conf.device
+      if isinstance(config.processing_conf.device, list)
+      else [config.processing_conf.device] * n_workers
+    )
 
-def create_worker_resources(config: PredictionConfig) -> WorkerResources:
-  devices = (
-    config.processing_conf.device
-    if isinstance(config.processing_conf.device, list)
-    else [config.processing_conf.device] * config.processing_conf.workers
-  )
+    backend_loader = _create_backend_loader(config)
 
-  backend_loader = _create_backend_loader(config)
+    return WorkerResources(
+      results_queue=mp.Queue(),
+      ring_access_lock=mp.Lock(),
+      devices=devices,
+      backend_loader=backend_loader,
+      start_signals=[mp.Event() for _ in range(n_workers)],
+    )
 
-  return WorkerResources(
-    results_queue=mp.Queue(),
-    ring_access_lock=mp.Lock(),
-    devices=devices,
-    backend_loader=backend_loader,
-  )
+  def reset(self) -> None:
+    for start_signal in self.start_signals:
+      start_signal.clear()
 
 
 def _create_backend_loader(config: PredictionConfig) -> InferenceBackendLoader:

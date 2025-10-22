@@ -43,6 +43,8 @@ class ScoresWorker(WorkerBase):
     device: str,
     cancel_event: Event,
     all_producers_finished: Event,
+    start_signal: Event,
+    end_event: Event,
   ):
     assert species_thresholds.shape[0] == 1
     assert species_blacklist.shape[0] == 1
@@ -86,6 +88,8 @@ class ScoresWorker(WorkerBase):
       device=device,
       cancel_event=cancel_event,
       all_producers_finished=all_producers_finished,
+      start_signal=start_signal,
+      end_event=end_event,
     )
 
   def _get_block(
