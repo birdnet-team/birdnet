@@ -5,6 +5,7 @@ import shutil
 import tempfile
 import zipfile
 from collections.abc import Iterable
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Collection, Literal, final
 
@@ -21,6 +22,7 @@ from birdnet.acoustic_models.inference2.emb.encoding_result import (
 from birdnet.acoustic_models.inference2.scores.prediction_result import (
   PredictionResult,
 )
+from birdnet.acoustic_models.inference2.scores.tensor import ScoresTensor
 from birdnet.acoustic_models.inference_pipeline.emb_strategy import (
   predict_embeddings_from_recordings,
 )
@@ -322,9 +324,8 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       ),
     )
 
-  def predict(
+  def predict_session(
     self,
-    inp: Path | str | Iterable[Path | str],
     /,
     *,
     top_k: int | None = 5,
@@ -343,9 +344,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     half_precision: bool = True,
     max_audio_duration_min: float | None = None,
     show_stats: Literal["minimal", "progress", "benchmark"] | None = None,
-  ) -> PredictionResult:
-    input_files = PredictionConfig.validate_input_files(inp)
-
+  ) -> PredictionSession[PredictionResult, ScoresConfig, ScoresTensor]:
     if top_k is not None:
       top_k = ScoresConfig.validate_top_k(top_k, len(self.species_list))
     feeders = ProcessingConfig.validate_feeders(feeders)
@@ -388,7 +387,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
         sigmoid_sensitivity
       )
 
-    with PredictionSession(
+    return PredictionSession(
       conf=PredictionConfig(
         input_files=input_files,
         model_conf=ModelConfig(
@@ -435,9 +434,51 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
         sigmoid_sensitivity=sigmoid_sensitivity,
         custom_species_list=custom_species_list,
       ),
-    ) as pipeline:
-      return pipeline.run(input_files)
+    )
 
+  def predict(
+    self,
+    inp: Path | str | Iterable[Path | str],
+    /,
+    *,
+    top_k: int | None = 5,
+    feeders: int = 1,
+    workers: int = 4,
+    batch_size: int = 1,
+    prefetch_ratio: int = 1,
+    overlap_duration_s: float = 0,
+    bandpass_fmin: int = 0,
+    bandpass_fmax: int = 15_000,
+    apply_sigmoid: bool = True,
+    sigmoid_sensitivity: float | None = 1.0,
+    default_confidence_threshold: float | None = 0.1,
+    custom_confidence_thresholds: dict[str, float] | None = None,
+    custom_species_list: Collection[str] | None = None,
+    half_precision: bool = True,
+    max_audio_duration_min: float | None = None,
+    show_stats: Literal["minimal", "progress", "benchmark"] | None = None,
+  ) -> PredictionResult:
+    input_files = PredictionConfig.validate_input_files(inp)
+
+    with self.predict_session(
+      top_k=top_k,
+      feeders=feeders,
+      workers=workers,
+      batch_size=batch_size,
+      prefetch_ratio=prefetch_ratio,
+      overlap_duration_s=overlap_duration_s,
+      bandpass_fmin=bandpass_fmin,
+      bandpass_fmax=bandpass_fmax,
+      apply_sigmoid=apply_sigmoid,
+      sigmoid_sensitivity=sigmoid_sensitivity,
+      default_confidence_threshold=default_confidence_threshold,
+      custom_confidence_thresholds=custom_confidence_thresholds,
+      custom_species_list=custom_species_list,
+      half_precision=half_precision,
+      max_audio_duration_min=max_audio_duration_min,
+      show_stats=show_stats,
+    ) as session:
+      return session.run(input_files)
     # return predict_species_from_recordings(
     #   conf=PredictionConfig(
     #     input_files=input_files,

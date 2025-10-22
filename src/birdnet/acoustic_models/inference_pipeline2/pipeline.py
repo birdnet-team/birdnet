@@ -42,16 +42,17 @@ class PredictionSession(Generic[ResultType, ConfigType, TensorType]):
     self._shm_context: ContextManager | None = None
     self._is_initialized = False
 
-  def run(self, paths: set[Path]):
+  def run(self, paths: set[Path]) -> ResultType:
     assert self._is_initialized
     assert self._resources is not None
     assert self._process_manager is not None
 
+    paths = PredictionConfig.validate_input_files(paths)
+    file_paths = OrderedSet(sorted(paths))
+
     result_tensor = self._strategy.create_tensor(
       self._conf, self._specific_config, self._resources
     )
-
-    file_paths = OrderedSet(sorted(paths))
 
     self._resources.reset()
 
