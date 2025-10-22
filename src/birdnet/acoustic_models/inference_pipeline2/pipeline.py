@@ -27,7 +27,7 @@ from birdnet.globals import BATCH_END_SENTINEL, BATCH_START_SENTINEL, WRITABLE_F
 from birdnet.helper import create_shm_ring
 
 
-class PredictionPipeline(Generic[ResultType, ConfigType, TensorType]):
+class PredictionSession(Generic[ResultType, ConfigType, TensorType]):
   def __init__(
     self,
     conf: PredictionConfig,

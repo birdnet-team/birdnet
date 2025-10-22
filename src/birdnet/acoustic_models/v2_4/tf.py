@@ -33,7 +33,7 @@ from birdnet.acoustic_models.inference_pipeline2.configs import (
   ProcessingConfig,
   ScoresConfig,
 )
-from birdnet.acoustic_models.inference_pipeline2.pipeline import PredictionPipeline
+from birdnet.acoustic_models.inference_pipeline2.pipeline import PredictionSession
 from birdnet.acoustic_models.inference_pipeline2.scores_strategy import (
   ScoresStrategy,
   predict_species_from_recordings,
@@ -388,7 +388,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
         sigmoid_sensitivity
       )
 
-    with PredictionPipeline(
+    with PredictionSession(
       conf=PredictionConfig(
         input_files=input_files,
         model_conf=ModelConfig(
