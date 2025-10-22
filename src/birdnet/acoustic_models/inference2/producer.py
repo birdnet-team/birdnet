@@ -414,39 +414,6 @@ class Producer(bn_logging.LogableProcessBase):
       f"PRODUCER({os.getpid()}) - Finished processing files. Total time: {time.perf_counter() - start_time:.2f} seconds."
     )
 
-  def __call__(self) -> None:
-    self._init()
-    while True:
-      self._logger.info(f"PRODUCER({os.getpid()}) waiting for start signal...")
-      while not self._start_signal.wait(timeout=1.0):
-        if self._check_cancel_event():
-          # self._uninit_logging()
-          return
-        if self._check_end_event():
-          return
-
-      self._start_signal.clear()
-      self._logger.debug(
-        f"PRODUCER({os.getpid()}) - Received start signal. Starting processing."
-      )
-
-      self._iter_files()
-
-      if self._check_cancel_event():
-        return
-
-      with self._prod_done_ptr:
-        self._prod_done_ptr.value = self._prod_done_ptr.value + 1
-        self._logger.debug(
-          f"PRODUCER({os.getpid()}) - Set prod_done_ptr to {self._prod_done_ptr.value}."
-        )
-        is_last_producer = self._prod_done_ptr.value == self._n_producers
-
-      if is_last_producer:
-        self._logger.debug(f"PRODUCER({os.getpid()}) - Last producer finished.")
-        self._all_finished.set()
-        assert self._files_queue.qsize() == 0
-
   def _check_cancel_event(self) -> bool:
     if self._cancel_event.is_set():
       self._logger.debug(f"PRODUCER({os.getpid()}) - Received cancel event.")
@@ -492,6 +459,45 @@ class Producer(bn_logging.LogableProcessBase):
     self._logger.debug(
       f"PRODUCER({os.getpid()}) - Flushed batch to shared memory on slot {claimed_slot}, batch size {current_batch_size}. Chunk indices: {segment_indices}"
     )
+
+  def __call__(self) -> None:
+    self._init()
+    self.run_main_loop()
+    self._uninit()
+
+  def run_main_loop(self) -> None:
+    while True:
+      self._logger.info(f"PRODUCER({os.getpid()}) waiting for start signal...")
+      while not self._start_signal.wait(timeout=1.0):
+        if self._check_cancel_event():
+          # self._uninit_logging()
+          return
+        if self._check_end_event():
+          return
+
+      self._start_signal.clear()
+      self._logger.debug(
+        f"PRODUCER({os.getpid()}) - Received start signal. Starting processing."
+      )
+      self.run_main()
+
+  def run_main(self) -> None:
+    self._iter_files()
+
+    if self._check_cancel_event():
+      return
+
+    with self._prod_done_ptr:
+      self._prod_done_ptr.value = self._prod_done_ptr.value + 1
+      self._logger.debug(
+        f"PRODUCER({os.getpid()}) - Set prod_done_ptr to {self._prod_done_ptr.value}."
+      )
+      is_last_producer = self._prod_done_ptr.value == self._n_producers
+
+    if is_last_producer:
+      self._logger.debug(f"PRODUCER({os.getpid()}) - Last producer finished.")
+      self._all_finished.set()
+      assert self._files_queue.qsize() == 0
 
 
 def get_audio_duration_s(audio_path: Path) -> float:

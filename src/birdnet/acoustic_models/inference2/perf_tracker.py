@@ -28,7 +28,6 @@ class PerformanceTrackingResult:
   worker_avg_wall_time_s: float
   total_segments_processed: int
   total_batches_processed: int
-  ramp_up_time_until_first_pred_s: float | None
   n_usage_recordings: int
 
   max_memory_usages_MiB: float
@@ -77,6 +76,14 @@ class ValueTracker:
 
     self._n_vals += 1
 
+  def reset(self) -> None:
+    self._values.clear()
+    self._summed_val = 0
+    self._avg_val = 0
+    self._min_val = 0
+    self._max_val = 0
+    self._n_vals = 0
+
   @property
   def avg_val(self) -> float:
     return self._avg_val
@@ -117,8 +124,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     update_interval: float,
     print_interval: float,
     n_workers: int,
-    start: float,
-    workers_start: float,
     logging_queue: mp.Queue,
     logging_level: int,
     perf_res: mp.Queue,
@@ -131,6 +136,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     cancel_event: Event,
     end_event: Event,
     start_signal: Event,
+    start: float,
   ):
     super().__init__(__name__, logging_queue, logging_level)
 
@@ -145,14 +151,12 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._sem_filled_slots = sem_filled_slots
     self._processing_finished_event = processing_finished_event
     self._n_workers = n_workers
-    self._workers_start = workers_start
     self._prd_stats_queue = prod_stats_queue
     self._perf_res = perf_res
     self._wkr_stats_queue = pred_dur_queue
 
     self._sem_active_workers = sem_active_workers
     self._update_every = update_interval
-    self._start = start
     self._segment_size_s = segment_size_s
 
     self._parent_process_id = parent_process_id
@@ -171,7 +175,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._wkr_3_get_job_dur_tracker = ValueTracker(n_last_batches)
     self._wkr_4_inference_dur_tracker = ValueTracker(n_last_batches)
     self._wkr_5_add_to_queue_dur_tracker = ValueTracker(n_last_batches)
-    self._wkr_ramp_up_time_until_first_pred = None
     self._wkr_busy_tracker = ValueTracker(n_last_updated)
 
     self._prd_wall_times = {}
@@ -191,6 +194,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._sem_filled_tracker = ValueTracker(n_last_updated)
     self._end_event = end_event
     self._start_signal = start_signal
+    self._start = start
 
   def _get_worker_stats(self) -> None:
     entry_count = self._wkr_stats_queue.qsize()
@@ -219,14 +223,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       self._wkr_3_get_job_dur_tracker.add_value(dur_get_job)
       self._wkr_4_inference_dur_tracker.add_value(dur_inference)
       self._wkr_5_add_to_queue_dur_tracker.add_value(dur_add_to_queue)
-
-      if self._wkr_ramp_up_time_until_first_pred is None:
-        self._wkr_ramp_up_time_until_first_pred = (
-          time.perf_counter() - self._start - dur_inference
-        )
-        self._logger.info(
-          f"Rampup time until first prediction: {self._wkr_ramp_up_time_until_first_pred:.2f}s"
-        )
 
   def _get_producer_stats(self) -> None:
     entry_count = self._prd_stats_queue.qsize()
@@ -431,6 +427,34 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
       self.run_main()
 
+  def reset(self) -> None:
+    # todo set to statisticresources start
+    self._start = time.perf_counter()
+
+    self._memory_usage_MiB_tracker.reset()
+    self._cpu_usage_tracker.reset()
+    self._rng_free_slots_tracker.reset()
+    self._rng_busy_slots_tracker.reset()
+    self._rng_preloaded_slots_tracker.reset()
+    self._wkr_busy_tracker.reset()
+
+    self._sem_filled_tracker.reset()
+
+    self._wkr_wall_times.clear()
+    self._wkr_total_segments_processed = 0
+    self._wkr_1_wait_dur_for_filled_slot_tracker.reset()
+    self._wkr_2_search_dur_for_filled_slot_tracker.reset()
+    self._wkr_3_get_job_dur_tracker.reset()
+    self._wkr_4_inference_dur_tracker.reset()
+    self._wkr_5_add_to_queue_dur_tracker.reset()
+
+    self._prd_wall_times.clear()
+    self._prd_total_segments_processed = 0
+    self._prd_1_batch_loading_dur_tracker.reset()
+    self._prd_2_wait_dur_free_slot_tracker.reset()
+    self._prd_3_free_slot_search_dur_tracker.reset()
+    self._prd_4_flush_dur_tracker.reset()
+
   def run_main(self) -> None:
     print_thread = th.Thread(
       target=self.print_stats_continuously,
@@ -439,6 +463,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     )
     print_thread.start()
 
+    self.reset()
     worker_speed_xrt_max = 0
 
     while (
@@ -509,7 +534,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       total_segments_processed=self._wkr_total_segments_processed,
       total_batches_processed=self._wkr_5_add_to_queue_dur_tracker.n_vals,
       # summed_prediction_duration_s=self._summed_worker_raw_pred_duration,
-      ramp_up_time_until_first_pred_s=self._wkr_ramp_up_time_until_first_pred,
       n_usage_recordings=self._memory_usage_MiB_tracker.n_vals,
       max_memory_usages_MiB=self._memory_usage_MiB_tracker.max_val,
       avg_memory_usages_MiB=self._memory_usage_MiB_tracker.avg_val,

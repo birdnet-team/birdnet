@@ -63,10 +63,10 @@ class FilesAnalyzer(bn_logging.LogableProcessBase):
 
   def __call__(self) -> None:
     self._init_logging()
-    durations = []
-    current_max_segment_index = 0
-    n_segments = 0
+    self.run_main_loop()
+    self._uninit_logging()
 
+  def run_main_loop(self) -> None:
     while True:
       self._logger.info("FilesAnalyzer waiting for input files batch...")
       while not self._start_signal.wait(timeout=1.0):
@@ -82,46 +82,52 @@ class FilesAnalyzer(bn_logging.LogableProcessBase):
       )
       # check that it was resetted
       assert self._tot_n_segments.value == 0
+      self.run_main()
 
-      while True:
-        try:
-          files = self._input_files_queue.get(block=True, timeout=1.0)
-          break
-        except Empty:
-          # it has started, so ending is not possible, only canceling
-          if self._check_cancel_event():
-            return
+  def run_main(self) -> None:
+    durations = []
+    current_max_segment_index = 0
+    n_segments = 0
 
-      self._logger.info(f"FilesAnalyzer received {len(files)} files to analyze.")
-
-      for path in files:
+    while True:
+      try:
+        files = self._input_files_queue.get(block=True, timeout=1.0)
+        break
+      except Empty:
+        # it has started, so ending is not possible, only canceling
         if self._check_cancel_event():
           return
 
-        audio_duration_s = get_audio_duration_s(path)
-        durations.append(audio_duration_s)
+    self._logger.info(f"FilesAnalyzer received {len(files)} files to analyze.")
 
-        file_n_segments = get_max_n_segments(
-          audio_duration_s, self.segment_duration_s, self.overlap_duration_s
-        )
-        file_max_segment_index = file_n_segments - 1
-        n_segments += file_n_segments
+    for path in files:
+      if self._check_cancel_event():
+        return
 
-        if file_max_segment_index > current_max_segment_index:
-          if file_max_segment_index > self._max_supported_segment_index:
-            self._logger.error(
-              f"File {path} has a duration of {audio_duration_s / 60:.2f} min and contains {file_n_segments} segments, which exceeds the maximum supported amount of segments {self._max_supported_segment_index + 1}. Please set maximum audio duration."
-            )
-            self._cancel_event.set()
-            self._uninit_logging()
-            return
+      audio_duration_s = get_audio_duration_s(path)
+      durations.append(audio_duration_s)
 
-          current_max_segment_index = file_max_segment_index
-          self._max_segment_idx_ptr.value = current_max_segment_index
-      self._tot_n_segments.value = n_segments
-      self._logger.debug("Putting analyzing result into queue.")
-      self._analyzing_result.put(durations, block=True)
-      self._logger.debug("Done putting analyzing result into queue.")
-      self._logger.info(f"Total duration of all files: {sum(durations) / 60**2:.2f} h.")
+      file_n_segments = get_max_n_segments(
+        audio_duration_s, self.segment_duration_s, self.overlap_duration_s
+      )
+      file_max_segment_index = file_n_segments - 1
+      n_segments += file_n_segments
 
-      self._finished.set()
+      if file_max_segment_index > current_max_segment_index:
+        if file_max_segment_index > self._max_supported_segment_index:
+          self._logger.error(
+            f"File {path} has a duration of {audio_duration_s / 60:.2f} min and contains {file_n_segments} segments, which exceeds the maximum supported amount of segments {self._max_supported_segment_index + 1}. Please set maximum audio duration."
+          )
+          self._cancel_event.set()
+          self._uninit_logging()
+          return
+
+        current_max_segment_index = file_max_segment_index
+        self._max_segment_idx_ptr.value = current_max_segment_index
+    self._tot_n_segments.value = n_segments
+    self._logger.debug("Putting analyzing result into queue.")
+    self._analyzing_result.put(durations, block=True)
+    self._logger.debug("Done putting analyzing result into queue.")
+    self._logger.info(f"Total duration of all files: {sum(durations) / 60**2:.2f} h.")
+
+    self._finished.set()

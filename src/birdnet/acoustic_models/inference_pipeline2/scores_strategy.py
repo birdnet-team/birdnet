@@ -125,9 +125,9 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
         prob_dtype=config.processing_conf.result_dtype,
         sigmoid_sensitivity=specific_config.sigmoid_sensitivity,
         wkr_stats_queue=resources.stats_resources.wkr_stats_queue,
-        cancel_event=resources.processing_state.cancel_event,
+        cancel_event=resources.processing_resources.cancel_event,
         sem_active_workers=resources.stats_resources.sem_active_workers,
-        end_event=resources.processing_state.end_event,
+        end_event=resources.processing_resources.end_event,
         start_signal=resources.worker_resources.start_signals[i],
       )
       for i in range(config.processing_conf.workers)
@@ -263,7 +263,6 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
       mem_shm_slots_average_busy=perf_result.avg_busy_slots,
       mem_shm_slots_average_buffered=perf_result.avg_preloaded_slots,
       worker_busy_average=perf_result.avg_busy_workers,
-      _time_rampup_first_prediction_s=perf_result.ramp_up_time_until_first_pred_s,
       file_batches_processed=perf_result.total_batches_processed,
       speed_worker_xrt=perf_result.worker_speed_xrt,
       speed_worker_xrt_max=perf_result.worker_speed_xrt_max,

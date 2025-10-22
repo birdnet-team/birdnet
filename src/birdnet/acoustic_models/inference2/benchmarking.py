@@ -140,19 +140,12 @@ class FullBenchmarkMetaBase(MinimalBenchmarkMetaBase):
     return self._start_timepoint.isoformat(timespec="seconds")
 
   _time_rampup_first_line_s: float
-  _time_rampup_first_prediction_s: float | None
 
   @property
   def time_rampup_first_line(self) -> str:
     if self._time_rampup_first_line_s is None:
       return "N/A"
     return str(timedelta(seconds=self._time_rampup_first_line_s))
-
-  @property
-  def time_rampup_first_prediction(self) -> str:
-    if self._time_rampup_first_prediction_s is None:
-      return "N/A"
-    return str(timedelta(seconds=self._time_rampup_first_prediction_s))
 
   # Hardware
   @property

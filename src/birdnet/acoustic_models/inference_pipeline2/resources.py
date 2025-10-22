@@ -51,11 +51,20 @@ from birdnet.logging_utils import get_package_logging_level
 class PipelineResources:
   stats_resources: StatisticsResources
   logging_resources: LoggingResources
-  processing_state: ProcessingResources
+  processing_resources: ProcessingResources
   analyzer_resources: FilesAnalyzerResources
   producer_resources: ProducerResources
   worker_resources: WorkerResources
   ring_buffer_resources: RingBufferResources
+
+  def reset(self) -> None:
+    self.processing_resources.reset()
+    self.analyzer_resources.reset()
+    self.producer_resources.reset()
+    self.worker_resources.reset()
+    self.stats_resources.reset()
+    self.logging_resources.reset()
+    self.ring_buffer_resources.reset()
 
 
 class ResourceManager:
@@ -66,7 +75,9 @@ class ResourceManager:
 
   def create_all_resources(self) -> PipelineResources:
     assert self.resources is None
-    stats_resources = create_statistics_resources(self.conf, self.benchmark_dir_name)
+    stats_resources = StatisticsResources.create_statistics_resources(
+      self.conf, self.benchmark_dir_name
+    )
     logging_resources = create_logging_resources(stats_resources)
     processing_resources = create_processing_resources()
     analyzer_resources = create_analyzer_resources(self.conf)
@@ -77,7 +88,7 @@ class ResourceManager:
     self.resources = PipelineResources(
       stats_resources=stats_resources,
       logging_resources=logging_resources,
-      processing_state=processing_resources,
+      processing_resources=processing_resources,
       analyzer_resources=analyzer_resources,
       producer_resources=producer_resources,
       worker_resources=worker_resources,
@@ -95,6 +106,9 @@ class RingBufferResources:
   rf_flags: RingField
   sem_free_slots: multiprocessing.synchronize.Semaphore
   sem_filled_slots: multiprocessing.synchronize.Semaphore
+
+  def reset(self) -> None:
+    pass
 
 
 def create_ring_buffer_resources(
@@ -324,6 +338,11 @@ class ProcessingResources:
   # end listening for new files
   end_event: multiprocessing.synchronize.Event
 
+  def reset(self) -> None:
+    self.processing_finished_event.clear()
+    self.cancel_event.clear()
+    self.end_event.clear()
+
 
 def create_processing_resources() -> ProcessingResources:
   return ProcessingResources(
@@ -365,12 +384,13 @@ class StatisticsResources:
   benchmarking: bool
   benchmark_dir: Path | None
   benchmark_run_dir: Path | None
+  benchmark_dir_name: str
 
   _stop: float | None = None
   _end_timepoint: datetime | None = None
   _tracking_result: PerformanceTrackingResult | None = None
 
-  def mark_stop(self) -> None:
+  def save_end_time(self) -> None:
     object.__setattr__(self, "_stop", time.perf_counter())
     object.__setattr__(self, "_end_timepoint", datetime.now())
 
@@ -383,55 +403,82 @@ class StatisticsResources:
       )
       object.__setattr__(self, "_tracking_result", perf_result)
 
+  @classmethod
+  def create_statistics_resources(
+    cls,
+    conf: PredictionConfig,
+    benchmark_dir_name: str,
+  ) -> StatisticsResources:
+    start = time.perf_counter()
+    start_time = time.time()
+    start_timepoint = datetime.now()
 
-def create_statistics_resources(
-  conf: PredictionConfig,
-  benchmark_dir_name: str,
-):
-  start = time.perf_counter()
-  start_time = time.time()
-  start_timepoint = datetime.now()
+    track_performance = conf.output_conf.show_stats in ("progress", "benchmark")
+    benchmarking = conf.output_conf.show_stats == "benchmark"
 
-  track_performance = conf.output_conf.show_stats in ("progress", "benchmark")
-  benchmarking = conf.output_conf.show_stats == "benchmark"
+    perf_res_queue = None
+    perf_res_start_signal = None
+    wkr_stats_queue = None
+    prd_stats_queue = None
+    sem_active_workers = None
 
-  perf_res_queue = None
-  perf_res_start_signal = None
-  wkr_stats_queue = None
-  prd_stats_queue = None
-  sem_active_workers = None
+    if track_performance:
+      perf_res_queue = mp.Queue()
+      perf_res_start_signal = mp.Event()
+      wkr_stats_queue = mp.Queue()
+      prd_stats_queue = mp.Queue()
+      sem_active_workers = mp.Semaphore(0)
 
-  if track_performance:
-    perf_res_queue = mp.Queue()
-    perf_res_start_signal = mp.Event()
-    wkr_stats_queue = mp.Queue()
-    prd_stats_queue = mp.Queue()
-    sem_active_workers = mp.Semaphore(0)
+    benchmark_dir = None
+    benchmark_run_out_dir = None
+    if benchmarking:
+      benchmark_dir = get_benchmark_dir(
+        model=MODEL_TYPE_ACOUSTIC, dir_name=benchmark_dir_name
+      )
+      start_iso_time = get_iso_time(start_timepoint)
+      benchmark_run_out_dir = benchmark_dir / f"run-{start_iso_time}"
+      benchmark_run_out_dir.mkdir(parents=True, exist_ok=True)
 
-  benchmark_dir = None
-  benchmark_run_out_dir = None
-  if benchmarking:
-    benchmark_dir = get_benchmark_dir(
-      model=MODEL_TYPE_ACOUSTIC, dir_name=benchmark_dir_name
+    return StatisticsResources(
+      start=start,
+      start_time=start_time,
+      start_timepoint=start_timepoint,
+      track_performance=track_performance,
+      prd_stats_queue=prd_stats_queue,
+      wkr_stats_queue=wkr_stats_queue,
+      perf_res_queue=perf_res_queue,
+      sem_active_workers=sem_active_workers,
+      benchmarking=benchmarking,
+      benchmark_dir=benchmark_dir,
+      benchmark_run_dir=benchmark_run_out_dir,
+      perf_res_start_signal=perf_res_start_signal,
+      benchmark_dir_name=benchmark_dir_name,
     )
-    start_iso_time = get_iso_time(start_timepoint)
-    benchmark_run_out_dir = benchmark_dir / f"run-{start_iso_time}"
-    benchmark_run_out_dir.mkdir(parents=True, exist_ok=True)
 
-  return StatisticsResources(
-    start=start,
-    start_time=start_time,
-    start_timepoint=start_timepoint,
-    track_performance=track_performance,
-    prd_stats_queue=prd_stats_queue,
-    wkr_stats_queue=wkr_stats_queue,
-    perf_res_queue=perf_res_queue,
-    sem_active_workers=sem_active_workers,
-    benchmarking=benchmarking,
-    benchmark_dir=benchmark_dir,
-    benchmark_run_dir=benchmark_run_out_dir,
-    perf_res_start_signal=perf_res_start_signal,
-  )
+  def reset(self) -> None:
+    start = time.perf_counter()
+    start_time = time.time()
+    start_timepoint = datetime.now()
+
+    object.__setattr__(self, "_stop", None)
+    object.__setattr__(self, "_end_timepoint", None)
+    object.__setattr__(self, "_tracking_result", None)
+
+    benchmark_dir = None
+    benchmark_run_out_dir = None
+    if self.benchmarking:
+      benchmark_dir = get_benchmark_dir(
+        model=MODEL_TYPE_ACOUSTIC, dir_name=self.benchmark_dir_name
+      )
+      start_iso_time = get_iso_time(start_timepoint)
+      benchmark_run_out_dir = benchmark_dir / f"run-{start_iso_time}"
+      benchmark_run_out_dir.mkdir(parents=True, exist_ok=True)
+
+    object.__setattr__(self, "start", start)
+    object.__setattr__(self, "start_time", start_time)
+    object.__setattr__(self, "start_timepoint", start_timepoint)
+    object.__setattr__(self, "benchmark_dir", benchmark_dir)
+    object.__setattr__(self, "benchmark_run_dir", benchmark_run_out_dir)
 
 
 def get_iso_time(timepoint: datetime) -> str:
@@ -446,6 +493,9 @@ class LoggingResources:
   logging_queue: mp.Queue
   queue_handler: QueueHandler
   stop_logging_event: multiprocessing.synchronize.Event
+
+  def reset(self) -> None:
+    pass
 
 
 def create_logging_resources(stats_resources: StatisticsResources) -> LoggingResources:

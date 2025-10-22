@@ -59,48 +59,54 @@ def predict_from_recordings_generic(
     with shared_memory_context(resources):
       process_manager.start_main_processes()
 
-      # start file analyzer
-      resources.analyzer_resources.reset()
       file_paths = OrderedSet(sorted(conf.input_files))
-      resources.analyzer_resources.start_signal.set()
-      resources.analyzer_resources.input_files_queue.put(file_paths)
 
-      # start producers
-      resources.producer_resources.reset()
-      for i in range(resources.producer_resources.n_producers):
-        resources.producer_resources.start_signals[i].set()
-      for file_idx, file_path in enumerate(file_paths):
-        resources.producer_resources.files_queue.put((file_idx, file_path), block=False)
-      for _ in range(resources.producer_resources.n_producers):
-        resources.producer_resources.files_queue.put(None, block=False)
+      result = None
 
-      # start workers
-      for i in range(conf.processing_conf.workers):
-        resources.worker_resources.start_signals[i].set()
+      for i in range(3):
+        resources.reset()
 
-      # start performance tracker
-      if resources.stats_resources.track_performance:
-        assert resources.stats_resources.perf_res_start_signal is not None
-        resources.stats_resources.perf_res_start_signal.set()
+        # start file analyzer
+        resources.analyzer_resources.start_signal.set()
+        resources.analyzer_resources.input_files_queue.put(file_paths)
 
-      process_manager.run_consumer(result_tensor)
-      resources.processing_state.processing_finished_event.set()
-      resources.stats_resources.mark_stop()
-      resources.stats_resources.collect_performance_results()
-      resources.analyzer_resources.collect_file_durations()
+        # start producers
+        for i in range(resources.producer_resources.n_producers):
+          resources.producer_resources.start_signals[i].set()
+        for file_idx, file_path in enumerate(file_paths):
+          resources.producer_resources.files_queue.put(
+            (file_idx, file_path), block=False
+          )
+        for _ in range(resources.producer_resources.n_producers):
+          resources.producer_resources.files_queue.put(None, block=False)
+
+        # start workers
+        for i in range(conf.processing_conf.workers):
+          resources.worker_resources.start_signals[i].set()
+
+        # start performance tracker
+        if resources.stats_resources.track_performance:
+          assert resources.stats_resources.perf_res_start_signal is not None
+          resources.stats_resources.perf_res_start_signal.set()
+
+        process_manager.run_consumer(result_tensor)
+        resources.processing_resources.processing_finished_event.set()
+        resources.stats_resources.save_end_time()
+        resources.stats_resources.collect_performance_results()
+        resources.analyzer_resources.collect_file_durations()
+
+        if resources.processing_resources.cancel_event.is_set():
+          raise RuntimeError(
+            f"Analysis was cancelled due to an error. Please check the logs: {resources.logging_resources.log_file.absolute()}"
+          )
+
+        result = strategy.create_result(result_tensor, conf, resources)
+
+        _handle_statistics(conf, strategy, specific_config, result, resources)
 
       # end
-      resources.processing_state.end_event.set()
+      resources.processing_resources.end_event.set()
       process_manager.join_main_processes()
-
-    if resources.processing_state.cancel_event.is_set():
-      raise RuntimeError(
-        f"Analysis was cancelled due to an error. Please check the logs: {resources.logging_resources.log_file.absolute()}"
-      )
-
-    result = strategy.create_result(result_tensor, conf, resources)
-
-    _handle_statistics(conf, strategy, specific_config, result, resources)
 
     return result
 
@@ -130,13 +136,13 @@ def predict_from_recordings_generic_legacy(
     with shared_memory_context(resources):
       process_manager.start_main_processes()
       process_manager.run_consumer(result_tensor)
-      resources.processing_state.processing_finished_event.set()
-      resources.stats_resources.mark_stop()
+      resources.processing_resources.processing_finished_event.set()
+      resources.stats_resources.save_end_time()
       resources.stats_resources.collect_performance_results()
       resources.analyzer_resources.collect_file_durations()
       process_manager.join_main_processes()
 
-    if resources.processing_state.cancel_event.is_set():
+    if resources.processing_resources.cancel_event.is_set():
       raise RuntimeError(
         f"Analysis was cancelled due to an error. Please check the logs: {resources.logging_resources.log_file.absolute()}"
       )
