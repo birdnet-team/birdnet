@@ -344,6 +344,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     half_precision: bool = True,
     max_audio_duration_min: float | None = None,
     show_stats: Literal["minimal", "progress", "benchmark"] | None = None,
+    max_n_files: int = 65536,  # Limit to avoid excessive memory usage
   ) -> PredictionSession[PredictionResult, ScoresConfig, ScoresTensor]:
     if top_k is not None:
       top_k = ScoresConfig.validate_top_k(top_k, len(self.species_list))
@@ -387,9 +388,10 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
         sigmoid_sensitivity
       )
 
+    max_n_files = ProcessingConfig.validate_max_n_files(max_n_files)
+
     return PredictionSession(
       conf=PredictionConfig(
-        input_files=input_files,
         model_conf=ModelConfig(
           species_list=self.species_list,
           path=self.model_path,
@@ -416,6 +418,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
           half_precision=half_precision,
           max_audio_duration_min=max_audio_duration_min,
           device="CPU",  # Device is always CPU for TF models
+          max_n_files=max_n_files,
         ),
         filtering_conf=FilteringConfig(
           bandpass_fmin=bandpass_fmin,

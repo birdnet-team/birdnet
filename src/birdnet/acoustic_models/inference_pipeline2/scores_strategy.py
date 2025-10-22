@@ -71,9 +71,10 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
     config: PredictionConfig,
     specific_config: ScoresConfig,
     resources: PipelineResources,
+    n_files: int,
   ) -> ScoresTensor:
     return ScoresTensor(
-      config.n_files,
+      n_files,
       top_k=self.get_top_k(config, specific_config),
       n_species=config.model_conf.n_species,
       prob_dtype=config.processing_conf.result_dtype,
@@ -138,12 +139,13 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
     tensor: ScoresTensor,
     config: PredictionConfig,
     resources: PipelineResources,
+    files: OrderedSet[Path],
   ) -> PredictionResult:
     assert resources.analyzer_resources.file_durations is not None
 
     return PredictionResult(
       tensor=tensor,
-      files=OrderedSet(sorted(config.input_files)),  # todo
+      files=files,
       segment_duration_s=config.model_conf.segment_size_s,
       overlap_duration_s=config.processing_conf.overlap_duration_s,
       species_list=config.model_conf.species_list,

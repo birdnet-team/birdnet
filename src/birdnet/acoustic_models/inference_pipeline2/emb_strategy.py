@@ -48,9 +48,10 @@ class EmbeddingsStrategy(
     config: PredictionConfig,
     specific_config: EmbeddingsConfig,
     resources: PipelineResources,
+    n_files: int,
   ) -> EmbeddingsTensor:
     return EmbeddingsTensor(
-      config.n_files,
+      n_files,
       emb_dim=specific_config.emb_dim,
       emb_dtype=config.processing_conf.result_dtype,
       segment_indices_dtype=resources.ring_buffer_resources.rf_segment_indices.dtype,
@@ -98,12 +99,13 @@ class EmbeddingsStrategy(
     tensor: EmbeddingsTensor,
     config: PredictionConfig,
     resources: PipelineResources,
+    files: OrderedSet[Path],
   ) -> EncodingResult:
     assert resources.analyzer_resources.file_durations is not None
 
     return EncodingResult(
       tensor=tensor,
-      files=OrderedSet(sorted(config.input_files)),
+      files=files,
       segment_duration_s=config.model_conf.segment_size_s,
       overlap_duration_s=config.processing_conf.overlap_duration_s,
       file_durations=resources.analyzer_resources.file_durations,

@@ -9,6 +9,7 @@ from typing import ContextManager, Generic
 
 from ordered_set import OrderedSet
 
+import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.inference_pipeline2.configs import (
   ConfigType,
   PredictionConfig,
@@ -42,16 +43,45 @@ class PredictionSession(Generic[ResultType, ConfigType, TensorType]):
     self._shm_context: ContextManager | None = None
     self._is_initialized = False
 
+  def __enter__(self):
+    assert not self._is_initialized
+    resource_manager = ResourceManager(
+      self._conf, self._strategy.get_benchmark_dir_name()
+    )
+    self._resources = resource_manager.create_all_resources()
+
+    self._process_manager = ProcessManager(
+      self._conf, self._strategy, self._specific_config, self._resources
+    )
+    self._process_manager.start_logging()
+
+    self._shm_context = shared_memory_context(self._resources)
+    self._shm_context.__enter__()
+
+    self._process_manager.start_main_processes()
+
+    self._is_initialized = True
+    return self
+
   def run(self, paths: set[Path]) -> ResultType:
     assert self._is_initialized
     assert self._resources is not None
     assert self._process_manager is not None
 
     paths = PredictionConfig.validate_input_files(paths)
+
+    if len(paths) > self._conf.processing_conf.max_n_files:
+      raise RuntimeError(
+        f"Number of input files ({len(paths)}) exceeds the maximum allowed ({self._conf.processing_conf.max_n_files})."
+      )
+
+    logger = bn_logging.get_logger(__name__)
+    logger.info(f"Got {len(paths)} audio files for analysis.")
+
     file_paths = OrderedSet(sorted(paths))
 
     result_tensor = self._strategy.create_tensor(
-      self._conf, self._specific_config, self._resources
+      self._conf, self._specific_config, self._resources, len(file_paths)
     )
 
     self._resources.reset()
@@ -90,7 +120,9 @@ class PredictionSession(Generic[ResultType, ConfigType, TensorType]):
         f"Analysis was cancelled due to an error. Please check the logs: {self._resources.logging_resources.log_file.absolute()}"
       )
 
-    result = self._strategy.create_result(result_tensor, self._conf, self._resources)
+    result = self._strategy.create_result(
+      result_tensor, self._conf, self._resources, file_paths
+    )
 
     _handle_statistics(
       self._conf, self._strategy, self._specific_config, result, self._resources
@@ -111,26 +143,6 @@ class PredictionSession(Generic[ResultType, ConfigType, TensorType]):
 
     assert self._resources is not None
     self._resources.processing_resources.end_event.set()
-
-  def __enter__(self):
-    assert not self._is_initialized
-    resource_manager = ResourceManager(
-      self._conf, self._strategy.get_benchmark_dir_name()
-    )
-    self._resources = resource_manager.create_all_resources()
-
-    self._process_manager = ProcessManager(
-      self._conf, self._strategy, self._specific_config, self._resources
-    )
-    self._process_manager.start_logging()
-
-    self._shm_context = shared_memory_context(self._resources)
-    self._shm_context.__enter__()
-
-    self._process_manager.start_main_processes()
-
-    self._is_initialized = True
-    return self
 
   def __exit__(self, *args):
     assert self._is_initialized

@@ -102,6 +102,13 @@ def uint_dtype_for(max_value: int) -> np.dtype:
   dtype('uint16')
   >>> uint_dtype_for(3_000_000_000)
   dtype('uint64')
+
+  Info
+  ----
+  2**8 = 256
+  2**16 = 65,536
+  2**32 = 4,294,967,296
+  2**64 = 18,446,744,073,709,551,616
   """
   assert max_value >= 0, "max_value must be non-negative."
 

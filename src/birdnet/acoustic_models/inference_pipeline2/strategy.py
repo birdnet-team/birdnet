@@ -38,6 +38,7 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
     config: PredictionConfig,
     specific_config: ConfigType,
     resources: PipelineResources,
+    n_files: int,
   ) -> TensorType: ...
 
   @abstractmethod
@@ -54,6 +55,7 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
     tensor: TensorType,
     config: PredictionConfig,
     resources: PipelineResources,
+    files: OrderedSet[Path],
   ) -> ResultType: ...
 
   @abstractmethod

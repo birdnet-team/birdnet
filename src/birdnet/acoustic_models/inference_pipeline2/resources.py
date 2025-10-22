@@ -118,7 +118,7 @@ def create_ring_buffer_resources(
 
   rf_file_indices = RingField(
     "bn_ring_file_indices",
-    dtype=uint_dtype_for(max(0, conf.n_files - 1)),
+    dtype=uint_dtype_for(max(0, conf.processing_conf.max_n_files - 1)),
     shape=(n_slots, conf.processing_conf.batch_size),
   )
 
@@ -313,9 +313,6 @@ def create_analyzer_resources(conf: PredictionConfig) -> FilesAnalyzerResources:
     segments_code_type,  # type: ignore
     max_segment_ptr_value,
   )
-
-  logger = bn_logging.get_logger(__name__)
-  logger.info(f"Got {len(conf.input_files)} audio files for analysis.")
 
   return FilesAnalyzerResources(
     analyzer_queue=mp.Queue(),

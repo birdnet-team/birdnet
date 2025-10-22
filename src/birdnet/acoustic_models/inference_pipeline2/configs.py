@@ -61,6 +61,7 @@ class ProcessingConfig:
   half_precision: bool
   max_audio_duration_min: float | None
   device: str | list[str]
+  max_n_files: int
 
   @property
   def result_dtype(self) -> DTypeLike:
@@ -71,6 +72,16 @@ class ProcessingConfig:
   def n_slots(self) -> int:
     n_slots = self.workers + (self.workers * self.prefetch_ratio)
     return n_slots
+
+  @classmethod
+  def validate_max_n_files(cls, max_n_files: Any) -> int:  # noqa: ANN401
+    if not isinstance(max_n_files, int):
+      raise TypeError("maximum number of files must be an integer")
+    if not max_n_files >= 1:
+      raise ValueError("maximum number of files must be >= 1")
+    if not max_n_files <= 2**64:
+      raise ValueError("maximum number of files must be <= 2^64")
+    return max_n_files
 
   @classmethod
   def validate_feeders(cls, feeders: Any) -> int:  # noqa: ANN401
@@ -292,16 +303,10 @@ class ScoresConfig(SpecificConfigBase):
 
 @dataclass(frozen=True)
 class PredictionConfig:
-  input_files: set[Path]
   model_conf: ModelConfig
   processing_conf: ProcessingConfig
   filtering_conf: FilteringConfig
   output_conf: OutputConfig
-
-  @property
-  @final
-  def n_files(self) -> int:
-    return len(self.input_files)
 
   @classmethod
   def validate_input_files(
