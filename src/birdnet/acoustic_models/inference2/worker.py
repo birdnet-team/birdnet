@@ -46,12 +46,12 @@ class WorkerBase(bn_logging.LogableProcessBase):
     logging_level: int,
     device: str,
     cancel_event: Event,
-    prd_all_done_event: Event,
+    all_producers_finished: Event,
   ):
     super().__init__(name, logging_queue, logging_level)
 
     self._backend_loader = backend_loader
-    self._prd_all_done_event = prd_all_done_event
+    self._all_producers_finished = all_producers_finished
     self._wkr_ring_access_lock = wkr_ring_access_lock
     self._backend = None
     self._wkr_stats_queue = wkr_stats_queue
@@ -190,7 +190,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
       while not self._sem_filled.acquire(timeout=1.0):
         if self._check_cancel_event():
           return
-        if self._prd_all_done_event.is_set():
+        if self._all_producers_finished.is_set():
           self._log_debug("Producer is done. Exiting worker.")
           self._out_q.put(None)
           return
@@ -227,7 +227,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
       dur_search_for_filled_slot = time.perf_counter() - perf_c
 
       if claimed_slot is None:
-        if self._prd_all_done_event.is_set():
+        if self._all_producers_finished.is_set():
           self._log_debug("Producer is done. Exiting worker.")
           self._out_q.put(None)
           break

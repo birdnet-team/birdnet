@@ -1,5 +1,6 @@
 import ctypes
 import multiprocessing as mp
+import os
 from multiprocessing.synchronize import Event
 from pathlib import Path
 from queue import Empty
@@ -8,6 +9,7 @@ from ordered_set import OrderedSet
 
 import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.inference2.producer import get_audio_duration_s
+from birdnet.globals import BATCH_START_SENTINEL, STATE_READY
 from birdnet.helper import RingField, get_max_n_segments, max_value_for_uint_dtype
 
 
@@ -25,9 +27,13 @@ class FilesAnalyzer(bn_logging.LogableProcessBase):
     tot_n_segments: ctypes.c_uint64,
     cancel_event: Event,
     end_event: Event,
+    finished: Event,
+    state: mp.RawValue,
+    start_signal: Event,
   ):
     super().__init__(__name__, logging_queue, logging_level)
     # self._files = files
+    self._state = state
     self._input_files_queue = input_files_queue
     self.segment_duration_s = segment_duration_s
     self.overlap_duration_s = overlap_duration_s
@@ -40,6 +46,20 @@ class FilesAnalyzer(bn_logging.LogableProcessBase):
     self._analyzing_result = analyzing_result
     self._cancel_event = cancel_event
     self._end_event = end_event
+    self._finished = finished
+    self._start_signal = start_signal
+
+  def _check_cancel_event(self) -> bool:
+    if self._cancel_event.is_set():
+      self._logger.debug(f"FilesAnalyzer({os.getpid()}) - Received cancel event.")
+      return True
+    return False
+
+  def _check_end_event(self) -> bool:
+    if self._end_event.is_set():
+      self._logger.debug(f"FilesAnalyzer({os.getpid()}) - Received end event.")
+      return True
+    return False
 
   def __call__(self) -> None:
     self._init_logging()
@@ -48,30 +68,34 @@ class FilesAnalyzer(bn_logging.LogableProcessBase):
     n_segments = 0
 
     while True:
-      self._logger.info("FilesAnalyzer waiting for input files...")
-      while waiting_for_input_files := True:
-        try:
-          files = self._input_files_queue.get(timeout=1.0)
-          self._logger.info(f"FilesAnalyzer received {len(files)} files to analyze.")
-          break
-        except Empty:
-          if self._cancel_event.is_set():
-            self._logger.info("FilesAnalyzer canceled because of cancel event.")
-            self._uninit_logging()
-            return
+      self._logger.info("FilesAnalyzer waiting for input files batch...")
+      while not self._start_signal.wait(timeout=1.0):
+        if self._check_cancel_event():
+          # self._uninit_logging()
+          return
+        if self._check_end_event():
+          return
 
-          if self._end_event.is_set():
-            self._logger.info("FilesAnalyzer ended because of end event.")
-            self._uninit_logging()
-            return
-      
+      self._start_signal.clear()
+      self._logger.debug(
+        f"FilesAnalyzer({os.getpid()}) - Received start signal. Starting processing."
+      )
       # check that it was resetted
       assert self._tot_n_segments.value == 0
 
+      while True:
+        try:
+          files = self._input_files_queue.get(block=True, timeout=1.0)
+          break
+        except Empty:
+          # it has started, so ending is not possible, only canceling
+          if self._check_cancel_event():
+            return
+
+      self._logger.info(f"FilesAnalyzer received {len(files)} files to analyze.")
+
       for path in files:
-        if self._cancel_event.is_set():
-          self._logger.info("FilesAnalyzer canceled because of cancel event.")
-          self._uninit_logging()
+        if self._check_cancel_event():
           return
 
         audio_duration_s = get_audio_duration_s(path)
@@ -100,7 +124,4 @@ class FilesAnalyzer(bn_logging.LogableProcessBase):
       self._logger.debug("Done putting analyzing result into queue.")
       self._logger.info(f"Total duration of all files: {sum(durations) / 60**2:.2f} h.")
 
-      if self._end_event.is_set():
-        self._logger.info("FilesAnalyzer ended because of end event.")
-        self._uninit_logging()
-        return
+      self._finished.set()

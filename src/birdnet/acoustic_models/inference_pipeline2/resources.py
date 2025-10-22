@@ -31,6 +31,7 @@ from birdnet.globals import (
   MODEL_BACKEND_TF,
   MODEL_TYPE_ACOUSTIC,
   PKG_NAME,
+  STATE_DEFAULT,
 )
 from birdnet.helper import (
   SF_FORMATS,
@@ -161,25 +162,33 @@ class ProducerResources:
     | Synchronized[ctypes.c_uint32]
     | Synchronized[ctypes.c_uint64]
   )
-  prd_all_done_event: multiprocessing.synchronize.Event
+  all_finished: multiprocessing.synchronize.Event
   ring_access_lock: multiprocessing.synchronize.Lock
   files_queue: mp.Queue
+  start_signals: list[multiprocessing.synchronize.Event]
+
+  def reset(self) -> None:
+    self.n_finished_pointer.value = 0
+    self.all_finished.clear()
+    for start_signal in self.start_signals:
+      start_signal.clear()
 
 
 def create_producer_resources(
   conf: PredictionConfig, analyzer_resources: FilesAnalyzerResources
 ) -> ProducerResources:
-  # n_producers = min(conf.processing_conf.feeders, conf.n_files)
+  n_producers = conf.processing_conf.feeders
   n_finished_pointer = mp.Value(
     uint_ctype_from_dtype(uint_dtype_for(n_producers)), 0, lock=True
   )
 
   return ProducerResources(
-    n_producers=conf.processing_conf.feeders,
+    n_producers=n_producers,
     n_finished_pointer=n_finished_pointer,
     files_queue=mp.Queue(),
     ring_access_lock=mp.Lock(),
-    prd_all_done_event=mp.Event(),
+    all_finished=mp.Event(),
+    start_signals=[mp.Event() for _ in range(n_producers)],
   )
 
 
@@ -232,6 +241,10 @@ class FilesAnalyzerResources:
   tot_n_segments_ptr: mp.RawValue
   max_segment_idx_ptr: mp.RawValue
   max_segment_idx_init_value: int
+  finished: multiprocessing.synchronize.Event
+  state: mp.RawValue
+  # each resource needs own start signal to allow resetting it individually
+  start_signal: multiprocessing.synchronize.Event
   segments_dtype: np.dtype
 
   _file_durations: np.ndarray | None = None
@@ -251,6 +264,8 @@ class FilesAnalyzerResources:
     object.__setattr__(self, "_file_durations", None)
     self.tot_n_segments_ptr.value = 0
     self.max_segment_idx_ptr.value = self.max_segment_idx_init_value
+    self.finished.clear()
+    self.start_signal.clear()
 
 
 def create_analyzer_resources(conf: PredictionConfig) -> FilesAnalyzerResources:
@@ -288,6 +303,9 @@ def create_analyzer_resources(conf: PredictionConfig) -> FilesAnalyzerResources:
     max_segment_idx_ptr=max_segment_idx_ptr,
     segments_dtype=segments_dtype,
     max_segment_idx_init_value=max_segment_ptr_value,
+    finished=mp.Event(),
+    state=mp.RawValue(ctypes.c_uint8, STATE_DEFAULT),
+    start_signal=mp.Event(),
   )
 
 
@@ -295,7 +313,7 @@ def create_analyzer_resources(conf: PredictionConfig) -> FilesAnalyzerResources:
 class ProcessingResources:
   processing_finished_event: multiprocessing.synchronize.Event
   cancel_event: multiprocessing.synchronize.Event
-  
+
   # end listening for new files
   end_event: multiprocessing.synchronize.Event
 

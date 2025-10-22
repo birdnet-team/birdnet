@@ -3,7 +3,6 @@ from __future__ import annotations
 import ctypes
 import multiprocessing.synchronize
 import os
-from queue import Empty
 import time
 from collections.abc import Generator
 from itertools import count
@@ -11,6 +10,7 @@ from multiprocessing import Queue, shared_memory
 from multiprocessing.sharedctypes import Synchronized
 from multiprocessing.synchronize import Event, Semaphore
 from pathlib import Path
+from queue import Empty
 
 import numpy as np
 import numpy.typing as npt
@@ -18,6 +18,7 @@ import soundfile as sf
 
 import birdnet.logging_utils as bn_logging
 from birdnet.globals import (
+  BATCH_START_SENTINEL,
   READABLE_FLAG,
   READING_FLAG,
   WRITABLE_FLAG,
@@ -126,6 +127,7 @@ class Producer(bn_logging.LogableProcessBase):
     | Synchronized[ctypes.c_uint32]
     | Synchronized[ctypes.c_uint64],
     end_event: Event,
+    start_signal: Event,
     n_feeders: int,
     prd_ring_access_lock: multiprocessing.synchronize.Lock,
     logging_queue: Queue,
@@ -135,7 +137,7 @@ class Producer(bn_logging.LogableProcessBase):
     overlap_duration_s: float,
     target_sample_rate: int,
     cancel_event: Event,
-    prd_all_done_event: Event,
+    all_finished: Event,
     use_bandpass: bool,
     bandpass_fmin: int,
     bandpass_fmax: int,
@@ -144,7 +146,7 @@ class Producer(bn_logging.LogableProcessBase):
   ):
     super().__init__(__name__, logging_queue, logging_level)
     self._end_event = end_event
-    self._prd_all_done_event = prd_all_done_event
+    self._all_finished = all_finished
     self._prd_ring_access_lock = prd_ring_access_lock
     self._prod_stats_queue = prod_stats_queue
     self._segment_duration_s = segment_duration_s
@@ -159,6 +161,7 @@ class Producer(bn_logging.LogableProcessBase):
     self._max_segment_idx_ptr = max_segment_idx_ptr  # type: ignore
     self._prod_done_ptr: Synchronized[int] = prod_done_ptr  # type: ignore
     self._n_producers = n_feeders
+    self._start_signal = start_signal
 
     if use_bandpass:
       assert bandpass_fmin is not None
@@ -224,13 +227,62 @@ class Producer(bn_logging.LogableProcessBase):
     self._logger.debug(f"PRODUCER({os.getpid()}) - Uninitializing...")
     self._uninit_logging()
 
+  def get_segments_from_file(
+    self, path: Path
+  ) -> Generator[tuple[int, npt.NDArray[np.float32]], None, None]:
+    audio_duration_s = get_audio_duration_s(path)
+    file_n_segments = get_max_n_segments(
+      audio_duration_s, self._segment_duration_s, self._overlap_duration_s
+    )
+    file_max_segment_index = file_n_segments - 1
+
+    if file_max_segment_index > self._max_segment_idx_ptr.value:
+      if file_max_segment_index > self._max_supported_segment_index:
+        self._logger.error(
+          f"File {path} has a duration of {audio_duration_s / 60:.2f} min and contains {file_n_segments} segments, which exceeds the maximum supported amount of segments {self._max_supported_segment_index + 1}. Please set maximum audio duration."
+        )
+        return
+      self._max_segment_idx_ptr.value = file_max_segment_index
+    segments = load_audio_in_segments_with_overlap(
+      path,
+      segment_duration_s=self._segment_duration_s,
+      overlap_duration_s=self._overlap_duration_s,
+      target_sample_rate=self._target_sample_rate,
+    )
+
+    # fill last segment with silence up to segmentsize if it is smaller than 3s
+    segments = (
+      fillup_with_silence(segment, self.segment_duration_samples)
+      for segment in segments
+    )
+
+    if self._use_bandpass:
+      assert self.bandpass_fmin is not None
+      assert self.bandpass_fmax is not None
+      assert self.sig_fmin is not None
+      assert self.sig_fmax is not None
+
+      segments = (
+        bandpass_signal(
+          segment,
+          self._target_sample_rate,
+          self.bandpass_fmin,
+          self.bandpass_fmax,
+          self.sig_fmin,
+          self.sig_fmax,
+        )
+        for segment in segments
+      )
+
+    yield from enumerate(segments)
+
   def get_segments_from_files(
     self,
   ) -> Generator[tuple[int, int, npt.NDArray[np.float32]], None, None]:
     while True:
       if self._check_cancel_event():
-        break
-      
+        return
+
       while True:
         try:
           queue_entry = self._files_queue.get(block=True, timeout=1.0)
@@ -239,12 +291,6 @@ class Producer(bn_logging.LogableProcessBase):
           if self._check_cancel_event():
             return
 
-          if self._end_event.is_set():
-            self._logger.debug(
-              f"PRODUCER({os.getpid()}) - End event set while waiting for files. Exiting."
-            )
-            return
-          
       poison_pill = queue_entry is None
       if poison_pill:
         self._logger.debug(f"PRODUCER({os.getpid()}) - Received poison pill. Exiting.")
@@ -252,51 +298,7 @@ class Producer(bn_logging.LogableProcessBase):
       assert isinstance(queue_entry, tuple)
       file_index, path = queue_entry
 
-      audio_duration_s = get_audio_duration_s(path)
-      file_n_segments = get_max_n_segments(
-        audio_duration_s, self._segment_duration_s, self._overlap_duration_s
-      )
-      file_max_segment_index = file_n_segments - 1
-
-      if file_max_segment_index > self._max_segment_idx_ptr.value:
-        if file_max_segment_index > self._max_supported_segment_index:
-          self._logger.error(
-            f"File {path} has a duration of {audio_duration_s / 60:.2f} min and contains {file_n_segments} segments, which exceeds the maximum supported amount of segments {self._max_supported_segment_index + 1}. Please set maximum audio duration."
-          )
-          continue
-        self._max_segment_idx_ptr.value = file_max_segment_index
-      segments = load_audio_in_segments_with_overlap(
-        path,
-        segment_duration_s=self._segment_duration_s,
-        overlap_duration_s=self._overlap_duration_s,
-        target_sample_rate=self._target_sample_rate,
-      )
-
-      # fill last segment with silence up to segmentsize if it is smaller than 3s
-      segments = (
-        fillup_with_silence(segment, self.segment_duration_samples)
-        for segment in segments
-      )
-
-      if self._use_bandpass:
-        assert self.bandpass_fmin is not None
-        assert self.bandpass_fmax is not None
-        assert self.sig_fmin is not None
-        assert self.sig_fmax is not None
-
-        segments = (
-          bandpass_signal(
-            segment,
-            self._target_sample_rate,
-            self.bandpass_fmin,
-            self.bandpass_fmax,
-            self.sig_fmin,
-            self.sig_fmax,
-          )
-          for segment in segments
-        )
-
-      for segment_index, segment in enumerate(segments):
+      for segment_index, segment in self.get_segments_from_file(path):
         yield file_index, segment_index, segment
 
   @property
@@ -414,12 +416,25 @@ class Producer(bn_logging.LogableProcessBase):
 
   def __call__(self) -> None:
     self._init()
-    while waiting_for_input_files := True:
+    while True:
+      self._logger.info("Producer waiting for input files batch...")
+      while not self._start_signal.wait(timeout=1.0):
+        if self._check_cancel_event():
+          # self._uninit_logging()
+          return
+        if self._check_end_event():
+          return
+
+      self._start_signal.clear()
+      self._logger.debug(
+        f"PRODUCER({os.getpid()}) - Received start signal. Starting processing."
+      )
+
       self._iter_files()
 
       if self._check_cancel_event():
-        break
-      
+        return
+
       with self._prod_done_ptr:
         self._prod_done_ptr.value = self._prod_done_ptr.value + 1
         self._logger.debug(
@@ -429,18 +444,18 @@ class Producer(bn_logging.LogableProcessBase):
 
       if is_last_producer:
         self._logger.debug(f"PRODUCER({os.getpid()}) - Last producer finished.")
-        self._prd_all_done_event.set()
+        self._all_finished.set()
         assert self._files_queue.qsize() == 0
 
-      if self._end_event.is_set():
-        self._logger.debug(
-          f"PRODUCER({os.getpid()}) - End event set. Exiting producer."
-        )
-        break
-        
   def _check_cancel_event(self) -> bool:
     if self._cancel_event.is_set():
       self._logger.debug(f"PRODUCER({os.getpid()}) - Received cancel event.")
+      return True
+    return False
+
+  def _check_end_event(self) -> bool:
+    if self._end_event.is_set():
+      self._logger.debug(f"PRODUCER({os.getpid()}) - Received end event.")
       return True
     return False
 

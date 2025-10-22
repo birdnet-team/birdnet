@@ -75,7 +75,7 @@ class EmbeddingsStrategy(
         out_q=resources.worker_resources.results_queue,
         logging_queue=resources.logging_resources.logging_queue,
         logging_level=resources.logging_resources.logging_level,
-        prd_all_done_event=resources.producer_resources.prd_all_done_event,
+        prd_all_done_event=resources.producer_resources.all_finished,
         rf_file_indices=resources.ring_buffer_resources.rf_file_indices,
         rf_segment_indices=resources.ring_buffer_resources.rf_segment_indices,
         rf_audio_samples=resources.ring_buffer_resources.rf_audio_samples,

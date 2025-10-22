@@ -21,25 +21,26 @@ from birdnet.acoustic_models.inference_pipeline2.resources import (
 from birdnet.acoustic_models.inference_pipeline2.strategy import (
   PredictionStrategy,
 )
-from birdnet.globals import WRITABLE_FLAG
+from birdnet.globals import BATCH_END_SENTINEL, BATCH_START_SENTINEL, WRITABLE_FLAG
 from birdnet.helper import create_shm_ring
 
 
-class PredictionPipeline():
+class PredictionPipeline:
   def __init__(self) -> None:
     pass
-  
+
   def load():
     pass
-  
+
   def predict():
     pass
-  
+
   def cancel():
     pass
-  
+
   def end():
     pass
+
 
 def predict_from_recordings_generic(
   conf: PredictionConfig,
@@ -58,16 +59,18 @@ def predict_from_recordings_generic(
     with shared_memory_context(resources):
       process_manager.start_main_processes()
 
-      # start
+      # start file analyzer
       resources.analyzer_resources.reset()
       file_paths = OrderedSet(sorted(conf.input_files))
-      resources.analyzer_resources.input_files_queue.put(
-        file_paths, block=True, timeout=None
-      )
-      
+      resources.analyzer_resources.start_signal.set()
+      resources.analyzer_resources.input_files_queue.put(file_paths)
+
+      # start producers
+      resources.producer_resources.reset()
+      for i in range(resources.producer_resources.n_producers):
+        resources.producer_resources.start_signals[i].set()
       for file_idx, file_path in enumerate(file_paths):
         resources.producer_resources.files_queue.put((file_idx, file_path), block=False)
-
       for _ in range(resources.producer_resources.n_producers):
         resources.producer_resources.files_queue.put(None, block=False)
 

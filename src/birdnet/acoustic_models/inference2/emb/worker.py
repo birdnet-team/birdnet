@@ -60,7 +60,7 @@ class EmbeddingsWorker(WorkerBase):
       logging_level=logging_level,
       device=device,
       cancel_event=cancel_event,
-      prd_all_done_event=prd_all_done_event,
+      all_producers_finished=prd_all_done_event,
     )
 
   def _get_block(

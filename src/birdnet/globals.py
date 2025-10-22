@@ -120,3 +120,13 @@ READABLE_FLAG = np.uint8(2)
 
 # flag for "busy", i.e., currently being processed
 READING_FLAG = np.uint8(3)
+
+# kann weg
+STATE_DEFAULT = np.uint8(0)
+STATE_READY = np.uint8(1)
+STATE_PROCESSING = np.uint8(2)
+STATE_FINISHED = np.uint8(3)
+STATE_CANCELED = np.uint8(4)
+
+BATCH_START_SENTINEL = "START"
+BATCH_END_SENTINEL = -2
