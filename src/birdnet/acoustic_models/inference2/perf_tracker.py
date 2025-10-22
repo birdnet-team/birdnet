@@ -4,6 +4,7 @@ import ctypes
 import datetime
 import math
 import multiprocessing as mp
+import os
 import sys
 import threading as th
 import time
@@ -128,6 +129,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     rf_flags: RingField,
     tot_n_segments_ptr: ctypes.c_uint64,
     cancel_event: Event,
+    end_event: Event,
+    start_signal: Event,
   ):
     super().__init__(__name__, logging_queue, logging_level)
 
@@ -186,6 +189,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._rng_preloaded_slots_tracker = ValueTracker(n_last_updated)
 
     self._sem_filled_tracker = ValueTracker(n_last_updated)
+    self._end_event = end_event
+    self._start_signal = start_signal
 
   def _get_worker_stats(self) -> None:
     entry_count = self._wkr_stats_queue.qsize()
@@ -389,10 +394,44 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       self._print_stats()
     self._logger.debug("PerformanceTracker.PrintThread thread finished.")
 
+  def _check_cancel_event(self) -> bool:
+    if self._cancel_event.is_set():
+      self._logger.debug(f"PERF_TRACKER({os.getpid()}) - Received cancel event.")
+      return True
+    return False
+
+  def _check_end_event(self) -> bool:
+    if self._end_event.is_set():
+      self._logger.debug(f"PERF_TRACKER({os.getpid()}) - Received end event.")
+      return True
+    return False
+
   def __call__(self):
     self._init_logging()
     self._shm_ring_flags, self._ring_flags = self._rf_flags.attach_and_get_array()
 
+    self.run_main_loop()
+
+    self._uninit_logging()
+
+  def run_main_loop(self) -> None:
+    while True:
+      self._logger.info(f"PERF_TRACKER({os.getpid()}) waiting for start signal...")
+      while not self._start_signal.wait(timeout=1.0):
+        if self._check_cancel_event():
+          # self._uninit_logging()
+          return
+        if self._check_end_event():
+          return
+
+      self._start_signal.clear()
+      self._logger.debug(
+        f"PERF_TRACKER({os.getpid()}) - Received start signal. Starting processing."
+      )
+
+      self.run_main()
+
+  def run_main(self) -> None:
     print_thread = th.Thread(
       target=self.print_stats_continuously,
       name="PerformanceTracker.PrintThread",
@@ -407,8 +446,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       or self._wkr_stats_queue.qsize() != 0
       or self._prd_stats_queue.qsize() != 0
     ):
-      if self._cancel_event.is_set():
-        self._logger.debug("PerformanceTracker canceled because of cancel event.")
+      if self._check_cancel_event():
         return
 
       self._get_producer_stats()
@@ -494,14 +532,12 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       # avg_segments_per_s_last=(np.mean(avg_segments_per_s) if avg_segments_per_s else 0),
     )
 
-    self._logger.info("Joining print thread...")
-    print_thread.join()
-    self._logger.info("Print thread joined.")
-
     self._logger.debug("Putting performance tracking result into queue.")
     self._perf_res.put(stats, block=True)
     # self._perf_res.close()
     # self._perf_res.join_thread()
     self._logger.debug("Done putting performance tracking result into queue.")
 
-    self._uninit_logging()
+    self._logger.info("Joining print thread...")
+    print_thread.join()
+    self._logger.info("Print thread joined.")

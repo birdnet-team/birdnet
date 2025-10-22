@@ -78,6 +78,11 @@ def predict_from_recordings_generic(
       for i in range(conf.processing_conf.workers):
         resources.worker_resources.start_signals[i].set()
 
+      # start performance tracker
+      if resources.stats_resources.track_performance:
+        assert resources.stats_resources.perf_res_start_signal is not None
+        resources.stats_resources.perf_res_start_signal.set()
+
       process_manager.run_consumer(result_tensor)
       resources.processing_state.processing_finished_event.set()
       resources.stats_resources.mark_stop()

@@ -67,6 +67,7 @@ class ProcessManager:
     assert self._res.stats_resources.track_performance
     assert self._res.stats_resources.sem_active_workers is not None
     assert self._res.stats_resources.perf_res_queue is not None
+    assert self._res.stats_resources.perf_res_start_signal is not None
     assert self._res.stats_resources.wkr_stats_queue is not None
     assert self._res.stats_resources.prd_stats_queue is not None
 
@@ -90,6 +91,8 @@ class ProcessManager:
         tot_n_segments_ptr=self._res.analyzer_resources.tot_n_segments_ptr,
         cancel_event=self._res.processing_state.cancel_event,
         sem_active_workers=self._res.stats_resources.sem_active_workers,
+        end_event=self._res.processing_state.end_event,
+        start_signal=self._res.stats_resources.perf_res_start_signal,
       ),
       name="PerformanceTracker",
       daemon=True,

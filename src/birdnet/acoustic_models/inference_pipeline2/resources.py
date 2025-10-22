@@ -360,6 +360,7 @@ class StatisticsResources:
   prd_stats_queue: mp.Queue | None
   sem_active_workers: multiprocessing.synchronize.Semaphore | None
   perf_res_queue: mp.Queue | None
+  perf_res_start_signal: multiprocessing.synchronize.Event | None
 
   benchmarking: bool
   benchmark_dir: Path | None
@@ -395,12 +396,14 @@ def create_statistics_resources(
   benchmarking = conf.output_conf.show_stats == "benchmark"
 
   perf_res_queue = None
+  perf_res_start_signal = None
   wkr_stats_queue = None
   prd_stats_queue = None
   sem_active_workers = None
 
   if track_performance:
     perf_res_queue = mp.Queue()
+    perf_res_start_signal = mp.Event()
     wkr_stats_queue = mp.Queue()
     prd_stats_queue = mp.Queue()
     sem_active_workers = mp.Semaphore(0)
@@ -427,6 +430,7 @@ def create_statistics_resources(
     benchmarking=benchmarking,
     benchmark_dir=benchmark_dir,
     benchmark_run_dir=benchmark_run_out_dir,
+    perf_res_start_signal=perf_res_start_signal,
   )
 
 

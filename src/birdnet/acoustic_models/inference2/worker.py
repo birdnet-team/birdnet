@@ -173,18 +173,10 @@ class WorkerBase(bn_logging.LogableProcessBase):
   ) -> tuple[np.ndarray, ...]: ...
 
   def __call__(self):
-    if self._lazy_init:
-      self._init_logging()
-
-    self.run_main_loop()
-
-    self._log_debug("Finished.")
-    self._uninit_logging()
-
-  def run_main_loop(self) -> None:
     start = time.perf_counter()
 
     if self._lazy_init:
+      self._init_logging()
       self._load_ring_buffers()
 
     try:
@@ -196,6 +188,12 @@ class WorkerBase(bn_logging.LogableProcessBase):
     duration_init = time.perf_counter() - start
     self._log_debug(f"WORKER{self._pid} initialized in {duration_init:.4f} seconds.")
 
+    self.run_main_loop()
+
+    self._log_debug("Finished.")
+    self._uninit_logging()
+
+  def run_main_loop(self) -> None:
     while True:
       self._logger.info(f"WORKER({self._pid}) waiting for start signal...")
       while not self._start_signal.wait(timeout=1.0):
