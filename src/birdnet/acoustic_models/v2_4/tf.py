@@ -344,7 +344,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     half_precision: bool = True,
     max_audio_duration_min: float | None = None,
     show_stats: Literal["minimal", "progress", "benchmark"] | None = None,
-    max_n_files: int = 65536,  # Limit to avoid excessive memory usage
+    max_n_files: int = 65_536,  # Limit to avoid excessive memory usage
   ) -> PredictionSession[PredictionResult, ScoresConfig, ScoresTensor]:
     if top_k is not None:
       top_k = ScoresConfig.validate_top_k(top_k, len(self.species_list))
@@ -462,6 +462,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     show_stats: Literal["minimal", "progress", "benchmark"] | None = None,
   ) -> PredictionResult:
     input_files = PredictionConfig.validate_input_files(inp)
+    max_n_files = len(input_files)
 
     with self.predict_session(
       top_k=top_k,
@@ -480,6 +481,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       half_precision=half_precision,
       max_audio_duration_min=max_audio_duration_min,
       show_stats=show_stats,
+      max_n_files=max_n_files,
     ) as session:
       return session.run(input_files)
     # return predict_species_from_recordings(

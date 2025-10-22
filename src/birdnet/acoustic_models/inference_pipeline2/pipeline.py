@@ -5,7 +5,7 @@ import shutil
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
-from typing import ContextManager, Generic
+from typing import ContextManager, Generic, Iterable
 
 from ordered_set import OrderedSet
 
@@ -63,11 +63,12 @@ class PredictionSession(Generic[ResultType, ConfigType, TensorType]):
     self._is_initialized = True
     return self
 
-  def run(self, paths: set[Path]) -> ResultType:
+  def run(self, paths: Path | str | Iterable[Path | str]) -> ResultType:
     assert self._is_initialized
     assert self._resources is not None
     assert self._process_manager is not None
 
+    # todo: only once in model class?
     paths = PredictionConfig.validate_input_files(paths)
 
     if len(paths) > self._conf.processing_conf.max_n_files:
