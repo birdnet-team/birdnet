@@ -167,9 +167,6 @@ class GeoModelV2_4(GeoModelBase):
   def get_backend_type(cls) -> type[InferenceBackend]:
     return None
 
-  def load_model(self):
-    self._backend = self._backend_loader.load_backend()
-
   @classmethod
   def load(
     cls,
@@ -207,6 +204,7 @@ class GeoModelV2_4(GeoModelBase):
     week: int | None = None,
     min_confidence: float = 0.03,
     half_precision: bool = True,
+    device: str = "CPU",
   ) -> PredictionResult:
     if not -90 <= latitude <= 90:
       raise ValueError(
@@ -236,7 +234,9 @@ class GeoModelV2_4(GeoModelBase):
 
     prob_dtype: DTypeLike = np.float16 if half_precision else np.float32
 
-    res = self._backend.infer(sample)
+    self._backend_loader.set_device_name(device)
+    backend = self._backend_loader.load_backend()
+    res = backend.infer(sample)
     assert res.dtype == np.float32
     res = res.astype(prob_dtype, copy=False)
 

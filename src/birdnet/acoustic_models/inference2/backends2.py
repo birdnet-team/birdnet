@@ -8,7 +8,15 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, final, overload
+from typing import (
+  TYPE_CHECKING,
+  Any,
+  Literal,
+  Protocol,
+  final,
+  overload,
+  runtime_checkable,
+)
 
 import numpy as np
 
@@ -26,7 +34,6 @@ if TYPE_CHECKING:
 
 class InferenceBackend2(ABC):
   def __init__(self, model_path: Path, device_name: str) -> None:
-    super().__init__()
     self._model_path = model_path
     self._device_name = device_name
 
@@ -41,49 +48,46 @@ class InferenceBackend2(ABC):
   def supports_cow(cls) -> bool: ...
 
 
-class InferenceBackendLoader2:
+from pathlib import Path
+from typing import Literal, Protocol
+
+
+@runtime_checkable
+class VersionedInferenceBackendClass(Protocol):
   def __init__(
     self,
-    backend_type: type[InferenceBackend2],
-    backend_kwargs: dict,
-  ) -> None:
-    self._backend_type = backend_type
-    self._backend_kwargs = backend_kwargs
-    self._backend: InferenceBackend2 | None = None
+    model_path: Path,
+    inference_strategy: Literal["scores", "embeddings"],
+    device_name: str,
+    **kwargs: Any,
+  ) -> None: ...
 
-  def _load_backend(self) -> InferenceBackend2:
-    assert self._backend is None
-    backend = self._backend_type(**self._backend_kwargs)
-    backend.load()
-    self._backend = backend
-    return backend
+  def load(self) -> None: ...
 
-  def on_before_worker_initialized(self) -> None:
-    if (
-      multiprocessing.get_start_method() == "fork" and self._backend_type.supports_cow()
-    ):
-      self._load_backend()
+  def infer(self, batch: np.ndarray) -> np.ndarray: ...
 
-  def load_backend(self) -> InferenceBackend2:
-    if self._backend is None:
-      return self._load_backend()
-    assert self._backend is not None
-    return self._backend
+  @classmethod
+  def supports_cow(cls) -> bool: ...
 
-  @property
-  def backend(self) -> InferenceBackend2:
-    assert self._backend is not None
-    return self._backend
+
+# class VersionedInferenceBackendClass(InferenceBackend2, ABC):
+#   def __init__(
+#     self,
+#     model_path: Path,
+#     inference_strategy: Literal["scores", "embeddings"],
+#     device_name: str,
+#     **kwargs: Any,
+#   ) -> None: ...
 
 
 class TFInferenceBackend2(InferenceBackend2):
   def __init__(
     self,
     model_path: Path,
-    inference_library: LIBRARY_TYPES,
     in_idx: int,
     out_idx: int,
     device_name: str,
+    inference_library: LIBRARY_TYPES,
   ) -> None:
     assert device_name == "CPU"
     super().__init__(model_path, device_name)
@@ -210,6 +214,58 @@ class PBInferenceBackend2(InferenceBackend2):
     scores_np = scores.numpy()  # type: ignore
     assert scores_np.dtype == np.float32
     return scores_np
+
+
+class InferenceBackendLoader2:
+  def __init__(
+    self,
+    model_path: Path,
+    inference_strategy: Literal["scores", "embeddings"],
+    backend_type: type[VersionedInferenceBackendClass],
+    backend_custom_kwargs: dict[str, object] | None,
+  ) -> None:
+    self._model_path = model_path
+    self._inference_strategy: Literal["scores", "embeddings"] = inference_strategy
+    self._backend_type = backend_type
+    self._backend_kwargs = (
+      backend_custom_kwargs if backend_custom_kwargs is not None else {}
+    )
+
+    self._backend: VersionedInferenceBackendClass | None = None
+
+  def _load_backend(self, device_name: str) -> VersionedInferenceBackendClass:
+    assert self._backend is None
+    backend = self._backend_type(
+      model_path=self._model_path,
+      inference_strategy=self._inference_strategy,
+      device_name=device_name,
+      **self._backend_kwargs,
+    )
+    backend.load()
+    self._backend = backend
+    return backend
+
+  def on_before_worker_initialized(self, devices: list[str]) -> None:
+    unique_devices = set(devices)
+    same_device_for_all_workers = len(unique_devices) == 1
+    if (
+      same_device_for_all_workers
+      and multiprocessing.get_start_method() == "fork"
+      and self._backend_type.supports_cow()
+    ):
+      device_name = unique_devices.pop()
+      self._load_backend(device_name)
+
+  def load_backend(self, device_name: str) -> VersionedInferenceBackendClass:
+    if self._backend is None:
+      return self._load_backend(device_name)
+    assert self._backend is not None
+    return self._backend
+
+  @property
+  def backend(self) -> VersionedInferenceBackendClass:
+    assert self._backend is not None
+    return self._backend
 
 
 def load_pb_model(model_path: Path):

@@ -9,6 +9,7 @@ import numpy as np
 from numpy.typing import DTypeLike
 
 from birdnet.acoustic_models.inference2.backends import InferenceBackendLoader
+from birdnet.acoustic_models.inference2.backends2 import InferenceBackendLoader2
 from birdnet.acoustic_models.inference2.worker import WorkerBase
 from birdnet.helper import RingField, uint_dtype_for
 from birdnet.utils import flat_sigmoid_logaddexp_fast
@@ -17,7 +18,7 @@ from birdnet.utils import flat_sigmoid_logaddexp_fast
 class ScoresWorker(WorkerBase):
   def __init__(
     self,
-    backend_loader: InferenceBackendLoader,
+    backend_loader: InferenceBackendLoader2,
     top_k: int,
     species_thresholds: np.ndarray,
     species_blacklist: np.ndarray,

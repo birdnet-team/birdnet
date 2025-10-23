@@ -22,6 +22,7 @@ from birdnet.acoustic_models.inference2.backends import (
   PBInferenceBackend,
   TFInferenceBackend,
 )
+from birdnet.acoustic_models.inference2.backends2 import InferenceBackendLoader2
 from birdnet.acoustic_models.inference2.perf_tracker import PerformanceTrackingResult
 from birdnet.acoustic_models.inference_pipeline2.configs import (
   PredictionConfig,
@@ -212,7 +213,7 @@ class WorkerResources:
   results_queue: mp.Queue
   ring_access_lock: multiprocessing.synchronize.Lock
   devices: list[str]
-  backend_loader: InferenceBackendLoader
+  backend_loader: InferenceBackendLoader2
   start_signals: list[multiprocessing.synchronize.Event]
 
   @classmethod
@@ -224,13 +225,13 @@ class WorkerResources:
       else [config.processing_conf.device] * n_workers
     )
 
-    backend_loader = _create_backend_loader(config)
+    # backend_loader = _create_backend_loader(config)
 
     return WorkerResources(
       results_queue=mp.Queue(),
       ring_access_lock=mp.Lock(),
       devices=devices,
-      backend_loader=backend_loader,
+      backend_loader=config.model_conf.backend_loader,
       start_signals=[mp.Event() for _ in range(n_workers)],
     )
 

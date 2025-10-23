@@ -13,6 +13,7 @@ from numpy.typing import DTypeLike
 
 import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.inference2.backends import InferenceBackendLoader
+from birdnet.acoustic_models.inference2.backends2 import InferenceBackendLoader2
 from birdnet.globals import (
   READABLE_FLAG,
   READING_FLAG,
@@ -26,7 +27,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
   def __init__(
     self,
     name: str,
-    backend_loader: InferenceBackendLoader,
+    backend_loader: InferenceBackendLoader2,
     batch_size: int,
     n_slots: int,
     rf_file_indices: RingField,
@@ -110,7 +111,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
   def _load_model(self) -> None:
     self._log_debug("Loading model...")
     try:
-      self._backend = self._backend_loader.load_backend()
+      self._backend = self._backend_loader.load_backend(self._device_name)
     except ValueError as e:
       self._log_debug(f"Failed to load model: {e}")
       raise e
@@ -118,7 +119,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
 
   def _infer(self, batch: np.ndarray) -> np.ndarray:
     assert self._backend is not None
-    res = self._backend.infer(batch, self._device_name)
+    res = self._backend.infer(batch)
     assert res.dtype == np.float32
     res = res.astype(self._infer_dtype, copy=False)
     return res

@@ -3,20 +3,31 @@ from pathlib import Path
 from typing import Any, cast
 
 from birdnet.acoustic_models.base import AcousticModelBase
-from birdnet.acoustic_models.inference.backends import (
-  InferenceBackendLoader,
-  TFInferenceBackend,
+from birdnet.acoustic_models.inference2.backends import (
   litert_installed,
   tf_installed,
 )
-from birdnet.acoustic_models.inference.backends2 import (
+from birdnet.acoustic_models.inference2.backends2 import (
   InferenceBackendLoader2,
   PBInferenceBackend2,
   TFInferenceBackend2,
 )
-from birdnet.acoustic_models.v2_4.base import AcousticModelBaseV2_4
-from birdnet.acoustic_models.v2_4.pb import AcousticPBModelV2_4
-from birdnet.acoustic_models.v2_4.tf import AcousticTFModelV2_4
+from birdnet.acoustic_models.v2_4.base import (
+  AcousticModelBaseV2_4,
+  AcousticModelV2_4,
+  PBInferenceBackendV2_4,
+  TFInferenceBackendV2_4,
+)
+from birdnet.acoustic_models.v2_4.pb import (
+  AcousticPBDownloaderV2_4,
+  AcousticPBModelV2_4,
+)
+from birdnet.acoustic_models.v2_4.tf import (
+  MODEL_IN_IDX,
+  MODEL_LOGITS_OUT_IDX,
+  AcousticTFDownloaderV2_4,
+  AcousticTFModelV2_4,
+)
 from birdnet.base import ModelBase
 from birdnet.geo_models.base import GeoModelBase
 from birdnet.geo_models.v2_4.base import GeoModelV2_4
@@ -243,7 +254,6 @@ def load_geo_model2(
   backend: MODEL_BACKENDS,
   precision: MODEL_PRECISIONS,
   lang: MODEL_LANGUAGES,
-  device: str,
   **model_kwargs: object,
 ) -> GeoModelBase:
   if version == GEO_MODEL_VERSION_V2_4:
@@ -254,26 +264,24 @@ def load_geo_model2(
 
     backend_loader: InferenceBackendLoader2
     if backend == MODEL_BACKEND_TF:
-      model_path, species_list = GeoTFDownloaderV2_4.get_model_path_and_labels(lang)
       model_kwargs = _validate_kwargs(model_kwargs, {"library"})
       library = _validate_library(model_kwargs.get("library", LIBRARY_TF))
+      model_path, species_list = GeoTFDownloaderV2_4.get_model_path_and_labels(lang)
       backend_args = {
         "model_path": model_path,
         "inference_library": library,
         "in_idx": 0,
         "out_idx": MODEL_LOGITS_IDX,
-        "device_name": device,
       }
       backend_loader = InferenceBackendLoader2(TFInferenceBackend2, backend_args)
     elif backend == MODEL_BACKEND_PB:
-      model_path, species_list = GeoPBDownloaderV2_4.get_model_path_and_labels(lang)
       model_kwargs = _validate_kwargs(model_kwargs, None)
+      model_path, species_list = GeoPBDownloaderV2_4.get_model_path_and_labels(lang)
       backend_args = {
         "model_path": model_path,
         "signature_name": "serving_default",
         "prediction_key": "MNET_CLASS_ACTIVATION",
         "input_key": "MNET_INPUT",
-        "device_name": device,
       }
       backend_loader = InferenceBackendLoader2(PBInferenceBackend2, backend_args)
     else:
@@ -282,7 +290,6 @@ def load_geo_model2(
     model = GeoModelV2_4(
       model_path, species_list, use_custom_model=False, backend_loader=backend_loader
     )
-    model.load_model()
     return model
   else:
     raise AssertionError()
@@ -293,11 +300,25 @@ def _load_acoustic_model_V2_4(
   precision: MODEL_PRECISIONS,
   lang: MODEL_LANGUAGES,
   **model_kwargs: object,
-) -> AcousticModelBaseV2_4:
+) -> AcousticModelV2_4:
   if backend == MODEL_BACKEND_TF:
     model_kwargs = _validate_kwargs(model_kwargs, {"library"})
     library = _validate_library(model_kwargs.get("library", LIBRARY_TF))
-    return AcousticTFModelV2_4.load(lang, precision, library)
+
+    model_path, species_list = AcousticTFDownloaderV2_4.get_model_path_and_labels(
+      lang, precision
+    )
+
+    return AcousticModelV2_4(
+      model_path,
+      species_list,
+      precision,
+      use_custom_model=False,
+      backend_type=TFInferenceBackendV2_4,
+      backend_custom_kwargs={
+        "inference_library": library,
+      },
+    )
   elif backend == MODEL_BACKEND_PB:
     if precision != MODEL_PRECISION_FP32:
       raise ValueError(
@@ -305,7 +326,15 @@ def _load_acoustic_model_V2_4(
       )
     model_kwargs = _validate_kwargs(model_kwargs, None)
 
-    return AcousticPBModelV2_4.load(lang)
+    model_path, species_list = AcousticPBDownloaderV2_4.get_model_path_and_labels(lang)
+    return AcousticModelV2_4(
+      model_path,
+      species_list,
+      precision,
+      use_custom_model=False,
+      backend_type=PBInferenceBackendV2_4,
+      backend_custom_kwargs=None,
+    )
   else:
     raise AssertionError()
 
