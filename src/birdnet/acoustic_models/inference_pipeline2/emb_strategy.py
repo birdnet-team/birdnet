@@ -214,13 +214,13 @@ class EmbeddingsStrategy(
       file_batches_processed=perf_result.total_batches_processed,
       speed_worker_xrt=perf_result.worker_speed_xrt,
       speed_worker_xrt_max=perf_result.worker_speed_xrt_max,
-      model_backend=config.model_conf.backend,
+      model_backend="",  # TODO config.model_conf.backend,
       model_sample_rate=config.model_conf.sample_rate,
       model_sig_fmin=config.model_conf.sig_fmin,
       model_sig_fmax=config.model_conf.sig_fmax,
       worker_wait_time_average_milliseconds=perf_result.avg_wait_time_ms,
       file_formats=get_file_formats(OrderedSet(Path(x) for x in pred_result.files)),
-      param_inference_library=config.model_conf.backend_kwargs.get("inference_library"),
+      param_inference_library="",  # TODO config.model_conf.backend_kwargs.get("inference_library"),
     )
 
   def get_benchmark_dir_name(self) -> str:

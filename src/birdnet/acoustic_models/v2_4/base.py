@@ -282,8 +282,6 @@ class AcousticModelV2_4(AcousticModelBase2):
           species_list=self.species_list,
           path=self.model_path,
           backend_loader=backend_loader,
-          backend=None,
-          backend_kwargs=None,
           is_custom=self.use_custom_model,
           version=self.get_version(),
           precision=self.precision,
@@ -403,8 +401,6 @@ class AcousticModelV2_4(AcousticModelBase2):
           sample_rate=self.get_sample_rate(),
           sig_fmin=self.get_sig_fmin(),
           sig_fmax=self.get_sig_fmax(),
-          backend=None,
-          backend_kwargs=None,
         ),
         processing_conf=ProcessingConfig(
           feeders=feeders,

@@ -240,21 +240,21 @@ class WorkerResources:
       start_signal.clear()
 
 
-def _create_backend_loader(config: PredictionConfig) -> InferenceBackendLoader:
-  if config.model_conf.backend == MODEL_BACKEND_TF:
-    backend_type = TFInferenceBackend
-  elif config.model_conf.backend == MODEL_BACKEND_PB:
-    backend_type = PBInferenceBackend
-  else:
-    raise AssertionError(f"Unknown backend: {config.model_conf.backend}")
+# def _create_backend_loader(config: PredictionConfig) -> InferenceBackendLoader:
+#   if config.model_conf.backend == MODEL_BACKEND_TF:
+#     backend_type = TFInferenceBackend
+#   elif config.model_conf.backend == MODEL_BACKEND_PB:
+#     backend_type = PBInferenceBackend
+#   else:
+#     raise AssertionError(f"Unknown backend: {config.model_conf.backend}")
 
-  backend_loader = InferenceBackendLoader(
-    model_path=config.model_conf.path,
-    backend_type=backend_type,
-    backend_kwargs=config.model_conf.backend_kwargs,
-  )
+#   backend_loader = InferenceBackendLoader(
+#     model_path=config.model_conf.path,
+#     backend_type=backend_type,
+#     backend_kwargs=config.model_conf.backend_kwargs,
+#   )
 
-  return backend_loader
+#   return backend_loader
 
 
 @dataclass(frozen=True)

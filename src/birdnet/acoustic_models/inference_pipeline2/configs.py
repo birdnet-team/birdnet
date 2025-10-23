@@ -33,8 +33,6 @@ TensorType = TypeVar("TensorType", bound="TensorBase")
 class ModelConfig:
   species_list: OrderedSet[str]
   path: Path
-  backend: MODEL_BACKENDS
-  backend_kwargs: dict
   backend_loader: InferenceBackendLoader2
   version: ACOUSTIC_MODEL_VERSIONS
   segment_size_s: float
