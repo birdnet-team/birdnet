@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Collection, Iterable, Literal, final
+from typing import Any, Collection, Iterable, Literal, final
 
 from ordered_set import OrderedSet
 
@@ -14,7 +14,9 @@ from birdnet.acoustic_models.inference2.backends2 import (
   InferenceBackendLoader2,
   PBInferenceBackend2,
   TFInferenceBackend2,
-  VersionedInferenceBackendClass,
+  VersionedInferenceBackendProtocol,
+  check_pb_model_can_be_loaded,
+  check_tf_model_can_be_loaded,
 )
 from birdnet.acoustic_models.inference2.emb.encoding_result import EncodingResult
 from birdnet.acoustic_models.inference2.emb.tensor import EmbeddingsTensor
@@ -40,6 +42,7 @@ from birdnet.globals import (
   MODEL_TYPE_ACOUSTIC,
   MODEL_TYPES,
 )
+from birdnet.utils import get_species_from_file
 
 
 class AcousticDownloaderBaseV2_4:
@@ -127,7 +130,7 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     return 1024
 
 
-class TFInferenceBackendV2_4(TFInferenceBackend2, VersionedInferenceBackendClass):
+class TFInferenceBackendV2_4(TFInferenceBackend2, VersionedInferenceBackendProtocol):
   def __init__(
     self,
     model_path: Path,
@@ -151,8 +154,19 @@ class TFInferenceBackendV2_4(TFInferenceBackend2, VersionedInferenceBackendClass
       inference_library,
     )
 
+  @classmethod
+  def check_model_can_be_loaded(
+    cls,
+    model_path: Path,
+    **kwargs: Any,
+  ) -> int | None:
+    n_outputs = check_tf_model_can_be_loaded(
+      model_path=model_path, out_idx=546, **kwargs
+    )
+    return n_outputs
 
-class PBInferenceBackendV2_4(PBInferenceBackend2, VersionedInferenceBackendClass):
+
+class PBInferenceBackendV2_4(PBInferenceBackend2, VersionedInferenceBackendProtocol):
   def __init__(
     self,
     model_path: Path,
@@ -178,6 +192,19 @@ class PBInferenceBackendV2_4(PBInferenceBackend2, VersionedInferenceBackendClass
       device_name,
     )
 
+  @classmethod
+  def check_model_can_be_loaded(
+    cls,
+    model_path: Path,
+    **kwargs: Any,
+  ) -> int | None:
+    n_outputs = check_pb_model_can_be_loaded(
+      model_path,
+      "basic",
+      "scores",
+    )
+    return n_outputs
+
 
 class AcousticModelV2_4(AcousticModelBase2):
   def __init__(
@@ -186,12 +213,71 @@ class AcousticModelV2_4(AcousticModelBase2):
     species_list: OrderedSet[str],
     precision: MODEL_PRECISIONS,
     use_custom_model: bool,
-    backend_type: type[VersionedInferenceBackendClass],
+    backend_type: type[VersionedInferenceBackendProtocol],
     backend_custom_kwargs: dict[str, object] | None,
   ) -> None:
     super().__init__(model_path, species_list, precision, use_custom_model)
     self._backend_type = backend_type
     self._backend_custom_kwargs = backend_custom_kwargs
+
+  @classmethod
+  def load(
+    cls,
+    model_path: Path,
+    species_list: OrderedSet[str],
+    precision: MODEL_PRECISIONS,
+    backend_type: type[VersionedInferenceBackendProtocol],
+    backend_custom_kwargs: dict[str, object] | None,
+  ) -> AcousticModelV2_4:
+    result = AcousticModelV2_4(
+      model_path,
+      species_list,
+      precision,
+      use_custom_model=False,
+      backend_type=backend_type,
+      backend_custom_kwargs=backend_custom_kwargs,
+    )
+    return result
+
+  @classmethod
+  def load_custom(
+    cls,
+    model_path: Path,
+    species_list: Path,
+    precision: MODEL_PRECISIONS,
+    backend_type: type[VersionedInferenceBackendProtocol],
+    backend_custom_kwargs: dict[str, object] | None,
+    check_validity: bool,
+  ) -> AcousticModelV2_4:
+    assert model_path.is_file()
+    assert species_list.is_file()
+
+    loaded_species_list: OrderedSet[str]
+    try:
+      loaded_species_list = get_species_from_file(species_list, encoding="utf8")
+    except Exception as e:
+      raise ValueError(
+        f"Failed to read species list from '{species_list.absolute()}'. Ensure it is a valid text file."
+      ) from e
+
+    if check_validity:
+      n_species_in_model = backend_type.check_model_can_be_loaded(
+        model_path, **backend_custom_kwargs if backend_custom_kwargs is not None else {}
+      )
+      if n_species_in_model != len(loaded_species_list):
+        raise ValueError(
+          f"Model '{model_path.absolute()}' has {n_species_in_model} outputs, but species list '{species_list.absolute()}' has {len(loaded_species_list)} species!"
+        )
+
+    result = AcousticModelV2_4(
+      model_path,
+      loaded_species_list,
+      precision,
+      use_custom_model=True,
+      backend_type=backend_type,
+      backend_custom_kwargs=backend_custom_kwargs,
+    )
+    return result
 
   @classmethod
   @final

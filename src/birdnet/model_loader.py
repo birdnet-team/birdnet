@@ -309,11 +309,10 @@ def _load_acoustic_model_V2_4(
       lang, precision
     )
 
-    return AcousticModelV2_4(
+    return AcousticModelV2_4.load(
       model_path,
       species_list,
       precision,
-      use_custom_model=False,
       backend_type=TFInferenceBackendV2_4,
       backend_custom_kwargs={
         "inference_library": library,
@@ -327,11 +326,10 @@ def _load_acoustic_model_V2_4(
     model_kwargs = _validate_kwargs(model_kwargs, None)
 
     model_path, species_list = AcousticPBDownloaderV2_4.get_model_path_and_labels(lang)
-    return AcousticModelV2_4(
+    return AcousticModelV2_4.load(
       model_path,
       species_list,
       precision,
-      use_custom_model=False,
       backend_type=PBInferenceBackendV2_4,
       backend_custom_kwargs=None,
     )
@@ -449,14 +447,21 @@ def _load_custom_acoustic_model_V2_4(
   species_list: Path,
   check_validity: bool,
   **model_kwargs: object,
-) -> AcousticModelBaseV2_4:
+) -> AcousticModelV2_4:
   if backend == MODEL_BACKEND_TF:
     model = _validate_tf_file(model)
     model_kwargs = _validate_kwargs(model_kwargs, {"library"})
     library = _validate_library(model_kwargs.get("library", LIBRARY_TF))
 
-    return AcousticTFModelV2_4.load_custom(
-      model, species_list, precision, check_validity, library
+    return AcousticModelV2_4.load_custom(
+      model,
+      species_list,
+      precision,
+      backend_type=TFInferenceBackendV2_4,
+      backend_custom_kwargs={
+        "inference_library": library,
+      },
+      check_validity=check_validity,
     )
   elif backend == MODEL_BACKEND_PB:
     if precision != MODEL_PRECISION_FP32:
@@ -465,7 +470,15 @@ def _load_custom_acoustic_model_V2_4(
       )
     model = _validate_pb_model_folder(model)
     model_kwargs = _validate_kwargs(model_kwargs, None)
-    return AcousticPBModelV2_4.load_custom(model, species_list, check_validity)
+
+    return AcousticModelV2_4.load_custom(
+      model,
+      species_list,
+      precision,
+      backend_type=PBInferenceBackendV2_4,
+      backend_custom_kwargs=None,
+      check_validity=check_validity,
+    )
   else:
     raise AssertionError()
 

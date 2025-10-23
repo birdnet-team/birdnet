@@ -53,7 +53,7 @@ from typing import Literal, Protocol
 
 
 @runtime_checkable
-class VersionedInferenceBackendClass(Protocol):
+class VersionedInferenceBackendProtocol(Protocol):
   def __init__(
     self,
     model_path: Path,
@@ -68,6 +68,13 @@ class VersionedInferenceBackendClass(Protocol):
 
   @classmethod
   def supports_cow(cls) -> bool: ...
+
+  @classmethod
+  def check_model_can_be_loaded(
+    cls,
+    model_path: Path,
+    **kwargs: Any,
+  ) -> int | None: ...
 
 
 # class VersionedInferenceBackendClass(InferenceBackend2, ABC):
@@ -221,7 +228,7 @@ class InferenceBackendLoader2:
     self,
     model_path: Path,
     inference_strategy: Literal["scores", "embeddings"],
-    backend_type: type[VersionedInferenceBackendClass],
+    backend_type: type[VersionedInferenceBackendProtocol],
     backend_custom_kwargs: dict[str, object] | None,
   ) -> None:
     self._model_path = model_path
@@ -231,9 +238,9 @@ class InferenceBackendLoader2:
       backend_custom_kwargs if backend_custom_kwargs is not None else {}
     )
 
-    self._backend: VersionedInferenceBackendClass | None = None
+    self._backend: VersionedInferenceBackendProtocol | None = None
 
-  def _load_backend(self, device_name: str) -> VersionedInferenceBackendClass:
+  def _load_backend(self, device_name: str) -> VersionedInferenceBackendProtocol:
     assert self._backend is None
     backend = self._backend_type(
       model_path=self._model_path,
@@ -256,14 +263,14 @@ class InferenceBackendLoader2:
       device_name = unique_devices.pop()
       self._load_backend(device_name)
 
-  def load_backend(self, device_name: str) -> VersionedInferenceBackendClass:
+  def load_backend(self, device_name: str) -> VersionedInferenceBackendProtocol:
     if self._backend is None:
       return self._load_backend(device_name)
     assert self._backend is not None
     return self._backend
 
   @property
-  def backend(self) -> VersionedInferenceBackendClass:
+  def backend(self) -> VersionedInferenceBackendProtocol:
     assert self._backend is not None
     return self._backend
 
@@ -465,11 +472,11 @@ def _get_tf_n_species(
 
 
 def check_tf_model_can_be_loaded(
-  model_path: Path, library: LIBRARY_TYPES, out_idx: int
+  model_path: Path, inference_library: LIBRARY_TYPES, out_idx: int
 ) -> int | None:
   try:
     with ProcessPoolExecutor(max_workers=1) as executor:
-      future = executor.submit(_get_tf_n_species, model_path, library, out_idx)
+      future = executor.submit(_get_tf_n_species, model_path, inference_library, out_idx)
       result = future.result(timeout=None)
       return result
   except Exception as e:
