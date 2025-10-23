@@ -68,24 +68,21 @@ class PipelineResources:
 
 
 class ResourceManager:
-  def __init__(self, conf: PredictionConfig, benchmark_dir_name: str):
+  def __init__(self, conf: PredictionConfig):
     self.conf = conf
-    self.benchmark_dir_name = benchmark_dir_name
-    self.resources: PipelineResources | None = None
+    self._resources: PipelineResources | None = None
 
-  def create_all_resources(self) -> PipelineResources:
-    assert self.resources is None
-    stats_resources = StatisticsResources.create_statistics_resources(
-      self.conf, self.benchmark_dir_name
-    )
-    logging_resources = create_logging_resources(stats_resources)
-    processing_resources = create_processing_resources()
-    analyzer_resources = create_analyzer_resources(self.conf)
-    producer_resources = create_producer_resources(self.conf, analyzer_resources)
+  def create_resources(self, benchmark_dir_name: str) -> PipelineResources:
+    assert self._resources is None
+    stats_resources = StatisticsResources.create(self.conf, benchmark_dir_name)
+    logging_resources = LoggingResources.create(stats_resources)
+    processing_resources = ProcessingResources.create()
+    analyzer_resources = FilesAnalyzerResources.create(self.conf)
+    producer_resources = ProducerResources.create(self.conf)
     worker_resources = WorkerResources.create(self.conf)
-    buf_resources = create_ring_buffer_resources(self.conf, analyzer_resources)
+    buf_resources = RingBufferResources.create(self.conf, analyzer_resources)
 
-    self.resources = PipelineResources(
+    self._resources = PipelineResources(
       stats_resources=stats_resources,
       logging_resources=logging_resources,
       processing_resources=processing_resources,
@@ -95,6 +92,12 @@ class ResourceManager:
       ring_buffer_resources=buf_resources,
     )
     return self.resources
+
+  @property
+  @final
+  def resources(self) -> PipelineResources:
+    assert self._resources is not None
+    return self._resources
 
 
 @dataclass(frozen=True)
@@ -110,61 +113,61 @@ class RingBufferResources:
   def reset(self) -> None:
     pass
 
+  @classmethod
+  def create(
+    cls, conf: PredictionConfig, analyzer_resources: FilesAnalyzerResources
+  ) -> RingBufferResources:
+    n_slots = conf.processing_conf.n_slots
 
-def create_ring_buffer_resources(
-  conf: PredictionConfig, analyzer_resources: FilesAnalyzerResources
-) -> RingBufferResources:
-  n_slots = conf.processing_conf.n_slots
+    rf_file_indices = RingField(
+      "bn_ring_file_indices",
+      dtype=uint_dtype_for(max(0, conf.processing_conf.max_n_files - 1)),
+      shape=(n_slots, conf.processing_conf.batch_size),
+    )
 
-  rf_file_indices = RingField(
-    "bn_ring_file_indices",
-    dtype=uint_dtype_for(max(0, conf.processing_conf.max_n_files - 1)),
-    shape=(n_slots, conf.processing_conf.batch_size),
-  )
+    rf_segment_indices = RingField(
+      "bn_ring_segment_indices",
+      dtype=analyzer_resources.segments_dtype,
+      shape=(n_slots, conf.processing_conf.batch_size),
+    )
 
-  rf_segment_indices = RingField(
-    "bn_ring_segment_indices",
-    dtype=analyzer_resources.segments_dtype,
-    shape=(n_slots, conf.processing_conf.batch_size),
-  )
+    rf_audio_samples = RingField(
+      "bn_ring_audio_samples",
+      dtype=np.dtype(np.float32),
+      shape=(
+        n_slots,
+        conf.processing_conf.batch_size,
+        conf.model_conf.segment_size_samples,
+      ),
+    )
 
-  rf_audio_samples = RingField(
-    "bn_ring_audio_samples",
-    dtype=np.dtype(np.float32),
-    shape=(
-      n_slots,
-      conf.processing_conf.batch_size,
-      conf.model_conf.segment_size_samples,
-    ),
-  )
+    rf_batch_sizes = RingField(
+      "bn_ring_batch_sizes",
+      dtype=uint_dtype_for(conf.processing_conf.batch_size),
+      shape=(n_slots,),
+    )
 
-  rf_batch_sizes = RingField(
-    "bn_ring_batch_sizes",
-    dtype=uint_dtype_for(conf.processing_conf.batch_size),
-    shape=(n_slots,),
-  )
+    rf_flags = RingField(
+      "bn_ring_flags",
+      dtype=np.dtype(np.uint8),
+      shape=(n_slots,),
+    )
 
-  rf_flags = RingField(
-    "bn_ring_flags",
-    dtype=np.dtype(np.uint8),
-    shape=(n_slots,),
-  )
+    rf_file_indices.cleanup()
+    rf_segment_indices.cleanup()
+    rf_audio_samples.cleanup()
+    rf_batch_sizes.cleanup()
+    rf_flags.cleanup()
 
-  rf_file_indices.cleanup()
-  rf_segment_indices.cleanup()
-  rf_audio_samples.cleanup()
-  rf_batch_sizes.cleanup()
-  rf_flags.cleanup()
-
-  return RingBufferResources(
-    rf_file_indices=rf_file_indices,
-    rf_segment_indices=rf_segment_indices,
-    rf_audio_samples=rf_audio_samples,
-    rf_batch_sizes=rf_batch_sizes,
-    rf_flags=rf_flags,
-    sem_free_slots=mp.Semaphore(n_slots),
-    sem_filled_slots=mp.Semaphore(0),
-  )
+    return RingBufferResources(
+      rf_file_indices=rf_file_indices,
+      rf_segment_indices=rf_segment_indices,
+      rf_audio_samples=rf_audio_samples,
+      rf_batch_sizes=rf_batch_sizes,
+      rf_flags=rf_flags,
+      sem_free_slots=mp.Semaphore(n_slots),
+      sem_filled_slots=mp.Semaphore(0),
+    )
 
 
 @dataclass(frozen=True)
@@ -187,23 +190,21 @@ class ProducerResources:
     for start_signal in self.start_signals:
       start_signal.clear()
 
+  @classmethod
+  def create(cls, conf: PredictionConfig) -> ProducerResources:
+    n_producers = conf.processing_conf.feeders
+    n_finished_pointer = mp.Value(
+      uint_ctype_from_dtype(uint_dtype_for(n_producers)), 0, lock=True
+    )
 
-def create_producer_resources(
-  conf: PredictionConfig, analyzer_resources: FilesAnalyzerResources
-) -> ProducerResources:
-  n_producers = conf.processing_conf.feeders
-  n_finished_pointer = mp.Value(
-    uint_ctype_from_dtype(uint_dtype_for(n_producers)), 0, lock=True
-  )
-
-  return ProducerResources(
-    n_producers=n_producers,
-    n_finished_pointer=n_finished_pointer,
-    files_queue=mp.Queue(),
-    ring_access_lock=mp.Lock(),
-    all_finished=mp.Event(),
-    start_signals=[mp.Event() for _ in range(n_producers)],
-  )
+    return ProducerResources(
+      n_producers=n_producers,
+      n_finished_pointer=n_finished_pointer,
+      files_queue=mp.Queue(),
+      ring_access_lock=mp.Lock(),
+      all_finished=mp.Event(),
+      start_signals=[mp.Event() for _ in range(n_producers)],
+    )
 
 
 @dataclass(frozen=True)
@@ -288,43 +289,43 @@ class FilesAnalyzerResources:
     self.finished.clear()
     self.start_signal.clear()
 
+  @classmethod
+  def create(cls, conf: PredictionConfig) -> FilesAnalyzerResources:
+    reserve_n_segments = 0
 
-def create_analyzer_resources(conf: PredictionConfig) -> FilesAnalyzerResources:
-  reserve_n_segments = 0
+    if conf.processing_conf.max_audio_duration_min is not None:
+      reserve_n_segments = get_max_n_segments(
+        conf.processing_conf.max_audio_duration_min * 60,
+        conf.model_conf.segment_size_s,
+        conf.processing_conf.overlap_duration_s,
+      )
 
-  if conf.processing_conf.max_audio_duration_min is not None:
-    reserve_n_segments = get_max_n_segments(
-      conf.processing_conf.max_audio_duration_min * 60,
-      conf.model_conf.segment_size_s,
-      conf.processing_conf.overlap_duration_s,
+    if reserve_n_segments > 0:
+      max_segment_index = reserve_n_segments - 1
+      assert max_segment_index >= 0
+      segments_dtype = uint_dtype_for(max_segment_index)
+      max_segment_ptr_value = max_segment_index
+    else:
+      segments_dtype = np.dtype(np.uint32)
+      max_segment_ptr_value = 0
+
+    segments_code_type = uint_ctype_from_dtype(segments_dtype)
+    max_segment_idx_ptr = mp.RawValue(
+      segments_code_type,  # type: ignore
+      max_segment_ptr_value,
     )
 
-  if reserve_n_segments > 0:
-    max_segment_index = reserve_n_segments - 1
-    assert max_segment_index >= 0
-    segments_dtype = uint_dtype_for(max_segment_index)
-    max_segment_ptr_value = max_segment_index
-  else:
-    segments_dtype = np.dtype(np.uint32)
-    max_segment_ptr_value = 0
-
-  segments_code_type = uint_ctype_from_dtype(segments_dtype)
-  max_segment_idx_ptr = mp.RawValue(
-    segments_code_type,  # type: ignore
-    max_segment_ptr_value,
-  )
-
-  return FilesAnalyzerResources(
-    analyzer_queue=mp.Queue(),
-    input_files_queue=mp.Queue(),
-    tot_n_segments_ptr=mp.RawValue(ctypes.c_uint64, 0),
-    max_segment_idx_ptr=max_segment_idx_ptr,
-    segments_dtype=segments_dtype,
-    max_segment_idx_init_value=max_segment_ptr_value,
-    finished=mp.Event(),
-    state=mp.RawValue(ctypes.c_uint8, STATE_DEFAULT),
-    start_signal=mp.Event(),
-  )
+    return FilesAnalyzerResources(
+      analyzer_queue=mp.Queue(),
+      input_files_queue=mp.Queue(),
+      tot_n_segments_ptr=mp.RawValue(ctypes.c_uint64, 0),
+      max_segment_idx_ptr=max_segment_idx_ptr,
+      segments_dtype=segments_dtype,
+      max_segment_idx_init_value=max_segment_ptr_value,
+      finished=mp.Event(),
+      state=mp.RawValue(ctypes.c_uint8, STATE_DEFAULT),
+      start_signal=mp.Event(),
+    )
 
 
 @dataclass(frozen=True)
@@ -335,18 +336,28 @@ class ProcessingResources:
   # end listening for new files
   end_event: multiprocessing.synchronize.Event
 
+  current_run_nr: int
+
+  @property
+  def is_first_run(self) -> bool:
+    return self.current_run_nr == 1
+
   def reset(self) -> None:
     self.processing_finished_event.clear()
     self.cancel_event.clear()
     self.end_event.clear()
 
+  def increment_run_nr(self) -> None:
+    object.__setattr__(self, "current_run_nr", self.current_run_nr + 1)
 
-def create_processing_resources() -> ProcessingResources:
-  return ProcessingResources(
-    cancel_event=mp.Event(),
-    processing_finished_event=mp.Event(),
-    end_event=mp.Event(),
-  )
+  @classmethod
+  def create(cls) -> ProcessingResources:
+    return ProcessingResources(
+      cancel_event=mp.Event(),
+      processing_finished_event=mp.Event(),
+      end_event=mp.Event(),
+      current_run_nr=1,
+    )
 
 
 @dataclass(frozen=True)
@@ -380,7 +391,7 @@ class StatisticsResources:
 
   benchmarking: bool
   benchmark_dir: Path | None
-  benchmark_run_dir: Path | None
+  benchmark_session_dir: Path | None
   benchmark_dir_name: str
 
   _stop: float | None = None
@@ -401,7 +412,7 @@ class StatisticsResources:
       object.__setattr__(self, "_tracking_result", perf_result)
 
   @classmethod
-  def create_statistics_resources(
+  def create(
     cls,
     conf: PredictionConfig,
     benchmark_dir_name: str,
@@ -427,14 +438,14 @@ class StatisticsResources:
       sem_active_workers = mp.Semaphore(0)
 
     benchmark_dir = None
-    benchmark_run_out_dir = None
+    benchmark_session_dir = None
     if benchmarking:
       benchmark_dir = get_benchmark_dir(
         model=MODEL_TYPE_ACOUSTIC, dir_name=benchmark_dir_name
       )
       start_iso_time = get_iso_time(start_timepoint)
-      benchmark_run_out_dir = benchmark_dir / f"run-{start_iso_time}"
-      benchmark_run_out_dir.mkdir(parents=True, exist_ok=True)
+      benchmark_session_dir = benchmark_dir / f"session-{start_iso_time}"
+      benchmark_session_dir.mkdir(parents=True, exist_ok=True)
 
     return StatisticsResources(
       start=start,
@@ -447,7 +458,7 @@ class StatisticsResources:
       sem_active_workers=sem_active_workers,
       benchmarking=benchmarking,
       benchmark_dir=benchmark_dir,
-      benchmark_run_dir=benchmark_run_out_dir,
+      benchmark_session_dir=benchmark_session_dir,
       perf_res_start_signal=perf_res_start_signal,
       benchmark_dir_name=benchmark_dir_name,
     )
@@ -460,22 +471,9 @@ class StatisticsResources:
     object.__setattr__(self, "_stop", None)
     object.__setattr__(self, "_end_timepoint", None)
     object.__setattr__(self, "_tracking_result", None)
-
-    benchmark_dir = None
-    benchmark_run_out_dir = None
-    if self.benchmarking:
-      benchmark_dir = get_benchmark_dir(
-        model=MODEL_TYPE_ACOUSTIC, dir_name=self.benchmark_dir_name
-      )
-      start_iso_time = get_iso_time(start_timepoint)
-      benchmark_run_out_dir = benchmark_dir / f"run-{start_iso_time}"
-      benchmark_run_out_dir.mkdir(parents=True, exist_ok=True)
-
     object.__setattr__(self, "start", start)
     object.__setattr__(self, "start_time", start_time)
     object.__setattr__(self, "start_timepoint", start_timepoint)
-    object.__setattr__(self, "benchmark_dir", benchmark_dir)
-    object.__setattr__(self, "benchmark_run_dir", benchmark_run_out_dir)
 
 
 def get_iso_time(timepoint: datetime) -> str:
@@ -484,7 +482,7 @@ def get_iso_time(timepoint: datetime) -> str:
 
 @dataclass(frozen=True)
 class LoggingResources:
-  log_file: Path
+  session_log_file: Path
   global_log_file: Path
   logging_level: int
   logging_queue: mp.Queue
@@ -494,32 +492,33 @@ class LoggingResources:
   def reset(self) -> None:
     pass
 
+  @classmethod
+  def create(cls, stats_resources: StatisticsResources) -> LoggingResources:
+    if stats_resources.benchmarking:
+      assert stats_resources.benchmark_session_dir is not None
+      assert stats_resources.start_iso_time is not None
 
-def create_logging_resources(stats_resources: StatisticsResources) -> LoggingResources:
-  if stats_resources.benchmarking:
-    assert stats_resources.benchmark_run_dir is not None
-    assert stats_resources.start_iso_time is not None
+      session_log_file = (
+        stats_resources.benchmark_session_dir
+        / f"session-{stats_resources.start_iso_time}.log"
+      )
+      session_log_file.write_text("", encoding="utf-8")
+      print(f"Writing logs to: {session_log_file.absolute()}")
+    else:
+      session_log_file = Path(tempfile.gettempdir()) / f"{PKG_NAME}.log"
 
-    log_file = (
-      stats_resources.benchmark_run_dir / f"log-{stats_resources.start_iso_time}.log"
+    global_log_file = (
+      Path(tempfile.gettempdir()) / f"{PKG_NAME}-{stats_resources.start_iso_time}.log"
     )
-    log_file.write_text("", encoding="utf-8")
-    print(f"Writing logs to: {log_file.absolute()}")
-  else:
-    log_file = Path(tempfile.gettempdir()) / f"{PKG_NAME}.log"
 
-  global_log_file = (
-    Path(tempfile.gettempdir()) / f"{PKG_NAME}-{stats_resources.start_iso_time}.log"
-  )
+    logging_queue = mp.Queue()
+    queue_handler = bn_logging.add_queue_handler(logging_queue)
 
-  logging_queue = mp.Queue()
-  queue_handler = bn_logging.add_queue_handler(logging_queue)
-
-  return LoggingResources(
-    log_file=log_file,
-    global_log_file=global_log_file,
-    logging_level=get_package_logging_level(),
-    logging_queue=logging_queue,
-    queue_handler=queue_handler,
-    stop_logging_event=mp.Event(),
-  )
+    return LoggingResources(
+      session_log_file=session_log_file,
+      global_log_file=global_log_file,
+      logging_level=get_package_logging_level(),
+      logging_queue=logging_queue,
+      queue_handler=queue_handler,
+      stop_logging_event=mp.Event(),
+    )

@@ -4,6 +4,9 @@ import multiprocessing as mp
 import os
 import threading
 import time
+from pathlib import Path
+
+from ordered_set import OrderedSet
 
 import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.inference2.consumer import Consumer
@@ -50,7 +53,7 @@ class ProcessManager:
       target=bn_logging.QueueFileWriter(
         log_queue=self._res.logging_resources.logging_queue,
         logging_level=self._res.logging_resources.logging_level,
-        log_file=self._res.logging_resources.log_file,
+        log_file=self._res.logging_resources.session_log_file,
         cancel_event=self._res.processing_resources.cancel_event,
         stop_event=self._res.logging_resources.stop_logging_event,
         processing_finished_event=self._res.processing_resources.processing_finished_event,
@@ -205,6 +208,29 @@ class ProcessManager:
     assert self._worker_processes is None
     self._worker_processes = worker_processes
     return worker_processes
+
+  def start_processing(self, file_paths: OrderedSet[Path]) -> None:
+    res = self._res
+    # start file analyzer
+    res.analyzer_resources.start_signal.set()
+    res.analyzer_resources.input_files_queue.put(file_paths)
+
+    # start producers
+    for i in range(res.producer_resources.n_producers):
+      res.producer_resources.start_signals[i].set()
+    for file_idx, file_path in enumerate(file_paths):
+      res.producer_resources.files_queue.put((file_idx, file_path), block=False)
+    for _ in range(res.producer_resources.n_producers):
+      res.producer_resources.files_queue.put(None, block=False)
+
+    # start workers
+    for i in range(self._cfg.processing_conf.workers):
+      res.worker_resources.start_signals[i].set()
+
+    # start performance tracker
+    if res.stats_resources.track_performance:
+      assert res.stats_resources.perf_res_start_signal is not None
+      res.stats_resources.perf_res_start_signal.set()
 
   def run_consumer(self, result_tensor: TensorBase) -> None:
     consumer = Consumer(
