@@ -19,6 +19,7 @@ from birdnet.acoustic_models.inference2.backends import (
 from birdnet.acoustic_models.inference2.emb.encoding_result import (
   EncodingResult,
 )
+from birdnet.acoustic_models.inference2.emb.tensor import EmbeddingsTensor
 from birdnet.acoustic_models.inference2.scores.prediction_result import (
   PredictionResult,
 )
@@ -35,6 +36,7 @@ from birdnet.acoustic_models.inference_pipeline2.configs import (
   ProcessingConfig,
   ScoresConfig,
 )
+from birdnet.acoustic_models.inference_pipeline2.emb_strategy import EmbeddingsStrategy
 from birdnet.acoustic_models.inference_pipeline2.pipeline import PredictionSession
 from birdnet.acoustic_models.inference_pipeline2.scores_strategy import (
   ScoresStrategy,
@@ -238,9 +240,8 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
 
     return result
 
-  def encode(
+  def encode_session(
     self,
-    inp: Path | str | Iterable[Path | str],
     /,
     *,
     feeders: int = 1,
@@ -253,9 +254,8 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     half_precision: bool = True,
     max_audio_duration_min: float | None = None,
     show_stats: None | Literal["minimal", "progress", "benchmark"] = None,
-  ) -> EncodingResult:
-    input_files = PredictionConfig.validate_input_files(inp)
-
+    max_n_files: int = 65_536,  # Limit to avoid excessive memory usage
+  ) -> PredictionSession[EncodingResult, EmbeddingsConfig, EmbeddingsTensor]:
     feeders = ProcessingConfig.validate_feeders(feeders)
     workers = ProcessingConfig.validate_workers(workers)
     batch_size = ProcessingConfig.validate_batch_size(batch_size)
@@ -281,9 +281,8 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
     if show_stats is not None:
       show_stats = OutputConfig.validate_show_stats(show_stats)
 
-    return predict_embeddings_from_recordings(
+    return PredictionSession(
       conf=PredictionConfig(
-        input_files=input_files,
         model_conf=ModelConfig(
           species_list=self.species_list,
           path=self.model_path,
@@ -310,6 +309,7 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
           half_precision=half_precision,
           max_audio_duration_min=max_audio_duration_min,
           device="CPU",  # Device is always CPU for TF models
+          max_n_files=max_n_files,
         ),
         filtering_conf=FilteringConfig(
           bandpass_fmin=bandpass_fmin,
@@ -319,7 +319,8 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
           show_stats=show_stats,
         ),
       ),
-      emb_config=EmbeddingsConfig(
+      strategy=EmbeddingsStrategy(),
+      specific_config=EmbeddingsConfig(
         emb_dim=self.get_embeddings_dim(),
       ),
     )
@@ -439,6 +440,41 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       ),
     )
 
+  def encode(
+    self,
+    inp: Path | str | Iterable[Path | str],
+    /,
+    *,
+    feeders: int = 1,
+    workers: int = 4,
+    batch_size: int = 1,
+    prefetch_ratio: int = 1,
+    overlap_duration_s: float = 0,
+    bandpass_fmin: int = 0,
+    bandpass_fmax: int = 15_000,
+    half_precision: bool = True,
+    max_audio_duration_min: float | None = None,
+    show_stats: None | Literal["minimal", "progress", "benchmark"] = None,
+    max_n_files: int = 65_536,  # Limit to avoid excessive memory usage
+  ) -> EncodingResult:
+    input_files = PredictionConfig.validate_input_files(inp)
+    max_n_files = len(input_files)
+
+    with self.encode_session(
+      feeders=feeders,
+      workers=workers,
+      batch_size=batch_size,
+      prefetch_ratio=prefetch_ratio,
+      overlap_duration_s=overlap_duration_s,
+      bandpass_fmin=bandpass_fmin,
+      bandpass_fmax=bandpass_fmax,
+      half_precision=half_precision,
+      max_audio_duration_min=max_audio_duration_min,
+      show_stats=show_stats,
+      max_n_files=max_n_files,
+    ) as session:
+      return session.run(input_files)
+
   def predict(
     self,
     inp: Path | str | Iterable[Path | str],
@@ -484,50 +520,3 @@ class AcousticTFModelV2_4(AcousticModelBaseV2_4):
       max_n_files=max_n_files,
     ) as session:
       return session.run(input_files)
-    # return predict_species_from_recordings(
-    #   conf=PredictionConfig(
-    #     input_files=input_files,
-    #     model_conf=ModelConfig(
-    #       species_list=self.species_list,
-    #       path=self.model_path,
-    #       backend=self.get_backend(),
-    #       backend_kwargs={
-    #         "inference_library": self._library,
-    #         "in_idx": MODEL_IN_IDX,
-    #         "out_idx": MODEL_LOGITS_OUT_IDX,
-    #       },
-    #       is_custom=self.use_custom_model,
-    #       version=self.get_version(),
-    #       precision=self.precision,
-    #       segment_size_s=self.get_segment_size_s(),
-    #       sample_rate=self.get_sample_rate(),
-    #       sig_fmin=self.get_sig_fmin(),
-    #       sig_fmax=self.get_sig_fmax(),
-    #     ),
-    #     processing_conf=ProcessingConfig(
-    #       feeders=feeders,
-    #       workers=workers,
-    #       batch_size=batch_size,
-    #       prefetch_ratio=prefetch_ratio,
-    #       overlap_duration_s=overlap_duration_s,
-    #       half_precision=half_precision,
-    #       max_audio_duration_min=max_audio_duration_min,
-    #       device="CPU",  # Device is always CPU for TF models
-    #     ),
-    #     filtering_conf=FilteringConfig(
-    #       bandpass_fmin=bandpass_fmin,
-    #       bandpass_fmax=bandpass_fmax,
-    #     ),
-    #     output_conf=OutputConfig(
-    #       show_stats=show_stats,
-    #     ),
-    #   ),
-    #   scores_conf=ScoresConfig(
-    #     top_k=top_k,
-    #     default_confidence_threshold=default_confidence_threshold,
-    #     custom_confidence_thresholds=custom_confidence_thresholds,
-    #     apply_sigmoid=apply_sigmoid,
-    #     sigmoid_sensitivity=sigmoid_sensitivity,
-    #     custom_species_list=custom_species_list,
-    #   ),
-    # )
