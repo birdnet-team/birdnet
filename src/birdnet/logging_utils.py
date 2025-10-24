@@ -11,7 +11,7 @@ from pathlib import Path
 from birdnet.globals import PKG_NAME
 
 
-def get_package_logger():
+def get_package_logger() -> logging.Logger:
   return logging.getLogger(PKG_NAME)
 
 
@@ -27,14 +27,14 @@ def get_package_logger():
 #   root.addHandler(h)
 
 
-def add_queue_handler(logging_queue: Queue):
+def add_queue_handler(logging_queue: Queue) -> QueueHandler:
   root = get_package_logger()
   h = QueueHandler(logging_queue)  # Just the one handler needed
   root.addHandler(h)
   return h
 
 
-def queue_handler_exists(logging_queue: Queue):
+def queue_handler_exists(logging_queue: Queue) -> bool:
   root = get_package_logger()
   for handler in root.handlers:
     if isinstance(handler, QueueHandler) and handler.queue is logging_queue:
@@ -42,14 +42,14 @@ def queue_handler_exists(logging_queue: Queue):
   return False
 
 
-def remove_queue_handler(handler: QueueHandler):
+def remove_queue_handler(handler: QueueHandler) -> None:
   root = get_package_logger()
   # check has queue handler already
   assert handler in root.handlers
   root.removeHandler(handler)
 
 
-def get_logger(name: str):
+def get_logger(name: str) -> logging.Logger:
   logger = logging.getLogger(name)
   logger.parent = get_package_logger()
   return logger
