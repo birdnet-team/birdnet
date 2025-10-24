@@ -7,7 +7,6 @@ import numpy as np
 import psutil
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.backends import InferenceBackendLoader
 from birdnet.acoustic_models.inference.scores.benchmarking import (
   FullBenchmarkMeta,
   MinimalBenchmarkMeta,
@@ -19,7 +18,6 @@ from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
 from birdnet.acoustic_models.inference.scores.worker import ScoresWorker
 from birdnet.acoustic_models.inference.worker import WorkerBase
 from birdnet.acoustic_models.inference_pipeline.configs import (
-  ModelConfig,
   PredictionConfig,
   ScoresConfig,
 )

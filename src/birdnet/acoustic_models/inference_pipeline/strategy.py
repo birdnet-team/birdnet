@@ -6,7 +6,6 @@ from typing import Generic
 
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.backends import InferenceBackendLoader
 from birdnet.acoustic_models.inference.benchmarking import (
   FullBenchmarkMetaBase,
   MinimalBenchmarkMetaBase,
@@ -14,7 +13,6 @@ from birdnet.acoustic_models.inference.benchmarking import (
 from birdnet.acoustic_models.inference.worker import WorkerBase
 from birdnet.acoustic_models.inference_pipeline.configs import (
   ConfigType,
-  ModelConfig,
   PredictionConfig,
   ResultType,
   TensorType,

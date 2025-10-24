@@ -6,7 +6,6 @@ from pathlib import Path
 import psutil
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.backends import InferenceBackendLoader
 from birdnet.acoustic_models.inference.emb.benchmarking import (
   FullBenchmarkEmbMeta,
   MinimalBenchmarkEmbMeta,
@@ -19,7 +18,6 @@ from birdnet.acoustic_models.inference.emb.worker import EmbeddingsWorker
 from birdnet.acoustic_models.inference.worker import WorkerBase
 from birdnet.acoustic_models.inference_pipeline.configs import (
   EmbeddingsConfig,
-  ModelConfig,
   PredictionConfig,
 )
 from birdnet.acoustic_models.inference_pipeline.resources import (

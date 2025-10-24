@@ -11,8 +11,6 @@ from numpy.typing import DTypeLike
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.backends import (
-  InferenceBackend,
-  InferenceBackendLoader,
   VersionedInferenceBackendProtocol,
 )
 from birdnet.acoustic_models.inference.tensor import TensorBase

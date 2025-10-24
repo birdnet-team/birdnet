@@ -10,7 +10,6 @@ from birdnet.acoustic_models.base import (
   AcousticModelBase,
 )
 from birdnet.acoustic_models.inference.backends import (
-  InferenceBackendLoader,
   VersionedAcousticInferenceBackendProtocol,
 )
 from birdnet.acoustic_models.inference.emb.encoding_result import EncodingResult

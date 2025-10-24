@@ -5,7 +5,7 @@ import shutil
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 from ordered_set import OrderedSet
 

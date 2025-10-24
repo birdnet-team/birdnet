@@ -185,9 +185,8 @@ class PBInferenceBackend(InferenceBackend, ABC):
   @final
   def load(self) -> None:
     model = load_pb_model(self._model_path)
-    self._predict_fn = model.signatures[self._scores_signature_name]  # type: ignore
-    print(model.signatures)
-    self._emb_fn = model.signatures[self._emb_signature_name]  # type: ignore
+    self._predict_fn = model.signatures[self._scores_signature_name]
+    self._emb_fn = model.signatures[self._emb_signature_name]
 
     self._set_logical_device(self._device_name)
 
