@@ -8,15 +8,15 @@ from multiprocessing.synchronize import Event, Semaphore
 import numpy as np
 from numpy.typing import DTypeLike
 
+from birdnet.acoustic_models.inference.backends import InferenceBackendLoader2
 from birdnet.acoustic_models.inference.worker import WorkerBase
-from birdnet.acoustic_models.inference.backends import InferenceBackendLoader
 from birdnet.helper import RingField
 
 
 class EmbeddingsWorker(WorkerBase):
   def __init__(
     self,
-    backend_loader: InferenceBackendLoader,
+    backend_loader: InferenceBackendLoader2,
     batch_size: int,
     n_slots: int,
     rf_file_indices: RingField,
@@ -37,6 +37,8 @@ class EmbeddingsWorker(WorkerBase):
     device: str,
     cancel_event: Event,
     prd_all_done_event: Event,
+    start_signal: Event,
+    end_event: Event,
   ):
     super().__init__(
       name=__name__,
@@ -60,7 +62,9 @@ class EmbeddingsWorker(WorkerBase):
       logging_level=logging_level,
       device=device,
       cancel_event=cancel_event,
-      prd_all_done_event=prd_all_done_event,
+      all_producers_finished=prd_all_done_event,
+      start_signal=start_signal,
+      end_event=end_event,
     )
 
   def _get_block(

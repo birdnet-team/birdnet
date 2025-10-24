@@ -12,7 +12,7 @@ import numpy as np
 from numpy.typing import DTypeLike
 
 import birdnet.logging_utils as bn_logging
-from birdnet.acoustic_models.inference.backends import InferenceBackendLoader
+from birdnet.acoustic_models.inference.backends import InferenceBackendLoader2
 from birdnet.globals import (
   READABLE_FLAG,
   READING_FLAG,
@@ -26,7 +26,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
   def __init__(
     self,
     name: str,
-    backend_loader: InferenceBackendLoader,
+    backend_loader: InferenceBackendLoader2,
     batch_size: int,
     n_slots: int,
     rf_file_indices: RingField,
@@ -46,12 +46,16 @@ class WorkerBase(bn_logging.LogableProcessBase):
     logging_level: int,
     device: str,
     cancel_event: Event,
-    prd_all_done_event: Event,
+    all_producers_finished: Event,
+    start_signal: Event,
+    end_event: Event,
   ):
     super().__init__(name, logging_queue, logging_level)
 
+    self._end_event = end_event
+    self._start_signal = start_signal
     self._backend_loader = backend_loader
-    self._prd_all_done_event = prd_all_done_event
+    self._all_producers_finished = all_producers_finished
     self._wkr_ring_access_lock = wkr_ring_access_lock
     self._backend = None
     self._wkr_stats_queue = wkr_stats_queue
@@ -106,7 +110,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
   def _load_model(self) -> None:
     self._log_debug("Loading model...")
     try:
-      self._backend = self._backend_loader.load_backend()
+      self._backend = self._backend_loader.load_backend(self._device_name)
     except ValueError as e:
       self._log_debug(f"Failed to load model: {e}")
       raise e
@@ -114,7 +118,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
 
   def _infer(self, batch: np.ndarray) -> np.ndarray:
     assert self._backend is not None
-    res = self._backend.infer(batch, self._device_name)
+    res = self._backend.infer(batch)
     assert res.dtype == np.float32
     res = res.astype(self._infer_dtype, copy=False)
     return res
@@ -150,7 +154,13 @@ class WorkerBase(bn_logging.LogableProcessBase):
 
   def _check_cancel_event(self) -> bool:
     if self._cancel_event.is_set():
-      self._log_debug("Received cancel event.")
+      self._log_debug(f"WORKER({os.getpid()}) - Received cancel event.")
+      return True
+    return False
+
+  def _check_end_event(self) -> bool:
+    if self._end_event.is_set():
+      self._logger.debug(f"WORKER({os.getpid()}) - Received end event.")
       return True
     return False
 
@@ -174,9 +184,33 @@ class WorkerBase(bn_logging.LogableProcessBase):
     except ValueError:
       self._cancel_event.set()
       return
-    duration_init = time.perf_counter() - start
-    self._log_debug(f"Worker {self._pid} initialized in {duration_init:.4f} seconds.")
 
+    duration_init = time.perf_counter() - start
+    self._log_debug(f"WORKER{self._pid} initialized in {duration_init:.4f} seconds.")
+
+    self.run_main_loop()
+
+    self._log_debug("Finished.")
+    self._uninit_logging()
+
+  def run_main_loop(self) -> None:
+    while True:
+      self._logger.info(f"WORKER({self._pid}) waiting for start signal...")
+      while not self._start_signal.wait(timeout=1.0):
+        if self._check_cancel_event():
+          # self._uninit_logging()
+          return
+        if self._check_end_event():
+          return
+
+      self._start_signal.clear()
+      self._logger.debug(
+        f"WORKER({self._pid}) - Received start signal. Starting processing."
+      )
+
+      self.run_main()
+
+  def run_main(self) -> None:
     assert self._ring_flags is not None
     assert self._ring_file_indices is not None
     assert self._ring_segment_indices is not None
@@ -190,7 +224,8 @@ class WorkerBase(bn_logging.LogableProcessBase):
       while not self._sem_filled.acquire(timeout=1.0):
         if self._check_cancel_event():
           return
-        if self._prd_all_done_event.is_set():
+
+        if self._all_producers_finished.is_set():
           self._log_debug("Producer is done. Exiting worker.")
           self._out_q.put(None)
           return
@@ -227,7 +262,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
       dur_search_for_filled_slot = time.perf_counter() - perf_c
 
       if claimed_slot is None:
-        if self._prd_all_done_event.is_set():
+        if self._all_producers_finished.is_set():
           self._log_debug("Producer is done. Exiting worker.")
           self._out_q.put(None)
           break
@@ -270,7 +305,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
         self._log_debug(f"Error during inference: {e}")
         self._cancel_event.set()
         self._log_debug(
-          f"Exiting worker {self._pid} due to error during inference. Set cancel event."
+          f"Exiting worker {self._pid} due to error during inference2. Set cancel event."
         )
         return
       dur_inference = time.perf_counter() - perf_c
@@ -312,6 +347,3 @@ class WorkerBase(bn_logging.LogableProcessBase):
 
       if self._sem_active_workers is not None:
         self._sem_active_workers.acquire(block=False)
-
-    self._log_debug("Finished.")
-    self._uninit()

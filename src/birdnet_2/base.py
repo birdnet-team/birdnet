@@ -4,8 +4,7 @@ from typing import Self
 
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.backends import InferenceBackend
-from birdnet.globals import MODEL_BACKENDS, MODEL_PRECISIONS
+from birdnet.globals import MODEL_PRECISIONS
 
 
 class PredictionResultBase:

@@ -10,6 +10,7 @@ from birdnet.acoustic_models.inference.benchmarking import (
   FullBenchmarkMetaBase,
   MinimalBenchmarkMetaBase,
 )
+from birdnet.acoustic_models.inference.worker import WorkerBase
 from birdnet.acoustic_models.inference_pipeline.configs import (
   ConfigType,
   PredictionConfig,
@@ -19,7 +20,6 @@ from birdnet.acoustic_models.inference_pipeline.configs import (
 from birdnet.acoustic_models.inference_pipeline.resources import (
   PipelineResources,
 )
-from birdnet.acoustic_models.inference.worker import WorkerBase
 
 
 class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):

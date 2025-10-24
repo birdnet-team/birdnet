@@ -2,9 +2,15 @@ from __future__ import annotations
 
 import json
 import shutil
+from collections.abc import Iterable
 from contextlib import contextmanager
 from dataclasses import asdict
+from pathlib import Path
+from typing import ContextManager, Generic
 
+from ordered_set import OrderedSet
+
+import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.inference_pipeline.configs import (
   ConfigType,
   PredictionConfig,
@@ -23,47 +29,138 @@ from birdnet.globals import WRITABLE_FLAG
 from birdnet.helper import create_shm_ring
 
 
-def predict_from_recordings_generic(
-  conf: PredictionConfig,
-  strategy: PredictionStrategy[ResultType, ConfigType, TensorType],
-  specific_config: ConfigType,
-) -> ResultType:
-  resource_manager = ResourceManager(conf, strategy.get_benchmark_dir_name())
-  resources = resource_manager.create_all_resources()
+class PredictionSession(Generic[ResultType, ConfigType, TensorType]):
+  def __init__(
+    self,
+    conf: PredictionConfig,
+    strategy: PredictionStrategy[ResultType, ConfigType, TensorType],
+    specific_config: ConfigType,
+  ) -> None:
+    self._conf = conf
+    self._strategy = strategy
+    self._specific_config = specific_config
+    self._resource_manager: ResourceManager | None = None
+    self._process_manager: ProcessManager | None = None
+    self._shm_context: ContextManager | None = None
+    self._is_initialized = False
+    self._n_runs: int = 0
 
-  process_manager = ProcessManager(conf, strategy, specific_config, resources)
-  process_manager.start_logging()
+  def __enter__(self):
+    assert not self._is_initialized
+    self._resource_manager = ResourceManager(self._conf)
+    res = self._resource_manager.create_resources(
+      self._strategy.get_benchmark_dir_name()
+    )
 
-  try:
-    result_tensor = strategy.create_tensor(conf, specific_config, resources)
+    self._process_manager = ProcessManager(
+      self._conf, self._strategy, self._specific_config, res
+    )
+    self._process_manager.start_logging()
 
-    with shared_memory_context(resources):
-      process_manager.start_main_processes()
-      process_manager.run_consumer(result_tensor)
-      resources.processing_state.processing_finished_event.set()
-      resources.stats_resources.mark_stop()
-      resources.stats_resources.collect_performance_results()
-      resources.analyzer_resources.collect_file_durations()
-      process_manager.join_main_processes()
+    self._shm_context = shared_memory_context(res)
+    self._shm_context.__enter__()
 
-    if resources.processing_state.cancel_event.is_set():
+    self._process_manager.start_main_processes()
+
+    self._is_initialized = True
+    self._logger = bn_logging.get_logger(__name__)
+    return self
+
+  @property
+  def _resources(self) -> PipelineResources:
+    assert self._is_initialized
+    assert self._resource_manager is not None
+    assert self._resource_manager.resources is not None
+    return self._resource_manager.resources
+
+  def run(self, paths: Path | str | Iterable[Path | str]) -> ResultType:
+    assert self._is_initialized
+    assert self._process_manager is not None
+    assert self._logger is not None
+
+    # todo: only once in model class?
+    paths = PredictionConfig.validate_input_files(paths)
+
+    if len(paths) > self._conf.processing_conf.max_n_files:
       raise RuntimeError(
-        f"Analysis was cancelled due to an error. Please check the logs: {resources.logging_resources.log_file.absolute()}"
+        f"Number of input files ({len(paths)}) exceeds the maximum allowed ({self._conf.processing_conf.max_n_files})."
       )
 
-    result = strategy.create_result(result_tensor, conf, resources)
+    self._logger.info(f"Got {len(paths)} audio files for analysis.")
 
-    _handle_statistics(conf, strategy, specific_config, result, resources)
+    file_paths = OrderedSet(sorted(paths))
+
+    result_tensor = self._strategy.create_tensor(
+      self._conf, self._specific_config, self._resources, len(file_paths)
+    )
+
+    if not self._resources.processing_resources.is_first_run:
+      self._resources.reset()
+
+    self._process_manager.start_processing(file_paths)
+    self._process_manager.run_consumer(result_tensor)
+    self._resources.processing_resources.processing_finished_event.set()
+    self._resources.stats_resources.save_end_time()
+    self._resources.stats_resources.collect_performance_results()
+    self._resources.analyzer_resources.collect_file_durations()
+
+    if self._resources.processing_resources.cancel_event.is_set():
+      raise RuntimeError(
+        f"Analysis was cancelled. Please check the logs: {self._resources.logging_resources.session_log_file.absolute()}"
+      )
+
+    result = self._strategy.create_result(
+      result_tensor, self._conf, self._resources, file_paths
+    )
+
+    _handle_statistics(
+      self._conf, self._strategy, self._specific_config, result, self._resources
+    )
+
+    self._resources.processing_resources.increment_run_nr()
 
     return result
 
-  finally:
-    resources.logging_resources.stop_logging_event.set()
-    process_manager.join_logging()
+  def cancel(self) -> None:
+    if not self._is_initialized:
+      raise RuntimeError("Pipeline is not initialized.")
+    assert self._resources is not None
+
+    self._resources.processing_resources.cancel_event.set()
+
+  def end(self) -> None:
+    if not self._is_initialized:
+      raise RuntimeError("Pipeline is not initialized.")
+
+    assert self._resources is not None
+    self._resources.processing_resources.end_event.set()
+
+  def __exit__(self, *args):
+    assert self._is_initialized
+
+    assert self._resources is not None
+    assert self._process_manager is not None
+    assert self._shm_context is not None
+
+    self._resources.processing_resources.end_event.set()
+    self._process_manager.join_main_processes()
+
+    self._shm_context.__exit__(*args)
+    self._shm_context = None
+
+    self._resources.logging_resources.stop_logging_event.set()
+
+    self._process_manager.join_logging()
+    self._process_manager = None
 
     shutil.copyfile(
-      resources.logging_resources.log_file, resources.logging_resources.global_log_file
+      self._resources.logging_resources.session_log_file,
+      self._resources.logging_resources.global_log_file,
     )
+
+    self._resource_manager = None
+    self._is_initialized = False
+    self._logger = None
 
 
 @contextmanager
@@ -146,20 +243,28 @@ def _create_benchmark_statistics(
   result: ResultType,
 ) -> None:
   assert resources.stats_resources.tracking_result is not None
+  assert resources.stats_resources.benchmarking is True
+  assert resources.stats_resources.benchmark_dir is not None
+  assert resources.stats_resources.benchmark_session_dir is not None
 
   bmm = strategy.create_full_benchmark_meta(config, specific_config, resources, result)
 
   benchmark_dir = resources.stats_resources.benchmark_dir
-  benchmark_run_out_dir = resources.stats_resources.benchmark_run_dir
+  benchmark_session_dir = resources.stats_resources.benchmark_session_dir
   iso_time = resources.stats_resources.start_iso_time
+  benchmark_run_dir = (
+    benchmark_session_dir
+    / f"{iso_time}-run-{resources.processing_resources.current_run_nr}"
+  )
+  benchmark_run_dir.mkdir(parents=True, exist_ok=True)
 
-  assert benchmark_dir is not None
-  assert benchmark_run_out_dir is not None
-
-  meta_df_out = benchmark_dir / "runs.csv"
-  stats_out_json = benchmark_run_out_dir / f"stats-{iso_time}.json"
-  stats_human_readable_out = benchmark_run_out_dir / f"stats-{iso_time}.txt"
-  result_npz = benchmark_run_out_dir / f"result-{iso_time}.npz"
+  sessions_meta_df_out = resources.logging_resources.session_log_file.with_stem(
+    resources.logging_resources.session_log_file.stem + "-runs"
+  ).with_suffix(".csv")
+  all_sessions_meta_df_out = benchmark_dir / "runs.csv"
+  stats_out_json = benchmark_run_dir / f"stats-{iso_time}.json"
+  stats_human_readable_out = benchmark_run_dir / f"stats-{iso_time}.txt"
+  result_npz = benchmark_run_dir / f"result-{iso_time}.npz"
 
   bm = asdict(bmm)
   del_keys = [k for k in bm if k.startswith("_")]
@@ -173,7 +278,19 @@ def _create_benchmark_statistics(
   import pandas as pd
 
   meta_df = pd.DataFrame.from_records([bm])
-  meta_df.to_csv(meta_df_out, mode="a", header=not meta_df_out.exists(), index=False)
+
+  meta_df.to_csv(
+    sessions_meta_df_out,
+    mode="a",
+    header=not sessions_meta_df_out.exists(),
+    index=False,
+  )
+  meta_df.to_csv(
+    all_sessions_meta_df_out,
+    mode="a",
+    header=not all_sessions_meta_df_out.exists(),
+    index=False,
+  )
 
   summary = (
     f"-------------------------------\n"
@@ -208,22 +325,22 @@ def _create_benchmark_statistics(
   print("Saving result using internal format (.npz)...")
   result.save(result_npz)
   saved_files = [result_npz]
-  saved_files += strategy.save_results_extra(result, benchmark_run_out_dir, iso_time)
+  saved_files += strategy.save_results_extra(result, benchmark_run_dir, iso_time)
 
   summary += (
     f"-------------------------------\n"
     f"Benchmark folder:\n"
-    f"  {benchmark_run_out_dir.absolute()}\n"
+    f"  {benchmark_run_dir.absolute()}\n"
     f"Statistics results written to:\n"
     f"  {stats_human_readable_out.absolute()}\n"
     f"  {stats_out_json.absolute()}\n"
-    f"  {meta_df_out.absolute()}\n"
+    f"  {all_sessions_meta_df_out.absolute()}\n"
     f"Prediction results written to:\n"
   )
   for saved_file in saved_files:
     summary += f"  {saved_file.absolute()}\n"
   summary += (
-    f"Log file written to:\n  {resources.logging_resources.log_file.absolute()}\n"
+    f"Session log file:\n  {resources.logging_resources.session_log_file.absolute()}\n"
   )
 
   print(summary)

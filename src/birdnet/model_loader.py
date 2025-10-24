@@ -2,44 +2,31 @@ from os import PathLike
 from pathlib import Path
 from typing import Any, cast
 
-from birdnet.acoustic_models.base import AcousticModelBase, AcousticModelBase2
-from birdnet.acoustic_models.inference2.backends import (
+from birdnet.acoustic_models.base import AcousticModelBase2
+from birdnet.acoustic_models.inference.backends import (
   litert_installed,
   tf_installed,
 )
-from birdnet.acoustic_models.inference2.backends2 import (
-  InferenceBackendLoader2,
-  PBInferenceBackend2,
-  TFInferenceBackend2,
-)
 from birdnet.acoustic_models.v2_4.base import (
-  AcousticModelBaseV2_4,
   AcousticModelV2_4,
-  PBAcousticInferenceBackendV2_4,
-  TFAcousticInferenceBackendV2_4,
 )
 from birdnet.acoustic_models.v2_4.pb import (
   AcousticPBDownloaderV2_4,
-  AcousticPBModelV2_4,
+  PBAcousticInferenceBackendV2_4,
 )
 from birdnet.acoustic_models.v2_4.tf import (
-  MODEL_IN_IDX,
-  MODEL_LOGITS_OUT_IDX,
   AcousticTFDownloaderV2_4,
-  AcousticTFModelV2_4,
+  TFAcousticInferenceBackendV2_4,
 )
-from birdnet.base import ModelBase, ModelBase2
-from birdnet.geo_models.base import GeoModelBase, GeoModelBase2
+from birdnet.base import ModelBase2
+from birdnet.geo_models.base import GeoModelBase2
 from birdnet.geo_models.v2_4.base import (
   GeoModelV2_4,
-  PBGeoInferenceBackendV2_4,
-  TFGeoInferenceBackendV2_4,
 )
-from birdnet.geo_models.v2_4.pb import GeoPBDownloaderV2_4, GeoPBModelV2_4
+from birdnet.geo_models.v2_4.pb import GeoPBDownloaderV2_4, PBGeoInferenceBackendV2_4
 from birdnet.geo_models.v2_4.tf import (
-  MODEL_LOGITS_IDX,
   GeoTFDownloaderV2_4,
-  GeoTFModelV2_4,
+  TFGeoInferenceBackendV2_4,
 )
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V2_4,

@@ -20,9 +20,6 @@ from birdnet.acoustic_models.inference_pipeline.configs import (
   EmbeddingsConfig,
   PredictionConfig,
 )
-from birdnet.acoustic_models.inference_pipeline.pipeline import (
-  predict_from_recordings_generic,
-)
 from birdnet.acoustic_models.inference_pipeline.resources import (
   PipelineResources,
 )
@@ -48,9 +45,10 @@ class EmbeddingsStrategy(
     config: PredictionConfig,
     specific_config: EmbeddingsConfig,
     resources: PipelineResources,
+    n_files: int,
   ) -> EmbeddingsTensor:
     return EmbeddingsTensor(
-      resources.analyzer_resources.n_files,
+      n_files,
       emb_dim=specific_config.emb_dim,
       emb_dtype=config.processing_conf.result_dtype,
       segment_indices_dtype=resources.ring_buffer_resources.rf_segment_indices.dtype,
@@ -75,7 +73,7 @@ class EmbeddingsStrategy(
         out_q=resources.worker_resources.results_queue,
         logging_queue=resources.logging_resources.logging_queue,
         logging_level=resources.logging_resources.logging_level,
-        prd_all_done_event=resources.producer_resources.prd_all_done_event,
+        prd_all_done_event=resources.producer_resources.all_finished,
         rf_file_indices=resources.ring_buffer_resources.rf_file_indices,
         rf_segment_indices=resources.ring_buffer_resources.rf_segment_indices,
         rf_audio_samples=resources.ring_buffer_resources.rf_audio_samples,
@@ -85,8 +83,10 @@ class EmbeddingsStrategy(
         sem_free=resources.ring_buffer_resources.sem_free_slots,
         emb_dtype=config.processing_conf.result_dtype,
         wkr_stats_queue=resources.stats_resources.wkr_stats_queue,
-        cancel_event=resources.processing_state.cancel_event,
+        cancel_event=resources.processing_resources.cancel_event,
         sem_active_workers=resources.stats_resources.sem_active_workers,
+        end_event=resources.processing_resources.end_event,
+        start_signal=resources.worker_resources.start_signals[i],
       )
       for i in range(config.processing_conf.workers)
     ]
@@ -96,12 +96,13 @@ class EmbeddingsStrategy(
     tensor: EmbeddingsTensor,
     config: PredictionConfig,
     resources: PipelineResources,
+    files: OrderedSet[Path],
   ) -> EncodingResult:
     assert resources.analyzer_resources.file_durations is not None
 
     return EncodingResult(
       tensor=tensor,
-      files=resources.analyzer_resources.file_paths,
+      files=files,
       segment_duration_s=config.model_conf.segment_size_s,
       overlap_duration_s=config.processing_conf.overlap_duration_s,
       file_durations=resources.analyzer_resources.file_durations,
@@ -207,17 +208,16 @@ class EmbeddingsStrategy(
       mem_shm_slots_average_busy=perf_result.avg_busy_slots,
       mem_shm_slots_average_buffered=perf_result.avg_preloaded_slots,
       worker_busy_average=perf_result.avg_busy_workers,
-      _time_rampup_first_prediction_s=perf_result.ramp_up_time_until_first_pred_s,
       file_batches_processed=perf_result.total_batches_processed,
       speed_worker_xrt=perf_result.worker_speed_xrt,
       speed_worker_xrt_max=perf_result.worker_speed_xrt_max,
-      model_backend=config.model_conf.backend,
+      model_backend="",  # TODO config.model_conf.backend,
       model_sample_rate=config.model_conf.sample_rate,
       model_sig_fmin=config.model_conf.sig_fmin,
       model_sig_fmax=config.model_conf.sig_fmax,
       worker_wait_time_average_milliseconds=perf_result.avg_wait_time_ms,
       file_formats=get_file_formats(OrderedSet(Path(x) for x in pred_result.files)),
-      param_inference_library=config.model_conf.backend_kwargs.get("inference_library"),
+      param_inference_library="",  # TODO config.model_conf.backend_kwargs.get("inference_library"),
     )
 
   def get_benchmark_dir_name(self) -> str:
@@ -227,11 +227,3 @@ class EmbeddingsStrategy(
     self, result: EncodingResult, benchmark_run_out_dir: Path, iso_time: str
   ) -> list[Path]:
     return []
-
-
-def predict_embeddings_from_recordings(
-  conf: PredictionConfig,
-  emb_config: EmbeddingsConfig,
-) -> EncodingResult:
-  strategy = EmbeddingsStrategy()
-  return predict_from_recordings_generic(conf, strategy, emb_config)

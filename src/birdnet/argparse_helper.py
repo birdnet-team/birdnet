@@ -2,10 +2,11 @@ import argparse
 import codecs
 import json
 from argparse import ArgumentTypeError
+from collections.abc import Callable
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, TypeVar
+from typing import TypeVar
 
 from ordered_set import OrderedSet
 
@@ -17,8 +18,8 @@ class ConvertToOrderedSetAction(argparse._StoreAction):
     self,
     parser: argparse.ArgumentParser,
     namespace: argparse.Namespace,
-    values: Optional[List],
-    option_string: Optional[str] = None,
+    values: list | None,
+    option_string: str | None = None,
   ):
     if values is not None:
       values = OrderedSet(values)
@@ -30,18 +31,18 @@ class ConvertToSetAction(argparse._StoreAction):
     self,
     parser: argparse.ArgumentParser,
     namespace: argparse.Namespace,
-    values: Optional[List],
-    option_string: Optional[str] = None,
+    values: list | None,
+    option_string: str | None = None,
   ):
     if values is not None:
       values = set(values)
     super().__call__(parser, namespace, values, option_string)
 
 
-def parse_json(value: str) -> Dict:
+def parse_json(value: str) -> dict:
   path = parse_path(value)
   try:
-    with open(path, mode="r", encoding="utf-8") as file:
+    with open(path, encoding="utf-8") as file:
       result = json.load(file)
   except Exception as ex:
     raise ArgumentTypeError("JSON couldn't be parsed!") from ex
@@ -66,13 +67,13 @@ def parse_path(value: str) -> Path:
   return path
 
 
-def parse_optional_value(value: str, method: Callable[[str], T]) -> Optional[T]:
+def parse_optional_value(value: str, method: Callable[[str], T]) -> T | None:
   if value is None:
     return None
   return method(value)
 
 
-def get_optional(method: Callable[[str], T]) -> Callable[[str], Optional[T]]:
+def get_optional(method: Callable[[str], T]) -> Callable[[str], T | None]:
   result = partial(
     parse_optional_value,
     method=method,
@@ -94,13 +95,13 @@ def parse_existing_directory(value: str) -> Path:
   return path
 
 
-def parse_required(value: Optional[str]) -> str:
+def parse_required(value: str | None) -> str:
   if value is None:
     raise ArgumentTypeError("Value must not be None!")
   return value
 
 
-def parse_non_empty(value: Optional[str]) -> str:
+def parse_non_empty(value: str | None) -> str:
   value = parse_required(value)
   if value == "":
     raise ArgumentTypeError("Value must not be empty!")

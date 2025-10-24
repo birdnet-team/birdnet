@@ -8,7 +8,15 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, final, overload
+from typing import (
+  TYPE_CHECKING,
+  Any,
+  Literal,
+  Protocol,
+  final,
+  overload,
+  runtime_checkable,
+)
 
 import numpy as np
 
@@ -24,64 +32,78 @@ if TYPE_CHECKING:
   from tensorflow.lite.python.interpreter import Interpreter as TFInterpreter
 
 
-class InferenceBackend(ABC):
-  def __init__(self, model_path: Path) -> None:
-    super().__init__()
+class InferenceBackend2(ABC):
+  def __init__(self, model_path: Path, device_name: str) -> None:
     self._model_path = model_path
+    self._device_name = device_name
 
   @abstractmethod
   def load(self) -> None: ...
 
   @abstractmethod
-  def infer(self, batch: np.ndarray, device_name: str) -> np.ndarray: ...
+  def infer(self, batch: np.ndarray) -> np.ndarray: ...
 
   @classmethod
   @abstractmethod
   def supports_cow(cls) -> bool: ...
 
 
-class InferenceBackendLoader:
+@runtime_checkable
+class VersionedInferenceBackendProtocol(Protocol):
   def __init__(
     self,
     model_path: Path,
-    backend_type: type[InferenceBackend],
-    backend_kwargs: dict,
-  ) -> None:
-    self._backend_type = backend_type
-    self._backend_kwargs = backend_kwargs
-    self._model_path = model_path
-    self._backend: InferenceBackend | None = None
+    inference_strategy: Literal["scores", "embeddings"],
+    device_name: str,
+    **kwargs: Any,
+  ) -> None: ...
 
-  def _load_backend(self) -> InferenceBackend:
-    assert self._backend is None
-    backend = self._backend_type(self._model_path, **self._backend_kwargs)
-    backend.load()
-    self._backend = backend
-    return backend
+  def load(self) -> None: ...
 
-  def on_before_worker_initialized(self) -> None:
-    if (
-      multiprocessing.get_start_method() == "fork" and self._backend_type.supports_cow()
-    ):
-      self._load_backend()
+  def infer(self, batch: np.ndarray) -> np.ndarray: ...
 
-  def load_backend(self) -> InferenceBackend:
-    if self._backend is None:
-      return self._load_backend()
-    assert self._backend is not None
-    return self._backend
+  @classmethod
+  def supports_cow(cls) -> bool: ...
 
-  @property
-  def backend(self) -> InferenceBackend:
-    assert self._backend is not None
-    return self._backend
+  @classmethod
+  def check_model_can_be_loaded(
+    cls,
+    model_path: Path,
+    **kwargs: Any,
+  ) -> int | None: ...
 
 
-class TFInferenceBackend(InferenceBackend):
+@runtime_checkable
+class VersionedAcousticInferenceBackendProtocol(VersionedInferenceBackendProtocol):
+  pass
+
+
+@runtime_checkable
+class VersionedGeoInferenceBackendProtocol(VersionedInferenceBackendProtocol):
+  pass
+
+
+# class VersionedInferenceBackendClass(InferenceBackend2, ABC):
+#   def __init__(
+#     self,
+#     model_path: Path,
+#     inference_strategy: Literal["scores", "embeddings"],
+#     device_name: str,
+#     **kwargs: Any,
+#   ) -> None: ...
+
+
+class TFInferenceBackend2(InferenceBackend2):
   def __init__(
-    self, model_path: Path, inference_library: LIBRARY_TYPES, in_idx: int, out_idx: int
+    self,
+    model_path: Path,
+    in_idx: int,
+    out_idx: int,
+    device_name: str,
+    inference_library: LIBRARY_TYPES,
   ) -> None:
-    super().__init__(model_path)
+    assert device_name == "CPU"
+    super().__init__(model_path, device_name)
     self._interp: LiteRTInterpreter | TFInterpreter | None = None
     self._inference_library: LIBRARY_TYPES = inference_library
     self._in_idx: int = in_idx
@@ -117,9 +139,8 @@ class TFInferenceBackend(InferenceBackend):
     self._interp.set_tensor(self._in_idx, batch)
 
   @final
-  def infer(self, batch: np.ndarray, device_name: str) -> np.ndarray:
+  def infer(self, batch: np.ndarray) -> np.ndarray:
     # TODO: implement load on different CPUs
-    assert device_name == "CPU"
     assert self._interp is not None
 
     self._set_tensor(batch)
@@ -129,12 +150,17 @@ class TFInferenceBackend(InferenceBackend):
     return res
 
 
-class PBInferenceBackend(InferenceBackend):
+class PBInferenceBackend2(InferenceBackend2):
   def __init__(
-    self, model_path: Path, signature_name: str, prediction_key: str, input_key: str
+    self,
+    model_path: Path,
+    signature_name: str,
+    prediction_key: str,
+    input_key: str,
+    device_name: str,
   ) -> None:
-    super().__init__(model_path)
-    self._cached_logical_device: Any | None = None
+    super().__init__(model_path, device_name)
+    self._logical_device: Any | None = None
     self._infer_fn: Callable | None = None
     self._cached_device_name: str | None = None
     self._signature_name = signature_name
@@ -150,6 +176,8 @@ class PBInferenceBackend(InferenceBackend):
   def load(self) -> None:
     model = load_pb_model(self._model_path)
     self._infer_fn = model.signatures[self._signature_name]  # type: ignore
+
+    self._set_logical_device(self._device_name)
 
   def _set_logical_device(self, device_name: str) -> None:
     assert "GPU" in device_name or "CPU" in device_name
@@ -167,7 +195,7 @@ class PBInferenceBackend(InferenceBackend):
       if len(gpus_with_name) == 0:
         raise ValueError(f"No GPU with name '{device_name}' found!")
 
-      self._cached_logical_device = [
+      self._logical_device = [
         log_dev
         for log_dev in tf.config.list_logical_devices()
         if device_name in log_dev.name
@@ -181,21 +209,17 @@ class PBInferenceBackend(InferenceBackend):
       ]
       if len(all_devices_with_name) == 0:
         raise ValueError(f"No CPU with name '{device_name}' found!")
-      self._cached_logical_device = all_devices_with_name[0]
+      self._logical_device = all_devices_with_name[0]
     else:
       raise AssertionError()
 
   @final
-  def infer(self, batch: np.ndarray, device_name: str) -> np.ndarray:
-    if self._cached_device_name is None or self._cached_device_name != device_name:
-      self._set_logical_device(device_name)
-      self._cached_device_name = device_name
-
-    assert self._cached_logical_device is not None
+  def infer(self, batch: np.ndarray) -> np.ndarray:
+    assert self._logical_device is not None
     assert self._infer_fn is not None
     from tensorflow import Tensor, device, float32
 
-    with device(self._cached_logical_device.name):  # type: ignore
+    with device(self._logical_device.name):  # type: ignore
       # prediction = self._audio_model.basic(batch)["scores"]
       predictions = self._infer_fn(**{self._input_key: batch})
     scores: Tensor = predictions[self._prediction_key]
@@ -203,6 +227,58 @@ class PBInferenceBackend(InferenceBackend):
     scores_np = scores.numpy()  # type: ignore
     assert scores_np.dtype == np.float32
     return scores_np
+
+
+class InferenceBackendLoader2:
+  def __init__(
+    self,
+    model_path: Path,
+    inference_strategy: Literal["scores", "embeddings"],
+    backend_type: type[VersionedInferenceBackendProtocol],
+    backend_custom_kwargs: dict[str, object] | None,
+  ) -> None:
+    self._model_path = model_path
+    self._inference_strategy: Literal["scores", "embeddings"] = inference_strategy
+    self._backend_type = backend_type
+    self._backend_kwargs = (
+      backend_custom_kwargs if backend_custom_kwargs is not None else {}
+    )
+
+    self._backend: VersionedInferenceBackendProtocol | None = None
+
+  def _load_backend(self, device_name: str) -> VersionedInferenceBackendProtocol:
+    assert self._backend is None
+    backend = self._backend_type(
+      model_path=self._model_path,
+      inference_strategy=self._inference_strategy,
+      device_name=device_name,
+      **self._backend_kwargs,
+    )
+    backend.load()
+    self._backend = backend
+    return backend
+
+  def on_before_worker_initialized(self, devices: list[str]) -> None:
+    unique_devices = set(devices)
+    same_device_for_all_workers = len(unique_devices) == 1
+    if (
+      same_device_for_all_workers
+      and multiprocessing.get_start_method() == "fork"
+      and self._backend_type.supports_cow()
+    ):
+      device_name = unique_devices.pop()
+      self._load_backend(device_name)
+
+  def load_backend(self, device_name: str) -> VersionedInferenceBackendProtocol:
+    if self._backend is None:
+      return self._load_backend(device_name)
+    assert self._backend is not None
+    return self._backend
+
+  @property
+  def backend(self) -> VersionedInferenceBackendProtocol:
+    assert self._backend is not None
+    return self._backend
 
 
 def load_pb_model(model_path: Path):
@@ -402,11 +478,13 @@ def _get_tf_n_species(
 
 
 def check_tf_model_can_be_loaded(
-  model_path: Path, library: LIBRARY_TYPES, out_idx: int
+  model_path: Path, inference_library: LIBRARY_TYPES, out_idx: int
 ) -> int | None:
   try:
     with ProcessPoolExecutor(max_workers=1) as executor:
-      future = executor.submit(_get_tf_n_species, model_path, library, out_idx)
+      future = executor.submit(
+        _get_tf_n_species, model_path, inference_library, out_idx
+      )
       result = future.result(timeout=None)
       return result
   except Exception as e:

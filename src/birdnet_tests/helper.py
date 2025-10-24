@@ -3,7 +3,7 @@ import ctypes
 import os
 import threading
 import time
-from typing import Callable, Generator
+from collections.abc import Callable, Generator
 
 import psutil
 

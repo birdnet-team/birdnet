@@ -5,7 +5,6 @@ import multiprocessing as mp
 import multiprocessing.synchronize
 import tempfile
 import time
-from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from logging.handlers import QueueHandler
@@ -33,12 +32,9 @@ from birdnet.globals import (
   PKG_NAME,
 )
 from birdnet.helper import (
-  SF_FORMATS,
   RingField,
   get_float_dtype,
   get_max_n_segments,
-  get_supported_audio_files,
-  is_supported_audio_file,
   uint_ctype_from_dtype,
   uint_dtype_for,
 )

@@ -10,11 +10,11 @@ import numpy as np
 from numpy.typing import DTypeLike
 from ordered_set import OrderedSet
 
+from birdnet.acoustic_models.inference.backends import InferenceBackendLoader2
 from birdnet.acoustic_models.inference.tensor import TensorBase
 from birdnet.base import PredictionResultBase
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSIONS,
-  MODEL_BACKENDS,
   MODEL_PRECISIONS,
 )
 from birdnet.helper import (
@@ -32,8 +32,7 @@ TensorType = TypeVar("TensorType", bound="TensorBase")
 class ModelConfig:
   species_list: OrderedSet[str]
   path: Path
-  backend: MODEL_BACKENDS
-  backend_kwargs: dict
+  backend_loader: InferenceBackendLoader2
   version: ACOUSTIC_MODEL_VERSIONS
   segment_size_s: float
   sample_rate: int
@@ -61,6 +60,7 @@ class ProcessingConfig:
   half_precision: bool
   max_audio_duration_min: float | None
   device: str | list[str]
+  max_n_files: int
 
   @property
   def result_dtype(self) -> DTypeLike:
@@ -71,6 +71,16 @@ class ProcessingConfig:
   def n_slots(self) -> int:
     n_slots = self.workers + (self.workers * self.prefetch_ratio)
     return n_slots
+
+  @classmethod
+  def validate_max_n_files(cls, max_n_files: Any) -> int:  # noqa: ANN401
+    if not isinstance(max_n_files, int):
+      raise TypeError("maximum number of files must be an integer")
+    if not max_n_files >= 1:
+      raise ValueError("maximum number of files must be >= 1")
+    if not max_n_files <= 2**64:
+      raise ValueError("maximum number of files must be <= 2^64")
+    return max_n_files
 
   @classmethod
   def validate_feeders(cls, feeders: Any) -> int:  # noqa: ANN401
@@ -292,7 +302,6 @@ class ScoresConfig(SpecificConfigBase):
 
 @dataclass(frozen=True)
 class PredictionConfig:
-  input_files: set[Path]
   model_conf: ModelConfig
   processing_conf: ProcessingConfig
   filtering_conf: FilteringConfig

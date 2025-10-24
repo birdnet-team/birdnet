@@ -8,8 +8,8 @@ from multiprocessing.synchronize import Event, Semaphore
 import numpy as np
 from numpy.typing import DTypeLike
 
+from birdnet.acoustic_models.inference.backends import InferenceBackendLoader2
 from birdnet.acoustic_models.inference.worker import WorkerBase
-from birdnet.acoustic_models.inference.backends import InferenceBackendLoader
 from birdnet.helper import RingField, uint_dtype_for
 from birdnet.utils import flat_sigmoid_logaddexp_fast
 
@@ -17,7 +17,7 @@ from birdnet.utils import flat_sigmoid_logaddexp_fast
 class ScoresWorker(WorkerBase):
   def __init__(
     self,
-    backend_loader: InferenceBackendLoader,
+    backend_loader: InferenceBackendLoader2,
     top_k: int,
     species_thresholds: np.ndarray,
     species_blacklist: np.ndarray,
@@ -42,7 +42,9 @@ class ScoresWorker(WorkerBase):
     logging_level: int,
     device: str,
     cancel_event: Event,
-    prd_all_done_event: Event,
+    all_producers_finished: Event,
+    start_signal: Event,
+    end_event: Event,
   ):
     assert species_thresholds.shape[0] == 1
     assert species_blacklist.shape[0] == 1
@@ -85,7 +87,9 @@ class ScoresWorker(WorkerBase):
       logging_level=logging_level,
       device=device,
       cancel_event=cancel_event,
-      prd_all_done_event=prd_all_done_event,
+      all_producers_finished=all_producers_finished,
+      start_signal=start_signal,
+      end_event=end_event,
     )
 
   def _get_block(

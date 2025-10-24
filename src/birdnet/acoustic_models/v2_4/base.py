@@ -1,30 +1,23 @@
 from __future__ import annotations
 
+from collections.abc import Collection, Iterable
 from pathlib import Path
-from typing import Any, Collection, Iterable, Literal, cast, final
+from typing import Literal, final
 
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.base import (
-  AcousticModelBase,
   AcousticModelBase2,
 )
-from birdnet.acoustic_models.inference2.backends2 import (
-  InferenceBackend2,
+from birdnet.acoustic_models.inference.backends import (
   InferenceBackendLoader2,
-  PBInferenceBackend2,
-  TFInferenceBackend2,
   VersionedInferenceBackendProtocol,
-  check_pb_model_can_be_loaded,
-  check_tf_model_can_be_loaded,
-  litert_installed,
-  tf_installed,
 )
-from birdnet.acoustic_models.inference2.emb.encoding_result import EncodingResult
-from birdnet.acoustic_models.inference2.emb.tensor import EmbeddingsTensor
-from birdnet.acoustic_models.inference2.scores.prediction_result import PredictionResult
-from birdnet.acoustic_models.inference2.scores.tensor import ScoresTensor
-from birdnet.acoustic_models.inference_pipeline2.configs import (
+from birdnet.acoustic_models.inference.emb.encoding_result import EncodingResult
+from birdnet.acoustic_models.inference.emb.tensor import EmbeddingsTensor
+from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
+from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
+from birdnet.acoustic_models.inference_pipeline.configs import (
   EmbeddingsConfig,
   FilteringConfig,
   ModelConfig,
@@ -33,21 +26,14 @@ from birdnet.acoustic_models.inference_pipeline2.configs import (
   ProcessingConfig,
   ScoresConfig,
 )
-from birdnet.acoustic_models.inference_pipeline2.emb_strategy import EmbeddingsStrategy
-from birdnet.acoustic_models.inference_pipeline2.pipeline import PredictionSession
-from birdnet.acoustic_models.inference_pipeline2.scores_strategy import ScoresStrategy
+from birdnet.acoustic_models.inference_pipeline.emb_strategy import EmbeddingsStrategy
+from birdnet.acoustic_models.inference_pipeline.pipeline import PredictionSession
+from birdnet.acoustic_models.inference_pipeline.scores_strategy import ScoresStrategy
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V2_4,
   ACOUSTIC_MODEL_VERSIONS,
-  LIBRARY_LITERT,
-  LIBRARY_TF,
-  LIBRARY_TYPES,
   MODEL_PRECISIONS,
-  MODEL_TYPE_ACOUSTIC,
-  MODEL_TYPES,
-  VALID_LIBRARY_TYPES,
 )
-from birdnet.helper import check_protobuf_model_files_exist
 from birdnet.utils import get_species_from_file
 
 
@@ -83,137 +69,6 @@ class AcousticDownloaderBaseV2_4:
       "zh",
     )
   )
-
-
-class AcousticModelBaseV2_4(AcousticModelBase):
-  def __init__(
-    self,
-    model_path: Path,
-    species_list: OrderedSet[str],
-    precision: MODEL_PRECISIONS,
-    use_custom_model: bool,
-  ) -> None:
-    super().__init__(model_path, species_list, precision, use_custom_model)
-
-  @classmethod
-  @final
-  def get_version(cls) -> ACOUSTIC_MODEL_VERSIONS:
-    return ACOUSTIC_MODEL_VERSION_V2_4
-
-  @classmethod
-  @final
-  def get_model_type(cls) -> MODEL_TYPES:
-    return MODEL_TYPE_ACOUSTIC
-
-  @classmethod
-  @final
-  def get_sig_fmin(cls) -> int:
-    return 0
-
-  @classmethod
-  @final
-  def get_sig_fmax(cls) -> int:
-    return 15_000
-
-  @classmethod
-  @final
-  def get_sample_rate(cls) -> int:
-    return 48_000
-
-  @classmethod
-  @final
-  def get_segment_size_s(cls) -> float:
-    return 3.0
-
-  @classmethod
-  @final
-  def get_segment_size_samples(cls) -> int:
-    return 144_000  # 3.0 * 48_000
-
-  @classmethod
-  @final
-  def get_embeddings_dim(cls) -> int:
-    return 1024
-
-
-class TFAcousticInferenceBackendV2_4(
-  TFInferenceBackend2, VersionedInferenceBackendProtocol
-):
-  def __init__(
-    self,
-    model_path: Path,
-    inference_strategy: Literal["scores", "embeddings"],
-    device_name: str,
-    inference_library: LIBRARY_TYPES,
-  ) -> None:
-    in_idx = 0
-    if inference_strategy == "scores":
-      out_idx = 546
-    elif inference_strategy == "embeddings":
-      out_idx = 545
-    else:
-      raise AssertionError()
-
-    super().__init__(
-      model_path,
-      in_idx,
-      out_idx,
-      device_name,
-      inference_library,
-    )
-
-  @classmethod
-  def check_model_can_be_loaded(
-    cls,
-    model_path: Path,
-    **kwargs: Any,
-  ) -> int | None:
-    n_outputs = check_tf_model_can_be_loaded(
-      model_path=model_path, out_idx=546, **kwargs
-    )
-    return n_outputs
-
-
-class PBAcousticInferenceBackendV2_4(
-  PBInferenceBackend2, VersionedInferenceBackendProtocol
-):
-  def __init__(
-    self,
-    model_path: Path,
-    inference_strategy: Literal["scores", "embeddings"],
-    device_name: str,
-  ) -> None:
-    if inference_strategy == "scores":
-      signature_name = "basic"
-      prediction_key = "scores"
-      input_key = "inputs"
-    elif inference_strategy == "embeddings":
-      signature_name = "serving_default"
-      prediction_key = "EMBEDDING_OUTPUT"
-      input_key = "MNET_INPUT"
-    else:
-      raise AssertionError()
-
-    super().__init__(
-      model_path,
-      signature_name,
-      prediction_key,
-      input_key,
-      device_name,
-    )
-
-  @classmethod
-  def check_model_can_be_loaded(
-    cls,
-    model_path: Path,
-    **kwargs: Any,
-  ) -> int | None:
-    n_outputs = check_pb_model_can_be_loaded(
-      model_path,
-      "basic",
-      "scores",
-    )
-    return n_outputs
 
 
 class AcousticModelV2_4(AcousticModelBase2):

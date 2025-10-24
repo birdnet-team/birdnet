@@ -5,22 +5,18 @@ import shutil
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, Any, Literal
 
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.backends import (
-  InferenceBackend,
-  TFInferenceBackend,
+  TFInferenceBackend2,
+  VersionedInferenceBackendProtocol,
   check_tf_model_can_be_loaded,
 )
-from birdnet.geo_models.inference.prediction_result import PredictionResult
-from birdnet.geo_models.v2_4.base import GeoDownloaderBaseV2_4, GeoModelBaseV2_4
+from birdnet.geo_models.v2_4.base import GeoDownloaderBaseV2_4
 from birdnet.globals import (
   LIBRARY_TYPES,
-  MODEL_BACKEND_TF,
-  MODEL_BACKENDS,
-  MODEL_LANGUAGES,
   MODEL_PRECISION_FP32,
 )
 from birdnet.helper import (
@@ -46,17 +42,8 @@ model_info = ModelInfo(
 class GeoTFDownloaderV2_4(GeoDownloaderBaseV2_4):
   @classmethod
   def _get_paths(cls) -> tuple[Path, Path]:
-    model_path = get_model_path(
-      GeoTFModelV2_4.get_model_type(),
-      GeoTFModelV2_4.get_version(),
-      GeoTFModelV2_4.get_backend(),
-      MODEL_PRECISION_FP32,
-    )
-    lang_dir = get_lang_dir(
-      GeoTFModelV2_4.get_model_type(),
-      GeoTFModelV2_4.get_version(),
-      GeoTFModelV2_4.get_backend(),
-    )
+    model_path = get_model_path("geo", "2.4", "tf", MODEL_PRECISION_FP32)
+    lang_dir = get_lang_dir("geo", "2.4", "tf")
     return model_path, lang_dir
 
   @classmethod
@@ -120,94 +107,39 @@ class GeoTFDownloaderV2_4(GeoDownloaderBaseV2_4):
     return model_path, labels
 
 
-class GeoTFModelV2_4(GeoModelBaseV2_4):
+class TFGeoInferenceBackendV2_4(TFInferenceBackend2, VersionedInferenceBackendProtocol):
   def __init__(
     self,
     model_path: Path,
-    species_list: OrderedSet[str],
-    use_custom_model: bool,
-    library: LIBRARY_TYPES,
+    inference_strategy: Literal["scores", "embeddings"],
+    device_name: str,
+    inference_library: LIBRARY_TYPES,
   ) -> None:
-    super().__init__(model_path, species_list, use_custom_model)
-    self._library = library
-
-  @final
-  @classmethod
-  def get_backend(cls) -> MODEL_BACKENDS:
-    return MODEL_BACKEND_TF
-
-  @final
-  @classmethod
-  def get_backend_type(cls) -> type[InferenceBackend]:
-    return TFInferenceBackend
-
-  @classmethod
-  def load(
-    cls,
-    lang: MODEL_LANGUAGES,
-    library: LIBRARY_TYPES,
-  ) -> GeoTFModelV2_4:
-    model_path, species_list = GeoTFDownloaderV2_4.get_model_path_and_labels(lang)
-    result = GeoTFModelV2_4(
-      model_path, species_list, use_custom_model=False, library=library
-    )
-    return result
-
-  @classmethod
-  def load_custom(
-    cls,
-    model: Path,
-    species_list: Path,
-    check_validity: bool,
-    library: LIBRARY_TYPES,
-  ) -> GeoTFModelV2_4:
-    assert model.is_file()
-    assert species_list.is_file()
-
-    loaded_species_list: OrderedSet[str]
-    try:
-      loaded_species_list = get_species_from_file(species_list, encoding="utf8")
-    except Exception as e:
-      raise ValueError(
-        f"Failed to read species list from '{species_list.absolute()}'. Ensure it is a valid text file."
-      ) from e
-
-    if check_validity:
-      n_species_in_model = check_tf_model_can_be_loaded(
-        model, library, out_idx=MODEL_LOGITS_IDX
+    in_idx = 0
+    if inference_strategy == "scores":
+      out_idx = 62
+    elif inference_strategy == "embeddings":
+      raise NotImplementedError(
+        "Embeddings inference is not implemented for Geo TF models yet."
       )
-      if n_species_in_model != len(loaded_species_list):
-        raise ValueError(
-          f"Model '{model.absolute()}' has {n_species_in_model} outputs, but species list '{species_list.absolute()}' has {len(loaded_species_list)} species!"
-        )
+    else:
+      raise AssertionError()
 
-    result = GeoTFModelV2_4(
-      model, loaded_species_list, use_custom_model=True, library=library
+    super().__init__(
+      model_path,
+      in_idx,
+      out_idx,
+      device_name,
+      inference_library,
     )
 
-    return result
-
-  def predict(
-    self,
-    latitude: float,
-    longitude: float,
-    /,
-    *,
-    week: int | None = None,
-    min_confidence: float = 0.03,
-    half_precision: bool = True,
-  ) -> PredictionResult:
-    return super()._predict(
-      latitude,
-      longitude,
-      {
-        "model_path": self.model_path,
-        "inference_library": self._library,
-        "in_idx": 0,
-        "out_idx": MODEL_LOGITS_IDX,
-      },
-      week=week,
-      min_confidence=min_confidence,
-      device="CPU",
-      half_precision=half_precision,
+  @classmethod
+  def check_model_can_be_loaded(
+    cls,
+    model_path: Path,
+    **kwargs: Any,
+  ) -> int | None:
+    n_outputs = check_tf_model_can_be_loaded(
+      model_path=model_path, out_idx=62, **kwargs
     )
+    return n_outputs

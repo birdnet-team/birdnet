@@ -1,10 +1,6 @@
 from os import PathLike
 from typing import Literal, overload
 
-from birdnet.acoustic_models.v2_4.pb import AcousticPBModelV2_4
-from birdnet.acoustic_models.v2_4.tf import AcousticTFModelV2_4
-from birdnet.geo_models.v2_4.pb import GeoPBModelV2_4
-from birdnet.geo_models.v2_4.tf import GeoTFModelV2_4
 from birdnet.globals import (
   LIBRARY_TF,
   LIBRARY_TYPES,

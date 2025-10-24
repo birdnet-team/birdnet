@@ -3,8 +3,8 @@ from pathlib import Path
 
 from ordered_set import OrderedSet
 
-from birdnet2.base import ModelBase, PredictionResultBase
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS, MODEL_PRECISIONS
+from birdnet2.base import ModelBase
 
 
 class AcousticModelBase(ModelBase):

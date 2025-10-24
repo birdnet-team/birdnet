@@ -3,7 +3,9 @@ from __future__ import annotations
 import multiprocessing as mp
 import os
 import threading
-import time
+from pathlib import Path
+
+from ordered_set import OrderedSet
 
 import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.inference.consumer import Consumer
@@ -50,10 +52,10 @@ class ProcessManager:
       target=bn_logging.QueueFileWriter(
         log_queue=self._res.logging_resources.logging_queue,
         logging_level=self._res.logging_resources.logging_level,
-        log_file=self._res.logging_resources.log_file,
-        cancel_event=self._res.processing_state.cancel_event,
+        log_file=self._res.logging_resources.session_log_file,
+        cancel_event=self._res.processing_resources.cancel_event,
         stop_event=self._res.logging_resources.stop_logging_event,
-        processing_finished_event=self._res.processing_state.processing_finished_event,
+        processing_finished_event=self._res.processing_resources.processing_finished_event,
       ),
       name="QueueFileWriter",
       daemon=True,
@@ -67,20 +69,20 @@ class ProcessManager:
     assert self._res.stats_resources.track_performance
     assert self._res.stats_resources.sem_active_workers is not None
     assert self._res.stats_resources.perf_res_queue is not None
+    assert self._res.stats_resources.perf_res_start_signal is not None
     assert self._res.stats_resources.wkr_stats_queue is not None
     assert self._res.stats_resources.prd_stats_queue is not None
 
     perf_tracker_proc = mp.Process(
       target=PerformanceTracker(
         pred_dur_queue=self._res.stats_resources.wkr_stats_queue,
-        processing_finished_event=self._res.processing_state.processing_finished_event,
+        processing_finished_event=self._res.processing_resources.processing_finished_event,
         update_interval=0.5,
         print_interval=1,
         prod_stats_queue=self._res.stats_resources.prd_stats_queue,
         n_workers=self._cfg.processing_conf.workers,
         start=self._res.stats_resources.start,
         sem_filled_slots=self._res.ring_buffer_resources.sem_filled_slots,
-        workers_start=time.perf_counter(),
         segment_size_s=self._cfg.model_conf.segment_size_s,
         logging_queue=self._res.logging_resources.logging_queue,
         logging_level=self._res.logging_resources.logging_level,
@@ -88,8 +90,10 @@ class ProcessManager:
         parent_process_id=os.getpid(),
         rf_flags=self._res.ring_buffer_resources.rf_flags,
         tot_n_segments_ptr=self._res.analyzer_resources.tot_n_segments_ptr,
-        cancel_event=self._res.processing_state.cancel_event,
+        cancel_event=self._res.processing_resources.cancel_event,
         sem_active_workers=self._res.stats_resources.sem_active_workers,
+        end_event=self._res.processing_resources.end_event,
+        start_signal=self._res.stats_resources.perf_res_start_signal,
       ),
       name="PerformanceTracker",
       daemon=True,
@@ -103,7 +107,7 @@ class ProcessManager:
   def start_file_analyzer(self) -> threading.Thread:
     file_analyzer_proc = threading.Thread(
       target=FilesAnalyzer(
-        files=self._res.analyzer_resources.file_paths,
+        # files=self._res.analyzer_resources.file_paths,
         logging_level=self._res.logging_resources.logging_level,
         logging_queue=self._res.logging_resources.logging_queue,
         segment_duration_s=self._cfg.model_conf.segment_size_s,
@@ -112,7 +116,12 @@ class ProcessManager:
         rf_segment_indices=self._res.ring_buffer_resources.rf_segment_indices,
         analyzing_result=self._res.analyzer_resources.analyzer_queue,
         tot_n_segments=self._res.analyzer_resources.tot_n_segments_ptr,
-        cancel_event=self._res.processing_state.cancel_event,
+        cancel_event=self._res.processing_resources.cancel_event,
+        end_event=self._res.processing_resources.end_event,
+        input_files_queue=self._res.analyzer_resources.input_files_queue,
+        finished=self._res.analyzer_resources.finished,
+        start_signal=self._res.analyzer_resources.start_signal,
+        state=self._res.analyzer_resources.state,
       ),
       name="FileAnalyzer",
       daemon=True,
@@ -134,7 +143,7 @@ class ProcessManager:
         target=Producer(
           files_queue=self._res.producer_resources.files_queue,
           batch_size=self._cfg.processing_conf.batch_size,
-          prd_all_done_event=self._res.producer_resources.prd_all_done_event,
+          all_finished=self._res.producer_resources.all_finished,
           n_slots=self._cfg.processing_conf.n_slots,
           prd_ring_access_lock=self._res.producer_resources.ring_access_lock,
           prod_stats_queue=self._res.stats_resources.prd_stats_queue,
@@ -158,7 +167,9 @@ class ProcessManager:
           max_segment_idx_ptr=self._res.analyzer_resources.max_segment_idx_ptr,
           prod_done_ptr=self._res.producer_resources.n_finished_pointer,
           n_feeders=self._res.producer_resources.n_producers,
-          cancel_event=self._res.processing_state.cancel_event,
+          cancel_event=self._res.processing_resources.cancel_event,
+          end_event=self._res.processing_resources.end_event,
+          start_signal=self._res.producer_resources.start_signals[i],
         ),
         name=f"Producer-{i}",
         daemon=True,
@@ -175,7 +186,9 @@ class ProcessManager:
 
   def start_workers(self) -> list[mp.Process]:
     try:
-      self._res.worker_resources.backend_loader.on_before_worker_initialized()
+      self._res.worker_resources.backend_loader.on_before_worker_initialized(
+        self._res.worker_resources.devices
+      )
     except Exception as exc:
       raise RuntimeError(f"Error during backend initialization: {exc}")
 
@@ -197,12 +210,35 @@ class ProcessManager:
     self._worker_processes = worker_processes
     return worker_processes
 
+  def start_processing(self, file_paths: OrderedSet[Path]) -> None:
+    res = self._res
+    # start file analyzer
+    res.analyzer_resources.start_signal.set()
+    res.analyzer_resources.input_files_queue.put(file_paths)
+
+    # start producers
+    for i in range(res.producer_resources.n_producers):
+      res.producer_resources.start_signals[i].set()
+    for file_idx, file_path in enumerate(file_paths):
+      res.producer_resources.files_queue.put((file_idx, file_path), block=False)
+    for _ in range(res.producer_resources.n_producers):
+      res.producer_resources.files_queue.put(None, block=False)
+
+    # start workers
+    for i in range(self._cfg.processing_conf.workers):
+      res.worker_resources.start_signals[i].set()
+
+    # start performance tracker
+    if res.stats_resources.track_performance:
+      assert res.stats_resources.perf_res_start_signal is not None
+      res.stats_resources.perf_res_start_signal.set()
+
   def run_consumer(self, result_tensor: TensorBase) -> None:
     consumer = Consumer(
       n_workers=self._cfg.processing_conf.workers,
       worker_queue=self._res.worker_resources.results_queue,
       tensor=result_tensor,
-      cancel_event=self._res.processing_state.cancel_event,
+      cancel_event=self._res.processing_resources.cancel_event,
     )
     consumer()
 

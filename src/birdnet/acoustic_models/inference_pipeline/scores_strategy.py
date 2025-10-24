@@ -21,9 +21,6 @@ from birdnet.acoustic_models.inference_pipeline.configs import (
   PredictionConfig,
   ScoresConfig,
 )
-from birdnet.acoustic_models.inference_pipeline.pipeline import (
-  predict_from_recordings_generic,
-)
 from birdnet.acoustic_models.inference_pipeline.resources import (
   PipelineResources,
 )
@@ -71,9 +68,10 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
     config: PredictionConfig,
     specific_config: ScoresConfig,
     resources: PipelineResources,
+    n_files: int,
   ) -> ScoresTensor:
     return ScoresTensor(
-      resources.analyzer_resources.n_files,
+      n_files,
       top_k=self.get_top_k(config, specific_config),
       n_species=config.model_conf.n_species,
       prob_dtype=config.processing_conf.result_dtype,
@@ -113,7 +111,7 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
         out_q=resources.worker_resources.results_queue,
         logging_queue=resources.logging_resources.logging_queue,
         logging_level=resources.logging_resources.logging_level,
-        prd_all_done_event=resources.producer_resources.prd_all_done_event,
+        all_producers_finished=resources.producer_resources.all_finished,
         rf_file_indices=resources.ring_buffer_resources.rf_file_indices,
         rf_segment_indices=resources.ring_buffer_resources.rf_segment_indices,
         rf_audio_samples=resources.ring_buffer_resources.rf_audio_samples,
@@ -125,8 +123,10 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
         prob_dtype=config.processing_conf.result_dtype,
         sigmoid_sensitivity=specific_config.sigmoid_sensitivity,
         wkr_stats_queue=resources.stats_resources.wkr_stats_queue,
-        cancel_event=resources.processing_state.cancel_event,
+        cancel_event=resources.processing_resources.cancel_event,
         sem_active_workers=resources.stats_resources.sem_active_workers,
+        end_event=resources.processing_resources.end_event,
+        start_signal=resources.worker_resources.start_signals[i],
       )
       for i in range(config.processing_conf.workers)
     ]
@@ -136,12 +136,13 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
     tensor: ScoresTensor,
     config: PredictionConfig,
     resources: PipelineResources,
+    files: OrderedSet[Path],
   ) -> PredictionResult:
     assert resources.analyzer_resources.file_durations is not None
 
     return PredictionResult(
       tensor=tensor,
-      files=resources.analyzer_resources.file_paths,
+      files=files,
       segment_duration_s=config.model_conf.segment_size_s,
       overlap_duration_s=config.processing_conf.overlap_duration_s,
       species_list=config.model_conf.species_list,
@@ -261,17 +262,16 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
       mem_shm_slots_average_busy=perf_result.avg_busy_slots,
       mem_shm_slots_average_buffered=perf_result.avg_preloaded_slots,
       worker_busy_average=perf_result.avg_busy_workers,
-      _time_rampup_first_prediction_s=perf_result.ramp_up_time_until_first_pred_s,
       file_batches_processed=perf_result.total_batches_processed,
       speed_worker_xrt=perf_result.worker_speed_xrt,
       speed_worker_xrt_max=perf_result.worker_speed_xrt_max,
-      model_backend=config.model_conf.backend,
+      model_backend="",  # str(config.model_conf.backend_loader.backend),  # TODO
       model_sample_rate=config.model_conf.sample_rate,
       model_sig_fmin=config.model_conf.sig_fmin,
       model_sig_fmax=config.model_conf.sig_fmax,
       worker_wait_time_average_milliseconds=perf_result.avg_wait_time_ms,
       file_formats=get_file_formats(OrderedSet(Path(x) for x in pred_result.files)),
-      param_inference_library=config.model_conf.backend_kwargs.get("inference_library"),
+      param_inference_library="",  # TODO config.model_conf.backend_kwargs.get("inference_library"   ),  # TODO
     )
 
   def get_benchmark_dir_name(self) -> str:
@@ -284,14 +284,6 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
     csv_path = benchmark_run_out_dir / f"result-{iso_time}.csv"
     result.to_csv(csv_path, encoding="utf-8", silent=False)
     return [csv_path]
-
-
-def predict_species_from_recordings(
-  conf: PredictionConfig,
-  scores_conf: ScoresConfig,
-) -> PredictionResult:
-  strategy = ScoresStrategy()
-  return predict_from_recordings_generic(conf, strategy, scores_conf)
 
 
 def create_thresholds(

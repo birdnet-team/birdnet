@@ -60,4 +60,3 @@ class Consumer:
         f"CONSUMER - Received block with {len(block)} values from worker. Total received: {n_received_predictions}"
       )
       self._tensor.write_block(*block)
-    

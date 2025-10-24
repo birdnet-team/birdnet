@@ -4,20 +4,17 @@ import shutil
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import final
+from typing import Any, Literal
 
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.backends import (
-  InferenceBackend,
-  PBInferenceBackend,
+  PBInferenceBackend2,
+  VersionedInferenceBackendProtocol,
   check_pb_model_can_be_loaded,
 )
-from birdnet.geo_models.inference.prediction_result import PredictionResult
-from birdnet.geo_models.v2_4.base import GeoDownloaderBaseV2_4, GeoModelBaseV2_4
+from birdnet.geo_models.v2_4.base import GeoDownloaderBaseV2_4
 from birdnet.globals import (
-  MODEL_BACKEND_PB,
-  MODEL_BACKENDS,
   MODEL_PRECISION_FP32,
 )
 from birdnet.helper import check_protobuf_model_files_exist
@@ -28,17 +25,8 @@ from birdnet.utils import download_file_tqdm, get_species_from_file
 class GeoPBDownloaderV2_4(GeoDownloaderBaseV2_4):
   @classmethod
   def _get_paths(cls) -> tuple[Path, Path]:
-    model_path = get_model_path(
-      GeoPBModelV2_4.get_model_type(),
-      GeoPBModelV2_4.get_version(),
-      GeoPBModelV2_4.get_backend(),
-      MODEL_PRECISION_FP32,
-    )
-    lang_dir = get_lang_dir(
-      GeoPBModelV2_4.get_model_type(),
-      GeoPBModelV2_4.get_version(),
-      GeoPBModelV2_4.get_backend(),
-    )
+    model_path = get_model_path("geo", "2.4", "pb", MODEL_PRECISION_FP32)
+    lang_dir = get_lang_dir("geo", "2.4", "pb")
     return model_path, lang_dir
 
   @classmethod
@@ -105,89 +93,41 @@ class GeoPBDownloaderV2_4(GeoDownloaderBaseV2_4):
     return model_dir, labels
 
 
-class GeoPBModelV2_4(GeoModelBaseV2_4):
+class PBGeoInferenceBackendV2_4(PBInferenceBackend2, VersionedInferenceBackendProtocol):
   def __init__(
-    self, model_path: Path, species_list: OrderedSet[str], use_custom_model: bool
-  ) -> None:
-    super().__init__(model_path, species_list, use_custom_model)
-
-  @classmethod
-  @final
-  def get_backend(cls) -> MODEL_BACKENDS:
-    return MODEL_BACKEND_PB
-
-  @final
-  @classmethod
-  def get_backend_type(cls) -> type[InferenceBackend]:
-    return PBInferenceBackend
-
-  @classmethod
-  def load(cls, lang: str) -> GeoPBModelV2_4:
-    model_path, species_list = GeoPBDownloaderV2_4.get_model_path_and_labels(lang)
-    result = GeoPBModelV2_4(
-      model_path=model_path,
-      species_list=species_list,
-      use_custom_model=False,
-    )
-    return result
-
-  @classmethod
-  def load_custom(
-    cls, model: Path, species_list: Path, check_validity: bool
-  ) -> GeoPBModelV2_4:
-    assert model.is_dir()
-    assert species_list.is_file()
-
-    loaded_species_list: OrderedSet[str]
-    try:
-      loaded_species_list = get_species_from_file(species_list, encoding="utf8")
-    except Exception as e:
-      raise ValueError(
-        f"Failed to read species list from '{species_list.absolute()}'. Ensure it is a valid text file."
-      ) from e
-
-    if not check_protobuf_model_files_exist(model):
-      raise ValueError(
-        f"Model directory '{model.absolute()}' does not contain the required files for a Protobuf model!"
-      )
-
-    if check_validity:
-      n_species_in_model = check_pb_model_can_be_loaded(
-        model, "serving_default", "MNET_CLASS_ACTIVATION"
-      )
-      if n_species_in_model != len(loaded_species_list):
-        raise ValueError(
-          f"Model '{model.absolute()}' has {n_species_in_model} outputs, but species list '{species_list.absolute()}' has {len(loaded_species_list)} species!"
-        )
-
-    result = GeoPBModelV2_4(
-      model_path=model, species_list=loaded_species_list, use_custom_model=True
-    )
-
-    return result
-
-  def predict(
     self,
-    latitude: float,
-    longitude: float,
-    /,
-    *,
-    week: int | None = None,
-    min_confidence: float = 0.03,
-    half_precision: bool = True,
-    device: str = "CPU",
-  ) -> PredictionResult:
-    return super()._predict(
-      latitude,
-      longitude,
-      {
-        "model_path": self.model_path,
-        "signature_name": "serving_default",
-        "prediction_key": "MNET_CLASS_ACTIVATION",
-        "input_key": "MNET_INPUT",
-      },
-      week=week,
-      min_confidence=min_confidence,
-      device=device,
-      half_precision=half_precision,
+    model_path: Path,
+    inference_strategy: Literal["scores", "embeddings"],
+    device_name: str,
+  ) -> None:
+    if inference_strategy == "scores":
+      signature_name = "serving_default"
+      prediction_key = "MNET_CLASS_ACTIVATION"
+      input_key = "MNET_INPUT"
+    elif inference_strategy == "embeddings":
+      raise NotImplementedError(
+        "Embeddings inference is not implemented for Geo PB models yet."
+      )
+    else:
+      raise AssertionError()
+
+    super().__init__(
+      model_path,
+      signature_name,
+      prediction_key,
+      input_key,
+      device_name,
     )
+
+  @classmethod
+  def check_model_can_be_loaded(
+    cls,
+    model_path: Path,
+    **kwargs: Any,
+  ) -> int | None:
+    n_outputs = check_pb_model_can_be_loaded(
+      model_path,
+      "serving_default",
+      "MNET_CLASS_ACTIVATION",
+    )
+    return n_outputs

@@ -103,4 +103,3 @@ class ScoresTensor(TensorBase):
     self._species_ids[file_indices, segment_indices] = top_k_species
     self._species_probs[file_indices, segment_indices] = top_k_scores
     self._species_masked[file_indices, segment_indices] = top_k_mask
-

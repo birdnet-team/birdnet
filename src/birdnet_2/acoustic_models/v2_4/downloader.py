@@ -4,51 +4,18 @@ import os
 import shutil
 import tempfile
 import zipfile
-from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Collection, Literal, final
+from typing import TYPE_CHECKING
 
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.backends import (
-  InferenceBackend,
-  PBInferenceBackend,
-  TFInferenceBackend,
-  check_pb_model_can_be_loaded,
-  check_tf_model_can_be_loaded,
-)
-from birdnet.acoustic_models.inference.emb.encoding_result import (
-  EncodingResult,
-)
-from birdnet.acoustic_models.inference.scores.prediction_result import (
-  PredictionResult,
-)
-from birdnet.acoustic_models.inference_pipeline.configs import (
-  EmbeddingsConfig,
-  FilteringConfig,
-  ModelConfig,
-  OutputConfig,
-  PredictionConfig,
-  ProcessingConfig,
-  ScoresConfig,
-)
-from birdnet.acoustic_models.inference_pipeline.emb_strategy import (
-  predict_embeddings_from_recordings,
-)
-from birdnet.acoustic_models.inference_pipeline.scores_strategy import (
-  predict_species_from_recordings,
-)
 from birdnet.acoustic_models.v2_4.base import (
   AcousticDownloaderBaseV2_4,
-  AcousticModelBaseV2_4,
 )
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V2_4,
-  LIBRARY_TYPES,
   MODEL_BACKEND_PB,
   MODEL_BACKEND_TF,
-  MODEL_BACKENDS,
-  MODEL_LANGUAGES,
   MODEL_PRECISION_FP16,
   MODEL_PRECISION_FP32,
   MODEL_PRECISION_INT8,
