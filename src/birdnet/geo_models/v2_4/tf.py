@@ -11,7 +11,7 @@ from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.backends import (
   TFInferenceBackend2,
-  VersionedInferenceBackendProtocol,
+  VersionedGeoInferenceBackendProtocol,
   check_tf_model_can_be_loaded,
 )
 from birdnet.geo_models.v2_4.base import GeoDownloaderBaseV2_4
@@ -107,7 +107,9 @@ class GeoTFDownloaderV2_4(GeoDownloaderBaseV2_4):
     return model_path, labels
 
 
-class TFGeoInferenceBackendV2_4(TFInferenceBackend2, VersionedInferenceBackendProtocol):
+class TFGeoInferenceBackendV2_4(
+  TFInferenceBackend2, VersionedGeoInferenceBackendProtocol
+):
   def __init__(
     self,
     model_path: Path,

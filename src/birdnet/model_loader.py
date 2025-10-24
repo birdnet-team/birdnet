@@ -2,7 +2,7 @@ from os import PathLike
 from pathlib import Path
 from typing import Any, cast
 
-from birdnet.acoustic_models.base import AcousticModelBase2
+from birdnet.acoustic_models.base import AcousticModelBase
 from birdnet.acoustic_models.inference.backends import (
   litert_installed,
   tf_installed,
@@ -18,7 +18,7 @@ from birdnet.acoustic_models.v2_4.tf import (
   AcousticTFDownloaderV2_4,
   TFAcousticInferenceBackendV2_4,
 )
-from birdnet.base import ModelBase2
+from birdnet.base import ModelBase
 from birdnet.geo_models.base import GeoModelBase2
 from birdnet.geo_models.v2_4.base import (
   GeoModelV2_4,
@@ -177,7 +177,7 @@ def load(
   precision: str = MODEL_PRECISION_FP32,
   lang: str = MODEL_LANGUAGE_EN_US,
   **model_kwargs: object,
-) -> ModelBase2:
+) -> ModelBase:
   model_type = _validate_model_type(model_type)
   backend = _validate_backend(backend)
   precision = _validate_precision(precision)
@@ -211,7 +211,7 @@ def _load_acoustic_model(
   precision: MODEL_PRECISIONS,
   lang: MODEL_LANGUAGES,
   **model_kwargs: object,
-) -> AcousticModelBase2:
+) -> AcousticModelBase:
   if version == ACOUSTIC_MODEL_VERSION_V2_4:
     return _load_acoustic_model_V2_4(
       backend=backend,
@@ -326,7 +326,7 @@ def load_custom(
   precision: str = MODEL_PRECISION_FP32,
   check_validity: bool = True,
   **model_kwargs: object,
-) -> ModelBase2:
+) -> ModelBase:
   model_type = _validate_model_type(model_type)
   backend = _validate_backend(backend)
   model = _validate_path(model)
@@ -367,7 +367,7 @@ def _load_custom_acoustic_model(
   species_list: Path,
   check_validity: bool,
   **model_kwargs: object,
-) -> AcousticModelBase2:
+) -> AcousticModelBase:
   if version == ACOUSTIC_MODEL_VERSION_V2_4:
     return _load_custom_acoustic_model_V2_4(
       backend=backend,

@@ -20,7 +20,7 @@ class PredictionResultBase:
   def memory_size_mb(self) -> float: ...
 
 
-class ModelBase2(ABC):
+class ModelBase(ABC):
   def __init__(
     self,
     model_path: Path,

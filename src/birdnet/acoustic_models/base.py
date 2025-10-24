@@ -3,11 +3,11 @@ from pathlib import Path
 
 from ordered_set import OrderedSet
 
-from birdnet.base import ModelBase2, PredictionResultBase
+from birdnet.base import ModelBase, PredictionResultBase
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS, MODEL_PRECISIONS
 
 
-class AcousticModelBase2(ModelBase2):
+class AcousticModelBase(ModelBase):
   def __init__(
     self,
     model_path: Path,

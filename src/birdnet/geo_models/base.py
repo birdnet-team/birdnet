@@ -3,11 +3,11 @@ from pathlib import Path
 
 from ordered_set import OrderedSet
 
-from birdnet.base import ModelBase2
+from birdnet.base import ModelBase
 from birdnet.globals import GEO_MODEL_VERSIONS, MODEL_PRECISION_FP32
 
 
-class GeoModelBase2(ModelBase2):
+class GeoModelBase2(ModelBase):
   def __init__(
     self, model_path: Path, species_list: OrderedSet[str], use_custom_model: bool
   ) -> None:
