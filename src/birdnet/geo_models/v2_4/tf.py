@@ -5,13 +5,13 @@ import shutil
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.backends import (
-  TFInferenceBackend,
-  VersionedGeoInferenceBackendProtocol,
+  TFBackend,
+  VersionedGeoBackendProtocol,
   check_tf_model_can_be_loaded,
 )
 from birdnet.geo_models.v2_4.model import GeoDownloaderBaseV2_4
@@ -24,11 +24,6 @@ from birdnet.helper import (
 )
 from birdnet.local_data import get_lang_dir, get_model_path
 from birdnet.utils import download_file_tqdm, get_species_from_file
-
-if TYPE_CHECKING:
-  pass
-
-MODEL_LOGITS_IDX = 62
 
 # All meta models are same for all precisions and int8 is the smallest download
 model_info = ModelInfo(
@@ -107,9 +102,7 @@ class GeoTFDownloaderV2_4(GeoDownloaderBaseV2_4):
     return model_path, labels
 
 
-class TFGeoInferenceBackendV2_4(
-  TFInferenceBackend, VersionedGeoInferenceBackendProtocol
-):
+class GeoTFBackendV2_4(TFBackend, VersionedGeoBackendProtocol):
   def __init__(
     self,
     model_path: Path,

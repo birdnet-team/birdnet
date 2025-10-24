@@ -8,8 +8,8 @@ from numpy.typing import DTypeLike
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.backends import (
-  InferenceBackendLoader,
-  VersionedGeoInferenceBackendProtocol,
+  BackendLoader,
+  VersionedGeoBackendProtocol,
 )
 from birdnet.geo_models.base import GeoModelBase
 from birdnet.geo_models.inference.prediction_result import PredictionResult
@@ -63,7 +63,7 @@ class GeoModelV2_4(GeoModelBase):
     model_path: Path,
     species_list: OrderedSet[str],
     use_custom_model: bool,
-    backend_type: type[VersionedGeoInferenceBackendProtocol],
+    backend_type: type[VersionedGeoBackendProtocol],
     backend_custom_kwargs: dict[str, Any],
   ) -> None:
     super().__init__(model_path, species_list, use_custom_model)
@@ -75,7 +75,7 @@ class GeoModelV2_4(GeoModelBase):
     cls,
     model_path: Path,
     species_list: OrderedSet[str],
-    backend_type: type[VersionedGeoInferenceBackendProtocol],
+    backend_type: type[VersionedGeoBackendProtocol],
     backend_custom_kwargs: dict[str, Any],
   ) -> GeoModelV2_4:
     result = GeoModelV2_4(
@@ -92,7 +92,7 @@ class GeoModelV2_4(GeoModelBase):
     cls,
     model_path: Path,
     species_list: Path,
-    backend_type: type[VersionedGeoInferenceBackendProtocol],
+    backend_type: type[VersionedGeoBackendProtocol],
     backend_custom_kwargs: dict[str, Any],
     check_validity: bool,
   ) -> GeoModelV2_4:
@@ -174,7 +174,7 @@ class GeoModelV2_4(GeoModelBase):
 
     prob_dtype: DTypeLike = np.float16 if half_precision else np.float32
 
-    backend_loader = InferenceBackendLoader(
+    backend_loader = BackendLoader(
       model_path=self.model_path,
       backend_type=self._backend_type,
       backend_custom_kwargs=self._backend_custom_kwargs,

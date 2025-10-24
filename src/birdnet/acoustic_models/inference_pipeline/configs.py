@@ -11,7 +11,7 @@ from numpy.typing import DTypeLike
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.backends import (
-  VersionedInferenceBackendProtocol,
+  VersionedBackendProtocol,
 )
 from birdnet.acoustic_models.inference.tensor import TensorBase
 from birdnet.base import PredictionResultBase
@@ -41,7 +41,7 @@ class ModelConfig:
   sig_fmax: int
   precision: MODEL_PRECISIONS
   is_custom: bool
-  backend_type: type[VersionedInferenceBackendProtocol]
+  backend_type: type[VersionedBackendProtocol]
   backend_kwargs: dict[str, Any]
 
   @property

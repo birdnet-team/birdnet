@@ -11,22 +11,22 @@ from birdnet.acoustic_models.v2_4.model import (
   AcousticModelV2_4,
 )
 from birdnet.acoustic_models.v2_4.pb import (
+  AcousticPBBackendV2_4,
   AcousticPBDownloaderV2_4,
-  PBAcousticInferenceBackendV2_4,
 )
 from birdnet.acoustic_models.v2_4.tf import (
+  AcousticTFBackendV2_4,
   AcousticTFDownloaderV2_4,
-  TFAcousticInferenceBackendV2_4,
 )
 from birdnet.base import ModelBase
 from birdnet.geo_models.base import GeoModelBase
 from birdnet.geo_models.v2_4.model import (
   GeoModelV2_4,
 )
-from birdnet.geo_models.v2_4.pb import GeoPBDownloaderV2_4, PBGeoInferenceBackendV2_4
+from birdnet.geo_models.v2_4.pb import GeoPBBackendV2_4, GeoPBDownloaderV2_4
 from birdnet.geo_models.v2_4.tf import (
+  GeoTFBackendV2_4,
   GeoTFDownloaderV2_4,
-  TFGeoInferenceBackendV2_4,
 )
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V2_4,
@@ -262,7 +262,7 @@ def _load_acoustic_model_V2_4(
       model_path,
       species_list,
       precision,
-      backend_type=TFAcousticInferenceBackendV2_4,
+      backend_type=AcousticTFBackendV2_4,
       backend_custom_kwargs={
         "inference_library": library,
       },
@@ -279,7 +279,7 @@ def _load_acoustic_model_V2_4(
       model_path,
       species_list,
       precision,
-      backend_type=PBAcousticInferenceBackendV2_4,
+      backend_type=AcousticPBBackendV2_4,
       backend_custom_kwargs={},
     )
   else:
@@ -300,7 +300,7 @@ def _load_geo_model_V2_4(
     return GeoModelV2_4.load(
       model_path,
       species_list,
-      backend_type=TFGeoInferenceBackendV2_4,
+      backend_type=GeoTFBackendV2_4,
       backend_custom_kwargs={
         "inference_library": library,
       },
@@ -312,7 +312,7 @@ def _load_geo_model_V2_4(
     return GeoModelV2_4.load(
       model_path,
       species_list,
-      backend_type=PBGeoInferenceBackendV2_4,
+      backend_type=GeoPBBackendV2_4,
       backend_custom_kwargs={},
     )
   else:
@@ -423,7 +423,7 @@ def _load_custom_acoustic_model_V2_4(
       model,
       species_list,
       precision,
-      backend_type=TFAcousticInferenceBackendV2_4,
+      backend_type=AcousticTFBackendV2_4,
       backend_custom_kwargs={
         "inference_library": library,
       },
@@ -441,7 +441,7 @@ def _load_custom_acoustic_model_V2_4(
       model,
       species_list,
       precision,
-      backend_type=PBAcousticInferenceBackendV2_4,
+      backend_type=AcousticPBBackendV2_4,
       backend_custom_kwargs={},
       check_validity=check_validity,
     )
@@ -464,7 +464,7 @@ def _load_custom_geo_model_V2_4(
     return GeoModelV2_4.load_custom(
       model,
       species_list,
-      backend_type=TFGeoInferenceBackendV2_4,
+      backend_type=GeoTFBackendV2_4,
       backend_custom_kwargs={
         "inference_library": library,
       },
@@ -477,7 +477,7 @@ def _load_custom_geo_model_V2_4(
     return GeoModelV2_4.load_custom(
       model,
       species_list,
-      backend_type=PBGeoInferenceBackendV2_4,
+      backend_type=GeoPBBackendV2_4,
       backend_custom_kwargs={},
       check_validity=check_validity,
     )

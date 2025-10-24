@@ -32,7 +32,7 @@ if TYPE_CHECKING:
   from tensorflow.lite.python.interpreter import Interpreter as TFInterpreter
 
 
-class InferenceBackend(ABC):
+class Backend(ABC):
   def __init__(self, model_path: Path, device_name: str) -> None:
     self._model_path = model_path
     self._device_name = device_name
@@ -52,7 +52,7 @@ class InferenceBackend(ABC):
 
 
 @runtime_checkable
-class VersionedInferenceBackendProtocol(Protocol):
+class VersionedBackendProtocol(Protocol):
   def __init__(
     self,
     model_path: Path,
@@ -78,18 +78,16 @@ class VersionedInferenceBackendProtocol(Protocol):
 
 
 @runtime_checkable
-class VersionedAcousticInferenceBackendProtocol(
-  VersionedInferenceBackendProtocol, Protocol
-):
+class VersionedAcousticBackendProtocol(VersionedBackendProtocol, Protocol):
   pass
 
 
 @runtime_checkable
-class VersionedGeoInferenceBackendProtocol(VersionedInferenceBackendProtocol, Protocol):
+class VersionedGeoBackendProtocol(VersionedBackendProtocol, Protocol):
   pass
 
 
-class TFInferenceBackend(InferenceBackend, ABC):
+class TFBackend(Backend, ABC):
   def __init__(
     self,
     model_path: Path,
@@ -155,7 +153,7 @@ class TFInferenceBackend(InferenceBackend, ABC):
     return self._infer(batch, self._emb_out_idx)
 
 
-class PBInferenceBackend(InferenceBackend, ABC):
+class PBBackend(Backend, ABC):
   def __init__(
     self,
     model_path: Path,
@@ -254,23 +252,23 @@ class PBInferenceBackend(InferenceBackend, ABC):
     return emb_np
 
 
-class InferenceBackendLoader:
+class BackendLoader:
   def __init__(
     self,
     model_path: Path,
-    backend_type: type[VersionedInferenceBackendProtocol],
+    backend_type: type[VersionedBackendProtocol],
     backend_custom_kwargs: dict[str, object],
   ) -> None:
     self._model_path = model_path
     self._backend_type = backend_type
     self._backend_kwargs = backend_custom_kwargs
 
-    self._backend: VersionedInferenceBackendProtocol | None = None
+    self._backend: VersionedBackendProtocol | None = None
 
   def unload_backend(self) -> None:
     self._backend = None
 
-  def _load_backend(self, device_name: str) -> VersionedInferenceBackendProtocol:
+  def _load_backend(self, device_name: str) -> VersionedBackendProtocol:
     assert self._backend is None
     backend = self._backend_type(
       model_path=self._model_path,
@@ -292,14 +290,14 @@ class InferenceBackendLoader:
       device_name = unique_devices.pop()
       self._load_backend(device_name)
 
-  def load_backend(self, device_name: str) -> VersionedInferenceBackendProtocol:
+  def load_backend(self, device_name: str) -> VersionedBackendProtocol:
     if self._backend is None:
       return self._load_backend(device_name)
     assert self._backend is not None
     return self._backend
 
   @property
-  def backend(self) -> VersionedInferenceBackendProtocol:
+  def backend(self) -> VersionedBackendProtocol:
     assert self._backend is not None
     return self._backend
 

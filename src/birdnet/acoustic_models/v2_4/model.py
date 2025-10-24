@@ -10,7 +10,7 @@ from birdnet.acoustic_models.base import (
   AcousticModelBase,
 )
 from birdnet.acoustic_models.inference.backends import (
-  VersionedAcousticInferenceBackendProtocol,
+  VersionedAcousticBackendProtocol,
 )
 from birdnet.acoustic_models.inference.emb.encoding_result import EncodingResult
 from birdnet.acoustic_models.inference.emb.tensor import EmbeddingsTensor
@@ -77,7 +77,7 @@ class AcousticModelV2_4(AcousticModelBase):
     species_list: OrderedSet[str],
     precision: MODEL_PRECISIONS,
     use_custom_model: bool,
-    backend_type: type[VersionedAcousticInferenceBackendProtocol],
+    backend_type: type[VersionedAcousticBackendProtocol],
     backend_custom_kwargs: dict[str, Any],
   ) -> None:
     super().__init__(model_path, species_list, precision, use_custom_model)
@@ -90,7 +90,7 @@ class AcousticModelV2_4(AcousticModelBase):
     model_path: Path,
     species_list: OrderedSet[str],
     precision: MODEL_PRECISIONS,
-    backend_type: type[VersionedAcousticInferenceBackendProtocol],
+    backend_type: type[VersionedAcousticBackendProtocol],
     backend_custom_kwargs: dict[str, Any],
   ) -> AcousticModelV2_4:
     result = AcousticModelV2_4(
@@ -109,7 +109,7 @@ class AcousticModelV2_4(AcousticModelBase):
     model_path: Path,
     species_list: Path,
     precision: MODEL_PRECISIONS,
-    backend_type: type[VersionedAcousticInferenceBackendProtocol],
+    backend_type: type[VersionedAcousticBackendProtocol],
     backend_custom_kwargs: dict[str, Any],
     check_validity: bool,
   ) -> AcousticModelV2_4:

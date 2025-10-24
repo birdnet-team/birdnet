@@ -10,8 +10,8 @@ from typing import Any
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.backends import (
-  TFInferenceBackend,
-  VersionedAcousticInferenceBackendProtocol,
+  TFBackend,
+  VersionedAcousticBackendProtocol,
   check_tf_model_can_be_loaded,
 )
 from birdnet.acoustic_models.v2_4.model import (
@@ -130,9 +130,7 @@ class AcousticTFDownloaderV2_4(AcousticDownloaderBaseV2_4):
     return model_path, labels
 
 
-class TFAcousticInferenceBackendV2_4(
-  TFInferenceBackend, VersionedAcousticInferenceBackendProtocol
-):
+class AcousticTFBackendV2_4(TFBackend, VersionedAcousticBackendProtocol):
   def __init__(
     self,
     model_path: Path,

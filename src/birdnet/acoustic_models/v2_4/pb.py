@@ -9,8 +9,8 @@ from typing import Any
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.backends import (
-  PBInferenceBackend,
-  VersionedAcousticInferenceBackendProtocol,
+  PBBackend,
+  VersionedAcousticBackendProtocol,
   check_pb_model_can_be_loaded,
 )
 from birdnet.acoustic_models.v2_4.model import (
@@ -95,9 +95,7 @@ class AcousticPBDownloaderV2_4(AcousticDownloaderBaseV2_4):
     return model_dir, labels
 
 
-class PBAcousticInferenceBackendV2_4(
-  PBInferenceBackend, VersionedAcousticInferenceBackendProtocol
-):
+class AcousticPBBackendV2_4(PBBackend, VersionedAcousticBackendProtocol):
   def __init__(
     self,
     model_path: Path,
