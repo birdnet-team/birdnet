@@ -287,15 +287,6 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
     result.to_csv(csv_path, encoding="utf-8", silent=False)
     return [csv_path]
 
-  def create_backend_loader(self, model_conf: ModelConfig) -> InferenceBackendLoader:
-    backend_loader = InferenceBackendLoader(
-      model_path=model_conf.path,
-      backend_type=model_conf.backend_type,
-      inference_strategy="scores",
-      backend_custom_kwargs=model_conf.backend_kwargs,
-    )
-    return backend_loader
-
 
 def create_thresholds(
   config: PredictionConfig, scores_config: ScoresConfig

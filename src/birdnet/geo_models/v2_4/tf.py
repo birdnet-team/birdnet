@@ -113,26 +113,16 @@ class TFGeoInferenceBackendV2_4(
   def __init__(
     self,
     model_path: Path,
-    inference_strategy: Literal["scores", "embeddings"],
     device_name: str,
     inference_library: LIBRARY_TYPES,
   ) -> None:
-    in_idx = 0
-    if inference_strategy == "scores":
-      out_idx = 62
-    elif inference_strategy == "embeddings":
-      raise NotImplementedError(
-        "Embeddings inference is not implemented for Geo TF models yet."
-      )
-    else:
-      raise AssertionError()
-
     super().__init__(
       model_path,
-      in_idx,
-      out_idx,
       device_name,
-      inference_library,
+      in_idx=0,
+      emb_out_idx=-1,  # Embeddings not supported
+      scores_out_idx=62,
+      inference_library=inference_library,
     )
 
   @classmethod

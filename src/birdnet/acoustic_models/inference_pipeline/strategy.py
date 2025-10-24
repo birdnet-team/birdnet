@@ -85,7 +85,3 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
   def save_results_extra(
     self, result: ResultType, benchmark_run_out_dir: Path, iso_time: str
   ) -> list[Path]: ...
-
-  def create_backend_loader(
-    self, model_conf: ModelConfig
-  ) -> InferenceBackendLoader: ...

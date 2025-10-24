@@ -116,12 +116,8 @@ class WorkerBase(bn_logging.LogableProcessBase):
       raise e
     self._log_debug("Model loaded.")
 
-  def _infer(self, batch: np.ndarray) -> np.ndarray:
-    assert self._backend is not None
-    res = self._backend.infer(batch)
-    assert res.dtype == np.float32
-    res = res.astype(self._infer_dtype, copy=False)
-    return res
+  @abstractmethod
+  def _infer(self, batch: np.ndarray) -> np.ndarray: ...
 
   def _load_ring_buffers(self) -> None:
     self._log_debug("Attaching ring buffers...")

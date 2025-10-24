@@ -48,9 +48,8 @@ class PredictionSession(Generic[ResultType, ConfigType, TensorType]):
   def __enter__(self):
     assert not self._is_initialized
     self._resource_manager = ResourceManager(self._conf)
-    self._backend_loader = self._strategy.create_backend_loader(self._conf.model_conf)
     res = self._resource_manager.create_resources(
-      self._strategy.get_benchmark_dir_name(), self._backend_loader
+      self._strategy.get_benchmark_dir_name()
     )
 
     self._process_manager = ProcessManager(

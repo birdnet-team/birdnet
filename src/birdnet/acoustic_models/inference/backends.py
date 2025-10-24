@@ -41,7 +41,10 @@ class InferenceBackend(ABC):
   def load(self) -> None: ...
 
   @abstractmethod
-  def infer(self, batch: np.ndarray) -> np.ndarray: ...
+  def predict(self, batch: np.ndarray) -> np.ndarray: ...
+
+  @abstractmethod
+  def embed(self, batch: np.ndarray) -> np.ndarray: ...
 
   @classmethod
   @abstractmethod
@@ -53,14 +56,15 @@ class VersionedInferenceBackendProtocol(Protocol):
   def __init__(
     self,
     model_path: Path,
-    inference_strategy: Literal["scores", "embeddings"],
     device_name: str,
     **kwargs: Any,
   ) -> None: ...
 
   def load(self) -> None: ...
 
-  def infer(self, batch: np.ndarray) -> np.ndarray: ...
+  def predict(self, batch: np.ndarray) -> np.ndarray: ...
+
+  def embed(self, batch: np.ndarray) -> np.ndarray: ...
 
   @classmethod
   def supports_cow(cls) -> bool: ...
@@ -85,23 +89,14 @@ class VersionedGeoInferenceBackendProtocol(VersionedInferenceBackendProtocol, Pr
   pass
 
 
-# class VersionedInferenceBackendClass(InferenceBackend2, ABC):
-#   def __init__(
-#     self,
-#     model_path: Path,
-#     inference_strategy: Literal["scores", "embeddings"],
-#     device_name: str,
-#     **kwargs: Any,
-#   ) -> None: ...
-
-
 class TFInferenceBackend(InferenceBackend, ABC):
   def __init__(
     self,
     model_path: Path,
-    in_idx: int,
-    out_idx: int,
     device_name: str,
+    in_idx: int,
+    scores_out_idx: int,
+    emb_out_idx: int,
     inference_library: LIBRARY_TYPES,
   ) -> None:
     assert device_name == "CPU"
@@ -109,7 +104,8 @@ class TFInferenceBackend(InferenceBackend, ABC):
     self._interp: LiteRTInterpreter | TFInterpreter | None = None
     self._inference_library: LIBRARY_TYPES = inference_library
     self._in_idx: int = in_idx
-    self._out_idx: int = out_idx
+    self._scores_out_idx: int = scores_out_idx
+    self._emb_out_idx: int = emb_out_idx
     self._cached_shape: tuple[int, ...] | None = None
 
   @final
@@ -140,33 +136,45 @@ class TFInferenceBackend(InferenceBackend, ABC):
     # self._in_view[:n, :] = batch
     self._interp.set_tensor(self._in_idx, batch)
 
-  @final
-  def infer(self, batch: np.ndarray) -> np.ndarray:
+  def _infer(self, batch: np.ndarray, out_idx: int) -> np.ndarray:
     # TODO: implement load on different CPUs
     assert self._interp is not None
 
     self._set_tensor(batch)
     self._interp.invoke()
-    res: np.ndarray = self._interp.get_tensor(self._out_idx)
+    res: np.ndarray = self._interp.get_tensor(out_idx)
     assert res.dtype == np.float32
     return res
+
+  @final
+  def predict(self, batch: np.ndarray) -> np.ndarray:
+    return self._infer(batch, self._scores_out_idx)
+
+  @final
+  def embed(self, batch: np.ndarray) -> np.ndarray:
+    return self._infer(batch, self._emb_out_idx)
 
 
 class PBInferenceBackend(InferenceBackend, ABC):
   def __init__(
     self,
     model_path: Path,
-    signature_name: str,
-    prediction_key: str,
-    input_key: str,
     device_name: str,
+    input_key: str,
+    scores_signature_name: str,
+    scores_prediction_key: str,
+    emb_signature_name: str,
+    emb_prediction_key: str,
   ) -> None:
     super().__init__(model_path, device_name)
     self._logical_device: Any | None = None
-    self._infer_fn: Callable | None = None
+    self._predict_fn: Callable | None = None
+    self._emb_fn: Callable | None = None
     self._cached_device_name: str | None = None
-    self._signature_name = signature_name
-    self._prediction_key = prediction_key
+    self._scores_signature_name = scores_signature_name
+    self._scores_prediction_key = scores_prediction_key
+    self._emb_signature_name = emb_signature_name
+    self._emb_prediction_key = emb_prediction_key
     self._input_key = input_key
 
   @final
@@ -177,7 +185,9 @@ class PBInferenceBackend(InferenceBackend, ABC):
   @final
   def load(self) -> None:
     model = load_pb_model(self._model_path)
-    self._infer_fn = model.signatures[self._signature_name]  # type: ignore
+    self._predict_fn = model.signatures[self._scores_signature_name]  # type: ignore
+    print(model.signatures)
+    self._emb_fn = model.signatures[self._emb_signature_name]  # type: ignore
 
     self._set_logical_device(self._device_name)
 
@@ -216,41 +226,55 @@ class PBInferenceBackend(InferenceBackend, ABC):
       raise AssertionError()
 
   @final
-  def infer(self, batch: np.ndarray) -> np.ndarray:
+  def predict(self, batch: np.ndarray) -> np.ndarray:
     assert self._logical_device is not None
-    assert self._infer_fn is not None
+    assert self._predict_fn is not None
     from tensorflow import Tensor, device, float32
 
     with device(self._logical_device.name):  # type: ignore
       # prediction = self._audio_model.basic(batch)["scores"]
-      predictions = self._infer_fn(**{self._input_key: batch})
-    scores: Tensor = predictions[self._prediction_key]
+      predictions = self._predict_fn(**{self._input_key: batch})
+    scores: Tensor = predictions[self._scores_prediction_key]
     assert scores.dtype == float32
     scores_np = scores.numpy()  # type: ignore
     assert scores_np.dtype == np.float32
     return scores_np
+
+  @final
+  def embed(self, batch: np.ndarray) -> np.ndarray:
+    assert self._logical_device is not None
+    assert self._emb_fn is not None
+    from tensorflow import Tensor, device, float32
+
+    with device(self._logical_device.name):  # type: ignore
+      predictions = self._emb_fn(**{self._input_key: batch})
+    emb: Tensor = predictions[self._emb_prediction_key]
+    assert emb.dtype == float32
+    emb_np = emb.numpy()  # type: ignore
+    assert emb_np.dtype == np.float32
+    return emb_np
 
 
 class InferenceBackendLoader:
   def __init__(
     self,
     model_path: Path,
-    inference_strategy: Literal["scores", "embeddings"],
     backend_type: type[VersionedInferenceBackendProtocol],
     backend_custom_kwargs: dict[str, object],
   ) -> None:
     self._model_path = model_path
-    self._inference_strategy: Literal["scores", "embeddings"] = inference_strategy
     self._backend_type = backend_type
     self._backend_kwargs = backend_custom_kwargs
 
     self._backend: VersionedInferenceBackendProtocol | None = None
 
+  def unload_backend(self) -> None:
+    self._backend = None
+
   def _load_backend(self, device_name: str) -> VersionedInferenceBackendProtocol:
     assert self._backend is None
     backend = self._backend_type(
       model_path=self._model_path,
-      inference_strategy=self._inference_strategy,
       device_name=device_name,
       **self._backend_kwargs,
     )

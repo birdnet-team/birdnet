@@ -74,3 +74,10 @@ class EmbeddingsWorker(WorkerBase):
     infer_result: np.ndarray,
   ) -> tuple[np.ndarray, ...]:
     return (file_indices, segment_indices, infer_result)
+
+  def _infer(self, batch: np.ndarray) -> np.ndarray:
+    assert self._backend is not None
+    res = self._backend.embed(batch)
+    assert res.dtype == np.float32
+    res = res.astype(self._infer_dtype, copy=False)
+    return res

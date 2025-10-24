@@ -61,16 +61,14 @@ class ResourceManager:
     self.conf = conf
     self._resources: PipelineResources | None = None
 
-  def create_resources(
-    self, benchmark_dir_name: str, backend_loader: InferenceBackendLoader
-  ) -> PipelineResources:
+  def create_resources(self, benchmark_dir_name: str) -> PipelineResources:
     assert self._resources is None
     stats_resources = StatisticsResources.create(self.conf, benchmark_dir_name)
     logging_resources = LoggingResources.create(stats_resources)
     processing_resources = ProcessingResources.create()
     analyzer_resources = FilesAnalyzerResources.create(self.conf)
     producer_resources = ProducerResources.create(self.conf)
-    worker_resources = WorkerResources.create(self.conf, backend_loader)
+    worker_resources = WorkerResources.create(self.conf)
     buf_resources = RingBufferResources.create(self.conf, analyzer_resources)
 
     self._resources = PipelineResources(
@@ -207,14 +205,18 @@ class WorkerResources:
   start_signals: list[multiprocessing.synchronize.Event]
 
   @classmethod
-  def create(
-    cls, config: PredictionConfig, backend_loader: InferenceBackendLoader
-  ) -> WorkerResources:
+  def create(cls, config: PredictionConfig) -> WorkerResources:
     n_workers = config.processing_conf.workers
     devices = (
       config.processing_conf.device
       if isinstance(config.processing_conf.device, list)
       else [config.processing_conf.device] * n_workers
+    )
+
+    backend_loader = InferenceBackendLoader(
+      model_path=config.model_conf.path,
+      backend_type=config.model_conf.backend_type,
+      backend_custom_kwargs=config.model_conf.backend_kwargs,
     )
 
     return WorkerResources(
@@ -226,6 +228,7 @@ class WorkerResources:
     )
 
   def reset(self) -> None:
+    self.backend_loader.unload_backend()
     for start_signal in self.start_signals:
       start_signal.clear()
 

@@ -99,26 +99,16 @@ class PBGeoInferenceBackendV2_4(
   def __init__(
     self,
     model_path: Path,
-    inference_strategy: Literal["scores", "embeddings"],
     device_name: str,
   ) -> None:
-    if inference_strategy == "scores":
-      signature_name = "serving_default"
-      prediction_key = "MNET_CLASS_ACTIVATION"
-      input_key = "MNET_INPUT"
-    elif inference_strategy == "embeddings":
-      raise NotImplementedError(
-        "Embeddings inference is not implemented for Geo PB models yet."
-      )
-    else:
-      raise AssertionError()
-
     super().__init__(
       model_path,
-      signature_name,
-      prediction_key,
-      input_key,
       device_name,
+      input_key="MNET_INPUT",
+      scores_signature_name="serving_default",
+      scores_prediction_key="MNET_CLASS_ACTIVATION",
+      emb_signature_name="",  # Embeddings not supported
+      emb_prediction_key="",
     )
 
   @classmethod

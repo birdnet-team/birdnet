@@ -136,24 +136,16 @@ class TFAcousticInferenceBackendV2_4(
   def __init__(
     self,
     model_path: Path,
-    inference_strategy: Literal["scores", "embeddings"],
     device_name: str,
     inference_library: LIBRARY_TYPES,
   ) -> None:
-    in_idx = 0
-    if inference_strategy == "scores":
-      out_idx = 546
-    elif inference_strategy == "embeddings":
-      out_idx = 545
-    else:
-      raise AssertionError()
-
     super().__init__(
       model_path,
-      in_idx,
-      out_idx,
       device_name,
-      inference_library,
+      in_idx=0,
+      emb_out_idx=545,
+      scores_out_idx=546,
+      inference_library=inference_library,
     )
 
   @classmethod

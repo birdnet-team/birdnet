@@ -92,6 +92,13 @@ class ScoresWorker(WorkerBase):
       end_event=end_event,
     )
 
+  def _infer(self, batch: np.ndarray) -> np.ndarray:
+    assert self._backend is not None
+    res = self._backend.predict(batch)
+    assert res.dtype == np.float32
+    res = res.astype(self._infer_dtype, copy=False)
+    return res
+
   def _get_block(
     self,
     file_indices: np.ndarray,

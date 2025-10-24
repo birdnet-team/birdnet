@@ -101,26 +101,16 @@ class PBAcousticInferenceBackendV2_4(
   def __init__(
     self,
     model_path: Path,
-    inference_strategy: Literal["scores", "embeddings"],
     device_name: str,
   ) -> None:
-    if inference_strategy == "scores":
-      signature_name = "basic"
-      prediction_key = "scores"
-      input_key = "inputs"
-    elif inference_strategy == "embeddings":
-      signature_name = "serving_default"
-      prediction_key = "EMBEDDING_OUTPUT"
-      input_key = "MNET_INPUT"
-    else:
-      raise AssertionError()
-
     super().__init__(
       model_path,
-      signature_name,
-      prediction_key,
-      input_key,
       device_name,
+      input_key="inputs",
+      scores_signature_name="basic",
+      scores_prediction_key="scores",
+      emb_signature_name="embeddings",
+      emb_prediction_key="embeddings",
     )
 
   @classmethod

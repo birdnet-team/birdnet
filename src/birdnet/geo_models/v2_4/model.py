@@ -176,13 +176,12 @@ class GeoModelV2_4(GeoModelBase):
 
     backend_loader = InferenceBackendLoader(
       model_path=self.model_path,
-      inference_strategy="scores",
       backend_type=self._backend_type,
       backend_custom_kwargs=self._backend_custom_kwargs,
     )
 
     backend = backend_loader.load_backend(device)
-    res = backend.infer(sample)
+    res = backend.predict(sample)
     assert res.dtype == np.float32
     res = res.astype(prob_dtype, copy=False)
 

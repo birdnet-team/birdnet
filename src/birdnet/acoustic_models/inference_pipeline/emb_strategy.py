@@ -229,13 +229,3 @@ class EmbeddingsStrategy(
     self, result: EncodingResult, benchmark_run_out_dir: Path, iso_time: str
   ) -> list[Path]:
     return []
-
-  def create_backend_loader(self, model_conf: ModelConfig) -> InferenceBackendLoader:
-    # backend_loader = _create_backend_loader(config)
-    backend_loader = InferenceBackendLoader(
-      model_path=model_conf.path,
-      backend_type=model_conf.backend_type,
-      inference_strategy="embeddings",
-      backend_custom_kwargs=model_conf.backend_kwargs,
-    )
-    return backend_loader
