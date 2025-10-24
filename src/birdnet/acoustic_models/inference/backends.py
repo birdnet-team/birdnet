@@ -13,6 +13,7 @@ from typing import (
   Any,
   Literal,
   Protocol,
+  cast,
   final,
   overload,
   runtime_checkable,
@@ -87,6 +88,9 @@ class VersionedGeoBackendProtocol(VersionedBackendProtocol, Protocol):
   pass
 
 
+TF_BACKEND_LIB_ARG = "inference_library"
+
+
 class TFBackend(Backend, ABC):
   def __init__(
     self,
@@ -95,12 +99,15 @@ class TFBackend(Backend, ABC):
     in_idx: int,
     scores_out_idx: int,
     emb_out_idx: int,
-    inference_library: LIBRARY_TYPES,
+    **kwargs: dict,
   ) -> None:
     assert device_name == "CPU"
     super().__init__(model_path, device_name)
     self._interp: LiteRTInterpreter | TFInterpreter | None = None
-    self._inference_library: LIBRARY_TYPES = inference_library
+    assert TF_BACKEND_LIB_ARG in kwargs
+    self._inference_library: LIBRARY_TYPES = cast(
+      LIBRARY_TYPES, kwargs[TF_BACKEND_LIB_ARG]
+    )
     self._in_idx: int = in_idx
     self._scores_out_idx: int = scores_out_idx
     self._emb_out_idx: int = emb_out_idx
@@ -163,6 +170,7 @@ class PBBackend(Backend, ABC):
     scores_prediction_key: str,
     emb_signature_name: str,
     emb_prediction_key: str,
+    **kwargs: dict,
   ) -> None:
     super().__init__(model_path, device_name)
     self._logical_device: Any | None = None

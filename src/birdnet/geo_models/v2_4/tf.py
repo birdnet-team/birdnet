@@ -16,7 +16,6 @@ from birdnet.acoustic_models.inference.backends import (
 )
 from birdnet.geo_models.v2_4.model import GeoDownloaderBaseV2_4
 from birdnet.globals import (
-  LIBRARY_TYPES,
   MODEL_PRECISION_FP32,
 )
 from birdnet.helper import (
@@ -107,7 +106,7 @@ class GeoTFBackendV2_4(TFBackend, VersionedGeoBackendProtocol):
     self,
     model_path: Path,
     device_name: str,
-    inference_library: LIBRARY_TYPES,
+    **kwargs: dict,
   ) -> None:
     super().__init__(
       model_path,
@@ -115,7 +114,7 @@ class GeoTFBackendV2_4(TFBackend, VersionedGeoBackendProtocol):
       in_idx=0,
       emb_out_idx=-1,  # Embeddings not supported
       scores_out_idx=62,
-      inference_library=inference_library,
+      **kwargs,
     )
 
   @classmethod

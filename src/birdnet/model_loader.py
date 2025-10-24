@@ -4,6 +4,7 @@ from typing import Any, cast
 
 from birdnet.acoustic_models.base import AcousticModelBase
 from birdnet.acoustic_models.inference.backends import (
+  TF_BACKEND_LIB_ARG,
   litert_installed,
   tf_installed,
 )
@@ -263,8 +264,8 @@ def _load_acoustic_model_V2_4(
       species_list,
       precision,
       backend_type=AcousticTFBackendV2_4,
-      backend_custom_kwargs={
-        "inference_library": library,
+      backend_kwargs={
+        TF_BACKEND_LIB_ARG: library,
       },
     )
   elif backend == MODEL_BACKEND_PB:
@@ -280,7 +281,7 @@ def _load_acoustic_model_V2_4(
       species_list,
       precision,
       backend_type=AcousticPBBackendV2_4,
-      backend_custom_kwargs={},
+      backend_kwargs={},
     )
   else:
     raise AssertionError()
@@ -301,8 +302,8 @@ def _load_geo_model_V2_4(
       model_path,
       species_list,
       backend_type=GeoTFBackendV2_4,
-      backend_custom_kwargs={
-        "inference_library": library,
+      backend_kwargs={
+        TF_BACKEND_LIB_ARG: library,
       },
     )
   elif backend == MODEL_BACKEND_PB:
@@ -313,7 +314,7 @@ def _load_geo_model_V2_4(
       model_path,
       species_list,
       backend_type=GeoPBBackendV2_4,
-      backend_custom_kwargs={},
+      backend_kwargs={},
     )
   else:
     raise AssertionError()
@@ -424,8 +425,8 @@ def _load_custom_acoustic_model_V2_4(
       species_list,
       precision,
       backend_type=AcousticTFBackendV2_4,
-      backend_custom_kwargs={
-        "inference_library": library,
+      backend_kwargs={
+        TF_BACKEND_LIB_ARG: library,
       },
       check_validity=check_validity,
     )
@@ -442,7 +443,7 @@ def _load_custom_acoustic_model_V2_4(
       species_list,
       precision,
       backend_type=AcousticPBBackendV2_4,
-      backend_custom_kwargs={},
+      backend_kwargs={},
       check_validity=check_validity,
     )
   else:
@@ -465,8 +466,8 @@ def _load_custom_geo_model_V2_4(
       model,
       species_list,
       backend_type=GeoTFBackendV2_4,
-      backend_custom_kwargs={
-        "inference_library": library,
+      backend_kwargs={
+        TF_BACKEND_LIB_ARG: library,
       },
       check_validity=check_validity,
     )
@@ -478,7 +479,7 @@ def _load_custom_geo_model_V2_4(
       model,
       species_list,
       backend_type=GeoPBBackendV2_4,
-      backend_custom_kwargs={},
+      backend_kwargs={},
       check_validity=check_validity,
     )
   else:

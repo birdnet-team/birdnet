@@ -78,11 +78,11 @@ class AcousticModelV2_4(AcousticModelBase):
     precision: MODEL_PRECISIONS,
     use_custom_model: bool,
     backend_type: type[VersionedAcousticBackendProtocol],
-    backend_custom_kwargs: dict[str, Any],
+    backend_kwargs: dict[str, Any],
   ) -> None:
     super().__init__(model_path, species_list, precision, use_custom_model)
     self._backend_type = backend_type
-    self._backend_custom_kwargs = backend_custom_kwargs
+    self._backend_custom_kwargs = backend_kwargs
 
   @classmethod
   def load(
@@ -91,7 +91,7 @@ class AcousticModelV2_4(AcousticModelBase):
     species_list: OrderedSet[str],
     precision: MODEL_PRECISIONS,
     backend_type: type[VersionedAcousticBackendProtocol],
-    backend_custom_kwargs: dict[str, Any],
+    backend_kwargs: dict[str, Any],
   ) -> AcousticModelV2_4:
     result = AcousticModelV2_4(
       model_path,
@@ -99,7 +99,7 @@ class AcousticModelV2_4(AcousticModelBase):
       precision,
       use_custom_model=False,
       backend_type=backend_type,
-      backend_custom_kwargs=backend_custom_kwargs,
+      backend_kwargs=backend_kwargs,
     )
     return result
 
@@ -110,7 +110,7 @@ class AcousticModelV2_4(AcousticModelBase):
     species_list: Path,
     precision: MODEL_PRECISIONS,
     backend_type: type[VersionedAcousticBackendProtocol],
-    backend_custom_kwargs: dict[str, Any],
+    backend_kwargs: dict[str, Any],
     check_validity: bool,
   ) -> AcousticModelV2_4:
     assert model_path.exists()
@@ -126,7 +126,7 @@ class AcousticModelV2_4(AcousticModelBase):
 
     if check_validity:
       n_species_in_model = backend_type.check_model_can_be_loaded(
-        model_path, **backend_custom_kwargs
+        model_path, **backend_kwargs
       )
       if n_species_in_model != len(loaded_species_list):
         raise ValueError(
@@ -139,7 +139,7 @@ class AcousticModelV2_4(AcousticModelBase):
       precision,
       use_custom_model=True,
       backend_type=backend_type,
-      backend_custom_kwargs=backend_custom_kwargs,
+      backend_kwargs=backend_kwargs,
     )
     return result
 

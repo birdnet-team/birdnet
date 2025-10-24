@@ -18,7 +18,6 @@ from birdnet.acoustic_models.v2_4.model import (
   AcousticDownloaderBaseV2_4,
 )
 from birdnet.globals import (
-  LIBRARY_TYPES,
   MODEL_BACKEND_TF,
   MODEL_PRECISION_FP16,
   MODEL_PRECISION_FP32,
@@ -135,7 +134,7 @@ class AcousticTFBackendV2_4(TFBackend, VersionedAcousticBackendProtocol):
     self,
     model_path: Path,
     device_name: str,
-    inference_library: LIBRARY_TYPES,
+    **kwargs: dict,
   ) -> None:
     super().__init__(
       model_path,
@@ -143,7 +142,7 @@ class AcousticTFBackendV2_4(TFBackend, VersionedAcousticBackendProtocol):
       in_idx=0,
       emb_out_idx=545,
       scores_out_idx=546,
-      inference_library=inference_library,
+      **kwargs,
     )
 
   @classmethod

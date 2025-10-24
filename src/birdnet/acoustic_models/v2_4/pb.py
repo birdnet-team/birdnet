@@ -100,6 +100,7 @@ class AcousticPBBackendV2_4(PBBackend, VersionedAcousticBackendProtocol):
     self,
     model_path: Path,
     device_name: str,
+    **kwargs: dict,
   ) -> None:
     super().__init__(
       model_path,
@@ -109,6 +110,7 @@ class AcousticPBBackendV2_4(PBBackend, VersionedAcousticBackendProtocol):
       scores_prediction_key="scores",
       emb_signature_name="embeddings",
       emb_prediction_key="embeddings",
+      **kwargs,
     )
 
   @classmethod

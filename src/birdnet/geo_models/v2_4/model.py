@@ -64,11 +64,11 @@ class GeoModelV2_4(GeoModelBase):
     species_list: OrderedSet[str],
     use_custom_model: bool,
     backend_type: type[VersionedGeoBackendProtocol],
-    backend_custom_kwargs: dict[str, Any],
+    backend_kwargs: dict[str, Any],
   ) -> None:
     super().__init__(model_path, species_list, use_custom_model)
     self._backend_type = backend_type
-    self._backend_custom_kwargs = backend_custom_kwargs
+    self._backend_custom_kwargs = backend_kwargs
 
   @classmethod
   def load(
@@ -76,14 +76,14 @@ class GeoModelV2_4(GeoModelBase):
     model_path: Path,
     species_list: OrderedSet[str],
     backend_type: type[VersionedGeoBackendProtocol],
-    backend_custom_kwargs: dict[str, Any],
+    backend_kwargs: dict[str, Any],
   ) -> GeoModelV2_4:
     result = GeoModelV2_4(
       model_path,
       species_list,
       use_custom_model=False,
       backend_type=backend_type,
-      backend_custom_kwargs=backend_custom_kwargs,
+      backend_kwargs=backend_kwargs,
     )
     return result
 
@@ -93,7 +93,7 @@ class GeoModelV2_4(GeoModelBase):
     model_path: Path,
     species_list: Path,
     backend_type: type[VersionedGeoBackendProtocol],
-    backend_custom_kwargs: dict[str, Any],
+    backend_kwargs: dict[str, Any],
     check_validity: bool,
   ) -> GeoModelV2_4:
     assert model_path.exists()
@@ -109,7 +109,7 @@ class GeoModelV2_4(GeoModelBase):
 
     if check_validity:
       n_species_in_model = backend_type.check_model_can_be_loaded(
-        model_path, **backend_custom_kwargs
+        model_path, **backend_kwargs
       )
       if n_species_in_model != len(loaded_species_list):
         raise ValueError(
@@ -121,7 +121,7 @@ class GeoModelV2_4(GeoModelBase):
       loaded_species_list,
       use_custom_model=True,
       backend_type=backend_type,
-      backend_custom_kwargs=backend_custom_kwargs,
+      backend_kwargs=backend_kwargs,
     )
     return result
 
