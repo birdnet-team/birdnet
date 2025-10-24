@@ -42,20 +42,10 @@ class PerformanceTrackingResult:
   avg_busy_workers: float
 
   avg_wait_time_ms: float
-  # avg_pred_dur_last_s: float
-  # avg_wait_dur_last_ms: float
-  # avg_free_slots_last: float
-  # avg_busy_slots_last: float
-  # avg_preloaded_slots_last: float
-  # avg_busy_workers_last: float
-
-  # max_raw_segments_per_s: float
-
-  # avg_segments_per_s_last: float
 
 
 class ValueTracker:
-  def __init__(self, n_last: int):
+  def __init__(self, n_last: int) -> None:
     self._values = deque(maxlen=n_last)
     self._summed_val = 0
     self._avg_val = 0
@@ -137,7 +127,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     end_event: Event,
     start_signal: Event,
     start: float,
-  ):
+  ) -> None:
     super().__init__(__name__, logging_queue, logging_level)
 
     assert update_interval <= print_interval

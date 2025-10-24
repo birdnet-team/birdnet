@@ -12,7 +12,7 @@ def test_zero_raises_error() -> None:
     ValueError,
     match=r"feeders must be >= 1",
   ):
-    ProcessingConfig.validate_feeders(0)
+    ProcessingConfig.validate_n_feeders(0)
 
 
 def test_negative_raises_error() -> None:
@@ -20,7 +20,7 @@ def test_negative_raises_error() -> None:
     ValueError,
     match=r"feeders must be >= 1",
   ):
-    ProcessingConfig.validate_feeders(-1)
+    ProcessingConfig.validate_n_feeders(-1)
 
 
 def test_non_integer_raises_error() -> None:
@@ -28,16 +28,16 @@ def test_non_integer_raises_error() -> None:
     TypeError,
     match=r"feeders must be an integer",
   ):
-    ProcessingConfig.validate_feeders(1.5)  # type: ignore
+    ProcessingConfig.validate_n_feeders(1.5)  # type: ignore
 
 
 def test_one_is_valid() -> None:
-  assert ProcessingConfig.validate_feeders(1) == 1
+  assert ProcessingConfig.validate_n_feeders(1) == 1
 
 
 def test_max_cpus_is_valid() -> None:
   if max_logical_cpus := multiprocessing.cpu_count():
-    assert ProcessingConfig.validate_feeders(max_logical_cpus) == max_logical_cpus
+    assert ProcessingConfig.validate_n_feeders(max_logical_cpus) == max_logical_cpus
 
 
 def test_more_than_max_cpus_is_raises_error() -> None:
@@ -46,4 +46,4 @@ def test_more_than_max_cpus_is_raises_error() -> None:
       ValueError,
       match=rf"feeders must be <= {max_logical_cpus}",
     ):
-      ProcessingConfig.validate_feeders(max_logical_cpus + 1)
+      ProcessingConfig.validate_n_feeders(max_logical_cpus + 1)

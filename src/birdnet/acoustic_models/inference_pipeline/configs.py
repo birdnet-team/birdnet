@@ -86,26 +86,29 @@ class ProcessingConfig:
     return max_n_files
 
   @classmethod
-  def validate_feeders(cls, feeders: Any) -> int:  # noqa: ANN401
-    if not isinstance(feeders, int):
-      raise TypeError("feeders must be an integer")
-    if not feeders >= 1:
-      raise ValueError("feeders must be >= 1")
+  def validate_n_feeders(cls, n_feeders: Any) -> int:  # noqa: ANN401
+    if not isinstance(n_feeders, int):
+      raise TypeError("n_feeders must be an integer")
+    if not n_feeders >= 1:
+      raise ValueError("n_feeders must be >= 1")
     max_threads = multiprocessing.cpu_count() or 1
-    if not feeders <= max_threads:
-      raise ValueError(f"feeders must be <= {max_threads}")
-    return feeders
+    if not n_feeders <= max_threads:
+      raise ValueError(f"n_feeders must be <= {max_threads}")
+    return n_feeders
 
   @classmethod
-  def validate_workers(cls, workers: Any) -> int:  # noqa: ANN401
-    if not isinstance(workers, int):
-      raise TypeError("workers must be an integer")
-    if not workers >= 1:
-      raise ValueError("workers must be >= 1")
+  def validate_n_workers(cls, n_workers: Any) -> int:  # noqa: ANN401
+    if n_workers is None:
+      n_workers = multiprocessing.cpu_count() or 1
+      return n_workers
+    if not isinstance(n_workers, int):
+      raise TypeError("n_workers must be an integer")
+    if not n_workers >= 1:
+      raise ValueError("n_workers must be >= 1")
     max_threads = multiprocessing.cpu_count() or 1
-    if not workers <= max_threads:
-      raise ValueError(f"workers must be <= {max_threads}")
-    return workers
+    if not n_workers <= max_threads:
+      raise ValueError(f"n_workers must be <= {max_threads}")
+    return n_workers
 
   @classmethod
   def validate_batch_size(cls, batch_size: Any) -> int:  # noqa: ANN401

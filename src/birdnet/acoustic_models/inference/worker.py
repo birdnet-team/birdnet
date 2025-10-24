@@ -49,7 +49,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
     all_producers_finished: Event,
     start_signal: Event,
     end_event: Event,
-  ):
+  ) -> None:
     super().__init__(name, logging_queue, logging_level)
 
     self._end_event = end_event
@@ -122,7 +122,8 @@ class WorkerBase(bn_logging.LogableProcessBase):
   def _load_ring_buffers(self) -> None:
     self._log_debug("Attaching ring buffers...")
     # attach to existing shared memory buffers
-    # NOTE: these handlers must be created that GC does not delete the shared memory access
+    # NOTE: these handlers must be created that GC does not
+    # delete the shared memory access
     self._shm_file_indices, self._ring_file_indices = (
       self._rf_file_indices.attach_and_get_array()
     )
@@ -168,7 +169,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
     infer_result: np.ndarray,
   ) -> tuple[np.ndarray, ...]: ...
 
-  def __call__(self):
+  def __call__(self) -> None:
     start = time.perf_counter()
 
     if self._lazy_init:
@@ -229,7 +230,8 @@ class WorkerBase(bn_logging.LogableProcessBase):
       dur_wait_for_filled_slot = time.perf_counter() - perf_c
 
       self._log_debug(
-        f"Acquired FILL; Free slots remaining: {self._sem_free}; Filled slots: {self._sem_filled}"
+        f"Acquired FILL; Free slots remaining: {self._sem_free}; "
+        f"Filled slots: {self._sem_filled}"
       )
 
       if self._check_cancel_event():
@@ -277,7 +279,8 @@ class WorkerBase(bn_logging.LogableProcessBase):
       assert claimed_flag == READABLE_FLAG
 
       self._log_debug(
-        f"Acquired READ_FLAG for slot {claimed_slot}. Searched {dur_search_for_filled_slot:.4f} seconds for batch."
+        f"Acquired READ_FLAG for slot {claimed_slot}. "
+        f"Searched {dur_search_for_filled_slot:.4f} seconds for batch."
       )
 
       if self._sem_active_workers is not None:
@@ -302,7 +305,8 @@ class WorkerBase(bn_logging.LogableProcessBase):
         self._log_debug(f"Error during inference: {e}")
         self._cancel_event.set()
         self._log_debug(
-          f"Exiting worker {self._pid} due to error during inference2. Set cancel event."
+          f"Exiting worker {self._pid} due to error during inference2. "
+          f"Set cancel event."
         )
         return
       dur_inference = time.perf_counter() - perf_c
@@ -311,7 +315,8 @@ class WorkerBase(bn_logging.LogableProcessBase):
       self._sem_free.release()
 
       self._log_debug(
-        f"Released FREE. Free slots remaining: {self._sem_free}; Filled slots: {self._sem_filled}"
+        f"Released FREE. Free slots remaining: {self._sem_free}; "
+        f"Filled slots: {self._sem_filled}"
       )
 
       assert infer_result.flags.aligned
@@ -323,7 +328,8 @@ class WorkerBase(bn_logging.LogableProcessBase):
 
       self._prediction_count += n
       self._log_debug(
-        f"Prediction made ({dur_inference:.4} s). Total predictions: {self._prediction_count}. Chunks: {segment_indices}"
+        f"Prediction made ({dur_inference:.4} s). "
+        f"Total predictions: {self._prediction_count}. Chunks: {segment_indices}"
       )
 
       if self._wkr_stats_queue is not None:

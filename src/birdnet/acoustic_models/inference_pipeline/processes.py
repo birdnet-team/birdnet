@@ -190,7 +190,7 @@ class ProcessManager:
         self._res.worker_resources.devices
       )
     except Exception as exc:
-      raise RuntimeError(f"Error during backend initialization: {exc}")
+      raise RuntimeError(f"Error during backend initialization: {exc}") from exc
 
     worker_processes = [
       mp.Process(
@@ -250,7 +250,7 @@ class ProcessManager:
     if self._res.stats_resources.track_performance:
       self.start_performance_tracker()
 
-  def join_main_processes(self):
+  def join_main_processes(self) -> None:
     logger = bn_logging.get_logger(__name__)
 
     logger.debug("Joining file analyzer thread...")
@@ -282,7 +282,7 @@ class ProcessManager:
       self._perf_tracker_process = None
       logger.debug("Performance tracker finished.")
 
-  def join_logging(self):
+  def join_logging(self) -> None:
     assert self._logging_thread is not None
     self._logging_thread.join()
     self._logging_thread = None

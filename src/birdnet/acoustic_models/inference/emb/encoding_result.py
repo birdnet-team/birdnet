@@ -1,10 +1,10 @@
-from __future__ import annotations  # seit Py 3.7, ab Py 3.11 Standard
+from __future__ import annotations
 
 import os
 from pathlib import Path
 from typing import Self
 
-import numpy as np  # alles, was du ohnehin brauchst
+import numpy as np
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.emb.tensor import EmbeddingsTensor

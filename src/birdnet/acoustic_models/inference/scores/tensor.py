@@ -77,7 +77,8 @@ class ScoresTensor(TensorBase):
       (self._species_masked.shape[0], needed_n_segments, self._species_masked.shape[2]),
       refcheck=False,
     )
-    # --- Initialisiere NUR den neu angehängten Bereich ----------------
+
+    # --- Initialize ONLY the newly appended area ----------------
     self._species_masked[:, old_n_segments:needed_n_segments, :] = True
 
     self._logger.debug(

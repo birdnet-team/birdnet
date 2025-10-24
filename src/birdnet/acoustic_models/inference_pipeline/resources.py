@@ -57,7 +57,7 @@ class PipelineResources:
 
 
 class ResourceManager:
-  def __init__(self, conf: PredictionConfig):
+  def __init__(self, conf: PredictionConfig) -> None:
     self.conf = conf
     self._resources: PipelineResources | None = None
 

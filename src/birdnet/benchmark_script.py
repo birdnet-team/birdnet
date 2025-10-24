@@ -191,8 +191,8 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
     model.predict(
       ns.inputs,
       top_k=ns.top_k,
-      feeders=ns.feeders,
-      workers=ns.workers,
+      n_feeders=ns.feeders,
+      n_workers=ns.workers,
       batch_size=ns.batch_size,
       overlap_duration_s=ns.overlap,
       default_confidence_threshold=ns.confidence,
@@ -218,8 +218,8 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
     model.predict(
       ns.inputs,
       top_k=ns.top_k,
-      feeders=ns.feeders,
-      workers=ns.workers,
+      n_feeders=ns.feeders,
+      n_workers=ns.workers,
       batch_size=ns.batch_size,
       overlap_duration_s=ns.overlap,
       default_confidence_threshold=ns.confidence,

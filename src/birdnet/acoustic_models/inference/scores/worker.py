@@ -45,7 +45,7 @@ class ScoresWorker(WorkerBase):
     all_producers_finished: Event,
     start_signal: Event,
     end_event: Event,
-  ):
+  ) -> None:
     assert species_thresholds.shape[0] == 1
     assert species_blacklist.shape[0] == 1
     assert species_thresholds.shape[1] == species_blacklist.shape[1]
@@ -55,7 +55,6 @@ class ScoresWorker(WorkerBase):
     self._top_k = top_k
     self._thresholds = species_thresholds
     self._blacklist = species_blacklist
-    # Setze für ungültige Spezies den Threshold auf inf, sodass (pred >= inf) immer False ist
     self._apply_sigmoid = apply_sigmoid
     self._sigmoid_sensitivity = None
     if apply_sigmoid:

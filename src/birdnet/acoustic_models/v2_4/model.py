@@ -122,7 +122,8 @@ class AcousticModelV2_4(AcousticModelBase):
       loaded_species_list = get_species_from_file(species_list, encoding="utf8")
     except Exception as e:
       raise ValueError(
-        f"Failed to read species list from '{species_list.absolute()}'. Ensure it is a valid text file."
+        f"Failed to read species list from '{species_list.absolute()}'. "
+        f"Ensure it is a valid text file."
       ) from e
 
     if check_validity:
@@ -132,7 +133,9 @@ class AcousticModelV2_4(AcousticModelBase):
 
       if n_species_in_model != len(loaded_species_list):
         raise ValueError(
-          f"Model '{model_path.absolute()}' has {n_species_in_model} outputs, but species list '{species_list.absolute()}' has {len(loaded_species_list)} species!"
+          f"Model '{model_path.absolute()}' has {n_species_in_model} outputs, but "
+          f"species list '{species_list.absolute()}' has "
+          f"{len(loaded_species_list)} species!"
         )
 
     result = AcousticModelV2_4(
@@ -184,8 +187,8 @@ class AcousticModelV2_4(AcousticModelBase):
     self,
     /,
     *,
-    feeders: int = 1,
-    workers: int = 4,
+    n_feeders: int = 1,
+    n_workers: int | None = None,
     batch_size: int = 1,
     prefetch_ratio: int = 1,
     overlap_duration_s: float = 0,
@@ -194,10 +197,11 @@ class AcousticModelV2_4(AcousticModelBase):
     half_precision: bool = True,
     max_audio_duration_min: float | None = None,
     show_stats: None | Literal["minimal", "progress", "benchmark"] = None,
+    device: str | list[str] = "CPU",
     max_n_files: int = 65_536,  # Limit to avoid excessive memory usage
   ) -> PredictionSession[EncodingResult, EmbeddingsConfig, EmbeddingsTensor]:
-    feeders = ProcessingConfig.validate_feeders(feeders)
-    workers = ProcessingConfig.validate_workers(workers)
+    n_feeders = ProcessingConfig.validate_n_feeders(n_feeders)
+    n_workers = ProcessingConfig.validate_n_workers(n_workers)
     batch_size = ProcessingConfig.validate_batch_size(batch_size)
     prefetch_ratio = ProcessingConfig.validate_prefetch_ratio(prefetch_ratio)
     overlap_duration_s = ProcessingConfig.validate_overlap_duration(
@@ -237,14 +241,14 @@ class AcousticModelV2_4(AcousticModelBase):
           backend_kwargs=self._backend_custom_kwargs,
         ),
         processing_conf=ProcessingConfig(
-          feeders=feeders,
-          workers=workers,
+          feeders=n_feeders,
+          workers=n_workers,
           batch_size=batch_size,
           prefetch_ratio=prefetch_ratio,
           overlap_duration_s=overlap_duration_s,
           half_precision=half_precision,
           max_audio_duration_min=max_audio_duration_min,
-          device="CPU",  # Device is always CPU for TF models
+          device=device,
           max_n_files=max_n_files,
         ),
         filtering_conf=FilteringConfig(
@@ -266,8 +270,8 @@ class AcousticModelV2_4(AcousticModelBase):
     /,
     *,
     top_k: int | None = 5,
-    feeders: int = 1,
-    workers: int = 4,
+    n_feeders: int = 1,
+    n_workers: int | None = None,
     batch_size: int = 1,
     prefetch_ratio: int = 1,
     overlap_duration_s: float = 0,
@@ -281,12 +285,13 @@ class AcousticModelV2_4(AcousticModelBase):
     half_precision: bool = True,
     max_audio_duration_min: float | None = None,
     show_stats: Literal["minimal", "progress", "benchmark"] | None = None,
+    device: str | list[str] = "CPU",
     max_n_files: int = 65_536,  # Limit to avoid excessive memory usage
   ) -> PredictionSession[PredictionResult, ScoresConfig, ScoresTensor]:
     if top_k is not None:
       top_k = ScoresConfig.validate_top_k(top_k, len(self.species_list))
-    feeders = ProcessingConfig.validate_feeders(feeders)
-    workers = ProcessingConfig.validate_workers(workers)
+    n_feeders = ProcessingConfig.validate_n_feeders(n_feeders)
+    n_workers = ProcessingConfig.validate_n_workers(n_workers)
     batch_size = ProcessingConfig.validate_batch_size(batch_size)
     prefetch_ratio = ProcessingConfig.validate_prefetch_ratio(prefetch_ratio)
     overlap_duration_s = ProcessingConfig.validate_overlap_duration(
@@ -343,14 +348,14 @@ class AcousticModelV2_4(AcousticModelBase):
           backend_kwargs=self._backend_custom_kwargs,
         ),
         processing_conf=ProcessingConfig(
-          feeders=feeders,
-          workers=workers,
+          feeders=n_feeders,
+          workers=n_workers,
           batch_size=batch_size,
           prefetch_ratio=prefetch_ratio,
           overlap_duration_s=overlap_duration_s,
           half_precision=half_precision,
           max_audio_duration_min=max_audio_duration_min,
-          device="CPU",  # Device is always CPU for TF models
+          device=device,
           max_n_files=max_n_files,
         ),
         filtering_conf=FilteringConfig(
@@ -377,8 +382,8 @@ class AcousticModelV2_4(AcousticModelBase):
     inp: Path | str | Iterable[Path | str],
     /,
     *,
-    feeders: int = 1,
-    workers: int = 4,
+    n_feeders: int = 1,
+    n_workers: int | None = None,
     batch_size: int = 1,
     prefetch_ratio: int = 1,
     overlap_duration_s: float = 0,
@@ -387,14 +392,15 @@ class AcousticModelV2_4(AcousticModelBase):
     half_precision: bool = True,
     max_audio_duration_min: float | None = None,
     show_stats: None | Literal["minimal", "progress", "benchmark"] = None,
+    device: str | list[str] = "CPU",
     max_n_files: int = 65_536,  # Limit to avoid excessive memory usage
   ) -> EncodingResult:
     input_files = PredictionConfig.validate_input_files(inp)
     max_n_files = len(input_files)
 
     with self.encode_session(
-      feeders=feeders,
-      workers=workers,
+      n_feeders=n_feeders,
+      n_workers=n_workers,
       batch_size=batch_size,
       prefetch_ratio=prefetch_ratio,
       overlap_duration_s=overlap_duration_s,
@@ -404,6 +410,7 @@ class AcousticModelV2_4(AcousticModelBase):
       max_audio_duration_min=max_audio_duration_min,
       show_stats=show_stats,
       max_n_files=max_n_files,
+      device=device,
     ) as session:
       return session.run(input_files)
 
@@ -413,8 +420,8 @@ class AcousticModelV2_4(AcousticModelBase):
     /,
     *,
     top_k: int | None = 5,
-    feeders: int = 1,
-    workers: int = 4,
+    n_feeders: int = 1,
+    n_workers: int | None = None,
     batch_size: int = 1,
     prefetch_ratio: int = 1,
     overlap_duration_s: float = 0,
@@ -427,6 +434,7 @@ class AcousticModelV2_4(AcousticModelBase):
     custom_species_list: Collection[str] | None = None,
     half_precision: bool = True,
     max_audio_duration_min: float | None = None,
+    device: str | list[str] = "CPU",
     show_stats: Literal["minimal", "progress", "benchmark"] | None = None,
   ) -> PredictionResult:
     input_files = PredictionConfig.validate_input_files(inp)
@@ -434,8 +442,8 @@ class AcousticModelV2_4(AcousticModelBase):
 
     with self.predict_session(
       top_k=top_k,
-      feeders=feeders,
-      workers=workers,
+      n_feeders=n_feeders,
+      n_workers=n_workers,
       batch_size=batch_size,
       prefetch_ratio=prefetch_ratio,
       overlap_duration_s=overlap_duration_s,
@@ -450,5 +458,6 @@ class AcousticModelV2_4(AcousticModelBase):
       max_audio_duration_min=max_audio_duration_min,
       show_stats=show_stats,
       max_n_files=max_n_files,
+      device=device,
     ) as session:
       return session.run(input_files)

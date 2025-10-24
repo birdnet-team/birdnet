@@ -47,7 +47,8 @@ class Consumer:
       got_stop_signal_from_worker = received_block is None
       if got_stop_signal_from_worker:
         self._logger.debug(
-          f"CONSUMER - Received stop signal from worker. Finished workers: {finished_workers + 1}."
+          f"CONSUMER - Received stop signal from worker. "
+          f"Finished workers: {finished_workers + 1}."
         )
         finished_workers += 1
         continue
@@ -57,6 +58,7 @@ class Consumer:
       block = received_block
       n_received_predictions += 1
       self._logger.debug(
-        f"CONSUMER - Received block with {len(block)} values from worker. Total received: {n_received_predictions}"
+        f"CONSUMER - Received block with {len(block)} values from worker. "
+        f"Total received: {n_received_predictions}"
       )
       self._tensor.write_block(*block)

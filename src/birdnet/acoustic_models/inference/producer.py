@@ -390,7 +390,9 @@ class Producer(bn_logging.LogableProcessBase):
       self._sem_filled_slots.release()
 
       self._logger.debug(
-        f"PRODUCER({os.getpid()}) - Producer released FILL. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
+        f"PRODUCER({os.getpid()}) - Producer released FILL. "
+        f"Free slots remaining: {self._sem_free_slots}; "
+        f"Filled slots: {self._sem_filled_slots}"
       )
 
       if self._prod_stats_queue is not None:
@@ -410,7 +412,8 @@ class Producer(bn_logging.LogableProcessBase):
         )
 
     self._logger.debug(
-      f"PRODUCER({os.getpid()}) - Finished processing files. Total time: {time.perf_counter() - start_time:.2f} seconds."
+      f"PRODUCER({os.getpid()}) - Finished processing files. "
+      f"Total time: {time.perf_counter() - start_time:.2f} seconds."
     )
 
   def _check_cancel_event(self) -> bool:

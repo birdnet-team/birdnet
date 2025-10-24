@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 import numpy as np
+import numpy.typing as npt
 import psutil
 from ordered_set import OrderedSet
 
@@ -35,9 +36,6 @@ from birdnet.helper import get_file_formats
 
 
 class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTensor]):
-  # def __init__(self, config: PredictionConfig, specific_config: ScoresConfig) -> None:
-  #   super().__init__(config, specific_config)
-
   def validate_config(
     self, config: PredictionConfig, specific_config: ScoresConfig
   ) -> None:
@@ -50,18 +48,19 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
     if specific_config.custom_species_list:
       for species_name in specific_config.custom_species_list:
         if species_name not in config.model_conf.species_list:
-          raise ValueError(f"Species '{species_name}' not in model's species list")
+          raise ValueError(f"species '{species_name}' not in model's species list")
 
     if specific_config.custom_confidence_thresholds:
       for species_name in specific_config.custom_confidence_thresholds:
         if species_name not in config.model_conf.species_list:
-          raise ValueError(f"Species '{species_name}' not in model's species list")
+          raise ValueError(f"species '{species_name}' not in model's species list")
 
     if specific_config.top_k is not None and specific_config.top_k > len(
       config.model_conf.species_list
     ):
       raise ValueError(
-        f"top_k cannot be larger than species count ({len(config.model_conf.species_list)})"
+        f"top_k cannot be larger than species count "
+        f"({len(config.model_conf.species_list)})"
       )
 
   def create_tensor(
@@ -293,7 +292,7 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
 
 def create_thresholds(
   config: PredictionConfig, scores_config: ScoresConfig
-) -> np.ndarray:
+) -> npt.NDArray:
   default_threshold = scores_config.default_confidence_threshold
   if default_threshold is None:
     default_threshold = -np.inf
@@ -309,7 +308,9 @@ def create_thresholds(
   return thresholds
 
 
-def create_species_blacklist(config: PredictionConfig, scores_config: ScoresConfig):
+def create_species_blacklist(
+  config: PredictionConfig, scores_config: ScoresConfig
+) -> npt.NDArray:
   """Setup species filtering logic"""
   # Species whitelist
   if scores_config.custom_species_list and len(scores_config.custom_species_list) > 0:

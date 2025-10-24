@@ -61,7 +61,8 @@ class EmbeddingsTensor(TensorBase):
     self._emb_masked[:, old_n_segments:needed_n_segments, :] = True
 
     self._logger.debug(
-      f"[resized] from {old_n_segments} to {needed_n_segments} segments. Resulting array allocated: {self.memory_usage_mb:.2f} MB"
+      f"[resized] from {old_n_segments} to {needed_n_segments} segments. "
+      f"Resulting array allocated: {self.memory_usage_mb:.2f} MB"
     )
 
   def write_block(

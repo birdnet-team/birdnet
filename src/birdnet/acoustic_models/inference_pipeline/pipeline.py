@@ -83,7 +83,8 @@ class PredictionSession(Generic[ResultType, ConfigType, TensorType]):
 
     if len(paths) > self._conf.processing_conf.max_n_files:
       raise RuntimeError(
-        f"Number of input files ({len(paths)}) exceeds the maximum allowed ({self._conf.processing_conf.max_n_files})."
+        f"Number of input files ({len(paths)}) exceeds the maximum "
+        f"allowed ({self._conf.processing_conf.max_n_files})."
       )
 
     self._logger.info(f"Got {len(paths)} audio files for analysis.")
@@ -106,7 +107,9 @@ class PredictionSession(Generic[ResultType, ConfigType, TensorType]):
 
     if self._resources.processing_resources.cancel_event.is_set():
       raise RuntimeError(
-        f"Analysis was cancelled. Please check the logs: {self._resources.logging_resources.session_log_file.absolute()}"
+        f"Analysis was cancelled. "
+        f"Please check the logs: "
+        f"{self._resources.logging_resources.session_log_file.absolute()}"
       )
 
     result = self._strategy.create_result(
@@ -135,7 +138,7 @@ class PredictionSession(Generic[ResultType, ConfigType, TensorType]):
     assert self._resources is not None
     self._resources.processing_resources.end_event.set()
 
-  def __exit__(self, *args):
+  def __exit__(self, *args) -> None:
     assert self._is_initialized
 
     assert self._resources is not None

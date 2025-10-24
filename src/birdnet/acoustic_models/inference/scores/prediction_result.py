@@ -1,10 +1,10 @@
-from __future__ import annotations  # seit Py 3.7, ab Py 3.11 Standard
+from __future__ import annotations
 
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Self
 
-import numpy as np  # alles, was du ohnehin brauchst
+import numpy as np
 from ordered_set import OrderedSet
 from tqdm import tqdm
 
@@ -158,7 +158,8 @@ class PredictionResult(PredictionResultBase):
     del valid_mask
 
     n_predictions = len(valid_indices[0])
-    # NOTE: use dtype object for paths and species because these strings repeat often -> pointer to python string is more efficient
+    # NOTE: use dtype object for paths and species because these strings repeat often
+    # -> pointer to python string is more efficient
     dtype = [
       (VAR_FILE_PATH, object),
       (VAR_START_TIME, self._file_durations.dtype),

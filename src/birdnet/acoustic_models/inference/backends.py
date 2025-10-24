@@ -129,9 +129,6 @@ class TFBackend(Backend, ABC):
       self._model_path, self._inference_library, allocate_tensors=True
     )
 
-    # self._in_idx = self._interp.get_input_details()[0]["index"]  # type: ignore
-    # self._out_idx = self._interp.get_output_details()[0]["index"]  # type: ignore
-
   def unload(self) -> None:
     self._interp = None
     self._cached_shape = None
@@ -365,7 +362,9 @@ class BackendLoader:
     kwargs: dict[str, Any],
   ) -> int:
     """
-    Check if the model can be loaded in a subprocess to avoid loading tensorflow in the main process.
+    Check if the model can be loaded in a subprocess to avoid
+    loading tensorflow in the main process.
+
     Returns the number of species in the model if successful.
     """
     try:
@@ -391,7 +390,8 @@ def load_pb_model(model_path: Path) -> Any:
   os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
   import tensorflow as tf
 
-  # Note: memory growth needs to be set before loading the model and maybe only once in the main process
+  # Note: memory growth needs to be set before loading the model and
+  # maybe only once in the main process
   # physical_gpu_device = gpus_with_name[0]
   # if tf.config.experimental.get_memory_growth(physical_gpu_device) is False:
   #   tf.config.experimental.set_memory_growth(physical_gpu_device, True)
@@ -464,17 +464,20 @@ def load_lib_tf_model(
     interp = tflite.Interpreter(
       str(model_path.absolute()),
       num_threads=1,
-      experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,  # tensor#187 is a dynamic-sized tensor # type: ignore
+      experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,
+      # tensor#187 is a dynamic-sized tensor # type: ignore
     )
   except ValueError as e:
     raise ValueError(
-      f"Failed to load model '{model_path.absolute()}' using 'tensorflow'. Ensure it is a valid TFLite model."
+      f"Failed to load model '{model_path.absolute()}' using 'tensorflow'. "
+      "Ensure it is a valid TFLite model."
     ) from e
 
   end = time.perf_counter()
   logger = get_logger(__name__)
   logger.debug(
-    f"Model loaded from {model_path.absolute()} using 'tensorflow' in {end - start:.2f} seconds."
+    f"Model loaded from {model_path.absolute()} using 'tensorflow' "
+    f"in {end - start:.2f} seconds."
   )
 
   if allocate_tensors:
@@ -504,17 +507,20 @@ def load_lib_litert_model(
     interp = tflite.Interpreter(
       str(model_path.absolute()),
       num_threads=1,
-      experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,  # tensor#187 is a dynamic-sized tensor # type: ignore
+      experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,
+      # tensor#187 is a dynamic-sized tensor # type: ignore
     )
   except ValueError as e:
     raise ValueError(
-      f"Failed to load model '{model_path.absolute()}' using 'ai_edge_litert'. Ensure it is a valid TFLite model."
+      f"Failed to load model '{model_path.absolute()}' using 'ai_edge_litert'. "
+      "Ensure it is a valid TFLite model."
     ) from e
 
   end = time.perf_counter()
   logger = get_logger(__name__)
   logger.debug(
-    f"Model loaded from {model_path.absolute()} using 'ai_edge_litert' in {end - start:.2f} seconds."
+    f"Model loaded from {model_path.absolute()} using 'ai_edge_litert' "
+    f"in {end - start:.2f} seconds."
   )
 
   if allocate_tensors:

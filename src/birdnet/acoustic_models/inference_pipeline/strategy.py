@@ -23,10 +23,6 @@ from birdnet.acoustic_models.inference_pipeline.resources import (
 
 
 class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
-  # def __init__(self, config: PredictionConfig, specific_config: ConfigType) -> None:
-  #   self._config = config
-  #   self._specific_config = specific_config
-
   @abstractmethod
   def validate_config(
     self, config: PredictionConfig, specific_config: ConfigType
