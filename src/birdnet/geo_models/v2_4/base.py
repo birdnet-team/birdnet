@@ -1,16 +1,21 @@
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Self, final
+from typing import Any, Literal, Self, final
 
 import numpy as np
 from numpy.typing import DTypeLike
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.backends import (
-  InferenceBackend,
-  InferenceBackendLoader,
+from birdnet.acoustic_models.inference2.backends2 import (
+  InferenceBackendLoader2,
+  PBInferenceBackend2,
+  TFInferenceBackend2,
+  VersionedInferenceBackendProtocol,
+  check_pb_model_can_be_loaded,
+  check_tf_model_can_be_loaded,
 )
-from birdnet.acoustic_models.inference.backends2 import InferenceBackendLoader2
-from birdnet.geo_models.base import GeoModelBase
+from birdnet.geo_models.base import GeoModelBase, GeoModelBase2
 from birdnet.geo_models.inference.prediction_result import PredictionResult
 from birdnet.globals import (
   GEO_MODEL_VERSION_V2_4,
@@ -22,6 +27,7 @@ from birdnet.globals import (
   MODEL_TYPES,
 )
 from birdnet.helper import uint_dtype_for
+from birdnet.utils import get_species_from_file
 
 
 class GeoDownloaderBaseV2_4:
@@ -146,44 +152,151 @@ class GeoModelBaseV2_4(GeoModelBase):
     return prediction
 
 
-class GeoModelV2_4(GeoModelBase):
+class TFGeoInferenceBackendV2_4(TFInferenceBackend2, VersionedInferenceBackendProtocol):
+  def __init__(
+    self,
+    model_path: Path,
+    inference_strategy: Literal["scores", "embeddings"],
+    device_name: str,
+    inference_library: LIBRARY_TYPES,
+  ) -> None:
+    in_idx = 0
+    if inference_strategy == "scores":
+      out_idx = 62
+    elif inference_strategy == "embeddings":
+      raise NotImplementedError(
+        "Embeddings inference is not implemented for Geo TF models yet."
+      )
+    else:
+      raise AssertionError()
+
+    super().__init__(
+      model_path,
+      in_idx,
+      out_idx,
+      device_name,
+      inference_library,
+    )
+
+  @classmethod
+  def check_model_can_be_loaded(
+    cls,
+    model_path: Path,
+    **kwargs: Any,
+  ) -> int | None:
+    n_outputs = check_tf_model_can_be_loaded(
+      model_path=model_path, out_idx=62, **kwargs
+    )
+    return n_outputs
+
+
+class PBGeoInferenceBackendV2_4(PBInferenceBackend2, VersionedInferenceBackendProtocol):
+  def __init__(
+    self,
+    model_path: Path,
+    inference_strategy: Literal["scores", "embeddings"],
+    device_name: str,
+  ) -> None:
+    if inference_strategy == "scores":
+      signature_name = "serving_default"
+      prediction_key = "MNET_CLASS_ACTIVATION"
+      input_key = "MNET_INPUT"
+    elif inference_strategy == "embeddings":
+      raise NotImplementedError(
+        "Embeddings inference is not implemented for Geo PB models yet."
+      )
+    else:
+      raise AssertionError()
+
+    super().__init__(
+      model_path,
+      signature_name,
+      prediction_key,
+      input_key,
+      device_name,
+    )
+
+  @classmethod
+  def check_model_can_be_loaded(
+    cls,
+    model_path: Path,
+    **kwargs: Any,
+  ) -> int | None:
+    n_outputs = check_pb_model_can_be_loaded(
+      model_path,
+      "serving_default",
+      "MNET_CLASS_ACTIVATION",
+    )
+    return n_outputs
+
+
+class GeoModelV2_4(GeoModelBase2):
   def __init__(
     self,
     model_path: Path,
     species_list: OrderedSet[str],
     use_custom_model: bool,
-    backend_loader: InferenceBackendLoader2,
+    backend_type: type[VersionedInferenceBackendProtocol],
+    backend_custom_kwargs: dict[str, object] | None,
   ) -> None:
     super().__init__(model_path, species_list, use_custom_model)
-    self._backend_loader = backend_loader
-
-  @final
-  @classmethod
-  def get_backend(cls) -> MODEL_BACKENDS:
-    return None
-
-  @final
-  @classmethod
-  def get_backend_type(cls) -> type[InferenceBackend]:
-    return None
+    self._backend_type = backend_type
+    self._backend_custom_kwargs = backend_custom_kwargs
 
   @classmethod
   def load(
     cls,
-    lang: MODEL_LANGUAGES,
-    library: LIBRARY_TYPES,
-  ) -> None:
-    pass
+    model_path: Path,
+    species_list: OrderedSet[str],
+    backend_type: type[VersionedInferenceBackendProtocol],
+    backend_custom_kwargs: dict[str, object] | None,
+  ) -> GeoModelV2_4:
+    result = GeoModelV2_4(
+      model_path,
+      species_list,
+      use_custom_model=False,
+      backend_type=backend_type,
+      backend_custom_kwargs=backend_custom_kwargs,
+    )
+    return result
 
   @classmethod
   def load_custom(
     cls,
-    model: Path,
+    model_path: Path,
     species_list: Path,
+    backend_type: type[VersionedInferenceBackendProtocol],
+    backend_custom_kwargs: dict[str, object] | None,
     check_validity: bool,
-    library: LIBRARY_TYPES,
-  ) -> None:
-    pass
+  ) -> GeoModelV2_4:
+    assert model_path.exists()
+    assert species_list.is_file()
+
+    loaded_species_list: OrderedSet[str]
+    try:
+      loaded_species_list = get_species_from_file(species_list, encoding="utf8")
+    except Exception as e:
+      raise ValueError(
+        f"Failed to read species list from '{species_list.absolute()}'. Ensure it is a valid text file."
+      ) from e
+
+    if check_validity:
+      n_species_in_model = backend_type.check_model_can_be_loaded(
+        model_path, **backend_custom_kwargs if backend_custom_kwargs is not None else {}
+      )
+      if n_species_in_model != len(loaded_species_list):
+        raise ValueError(
+          f"Model '{model_path.absolute()}' has {n_species_in_model} outputs, but species list '{species_list.absolute()}' has {len(loaded_species_list)} species!"
+        )
+
+    result = GeoModelV2_4(
+      model_path,
+      loaded_species_list,
+      use_custom_model=True,
+      backend_type=backend_type,
+      backend_custom_kwargs=backend_custom_kwargs,
+    )
+    return result
 
   @classmethod
   @final
@@ -234,8 +347,14 @@ class GeoModelV2_4(GeoModelBase):
 
     prob_dtype: DTypeLike = np.float16 if half_precision else np.float32
 
-    self._backend_loader.set_device_name(device)
-    backend = self._backend_loader.load_backend()
+    backend_loader = InferenceBackendLoader2(
+      model_path=self.model_path,
+      inference_strategy="scores",
+      backend_type=self._backend_type,
+      backend_custom_kwargs=self._backend_custom_kwargs,
+    )
+
+    backend = backend_loader.load_backend(device)
     res = backend.infer(sample)
     assert res.dtype == np.float32
     res = res.astype(prob_dtype, copy=False)

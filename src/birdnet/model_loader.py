@@ -2,7 +2,7 @@ from os import PathLike
 from pathlib import Path
 from typing import Any, cast
 
-from birdnet.acoustic_models.base import AcousticModelBase
+from birdnet.acoustic_models.base import AcousticModelBase, AcousticModelBase2
 from birdnet.acoustic_models.inference2.backends import (
   litert_installed,
   tf_installed,
@@ -15,8 +15,8 @@ from birdnet.acoustic_models.inference2.backends2 import (
 from birdnet.acoustic_models.v2_4.base import (
   AcousticModelBaseV2_4,
   AcousticModelV2_4,
-  PBInferenceBackendV2_4,
-  TFInferenceBackendV2_4,
+  PBAcousticInferenceBackendV2_4,
+  TFAcousticInferenceBackendV2_4,
 )
 from birdnet.acoustic_models.v2_4.pb import (
   AcousticPBDownloaderV2_4,
@@ -28,9 +28,13 @@ from birdnet.acoustic_models.v2_4.tf import (
   AcousticTFDownloaderV2_4,
   AcousticTFModelV2_4,
 )
-from birdnet.base import ModelBase
-from birdnet.geo_models.base import GeoModelBase
-from birdnet.geo_models.v2_4.base import GeoModelV2_4
+from birdnet.base import ModelBase, ModelBase2
+from birdnet.geo_models.base import GeoModelBase, GeoModelBase2
+from birdnet.geo_models.v2_4.base import (
+  GeoModelV2_4,
+  PBGeoInferenceBackendV2_4,
+  TFGeoInferenceBackendV2_4,
+)
 from birdnet.geo_models.v2_4.pb import GeoPBDownloaderV2_4, GeoPBModelV2_4
 from birdnet.geo_models.v2_4.tf import (
   MODEL_LOGITS_IDX,
@@ -186,7 +190,7 @@ def load(
   precision: str = MODEL_PRECISION_FP32,
   lang: str = MODEL_LANGUAGE_EN_US,
   **model_kwargs: object,
-) -> ModelBase:
+) -> ModelBase2:
   model_type = _validate_model_type(model_type)
   backend = _validate_backend(backend)
   precision = _validate_precision(precision)
@@ -220,7 +224,7 @@ def _load_acoustic_model(
   precision: MODEL_PRECISIONS,
   lang: MODEL_LANGUAGES,
   **model_kwargs: object,
-) -> AcousticModelBase:
+) -> AcousticModelBase2:
   if version == ACOUSTIC_MODEL_VERSION_V2_4:
     return _load_acoustic_model_V2_4(
       backend=backend,
@@ -238,59 +242,13 @@ def _load_geo_model(
   precision: MODEL_PRECISIONS,
   lang: MODEL_LANGUAGES,
   **model_kwargs: object,
-) -> GeoModelBase:
+) -> GeoModelBase2:
   if version == GEO_MODEL_VERSION_V2_4:
     if precision != MODEL_PRECISION_FP32:
       raise ValueError(
         f"Unsupported model precision for geo model: {precision}. Currently supported precision is: {MODEL_PRECISION_FP32}."
       )
     return _load_geo_model_V2_4(backend, lang, **model_kwargs)
-  else:
-    raise AssertionError()
-
-
-def load_geo_model2(
-  version: GEO_MODEL_VERSIONS,
-  backend: MODEL_BACKENDS,
-  precision: MODEL_PRECISIONS,
-  lang: MODEL_LANGUAGES,
-  **model_kwargs: object,
-) -> GeoModelBase:
-  if version == GEO_MODEL_VERSION_V2_4:
-    if precision != MODEL_PRECISION_FP32:
-      raise ValueError(
-        f"Unsupported model precision for geo model: {precision}. Currently supported precision is: {MODEL_PRECISION_FP32}."
-      )
-
-    backend_loader: InferenceBackendLoader2
-    if backend == MODEL_BACKEND_TF:
-      model_kwargs = _validate_kwargs(model_kwargs, {"library"})
-      library = _validate_library(model_kwargs.get("library", LIBRARY_TF))
-      model_path, species_list = GeoTFDownloaderV2_4.get_model_path_and_labels(lang)
-      backend_args = {
-        "model_path": model_path,
-        "inference_library": library,
-        "in_idx": 0,
-        "out_idx": MODEL_LOGITS_IDX,
-      }
-      backend_loader = InferenceBackendLoader2(TFInferenceBackend2, backend_args)
-    elif backend == MODEL_BACKEND_PB:
-      model_kwargs = _validate_kwargs(model_kwargs, None)
-      model_path, species_list = GeoPBDownloaderV2_4.get_model_path_and_labels(lang)
-      backend_args = {
-        "model_path": model_path,
-        "signature_name": "serving_default",
-        "prediction_key": "MNET_CLASS_ACTIVATION",
-        "input_key": "MNET_INPUT",
-      }
-      backend_loader = InferenceBackendLoader2(PBInferenceBackend2, backend_args)
-    else:
-      raise AssertionError()
-
-    model = GeoModelV2_4(
-      model_path, species_list, use_custom_model=False, backend_loader=backend_loader
-    )
-    return model
   else:
     raise AssertionError()
 
@@ -313,7 +271,7 @@ def _load_acoustic_model_V2_4(
       model_path,
       species_list,
       precision,
-      backend_type=TFInferenceBackendV2_4,
+      backend_type=TFAcousticInferenceBackendV2_4,
       backend_custom_kwargs={
         "inference_library": library,
       },
@@ -330,7 +288,7 @@ def _load_acoustic_model_V2_4(
       model_path,
       species_list,
       precision,
-      backend_type=PBInferenceBackendV2_4,
+      backend_type=PBAcousticInferenceBackendV2_4,
       backend_custom_kwargs=None,
     )
   else:
@@ -341,14 +299,31 @@ def _load_geo_model_V2_4(
   backend: MODEL_BACKENDS,
   lang: MODEL_LANGUAGES,
   **model_kwargs: object,
-) -> GeoModelBase:
+) -> GeoModelV2_4:
   if backend == MODEL_BACKEND_TF:
     model_kwargs = _validate_kwargs(model_kwargs, {"library"})
     library = _validate_library(model_kwargs.get("library", LIBRARY_TF))
-    return GeoTFModelV2_4.load(lang, library)
+
+    model_path, species_list = GeoTFDownloaderV2_4.get_model_path_and_labels(lang)
+
+    return GeoModelV2_4.load(
+      model_path,
+      species_list,
+      backend_type=TFGeoInferenceBackendV2_4,
+      backend_custom_kwargs={
+        "inference_library": library,
+      },
+    )
   elif backend == MODEL_BACKEND_PB:
     model_kwargs = _validate_kwargs(model_kwargs, None)
-    return GeoPBModelV2_4.load(lang)
+
+    model_path, species_list = GeoPBDownloaderV2_4.get_model_path_and_labels(lang)
+    return GeoModelV2_4.load(
+      model_path,
+      species_list,
+      backend_type=PBGeoInferenceBackendV2_4,
+      backend_custom_kwargs=None,
+    )
   else:
     raise AssertionError()
 
@@ -364,7 +339,7 @@ def load_custom(
   precision: str = MODEL_PRECISION_FP32,
   check_validity: bool = True,
   **model_kwargs: object,
-) -> ModelBase:
+) -> ModelBase2:
   model_type = _validate_model_type(model_type)
   backend = _validate_backend(backend)
   model = _validate_path(model)
@@ -405,7 +380,7 @@ def _load_custom_acoustic_model(
   species_list: Path,
   check_validity: bool,
   **model_kwargs: object,
-) -> AcousticModelBase:
+) -> AcousticModelBase2:
   if version == ACOUSTIC_MODEL_VERSION_V2_4:
     return _load_custom_acoustic_model_V2_4(
       backend=backend,
@@ -427,7 +402,7 @@ def _load_custom_geo_model(
   species_list: Path,
   check_validity: bool,
   **model_kwargs: object,
-) -> GeoModelBase:
+) -> GeoModelV2_4:
   if version == GEO_MODEL_VERSION_V2_4:
     if precision != MODEL_PRECISION_FP32:
       raise ValueError(
@@ -457,7 +432,7 @@ def _load_custom_acoustic_model_V2_4(
       model,
       species_list,
       precision,
-      backend_type=TFInferenceBackendV2_4,
+      backend_type=TFAcousticInferenceBackendV2_4,
       backend_custom_kwargs={
         "inference_library": library,
       },
@@ -475,7 +450,7 @@ def _load_custom_acoustic_model_V2_4(
       model,
       species_list,
       precision,
-      backend_type=PBInferenceBackendV2_4,
+      backend_type=PBAcousticInferenceBackendV2_4,
       backend_custom_kwargs=None,
       check_validity=check_validity,
     )
@@ -489,15 +464,31 @@ def _load_custom_geo_model_V2_4(
   species_list: Path,
   check_validity: bool,
   **model_kwargs: object,
-) -> GeoModelBase:
+) -> GeoModelV2_4:
   if backend == MODEL_BACKEND_TF:
     model = _validate_tf_file(model)
     model_kwargs = _validate_kwargs(model_kwargs, {"library"})
     library = _validate_library(model_kwargs.get("library", LIBRARY_TF))
-    return GeoTFModelV2_4.load_custom(model, species_list, check_validity, library)
+
+    return GeoModelV2_4.load_custom(
+      model,
+      species_list,
+      backend_type=TFGeoInferenceBackendV2_4,
+      backend_custom_kwargs={
+        "inference_library": library,
+      },
+      check_validity=check_validity,
+    )
   elif backend == MODEL_BACKEND_PB:
     model = _validate_pb_model_folder(model)
     model_kwargs = _validate_kwargs(model_kwargs, None)
-    return GeoPBModelV2_4.load_custom(model, species_list, check_validity)
+
+    return GeoModelV2_4.load_custom(
+      model,
+      species_list,
+      backend_type=PBGeoInferenceBackendV2_4,
+      backend_custom_kwargs=None,
+      check_validity=check_validity,
+    )
   else:
     raise AssertionError()

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Collection, Iterable, Literal, final
+from typing import Any, Collection, Iterable, Literal, cast, final
 
 from ordered_set import OrderedSet
 
@@ -17,6 +17,8 @@ from birdnet.acoustic_models.inference2.backends2 import (
   VersionedInferenceBackendProtocol,
   check_pb_model_can_be_loaded,
   check_tf_model_can_be_loaded,
+  litert_installed,
+  tf_installed,
 )
 from birdnet.acoustic_models.inference2.emb.encoding_result import EncodingResult
 from birdnet.acoustic_models.inference2.emb.tensor import EmbeddingsTensor
@@ -37,11 +39,15 @@ from birdnet.acoustic_models.inference_pipeline2.scores_strategy import ScoresSt
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V2_4,
   ACOUSTIC_MODEL_VERSIONS,
+  LIBRARY_LITERT,
+  LIBRARY_TF,
   LIBRARY_TYPES,
   MODEL_PRECISIONS,
   MODEL_TYPE_ACOUSTIC,
   MODEL_TYPES,
+  VALID_LIBRARY_TYPES,
 )
+from birdnet.helper import check_protobuf_model_files_exist
 from birdnet.utils import get_species_from_file
 
 
@@ -130,7 +136,9 @@ class AcousticModelBaseV2_4(AcousticModelBase):
     return 1024
 
 
-class TFInferenceBackendV2_4(TFInferenceBackend2, VersionedInferenceBackendProtocol):
+class TFAcousticInferenceBackendV2_4(
+  TFInferenceBackend2, VersionedInferenceBackendProtocol
+):
   def __init__(
     self,
     model_path: Path,
@@ -166,7 +174,9 @@ class TFInferenceBackendV2_4(TFInferenceBackend2, VersionedInferenceBackendProto
     return n_outputs
 
 
-class PBInferenceBackendV2_4(PBInferenceBackend2, VersionedInferenceBackendProtocol):
+class PBAcousticInferenceBackendV2_4(
+  PBInferenceBackend2, VersionedInferenceBackendProtocol
+):
   def __init__(
     self,
     model_path: Path,
@@ -249,7 +259,7 @@ class AcousticModelV2_4(AcousticModelBase2):
     backend_custom_kwargs: dict[str, object] | None,
     check_validity: bool,
   ) -> AcousticModelV2_4:
-    assert model_path.is_file()
+    assert model_path.exists()
     assert species_list.is_file()
 
     loaded_species_list: OrderedSet[str]

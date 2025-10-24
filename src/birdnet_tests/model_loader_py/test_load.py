@@ -2,8 +2,10 @@ from typing import Literal, cast
 
 import pytest
 
+from birdnet.acoustic_models.v2_4.base import AcousticModelV2_4
 from birdnet.acoustic_models.v2_4.pb import AcousticPBModelV2_4
 from birdnet.acoustic_models.v2_4.tf import AcousticTFModelV2_4
+from birdnet.geo_models.v2_4.base import GeoModelV2_4
 from birdnet.geo_models.v2_4.pb import GeoPBModelV2_4
 from birdnet.geo_models.v2_4.tf import GeoTFModelV2_4
 from birdnet.globals import MODEL_PRECISIONS
@@ -11,6 +13,15 @@ from birdnet.model_loader import load
 
 
 def test_types_are_correct() -> None:
+  assert type(load("acoustic", "2.4", "pb")) is AcousticModelV2_4
+  assert type(load("acoustic", "2.4", "tf")) is AcousticModelV2_4
+  assert type(load("acoustic", "2.4", "tf", library="litert")) is AcousticModelV2_4
+  assert type(load("geo", "2.4", "pb")) is GeoModelV2_4
+  assert type(load("geo", "2.4", "tf")) is GeoModelV2_4
+  assert type(load("geo", "2.4", "tf", library="litert")) is GeoModelV2_4
+
+
+def test_types_are_correct_old() -> None:
   assert type(load("acoustic", "2.4", "pb")) is AcousticPBModelV2_4
   assert type(load("acoustic", "2.4", "tf")) is AcousticTFModelV2_4
   assert type(load("acoustic", "2.4", "tf", library="litert")) is AcousticTFModelV2_4
