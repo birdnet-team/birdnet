@@ -76,7 +76,7 @@ def fillup_with_silence(
 
 def flat_sigmoid_logaddexp_fast(
   x: npt.NDArray, sensitivity: float, clip_val: float = 15.0
-):
+) -> npt.NDArray:
   y = sensitivity * np.clip(x, -clip_val, clip_val)
 
   positive_mask = y >= 0
@@ -104,11 +104,13 @@ def download_file_tqdm(
     total_size = download_size
 
   block_size = 1024
-  with tqdm(total=total_size, unit="iB", unit_scale=True, desc=description) as tqdm_bar:
-    with open(file_path, "wb") as file:
-      for data in response.iter_content(block_size):
-        tqdm_bar.update(len(data))
-        file.write(data)
+  with (
+    tqdm(total=total_size, unit="iB", unit_scale=True, desc=description) as tqdm_bar,
+    open(file_path, "wb") as file,
+  ):
+    for data in response.iter_content(block_size):
+      tqdm_bar.update(len(data))
+      file.write(data)
 
   if response.status_code != 200 or (total_size not in (0, tqdm_bar.n)):
     raise ValueError(

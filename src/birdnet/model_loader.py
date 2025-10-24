@@ -61,7 +61,8 @@ from birdnet.helper import check_protobuf_model_files_exist
 def _validate_model_type(model_type: Any) -> MODEL_TYPES:  # noqa: ANN401
   if model_type not in VALID_MODEL_TYPES:
     raise ValueError(
-      f"Unknown model type: {model_type}. Supported types are: {', '.join(VALID_MODEL_TYPES)}."
+      f"Unknown model type: {model_type}. "
+      f"Supported types are: {', '.join(VALID_MODEL_TYPES)}."
     )
   return cast(MODEL_TYPES, model_type)
 
@@ -69,7 +70,8 @@ def _validate_model_type(model_type: Any) -> MODEL_TYPES:  # noqa: ANN401
 def _validate_acoustic_model_version(version: Any) -> ACOUSTIC_MODEL_VERSIONS:  # noqa: ANN401
   if version not in VALID_ACOUSTIC_MODEL_VERSIONS:
     raise ValueError(
-      f"Unsupported model version: {version}. Available versions are: {', '.join(VALID_ACOUSTIC_MODEL_VERSIONS)}."
+      f"Unsupported model version: {version}. "
+      f"Available versions are: {', '.join(VALID_ACOUSTIC_MODEL_VERSIONS)}."
     )
   return cast(ACOUSTIC_MODEL_VERSIONS, version)
 
@@ -77,7 +79,8 @@ def _validate_acoustic_model_version(version: Any) -> ACOUSTIC_MODEL_VERSIONS:  
 def _validate_geo_model_version(version: Any) -> GEO_MODEL_VERSIONS:  # noqa: ANN401
   if version not in VALID_GEO_MODEL_VERSIONS:
     raise ValueError(
-      f"Unsupported model version: {version}. Available versions are: {', '.join(VALID_GEO_MODEL_VERSIONS)}."
+      f"Unsupported model version: {version}. "
+      f"Available versions are: {', '.join(VALID_GEO_MODEL_VERSIONS)}."
     )
   return cast(GEO_MODEL_VERSIONS, version)
 
@@ -85,7 +88,8 @@ def _validate_geo_model_version(version: Any) -> GEO_MODEL_VERSIONS:  # noqa: AN
 def _validate_backend(backend: Any) -> MODEL_BACKENDS:  # noqa: ANN401
   if backend not in VALID_MODEL_BACKENDS:
     raise ValueError(
-      f"Unknown model backend: {backend}. Available backends are: {', '.join(VALID_MODEL_BACKENDS)}."
+      f"Unknown model backend: {backend}. "
+      f"Available backends are: {', '.join(VALID_MODEL_BACKENDS)}."
     )
   return cast(MODEL_BACKENDS, backend)
 
@@ -93,7 +97,8 @@ def _validate_backend(backend: Any) -> MODEL_BACKENDS:  # noqa: ANN401
 def _validate_precision(precision: Any) -> MODEL_PRECISIONS:  # noqa: ANN401
   if precision not in VALID_MODEL_PRECISIONS:
     raise ValueError(
-      f"Unsupported model precision: {precision}. Currently supported precisions: {', '.join(VALID_MODEL_PRECISIONS)}."
+      f"Unsupported model precision: {precision}. "
+      f"Currently supported precisions: {', '.join(VALID_MODEL_PRECISIONS)}."
     )
   return cast(MODEL_PRECISIONS, precision)
 
@@ -101,7 +106,8 @@ def _validate_precision(precision: Any) -> MODEL_PRECISIONS:  # noqa: ANN401
 def _validate_language(lang: Any) -> MODEL_LANGUAGES:  # noqa: ANN401
   if lang not in VALID_MODEL_LANGUAGES:
     raise ValueError(
-      f"Language '{lang}' is not supported by the model. Available languages are: {', '.join(VALID_MODEL_LANGUAGES)}."
+      f"Language '{lang}' is not supported by the model. "
+      f"Available languages are: {', '.join(VALID_MODEL_LANGUAGES)}."
     )
   return cast(MODEL_LANGUAGES, lang)
 
@@ -145,14 +151,16 @@ def _validate_tf_file(model_path: Any) -> Path:  # noqa: ANN401
 def _validate_library(library: Any) -> LIBRARY_TYPES:  # noqa: ANN401
   if library not in VALID_LIBRARY_TYPES:
     raise ValueError(
-      f"Unsupported TensorFlow library: {library}. Supported libraries are:  {', '.join(VALID_LIBRARY_TYPES)}."
+      f"Unsupported TensorFlow library: {library}. "
+      f"Supported libraries are: {', '.join(VALID_LIBRARY_TYPES)}."
     )
   if library == LIBRARY_TF:
     assert tf_installed()  # default
   elif library == LIBRARY_LITERT:
     if not litert_installed():
       raise ValueError(
-        f"Parameter 'library': Library '{LIBRARY_LITERT}' is not available. Install birdnet with [litert] option."
+        f"Parameter 'library': Library '{LIBRARY_LITERT}' is not available. "
+        "Install birdnet with [litert] option."
       )
   else:
     raise AssertionError()
@@ -238,7 +246,8 @@ def _load_geo_model(
   if version == GEO_MODEL_VERSION_V2_4:
     if precision != MODEL_PRECISION_FP32:
       raise ValueError(
-        f"Unsupported model precision for geo model: {precision}. Currently supported precision is: {MODEL_PRECISION_FP32}."
+        f"Unsupported model precision for geo model: {precision}. "
+        f"Currently supported precision is: {MODEL_PRECISION_FP32}."
       )
     return _load_geo_model_V2_4(backend, lang, **model_kwargs)
   else:
@@ -271,7 +280,8 @@ def _load_acoustic_model_V2_4(
   elif backend == MODEL_BACKEND_PB:
     if precision != MODEL_PRECISION_FP32:
       raise ValueError(
-        f"Unsupported model precision for acoustic pb model: {precision}. Currently supported precision is: {MODEL_PRECISION_FP32}."
+        f"Unsupported model precision for acoustic pb model: {precision}. "
+        f"Currently supported precision is: {MODEL_PRECISION_FP32}."
       )
     model_kwargs = _validate_kwargs(model_kwargs, None)
 
@@ -398,7 +408,8 @@ def _load_custom_geo_model(
   if version == GEO_MODEL_VERSION_V2_4:
     if precision != MODEL_PRECISION_FP32:
       raise ValueError(
-        f"Unsupported model precision for geo model: {precision}. Currently supported precision is: {MODEL_PRECISION_FP32}."
+        f"Unsupported model precision for geo model: {precision}. "
+        f"Currently supported precision is: {MODEL_PRECISION_FP32}."
       )
     return _load_custom_geo_model_V2_4(
       backend, model, species_list, check_validity, **model_kwargs
@@ -433,7 +444,8 @@ def _load_custom_acoustic_model_V2_4(
   elif backend == MODEL_BACKEND_PB:
     if precision != MODEL_PRECISION_FP32:
       raise ValueError(
-        f"Unsupported model precision for acoustic pb model: {precision}. Currently supported precision is: {MODEL_PRECISION_FP32}."
+        f"Unsupported model precision for acoustic pb model: {precision}. "
+        f"Currently supported precision is: {MODEL_PRECISION_FP32}."
       )
     model = _validate_pb_model_folder(model)
     model_kwargs = _validate_kwargs(model_kwargs, None)

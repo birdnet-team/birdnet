@@ -4,14 +4,12 @@ import shutil
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Any
 
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.backends import (
   PBBackend,
   VersionedGeoBackendProtocol,
-  check_pb_model_can_be_loaded,
 )
 from birdnet.geo_models.v2_4.model import GeoDownloaderBaseV2_4
 from birdnet.globals import (
@@ -108,16 +106,3 @@ class GeoPBBackendV2_4(PBBackend, VersionedGeoBackendProtocol):
       emb_signature_name="",  # Embeddings not supported
       emb_prediction_key="",
     )
-
-  @classmethod
-  def check_model_can_be_loaded(
-    cls,
-    model_path: Path,
-    **kwargs: Any,
-  ) -> int | None:
-    n_outputs = check_pb_model_can_be_loaded(
-      model_path,
-      "serving_default",
-      "MNET_CLASS_ACTIVATION",
-    )
-    return n_outputs

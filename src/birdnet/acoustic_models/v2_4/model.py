@@ -10,6 +10,7 @@ from birdnet.acoustic_models.base import (
   AcousticModelBase,
 )
 from birdnet.acoustic_models.inference.backends import (
+  BackendLoader,
   VersionedAcousticBackendProtocol,
 )
 from birdnet.acoustic_models.inference.emb.encoding_result import EncodingResult
@@ -125,9 +126,10 @@ class AcousticModelV2_4(AcousticModelBase):
       ) from e
 
     if check_validity:
-      n_species_in_model = backend_type.check_model_can_be_loaded(
-        model_path, **backend_kwargs
+      n_species_in_model = BackendLoader.check_model_can_be_loaded(
+        model_path, backend_type, backend_kwargs
       )
+
       if n_species_in_model != len(loaded_species_list):
         raise ValueError(
           f"Model '{model_path.absolute()}' has {n_species_in_model} outputs, but species list '{species_list.absolute()}' has {len(loaded_species_list)} species!"

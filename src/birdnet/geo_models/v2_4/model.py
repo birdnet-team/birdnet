@@ -19,8 +19,7 @@ from birdnet.globals import (
   MODEL_TYPE_GEO,
   MODEL_TYPES,
 )
-from birdnet.helper import uint_dtype_for
-from birdnet.utils import get_species_from_file
+from birdnet.helper import uint_dtype_for, validate_species_list
 
 
 class GeoDownloaderBaseV2_4:
@@ -99,18 +98,13 @@ class GeoModelV2_4(GeoModelBase):
     assert model_path.exists()
     assert species_list.is_file()
 
-    loaded_species_list: OrderedSet[str]
-    try:
-      loaded_species_list = get_species_from_file(species_list, encoding="utf8")
-    except Exception as e:
-      raise ValueError(
-        f"Failed to read species list from '{species_list.absolute()}'. Ensure it is a valid text file."
-      ) from e
+    loaded_species_list = validate_species_list(species_list)
 
     if check_validity:
-      n_species_in_model = backend_type.check_model_can_be_loaded(
-        model_path, **backend_kwargs
+      n_species_in_model = BackendLoader.check_model_can_be_loaded(
+        model_path, backend_type, backend_kwargs
       )
+
       if n_species_in_model != len(loaded_species_list):
         raise ValueError(
           f"Model '{model_path.absolute()}' has {n_species_in_model} outputs, but species list '{species_list.absolute()}' has {len(loaded_species_list)} species!"
@@ -177,7 +171,7 @@ class GeoModelV2_4(GeoModelBase):
     backend_loader = BackendLoader(
       model_path=self.model_path,
       backend_type=self._backend_type,
-      backend_custom_kwargs=self._backend_custom_kwargs,
+      backend_kwargs=self._backend_custom_kwargs,
     )
 
     backend = backend_loader.load_backend(device)

@@ -4,14 +4,12 @@ import shutil
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Any
 
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.backends import (
   PBBackend,
   VersionedAcousticBackendProtocol,
-  check_pb_model_can_be_loaded,
 )
 from birdnet.acoustic_models.v2_4.model import (
   AcousticDownloaderBaseV2_4,
@@ -112,16 +110,3 @@ class AcousticPBBackendV2_4(PBBackend, VersionedAcousticBackendProtocol):
       emb_prediction_key="embeddings",
       **kwargs,
     )
-
-  @classmethod
-  def check_model_can_be_loaded(
-    cls,
-    model_path: Path,
-    **kwargs: Any,
-  ) -> int | None:
-    n_outputs = check_pb_model_can_be_loaded(
-      model_path,
-      "basic",
-      "scores",
-    )
-    return n_outputs

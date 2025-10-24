@@ -5,14 +5,12 @@ import shutil
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Any
 
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.backends import (
   TFBackend,
   VersionedGeoBackendProtocol,
-  check_tf_model_can_be_loaded,
 )
 from birdnet.geo_models.v2_4.model import GeoDownloaderBaseV2_4
 from birdnet.globals import (
@@ -116,14 +114,3 @@ class GeoTFBackendV2_4(TFBackend, VersionedGeoBackendProtocol):
       scores_out_idx=62,
       **kwargs,
     )
-
-  @classmethod
-  def check_model_can_be_loaded(
-    cls,
-    model_path: Path,
-    **kwargs: Any,
-  ) -> int | None:
-    n_outputs = check_tf_model_can_be_loaded(
-      model_path=model_path, out_idx=62, **kwargs
-    )
-    return n_outputs

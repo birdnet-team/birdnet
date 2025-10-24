@@ -42,6 +42,9 @@ class Backend(ABC):
   def load(self) -> None: ...
 
   @abstractmethod
+  def unload(self) -> None: ...
+
+  @abstractmethod
   def predict(self, batch: np.ndarray) -> np.ndarray: ...
 
   @abstractmethod
@@ -50,6 +53,10 @@ class Backend(ABC):
   @classmethod
   @abstractmethod
   def supports_cow(cls) -> bool: ...
+
+  @property
+  @abstractmethod
+  def n_species(self) -> int: ...
 
 
 @runtime_checkable
@@ -63,6 +70,8 @@ class VersionedBackendProtocol(Protocol):
 
   def load(self) -> None: ...
 
+  def unload(self) -> None: ...
+
   def predict(self, batch: np.ndarray) -> np.ndarray: ...
 
   def embed(self, batch: np.ndarray) -> np.ndarray: ...
@@ -70,12 +79,8 @@ class VersionedBackendProtocol(Protocol):
   @classmethod
   def supports_cow(cls) -> bool: ...
 
-  @classmethod
-  def check_model_can_be_loaded(
-    cls,
-    model_path: Path,
-    **kwargs: Any,
-  ) -> int | None: ...
+  @property
+  def n_species(self) -> int: ...
 
 
 @runtime_checkable
@@ -104,6 +109,7 @@ class TFBackend(Backend, ABC):
     assert device_name == "CPU"
     super().__init__(model_path, device_name)
     self._interp: LiteRTInterpreter | TFInterpreter | None = None
+    self._cached_shape: tuple[int, ...] | None = None
     assert TF_BACKEND_LIB_ARG in kwargs
     self._inference_library: LIBRARY_TYPES = cast(
       LIBRARY_TYPES, kwargs[TF_BACKEND_LIB_ARG]
@@ -111,7 +117,6 @@ class TFBackend(Backend, ABC):
     self._in_idx: int = in_idx
     self._scores_out_idx: int = scores_out_idx
     self._emb_out_idx: int = emb_out_idx
-    self._cached_shape: tuple[int, ...] | None = None
 
   @final
   @classmethod
@@ -126,6 +131,17 @@ class TFBackend(Backend, ABC):
 
     # self._in_idx = self._interp.get_input_details()[0]["index"]  # type: ignore
     # self._out_idx = self._interp.get_output_details()[0]["index"]  # type: ignore
+
+  def unload(self) -> None:
+    self._interp = None
+    self._cached_shape = None
+
+  @property
+  def n_species(self) -> int:
+    assert self._interp is not None
+    output_details = self._interp.get_output_details()
+    n_species = output_details[0]["shape"][1]
+    return n_species
 
   def _set_tensor(self, batch: np.ndarray) -> None:
     assert self._interp is not None
@@ -173,6 +189,7 @@ class PBBackend(Backend, ABC):
     **kwargs: dict,
   ) -> None:
     super().__init__(model_path, device_name)
+    self._model: Any | None = None
     self._logical_device: Any | None = None
     self._predict_fn: Callable | None = None
     self._emb_fn: Callable | None = None
@@ -190,11 +207,26 @@ class PBBackend(Backend, ABC):
 
   @final
   def load(self) -> None:
-    model = load_pb_model(self._model_path)
-    self._predict_fn = model.signatures[self._scores_signature_name]
-    self._emb_fn = model.signatures[self._emb_signature_name]
+    self._model = load_pb_model(self._model_path)
+    self._predict_fn = self._model.signatures[self._scores_signature_name]  # type: ignore
+    self._emb_fn = self._model.signatures[self._emb_signature_name]  # type: ignore
 
     self._set_logical_device(self._device_name)
+
+  def unload(self) -> None:
+    self._model = None
+    self._logical_device = None
+    self._predict_fn = None
+    self._emb_fn = None
+    self._cached_device_name = None
+
+  @property
+  def n_species(self) -> int:
+    assert self._predict_fn is not None
+    n_species_in_model: int = (
+      self._predict_fn.output_shapes[self._scores_prediction_key].dims[1].value  # type: ignore
+    )
+    return n_species_in_model
 
   def _set_logical_device(self, device_name: str) -> None:
     assert "GPU" in device_name or "CPU" in device_name
@@ -265,15 +297,16 @@ class BackendLoader:
     self,
     model_path: Path,
     backend_type: type[VersionedBackendProtocol],
-    backend_custom_kwargs: dict[str, object],
+    backend_kwargs: dict[str, Any],
   ) -> None:
     self._model_path = model_path
     self._backend_type = backend_type
-    self._backend_kwargs = backend_custom_kwargs
-
+    self._backend_kwargs = backend_kwargs
     self._backend: VersionedBackendProtocol | None = None
 
   def unload_backend(self) -> None:
+    assert self._backend is not None
+    self._backend.unload()
     self._backend = None
 
   def _load_backend(self, device_name: str) -> VersionedBackendProtocol:
@@ -287,7 +320,7 @@ class BackendLoader:
     self._backend = backend
     return backend
 
-  def on_before_worker_initialized(self, devices: list[str]) -> None:
+  def load_backend_in_main_process_if_possible(self, devices: list[str]) -> None:
     unique_devices = set(devices)
     same_device_for_all_workers = len(unique_devices) == 1
     if (
@@ -309,8 +342,46 @@ class BackendLoader:
     assert self._backend is not None
     return self._backend
 
+  @classmethod
+  def _get_n_species(
+    cls,
+    model_path: Path,
+    backend_type: type[VersionedBackendProtocol],
+    kwargs: dict[str, Any],
+  ) -> int | None:
+    try:
+      loader = cls(model_path, backend_type, kwargs)
+      loader.load_backend("CPU")
+      n_species_in_model = loader.backend.n_species
+      return n_species_in_model
+    except Exception:
+      return None
 
-def load_pb_model(model_path: Path):
+  @classmethod
+  def check_model_can_be_loaded(
+    cls,
+    model_path: Path,
+    backend_type: type[VersionedBackendProtocol],
+    kwargs: dict[str, Any],
+  ) -> int:
+    """
+    Check if the model can be loaded in a subprocess to avoid loading tensorflow in the main process.
+    Returns the number of species in the model if successful.
+    """
+    try:
+      n_species_in_model = None
+      with ProcessPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(cls._get_n_species, model_path, backend_type, kwargs)
+        n_species_in_model = future.result(timeout=None)
+      if n_species_in_model is None:
+        raise ValueError("Failed to load model.")
+      return n_species_in_model
+    except Exception as e:
+      get_logger(__name__).error(f"Failed to load model in subprocess: {e}")
+      raise ValueError("Failed to load model.") from e
+
+
+def load_pb_model(model_path: Path) -> Any:
   import absl.logging
 
   absl_verbosity_before = absl.logging.get_verbosity()
@@ -462,60 +533,3 @@ def litert_installed() -> bool:
   import importlib.util
 
   return importlib.util.find_spec("ai_edge_litert") is not None
-
-
-def _get_pb_n_species(
-  model_path: Path, signature_name: str, prediction_key: str
-) -> int | None:
-  try:
-    loaded_model = load_pb_model(model_path)
-    n_species_in_model: int = (
-      loaded_model.signatures[signature_name]  # type: ignore
-      .output_shapes[prediction_key]
-      .dims[1]
-      .value  # type: ignore
-    )
-    return n_species_in_model
-  except Exception:
-    return None
-
-
-def check_pb_model_can_be_loaded(
-  model_path: Path, signature_name: str, prediction_key: str
-) -> int | None:
-  try:
-    with ProcessPoolExecutor(max_workers=1) as executor:
-      future = executor.submit(
-        _get_pb_n_species, model_path, signature_name, prediction_key
-      )
-      result = future.result(timeout=None)
-      return result
-  except Exception as e:
-    get_logger(__name__).error(f"Failed to load Protobuf model in subprocess: {e}")
-    return None
-
-
-def _get_tf_n_species(
-  model_path: Path, library: LIBRARY_TYPES, out_idx: int
-) -> int | None:
-  try:
-    loaded_model = load_tf_model(model_path, library, allocate_tensors=False)
-    n_species_in_model = loaded_model.get_output_details()[0]["shape"][1]
-    return n_species_in_model
-  except Exception:
-    return None
-
-
-def check_tf_model_can_be_loaded(
-  model_path: Path, inference_library: LIBRARY_TYPES, out_idx: int
-) -> int | None:
-  try:
-    with ProcessPoolExecutor(max_workers=1) as executor:
-      future = executor.submit(
-        _get_tf_n_species, model_path, inference_library, out_idx
-      )
-      result = future.result(timeout=None)
-      return result
-  except Exception as e:
-    get_logger(__name__).error(f"Failed to load TensorFlow model in subprocess: {e}")
-    return None

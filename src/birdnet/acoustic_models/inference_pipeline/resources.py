@@ -216,7 +216,7 @@ class WorkerResources:
     backend_loader = BackendLoader(
       model_path=config.model_conf.path,
       backend_type=config.model_conf.backend_type,
-      backend_custom_kwargs=config.model_conf.backend_kwargs,
+      backend_kwargs=config.model_conf.backend_kwargs,
     )
 
     return WorkerResources(
@@ -228,7 +228,6 @@ class WorkerResources:
     )
 
   def reset(self) -> None:
-    self.backend_loader.unload_backend()
     for start_signal in self.start_signals:
       start_signal.clear()
 

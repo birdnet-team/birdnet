@@ -186,7 +186,7 @@ class ProcessManager:
 
   def start_workers(self) -> list[mp.Process]:
     try:
-      self._res.worker_resources.backend_loader.on_before_worker_initialized(
+      self._res.worker_resources.backend_loader.load_backend_in_main_process_if_possible(
         self._res.worker_resources.devices
       )
     except Exception as exc:

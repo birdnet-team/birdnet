@@ -6,6 +6,7 @@ from pathlib import Path
 import psutil
 from ordered_set import OrderedSet
 
+from birdnet.acoustic_models.inference.backends import TF_BACKEND_LIB_ARG
 from birdnet.acoustic_models.inference.emb.benchmarking import (
   FullBenchmarkEmbMeta,
   MinimalBenchmarkEmbMeta,
@@ -211,13 +212,15 @@ class EmbeddingsStrategy(
       file_batches_processed=perf_result.total_batches_processed,
       speed_worker_xrt=perf_result.worker_speed_xrt,
       speed_worker_xrt_max=perf_result.worker_speed_xrt_max,
-      model_backend="",  # TODO config.model_conf.backend,
+      model_backend=str(config.model_conf.backend_type),
       model_sample_rate=config.model_conf.sample_rate,
       model_sig_fmin=config.model_conf.sig_fmin,
       model_sig_fmax=config.model_conf.sig_fmax,
       worker_wait_time_average_milliseconds=perf_result.avg_wait_time_ms,
       file_formats=get_file_formats({Path(x) for x in pred_result.files}),
-      param_inference_library="",  # TODO config.model_conf.backend_kwargs.get("inference_library"),
+      param_inference_library=config.model_conf.backend_kwargs.get(
+        TF_BACKEND_LIB_ARG, "N/A"
+      ),
     )
 
   def get_benchmark_dir_name(self) -> str:

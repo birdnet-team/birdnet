@@ -72,7 +72,6 @@ def init_package_logger(logging_level: int) -> None:
 init_package_logger(logging.INFO)
 
 
-
 class QueueFileWriter:
   def __init__(
     self,
@@ -82,7 +81,7 @@ class QueueFileWriter:
     cancel_event: multiprocessing.synchronize.Event,
     stop_event: multiprocessing.synchronize.Event,
     processing_finished_event: multiprocessing.synchronize.Event,
-  ):
+  ) -> None:
     self._logging_level = logging_level
     self._log_queue = log_queue
     self._log_file = log_file
@@ -173,7 +172,8 @@ class QueueFileWriter:
     # sorted_lines = sorted(lines, key=lambda x: x.split()[:2])
     # self._log_file.write_text("\n".join(sorted_lines), encoding="utf-8")
     # print(
-    #   f"Finished writing logs to {self._log_file.absolute()}. Total lines: {len(sorted_lines)}."
+    #   f"Finished writing logs to {self._log_file.absolute()}.
+    # Total lines: {len(sorted_lines)}."
     # )
 
 
@@ -183,7 +183,7 @@ class LogableProcessBase:
     name: str,
     logging_queue: mp.Queue,
     logging_level: int,
-  ):
+  ) -> None:
     self.__logger: logging.Logger | None = None
     self.__logging_queue = logging_queue
     self.__logging_level = logging_level

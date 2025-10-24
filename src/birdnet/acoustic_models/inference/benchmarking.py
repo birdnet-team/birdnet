@@ -17,7 +17,6 @@ from birdnet.acoustic_models.inference.backends import (
 )
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSIONS,
-  MODEL_BACKENDS,
   MODEL_PRECISIONS,
   MODEL_TYPES,
 )
@@ -199,7 +198,7 @@ class FullBenchmarkMetaBase(MinimalBenchmarkMetaBase):
 
   # Model
   model_type: MODEL_TYPES
-  model_backend: MODEL_BACKENDS
+  model_backend: str
   model_version: ACOUSTIC_MODEL_VERSIONS
   model_is_custom: bool
   model_path: str
