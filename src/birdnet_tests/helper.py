@@ -16,7 +16,7 @@ def memory_monitor() -> Generator[Callable, None, None]:
   max_memory = ctypes.c_float(memory_before)
   stop_event = threading.Event()
 
-  def monitor_worker():
+  def monitor_worker() -> None:
     while not stop_event.is_set():
       try:
         current_memory = process.memory_full_info().uss
@@ -29,7 +29,7 @@ def memory_monitor() -> Generator[Callable, None, None]:
   monitor_thread = threading.Thread(target=monitor_worker, daemon=True)
   monitor_thread.start()
 
-  def get_memory_delta():
+  def get_memory_delta() -> float:
     return (max_memory.value - memory_before) / 1024**2
 
   try:
@@ -44,7 +44,7 @@ def duration_counter() -> Generator[Callable, None, None]:
   """Context manager to measure duration of a code block."""
   start = time.perf_counter()
 
-  def get_duration():
+  def get_duration() -> float:
     end = time.perf_counter()
     return end - start
 
@@ -52,4 +52,3 @@ def duration_counter() -> Generator[Callable, None, None]:
     yield get_duration
   finally:
     pass  # No cleanup needed
-

@@ -1,7 +1,7 @@
 import logging
 
 
-def pytest_configure():
+def pytest_configure() -> None:
   loggers = {"tensorflow", "absl", "urllib3"}
   for l in loggers:
     logger = logging.getLogger(l)
