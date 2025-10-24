@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Literal, TypeVar
 
 import numpy as np
+import psutil
 from numpy.typing import DTypeLike
 from ordered_set import OrderedSet
 
@@ -99,13 +100,15 @@ class ProcessingConfig:
   @classmethod
   def validate_n_workers(cls, n_workers: Any) -> int:  # noqa: ANN401
     if n_workers is None:
-      n_workers = multiprocessing.cpu_count() or 1
+      n_physical_cores = psutil.cpu_count(logical=False) or 1
+      n_workers = n_physical_cores
       return n_workers
     if not isinstance(n_workers, int):
       raise TypeError("n_workers must be an integer")
     if not n_workers >= 1:
       raise ValueError("n_workers must be >= 1")
-    max_threads = multiprocessing.cpu_count() or 1
+    max_threads = psutil.cpu_count(logical=True) or 1
+
     if not n_workers <= max_threads:
       raise ValueError(f"n_workers must be <= {max_threads}")
     return n_workers

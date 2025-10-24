@@ -90,7 +90,7 @@ class QueueFileWriter:
     self._get_logs_interval = 3
     self._processing_finished_event = processing_finished_event
 
-  def __call__(self):
+  def __call__(self) -> None:
     logger = logging.getLogger("birdnet-file-writer")
     logger.setLevel(self._logging_level)
     logger.propagate = False
