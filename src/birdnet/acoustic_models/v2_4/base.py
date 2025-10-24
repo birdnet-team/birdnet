@@ -10,7 +10,7 @@ from birdnet.acoustic_models.base import (
   AcousticModelBase,
 )
 from birdnet.acoustic_models.inference.backends import (
-  InferenceBackendLoader2,
+  InferenceBackendLoader,
   VersionedAcousticInferenceBackendProtocol,
 )
 from birdnet.acoustic_models.inference.emb.encoding_result import EncodingResult
@@ -220,7 +220,7 @@ class AcousticModelV2_4(AcousticModelBase):
     if show_stats is not None:
       show_stats = OutputConfig.validate_show_stats(show_stats)
 
-    backend_loader = InferenceBackendLoader2(
+    backend_loader = InferenceBackendLoader(
       model_path=self.model_path,
       inference_strategy="embeddings",
       backend_type=self._backend_type,
@@ -332,7 +332,7 @@ class AcousticModelV2_4(AcousticModelBase):
 
     max_n_files = ProcessingConfig.validate_max_n_files(max_n_files)
 
-    backend_loader = InferenceBackendLoader2(
+    backend_loader = InferenceBackendLoader(
       model_path=self.model_path,
       inference_strategy="scores",
       backend_type=self._backend_type,

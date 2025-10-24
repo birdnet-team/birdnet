@@ -12,7 +12,7 @@ import numpy as np
 from numpy.typing import DTypeLike
 
 import birdnet.logging_utils as bn_logging
-from birdnet.acoustic_models.inference.backends import InferenceBackendLoader2
+from birdnet.acoustic_models.inference.backends import InferenceBackendLoader
 from birdnet.globals import (
   READABLE_FLAG,
   READING_FLAG,
@@ -26,7 +26,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
   def __init__(
     self,
     name: str,
-    backend_loader: InferenceBackendLoader2,
+    backend_loader: InferenceBackendLoader,
     batch_size: int,
     n_slots: int,
     rf_file_indices: RingField,
@@ -183,6 +183,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
       self._load_model()
     except ValueError:
       self._cancel_event.set()
+      self._uninit_logging()
       return
 
     duration_init = time.perf_counter() - start

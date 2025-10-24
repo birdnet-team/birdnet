@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.backends import (
-  TFInferenceBackend2,
+  TFInferenceBackend,
   VersionedGeoInferenceBackendProtocol,
   check_tf_model_can_be_loaded,
 )
@@ -108,7 +108,7 @@ class GeoTFDownloaderV2_4(GeoDownloaderBaseV2_4):
 
 
 class TFGeoInferenceBackendV2_4(
-  TFInferenceBackend2, VersionedGeoInferenceBackendProtocol
+  TFInferenceBackend, VersionedGeoInferenceBackendProtocol
 ):
   def __init__(
     self,

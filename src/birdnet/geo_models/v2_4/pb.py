@@ -9,7 +9,7 @@ from typing import Any, Literal
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.backends import (
-  PBInferenceBackend2,
+  PBInferenceBackend,
   VersionedGeoInferenceBackendProtocol,
   check_pb_model_can_be_loaded,
 )
@@ -93,7 +93,9 @@ class GeoPBDownloaderV2_4(GeoDownloaderBaseV2_4):
     return model_dir, labels
 
 
-class PBGeoInferenceBackendV2_4(PBInferenceBackend2, VersionedGeoInferenceBackendProtocol):
+class PBGeoInferenceBackendV2_4(
+  PBInferenceBackend, VersionedGeoInferenceBackendProtocol
+):
   def __init__(
     self,
     model_path: Path,

@@ -204,3 +204,7 @@ def get_float_dtype(max_value: float) -> DTypeLike:
     return np.float32
   else:
     return np.float64
+
+
+def get_file_formats(file_paths: set[Path]) -> str:
+  return ", ".join(sorted({x.suffix[1:].upper() for x in file_paths}))

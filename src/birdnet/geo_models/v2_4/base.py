@@ -8,10 +8,10 @@ from numpy.typing import DTypeLike
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.backends import (
-  InferenceBackendLoader2,
+  InferenceBackendLoader,
   VersionedGeoInferenceBackendProtocol,
 )
-from birdnet.geo_models.base import GeoModelBase2
+from birdnet.geo_models.base import GeoModelBase
 from birdnet.geo_models.inference.prediction_result import PredictionResult
 from birdnet.globals import (
   GEO_MODEL_VERSION_V2_4,
@@ -57,7 +57,7 @@ class GeoDownloaderBaseV2_4:
   )
 
 
-class GeoModelV2_4(GeoModelBase2):
+class GeoModelV2_4(GeoModelBase):
   def __init__(
     self,
     model_path: Path,
@@ -174,7 +174,7 @@ class GeoModelV2_4(GeoModelBase2):
 
     prob_dtype: DTypeLike = np.float16 if half_precision else np.float32
 
-    backend_loader = InferenceBackendLoader2(
+    backend_loader = InferenceBackendLoader(
       model_path=self.model_path,
       inference_strategy="scores",
       backend_type=self._backend_type,

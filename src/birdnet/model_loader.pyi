@@ -1,6 +1,8 @@
 from os import PathLike
 from typing import Literal, overload
 
+from birdnet.acoustic_models.v2_4.base import AcousticModelV2_4
+from birdnet.geo_models.v2_4.base import GeoModelV2_4
 from birdnet.globals import (
   LIBRARY_TF,
   LIBRARY_TYPES,
@@ -21,7 +23,7 @@ def load(
   precision: MODEL_PRECISIONS = MODEL_PRECISION_FP32,
   lang: MODEL_LANGUAGES = MODEL_LANGUAGE_EN_US,
   library: LIBRARY_TYPES = LIBRARY_TF,
-) -> AcousticTFModelV2_4: ...
+) -> AcousticModelV2_4: ...
 @overload
 def load(
   model_type: Literal["acoustic"],
@@ -31,7 +33,7 @@ def load(
   *,
   precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   lang: MODEL_LANGUAGES = MODEL_LANGUAGE_EN_US,
-) -> AcousticPBModelV2_4: ...
+) -> AcousticModelV2_4: ...
 
 # NOTE: to see "tf" and "pb" overloads in the IDE
 @overload
@@ -43,7 +45,7 @@ def load(
   *,
   precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   lang: MODEL_LANGUAGES = MODEL_LANGUAGE_EN_US,
-) -> AcousticPBModelV2_4 | AcousticTFModelV2_4: ...
+) -> AcousticModelV2_4: ...
 
 # if new versions are added, add this overload (also on the other places)
 # @overload
@@ -66,7 +68,7 @@ def load(
   precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   lang: MODEL_LANGUAGES = MODEL_LANGUAGE_EN_US,
   library: LIBRARY_TYPES = LIBRARY_TF,
-) -> GeoTFModelV2_4: ...
+) -> GeoModelV2_4: ...
 @overload
 def load(
   model_type: Literal["geo"],
@@ -76,7 +78,7 @@ def load(
   *,
   precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   lang: MODEL_LANGUAGES = MODEL_LANGUAGE_EN_US,
-) -> GeoPBModelV2_4: ...
+) -> GeoModelV2_4: ...
 
 # NOTE: to see "tf" and "pb" overloads in the IDE
 @overload
@@ -88,7 +90,7 @@ def load(
   *,
   precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   lang: MODEL_LANGUAGES = MODEL_LANGUAGE_EN_US,
-) -> GeoTFModelV2_4 | GeoPBModelV2_4: ...
+) -> GeoModelV2_4: ...
 
 # LOAD CUSTOM MODELS
 
@@ -104,7 +106,7 @@ def load_custom(
   precision: MODEL_PRECISIONS = MODEL_PRECISION_FP32,
   check_validity: bool = True,
   library: LIBRARY_TYPES = LIBRARY_TF,
-) -> AcousticTFModelV2_4: ...
+) -> AcousticModelV2_4: ...
 @overload
 def load_custom(
   model_type: Literal["acoustic"],
@@ -116,7 +118,7 @@ def load_custom(
   *,
   precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   check_validity: bool = True,
-) -> AcousticPBModelV2_4: ...
+) -> AcousticModelV2_4: ...
 
 # NOTE: to see "tf" and "pb" overloads in the IDE
 @overload
@@ -130,7 +132,7 @@ def load_custom(
   *,
   precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   check_validity: bool = True,
-) -> AcousticPBModelV2_4 | AcousticTFModelV2_4: ...
+) -> AcousticModelV2_4: ...
 @overload
 def load_custom(
   model_type: Literal["geo"],
@@ -143,7 +145,7 @@ def load_custom(
   precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   check_validity: bool = True,
   library: LIBRARY_TYPES = LIBRARY_TF,
-) -> GeoTFModelV2_4: ...
+) -> GeoModelV2_4: ...
 @overload
 def load_custom(
   model_type: Literal["geo"],
@@ -155,7 +157,7 @@ def load_custom(
   *,
   precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   check_validity: bool = True,
-) -> GeoPBModelV2_4: ...
+) -> GeoModelV2_4: ...
 
 # NOTE: to see "tf" and "pb" overloads in the IDE
 @overload
@@ -169,4 +171,4 @@ def load_custom(
   *,
   precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   check_validity: bool = True,
-) -> GeoTFModelV2_4 | GeoPBModelV2_4: ...
+) -> GeoModelV2_4: ...

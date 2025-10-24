@@ -1,4 +1,4 @@
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from pathlib import Path
 
 from ordered_set import OrderedSet
@@ -7,7 +7,7 @@ from birdnet.base import ModelBase, PredictionResultBase
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS, MODEL_PRECISIONS
 
 
-class AcousticModelBase(ModelBase):
+class AcousticModelBase(ModelBase, ABC):
   def __init__(
     self,
     model_path: Path,

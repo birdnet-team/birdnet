@@ -7,7 +7,7 @@ from birdnet.base import ModelBase
 from birdnet.globals import GEO_MODEL_VERSIONS, MODEL_PRECISION_FP32
 
 
-class GeoModelBase2(ModelBase):
+class GeoModelBase(ModelBase):
   def __init__(
     self, model_path: Path, species_list: OrderedSet[str], use_custom_model: bool
   ) -> None:

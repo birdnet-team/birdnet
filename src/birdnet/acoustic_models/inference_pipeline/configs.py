@@ -10,7 +10,7 @@ import numpy as np
 from numpy.typing import DTypeLike
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.backends import InferenceBackendLoader2
+from birdnet.acoustic_models.inference.backends import InferenceBackendLoader
 from birdnet.acoustic_models.inference.tensor import TensorBase
 from birdnet.base import PredictionResultBase
 from birdnet.globals import (
@@ -32,7 +32,7 @@ TensorType = TypeVar("TensorType", bound="TensorBase")
 class ModelConfig:
   species_list: OrderedSet[str]
   path: Path
-  backend_loader: InferenceBackendLoader2
+  backend_loader: InferenceBackendLoader
   version: ACOUSTIC_MODEL_VERSIONS
   segment_size_s: float
   sample_rate: int

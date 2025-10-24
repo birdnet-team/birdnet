@@ -25,11 +25,11 @@ from birdnet.acoustic_models.inference_pipeline.resources import (
 )
 from birdnet.acoustic_models.inference_pipeline.strategy import (
   PredictionStrategy,
-  get_file_formats,
 )
 from birdnet.globals import (
   MODEL_TYPE_ACOUSTIC,
 )
+from birdnet.helper import get_file_formats
 
 
 class EmbeddingsStrategy(
@@ -137,7 +137,7 @@ class EmbeddingsStrategy(
       mem_shm_size_flags_MiB=resources.ring_buffer_resources.rf_flags.nbytes / 1024**2,
       file_segments_total=resources.analyzer_resources.tot_n_segments_ptr.value,
       model_segment_duration_seconds=config.model_conf.segment_size_s,
-      file_formats=get_file_formats(OrderedSet(Path(x) for x in pred_result.files)),
+      file_formats=get_file_formats({Path(x) for x in pred_result.files}),
     )
 
   def create_full_benchmark_meta(
@@ -216,7 +216,7 @@ class EmbeddingsStrategy(
       model_sig_fmin=config.model_conf.sig_fmin,
       model_sig_fmax=config.model_conf.sig_fmax,
       worker_wait_time_average_milliseconds=perf_result.avg_wait_time_ms,
-      file_formats=get_file_formats(OrderedSet(Path(x) for x in pred_result.files)),
+      file_formats=get_file_formats({Path(x) for x in pred_result.files}),
       param_inference_library="",  # TODO config.model_conf.backend_kwargs.get("inference_library"),
     )
 

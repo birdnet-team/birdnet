@@ -19,7 +19,7 @@ from birdnet.acoustic_models.v2_4.tf import (
   TFAcousticInferenceBackendV2_4,
 )
 from birdnet.base import ModelBase
-from birdnet.geo_models.base import GeoModelBase2
+from birdnet.geo_models.base import GeoModelBase
 from birdnet.geo_models.v2_4.base import (
   GeoModelV2_4,
 )
@@ -229,7 +229,7 @@ def _load_geo_model(
   precision: MODEL_PRECISIONS,
   lang: MODEL_LANGUAGES,
   **model_kwargs: object,
-) -> GeoModelBase2:
+) -> GeoModelBase:
   if version == GEO_MODEL_VERSION_V2_4:
     if precision != MODEL_PRECISION_FP32:
       raise ValueError(
@@ -389,7 +389,7 @@ def _load_custom_geo_model(
   species_list: Path,
   check_validity: bool,
   **model_kwargs: object,
-) -> GeoModelV2_4:
+) -> GeoModelBase:
   if version == GEO_MODEL_VERSION_V2_4:
     if precision != MODEL_PRECISION_FP32:
       raise ValueError(

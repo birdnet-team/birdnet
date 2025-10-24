@@ -83,7 +83,3 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
   def save_results_extra(
     self, result: ResultType, benchmark_run_out_dir: Path, iso_time: str
   ) -> list[Path]: ...
-
-
-def get_file_formats(file_paths: OrderedSet[Path]) -> str:
-  return ", ".join(sorted({x.suffix[1:].upper() for x in file_paths}))

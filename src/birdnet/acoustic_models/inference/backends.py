@@ -32,7 +32,7 @@ if TYPE_CHECKING:
   from tensorflow.lite.python.interpreter import Interpreter as TFInterpreter
 
 
-class InferenceBackend2(ABC):
+class InferenceBackend(ABC):
   def __init__(self, model_path: Path, device_name: str) -> None:
     self._model_path = model_path
     self._device_name = device_name
@@ -74,12 +74,14 @@ class VersionedInferenceBackendProtocol(Protocol):
 
 
 @runtime_checkable
-class VersionedAcousticInferenceBackendProtocol(VersionedInferenceBackendProtocol):
+class VersionedAcousticInferenceBackendProtocol(
+  VersionedInferenceBackendProtocol, Protocol
+):
   pass
 
 
 @runtime_checkable
-class VersionedGeoInferenceBackendProtocol(VersionedInferenceBackendProtocol):
+class VersionedGeoInferenceBackendProtocol(VersionedInferenceBackendProtocol, Protocol):
   pass
 
 
@@ -93,7 +95,7 @@ class VersionedGeoInferenceBackendProtocol(VersionedInferenceBackendProtocol):
 #   ) -> None: ...
 
 
-class TFInferenceBackend2(InferenceBackend2):
+class TFInferenceBackend(InferenceBackend, ABC):
   def __init__(
     self,
     model_path: Path,
@@ -150,7 +152,7 @@ class TFInferenceBackend2(InferenceBackend2):
     return res
 
 
-class PBInferenceBackend2(InferenceBackend2):
+class PBInferenceBackend(InferenceBackend, ABC):
   def __init__(
     self,
     model_path: Path,
@@ -229,7 +231,7 @@ class PBInferenceBackend2(InferenceBackend2):
     return scores_np
 
 
-class InferenceBackendLoader2:
+class InferenceBackendLoader:
   def __init__(
     self,
     model_path: Path,

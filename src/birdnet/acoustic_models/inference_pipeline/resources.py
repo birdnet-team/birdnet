@@ -15,7 +15,7 @@ from typing import cast, final
 import numpy as np
 
 import birdnet.logging_utils as bn_logging
-from birdnet.acoustic_models.inference.backends import InferenceBackendLoader2
+from birdnet.acoustic_models.inference.backends import InferenceBackendLoader
 from birdnet.acoustic_models.inference.perf_tracker import PerformanceTrackingResult
 from birdnet.acoustic_models.inference_pipeline.configs import (
   PredictionConfig,
@@ -201,7 +201,7 @@ class WorkerResources:
   results_queue: mp.Queue
   ring_access_lock: multiprocessing.synchronize.Lock
   devices: list[str]
-  backend_loader: InferenceBackendLoader2
+  backend_loader: InferenceBackendLoader
   start_signals: list[multiprocessing.synchronize.Event]
 
   @classmethod
