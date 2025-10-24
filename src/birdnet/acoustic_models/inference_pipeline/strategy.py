@@ -6,6 +6,7 @@ from typing import Generic
 
 from ordered_set import OrderedSet
 
+from birdnet.acoustic_models.inference.backends import InferenceBackendLoader
 from birdnet.acoustic_models.inference.benchmarking import (
   FullBenchmarkMetaBase,
   MinimalBenchmarkMetaBase,
@@ -13,6 +14,7 @@ from birdnet.acoustic_models.inference.benchmarking import (
 from birdnet.acoustic_models.inference.worker import WorkerBase
 from birdnet.acoustic_models.inference_pipeline.configs import (
   ConfigType,
+  ModelConfig,
   PredictionConfig,
   ResultType,
   TensorType,
@@ -83,3 +85,7 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
   def save_results_extra(
     self, result: ResultType, benchmark_run_out_dir: Path, iso_time: str
   ) -> list[Path]: ...
+
+  def create_backend_loader(
+    self, model_conf: ModelConfig
+  ) -> InferenceBackendLoader: ...

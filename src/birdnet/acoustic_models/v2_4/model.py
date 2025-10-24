@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Collection, Iterable
 from pathlib import Path
-from typing import Literal, final
+from typing import Any, Literal, final
 
 from ordered_set import OrderedSet
 
@@ -79,7 +79,7 @@ class AcousticModelV2_4(AcousticModelBase):
     precision: MODEL_PRECISIONS,
     use_custom_model: bool,
     backend_type: type[VersionedAcousticInferenceBackendProtocol],
-    backend_custom_kwargs: dict[str, object] | None,
+    backend_custom_kwargs: dict[str, Any],
   ) -> None:
     super().__init__(model_path, species_list, precision, use_custom_model)
     self._backend_type = backend_type
@@ -92,7 +92,7 @@ class AcousticModelV2_4(AcousticModelBase):
     species_list: OrderedSet[str],
     precision: MODEL_PRECISIONS,
     backend_type: type[VersionedAcousticInferenceBackendProtocol],
-    backend_custom_kwargs: dict[str, object] | None,
+    backend_custom_kwargs: dict[str, Any],
   ) -> AcousticModelV2_4:
     result = AcousticModelV2_4(
       model_path,
@@ -111,7 +111,7 @@ class AcousticModelV2_4(AcousticModelBase):
     species_list: Path,
     precision: MODEL_PRECISIONS,
     backend_type: type[VersionedAcousticInferenceBackendProtocol],
-    backend_custom_kwargs: dict[str, object] | None,
+    backend_custom_kwargs: dict[str, Any],
     check_validity: bool,
   ) -> AcousticModelV2_4:
     assert model_path.exists()
@@ -127,7 +127,7 @@ class AcousticModelV2_4(AcousticModelBase):
 
     if check_validity:
       n_species_in_model = backend_type.check_model_can_be_loaded(
-        model_path, **backend_custom_kwargs if backend_custom_kwargs is not None else {}
+        model_path, **backend_custom_kwargs
       )
       if n_species_in_model != len(loaded_species_list):
         raise ValueError(
@@ -220,19 +220,11 @@ class AcousticModelV2_4(AcousticModelBase):
     if show_stats is not None:
       show_stats = OutputConfig.validate_show_stats(show_stats)
 
-    backend_loader = InferenceBackendLoader(
-      model_path=self.model_path,
-      inference_strategy="embeddings",
-      backend_type=self._backend_type,
-      backend_custom_kwargs=self._backend_custom_kwargs,
-    )
-
     return PredictionSession(
       conf=PredictionConfig(
         model_conf=ModelConfig(
           species_list=self.species_list,
           path=self.model_path,
-          backend_loader=backend_loader,
           is_custom=self.use_custom_model,
           version=self.get_version(),
           precision=self.precision,
@@ -240,6 +232,8 @@ class AcousticModelV2_4(AcousticModelBase):
           sample_rate=self.get_sample_rate(),
           sig_fmin=self.get_sig_fmin(),
           sig_fmax=self.get_sig_fmax(),
+          backend_type=self._backend_type,
+          backend_kwargs=self._backend_custom_kwargs,
         ),
         processing_conf=ProcessingConfig(
           feeders=feeders,
@@ -332,19 +326,11 @@ class AcousticModelV2_4(AcousticModelBase):
 
     max_n_files = ProcessingConfig.validate_max_n_files(max_n_files)
 
-    backend_loader = InferenceBackendLoader(
-      model_path=self.model_path,
-      inference_strategy="scores",
-      backend_type=self._backend_type,
-      backend_custom_kwargs=self._backend_custom_kwargs,
-    )
-
     return PredictionSession(
       conf=PredictionConfig(
         model_conf=ModelConfig(
           species_list=self.species_list,
           path=self.model_path,
-          backend_loader=backend_loader,
           is_custom=self.use_custom_model,
           version=self.get_version(),
           precision=self.precision,
@@ -352,6 +338,8 @@ class AcousticModelV2_4(AcousticModelBase):
           sample_rate=self.get_sample_rate(),
           sig_fmin=self.get_sig_fmin(),
           sig_fmax=self.get_sig_fmax(),
+          backend_type=self._backend_type,
+          backend_kwargs=self._backend_custom_kwargs,
         ),
         processing_conf=ProcessingConfig(
           feeders=feeders,

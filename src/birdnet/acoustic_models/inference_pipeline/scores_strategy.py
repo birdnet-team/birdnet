@@ -7,6 +7,7 @@ import numpy as np
 import psutil
 from ordered_set import OrderedSet
 
+from birdnet.acoustic_models.inference.backends import InferenceBackendLoader
 from birdnet.acoustic_models.inference.scores.benchmarking import (
   FullBenchmarkMeta,
   MinimalBenchmarkMeta,
@@ -18,6 +19,7 @@ from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
 from birdnet.acoustic_models.inference.scores.worker import ScoresWorker
 from birdnet.acoustic_models.inference.worker import WorkerBase
 from birdnet.acoustic_models.inference_pipeline.configs import (
+  ModelConfig,
   PredictionConfig,
   ScoresConfig,
 )
@@ -284,6 +286,15 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
     csv_path = benchmark_run_out_dir / f"result-{iso_time}.csv"
     result.to_csv(csv_path, encoding="utf-8", silent=False)
     return [csv_path]
+
+  def create_backend_loader(self, model_conf: ModelConfig) -> InferenceBackendLoader:
+    backend_loader = InferenceBackendLoader(
+      model_path=model_conf.path,
+      backend_type=model_conf.backend_type,
+      inference_strategy="scores",
+      backend_custom_kwargs=model_conf.backend_kwargs,
+    )
+    return backend_loader
 
 
 def create_thresholds(

@@ -237,14 +237,12 @@ class InferenceBackendLoader:
     model_path: Path,
     inference_strategy: Literal["scores", "embeddings"],
     backend_type: type[VersionedInferenceBackendProtocol],
-    backend_custom_kwargs: dict[str, object] | None,
+    backend_custom_kwargs: dict[str, object],
   ) -> None:
     self._model_path = model_path
     self._inference_strategy: Literal["scores", "embeddings"] = inference_strategy
     self._backend_type = backend_type
-    self._backend_kwargs = (
-      backend_custom_kwargs if backend_custom_kwargs is not None else {}
-    )
+    self._backend_kwargs = backend_custom_kwargs
 
     self._backend: VersionedInferenceBackendProtocol | None = None
 

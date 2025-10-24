@@ -2,10 +2,10 @@ from typing import Literal, cast
 
 import pytest
 
-from birdnet.acoustic_models.v2_4.base import AcousticModelV2_4
+from birdnet.acoustic_models.v2_4.model import AcousticModelV2_4
 from birdnet.acoustic_models.v2_4.pb import AcousticPBModelV2_4
 from birdnet.acoustic_models.v2_4.tf import AcousticTFModelV2_4
-from birdnet.geo_models.v2_4.base import GeoModelV2_4
+from birdnet.geo_models.v2_4.model import GeoModelV2_4
 from birdnet.geo_models.v2_4.pb import GeoPBModelV2_4
 from birdnet.geo_models.v2_4.tf import GeoTFModelV2_4
 from birdnet.globals import MODEL_PRECISIONS

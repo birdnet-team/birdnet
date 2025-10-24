@@ -61,14 +61,16 @@ class ResourceManager:
     self.conf = conf
     self._resources: PipelineResources | None = None
 
-  def create_resources(self, benchmark_dir_name: str) -> PipelineResources:
+  def create_resources(
+    self, benchmark_dir_name: str, backend_loader: InferenceBackendLoader
+  ) -> PipelineResources:
     assert self._resources is None
     stats_resources = StatisticsResources.create(self.conf, benchmark_dir_name)
     logging_resources = LoggingResources.create(stats_resources)
     processing_resources = ProcessingResources.create()
     analyzer_resources = FilesAnalyzerResources.create(self.conf)
     producer_resources = ProducerResources.create(self.conf)
-    worker_resources = WorkerResources.create(self.conf)
+    worker_resources = WorkerResources.create(self.conf, backend_loader)
     buf_resources = RingBufferResources.create(self.conf, analyzer_resources)
 
     self._resources = PipelineResources(
@@ -205,7 +207,9 @@ class WorkerResources:
   start_signals: list[multiprocessing.synchronize.Event]
 
   @classmethod
-  def create(cls, config: PredictionConfig) -> WorkerResources:
+  def create(
+    cls, config: PredictionConfig, backend_loader: InferenceBackendLoader
+  ) -> WorkerResources:
     n_workers = config.processing_conf.workers
     devices = (
       config.processing_conf.device
@@ -213,13 +217,11 @@ class WorkerResources:
       else [config.processing_conf.device] * n_workers
     )
 
-    # backend_loader = _create_backend_loader(config)
-
     return WorkerResources(
       results_queue=mp.Queue(),
       ring_access_lock=mp.Lock(),
       devices=devices,
-      backend_loader=config.model_conf.backend_loader,
+      backend_loader=backend_loader,
       start_signals=[mp.Event() for _ in range(n_workers)],
     )
 

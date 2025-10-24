@@ -8,7 +8,7 @@ import psutil
 
 import birdnet
 import birdnet.model_loader
-from birdnet.acoustic_models.v2_4.base import AcousticModelV2_4
+from birdnet.acoustic_models.v2_4.model import AcousticModelV2_4
 from birdnet.argparse_helper import (
   ConvertToSetAction,
   parse_float,

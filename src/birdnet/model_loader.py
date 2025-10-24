@@ -7,7 +7,7 @@ from birdnet.acoustic_models.inference.backends import (
   litert_installed,
   tf_installed,
 )
-from birdnet.acoustic_models.v2_4.base import (
+from birdnet.acoustic_models.v2_4.model import (
   AcousticModelV2_4,
 )
 from birdnet.acoustic_models.v2_4.pb import (
@@ -20,7 +20,7 @@ from birdnet.acoustic_models.v2_4.tf import (
 )
 from birdnet.base import ModelBase
 from birdnet.geo_models.base import GeoModelBase
-from birdnet.geo_models.v2_4.base import (
+from birdnet.geo_models.v2_4.model import (
   GeoModelV2_4,
 )
 from birdnet.geo_models.v2_4.pb import GeoPBDownloaderV2_4, PBGeoInferenceBackendV2_4
@@ -165,6 +165,10 @@ def _validate_kwargs(model_kwargs: dict, allowed: set[str] | None) -> dict[str, 
     not_allowed = set(model_kwargs.keys()) - allowed
   if len(not_allowed) > 0:
     raise ValueError(f"Unexpected keyword arguments: {', '.join(not_allowed)}. ")
+
+  if allowed is None:
+    model_kwargs = {}
+
   return model_kwargs
 
 
@@ -276,7 +280,7 @@ def _load_acoustic_model_V2_4(
       species_list,
       precision,
       backend_type=PBAcousticInferenceBackendV2_4,
-      backend_custom_kwargs=None,
+      backend_custom_kwargs={},
     )
   else:
     raise AssertionError()
@@ -309,7 +313,7 @@ def _load_geo_model_V2_4(
       model_path,
       species_list,
       backend_type=PBGeoInferenceBackendV2_4,
-      backend_custom_kwargs=None,
+      backend_custom_kwargs={},
     )
   else:
     raise AssertionError()
@@ -438,7 +442,7 @@ def _load_custom_acoustic_model_V2_4(
       species_list,
       precision,
       backend_type=PBAcousticInferenceBackendV2_4,
-      backend_custom_kwargs=None,
+      backend_custom_kwargs={},
       check_validity=check_validity,
     )
   else:
@@ -474,7 +478,7 @@ def _load_custom_geo_model_V2_4(
       model,
       species_list,
       backend_type=PBGeoInferenceBackendV2_4,
-      backend_custom_kwargs=None,
+      backend_custom_kwargs={},
       check_validity=check_validity,
     )
   else:

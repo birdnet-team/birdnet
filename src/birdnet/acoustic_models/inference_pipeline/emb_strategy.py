@@ -6,6 +6,7 @@ from pathlib import Path
 import psutil
 from ordered_set import OrderedSet
 
+from birdnet.acoustic_models.inference.backends import InferenceBackendLoader
 from birdnet.acoustic_models.inference.emb.benchmarking import (
   FullBenchmarkEmbMeta,
   MinimalBenchmarkEmbMeta,
@@ -18,6 +19,7 @@ from birdnet.acoustic_models.inference.emb.worker import EmbeddingsWorker
 from birdnet.acoustic_models.inference.worker import WorkerBase
 from birdnet.acoustic_models.inference_pipeline.configs import (
   EmbeddingsConfig,
+  ModelConfig,
   PredictionConfig,
 )
 from birdnet.acoustic_models.inference_pipeline.resources import (
@@ -227,3 +229,13 @@ class EmbeddingsStrategy(
     self, result: EncodingResult, benchmark_run_out_dir: Path, iso_time: str
   ) -> list[Path]:
     return []
+
+  def create_backend_loader(self, model_conf: ModelConfig) -> InferenceBackendLoader:
+    # backend_loader = _create_backend_loader(config)
+    backend_loader = InferenceBackendLoader(
+      model_path=model_conf.path,
+      backend_type=model_conf.backend_type,
+      inference_strategy="embeddings",
+      backend_custom_kwargs=model_conf.backend_kwargs,
+    )
+    return backend_loader

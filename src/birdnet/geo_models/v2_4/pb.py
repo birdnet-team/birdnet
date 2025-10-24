@@ -13,7 +13,7 @@ from birdnet.acoustic_models.inference.backends import (
   VersionedGeoInferenceBackendProtocol,
   check_pb_model_can_be_loaded,
 )
-from birdnet.geo_models.v2_4.base import GeoDownloaderBaseV2_4
+from birdnet.geo_models.v2_4.model import GeoDownloaderBaseV2_4
 from birdnet.globals import (
   MODEL_PRECISION_FP32,
 )

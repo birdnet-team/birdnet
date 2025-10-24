@@ -14,7 +14,7 @@ from birdnet.acoustic_models.inference.backends import (
   VersionedAcousticInferenceBackendProtocol,
   check_tf_model_can_be_loaded,
 )
-from birdnet.acoustic_models.v2_4.base import (
+from birdnet.acoustic_models.v2_4.model import (
   AcousticDownloaderBaseV2_4,
 )
 from birdnet.globals import (
