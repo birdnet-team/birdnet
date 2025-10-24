@@ -181,8 +181,9 @@ class PBBackend(Backend, ABC):
     input_key: str,
     scores_signature_name: str,
     scores_prediction_key: str,
-    emb_signature_name: str,
-    emb_prediction_key: str,
+    emb_supported: bool,
+    emb_signature_name: str | None,
+    emb_prediction_key: str | None,
     **kwargs: dict,
   ) -> None:
     super().__init__(model_path, device_name)
@@ -193,6 +194,7 @@ class PBBackend(Backend, ABC):
     self._cached_device_name: str | None = None
     self._scores_signature_name = scores_signature_name
     self._scores_prediction_key = scores_prediction_key
+    self._emb_supported = emb_supported
     self._emb_signature_name = emb_signature_name
     self._emb_prediction_key = emb_prediction_key
     self._input_key = input_key
@@ -206,7 +208,9 @@ class PBBackend(Backend, ABC):
   def load(self) -> None:
     self._model = load_pb_model(self._model_path)
     self._predict_fn = self._model.signatures[self._scores_signature_name]  # type: ignore
-    self._emb_fn = self._model.signatures[self._emb_signature_name]  # type: ignore
+    if self._emb_supported:
+      assert self._emb_signature_name is not None
+      self._emb_fn = self._model.signatures[self._emb_signature_name]  # type: ignore
 
     self._set_logical_device(self._device_name)
 
@@ -276,8 +280,10 @@ class PBBackend(Backend, ABC):
 
   @final
   def embed(self, batch: np.ndarray) -> np.ndarray:
-    assert self._logical_device is not None
+    assert self._emb_supported
+    assert self._emb_prediction_key is not None
     assert self._emb_fn is not None
+    assert self._logical_device is not None
     from tensorflow import Tensor, device, float32
 
     with device(self._logical_device.name):  # type: ignore
@@ -351,7 +357,10 @@ class BackendLoader:
       loader.load_backend("CPU")
       n_species_in_model = loader.backend.n_species
       return n_species_in_model
-    except Exception:
+    except Exception as ex:
+      from birdnet.logging_utils import get_logger
+
+      get_logger(__name__).error(f"Error loading model: {ex}")
       return None
 
   @classmethod

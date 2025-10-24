@@ -103,6 +103,7 @@ class GeoPBBackendV2_4(PBBackend, VersionedGeoBackendProtocol):
       input_key="MNET_INPUT",
       scores_signature_name="serving_default",
       scores_prediction_key="MNET_CLASS_ACTIVATION",
-      emb_signature_name="",  # Embeddings not supported
-      emb_prediction_key="",
+      emb_supported=False,
+      emb_signature_name=None,
+      emb_prediction_key=None,
     )

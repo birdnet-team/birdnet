@@ -106,6 +106,7 @@ class AcousticPBBackendV2_4(PBBackend, VersionedAcousticBackendProtocol):
       input_key="inputs",
       scores_signature_name="basic",
       scores_prediction_key="scores",
+      emb_supported=True,
       emb_signature_name="embeddings",
       emb_prediction_key="embeddings",
       **kwargs,
