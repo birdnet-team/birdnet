@@ -94,7 +94,7 @@ def get_segments(seg: float = 3, overlap: float = 0, sr: int = 48_000) -> list:
   )
 
 
-def test_segments_dont_include_frames_from_previous_segments():
+def test_segments_dont_include_frames_from_previous_segments() -> None:
   result = get_segments()
 
   assert len(result) == 40

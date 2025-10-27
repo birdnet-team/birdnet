@@ -348,4 +348,8 @@ class PredictionConfig:
 
     for p in parsed_audio_paths:
       assert p.is_absolute()
+
+    if len(parsed_audio_paths) == 0:
+      raise ValueError("No valid audio files were found in the provided input paths.")
+
     return parsed_audio_paths

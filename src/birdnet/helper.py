@@ -127,8 +127,13 @@ def validate_species_list(species_list: Path) -> OrderedSet[str]:
     loaded_species_list = get_species_from_file(species_list, encoding="utf8")
   except Exception as e:
     raise ValueError(
-      f"Failed to read species list from '{species_list.absolute()}'. Ensure it is a valid text file."
+      f"Failed to read species list from '{species_list.absolute()}'. "
+      f"Ensure it is a valid text file."
     ) from e
+
+  if len(loaded_species_list) == 0:
+    raise ValueError(f"Species list '{species_list.absolute()}' is empty!")
+
   return loaded_species_list
 
 

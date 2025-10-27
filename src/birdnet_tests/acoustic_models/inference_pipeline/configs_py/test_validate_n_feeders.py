@@ -47,3 +47,4 @@ def test_more_than_max_cpus_is_raises_error() -> None:
       match=rf"feeders must be <= {max_logical_cpus}",
     ):
       ProcessingConfig.validate_n_feeders(max_logical_cpus + 1)
+

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import shutil
-from collections.abc import Iterable
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -29,7 +28,7 @@ from birdnet.globals import WRITABLE_FLAG
 from birdnet.helper import create_shm_ring
 
 
-class PredictionSession(Generic[ResultType, ConfigType, TensorType]):
+class SessionBase(Generic[ResultType, ConfigType, TensorType]):
   def __init__(
     self,
     conf: PredictionConfig,
@@ -73,19 +72,10 @@ class PredictionSession(Generic[ResultType, ConfigType, TensorType]):
     assert self._resource_manager.resources is not None
     return self._resource_manager.resources
 
-  def run(self, paths: Path | str | Iterable[Path | str]) -> ResultType:
+  def run(self, paths: set[Path]) -> ResultType:
     assert self._is_initialized
     assert self._process_manager is not None
     assert self._logger is not None
-
-    # todo: only once in model class?
-    paths = PredictionConfig.validate_input_files(paths)
-
-    if len(paths) > self._conf.processing_conf.max_n_files:
-      raise RuntimeError(
-        f"Number of input files ({len(paths)}) exceeds the maximum "
-        f"allowed ({self._conf.processing_conf.max_n_files})."
-      )
 
     self._logger.info(f"Got {len(paths)} audio files for analysis.")
 

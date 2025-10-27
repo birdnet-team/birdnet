@@ -4,8 +4,31 @@ import os
 import threading
 import time
 from collections.abc import Callable, Generator
+from multiprocessing import get_all_start_methods, set_start_method
 
 import psutil
+import pytest
+
+
+def use_forkserver_or_skip() -> None:
+  if "forkserver" in get_all_start_methods():
+    set_start_method("forkserver", force=True)
+  else:
+    pytest.skip("forkserver start method not available on this platform")
+
+
+def use_fork_or_skip() -> None:
+  if "fork" in get_all_start_methods():
+    set_start_method("fork", force=True)
+  else:
+    pytest.skip("fork start method not available on this platform")
+
+
+def use_spawn_or_skip() -> None:
+  if "spawn" in get_all_start_methods():
+    set_start_method("spawn", force=True)
+  else:
+    pytest.skip("spawn start method not available on this platform")
 
 
 @contextlib.contextmanager

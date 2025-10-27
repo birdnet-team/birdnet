@@ -70,6 +70,7 @@ def init_package_logger(logging_level: int) -> None:
 
 
 init_package_logger(logging.INFO)
+import os
 
 
 class QueueFileWriter:
@@ -94,7 +95,9 @@ class QueueFileWriter:
     logger = logging.getLogger("birdnet-file-writer")
     logger.setLevel(self._logging_level)
     logger.propagate = False
-    assert len(logger.handlers) == 0
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+      # on testruns multiple processes write to the same log file
+      assert len(logger.handlers) == 0
 
     # log to temp
     f = logging.Formatter(

@@ -42,7 +42,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-litert = ["ai_edge_litert==1.4.0"]
+litert = ["ai_edge_litert==2.0.2"]
 and-cuda = ["tensorflow[and-cuda]==2.15.1"]
 dev = ["pytest", "pytest-cov", "pytest-xdist", "tox", "ruff", "mypy", "rope", "build", "twine", "scipy-stubs", "tuna", "pyarrow-stubs", "types-tqdm", "types-requests", "pandas-stubs", "types-tensorflow"]
 

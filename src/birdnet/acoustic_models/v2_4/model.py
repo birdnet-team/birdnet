@@ -14,27 +14,17 @@ from birdnet.acoustic_models.inference.backends import (
   VersionedAcousticBackendProtocol,
 )
 from birdnet.acoustic_models.inference.emb.encoding_result import EncodingResult
-from birdnet.acoustic_models.inference.emb.tensor import EmbeddingsTensor
 from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
-from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
+from birdnet.acoustic_models.inference_pipeline.api import EncodingSession, ScoreSession
 from birdnet.acoustic_models.inference_pipeline.configs import (
-  EmbeddingsConfig,
-  FilteringConfig,
-  ModelConfig,
-  OutputConfig,
   PredictionConfig,
-  ProcessingConfig,
-  ScoresConfig,
 )
-from birdnet.acoustic_models.inference_pipeline.emb_strategy import EmbeddingsStrategy
-from birdnet.acoustic_models.inference_pipeline.pipeline import PredictionSession
-from birdnet.acoustic_models.inference_pipeline.scores_strategy import ScoresStrategy
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V2_4,
   ACOUSTIC_MODEL_VERSIONS,
   MODEL_PRECISIONS,
 )
-from birdnet.utils import get_species_from_file
+from birdnet.helper import validate_species_list
 
 
 class AcousticDownloaderBaseV2_4:
@@ -117,14 +107,7 @@ class AcousticModelV2_4(AcousticModelBase):
     assert model_path.exists()
     assert species_list.is_file()
 
-    loaded_species_list: OrderedSet[str]
-    try:
-      loaded_species_list = get_species_from_file(species_list, encoding="utf8")
-    except Exception as e:
-      raise ValueError(
-        f"Failed to read species list from '{species_list.absolute()}'. "
-        f"Ensure it is a valid text file."
-      ) from e
+    loaded_species_list = validate_species_list(species_list)
 
     if check_validity:
       n_species_in_model = BackendLoader.check_model_can_be_loaded(
@@ -199,70 +182,32 @@ class AcousticModelV2_4(AcousticModelBase):
     show_stats: None | Literal["minimal", "progress", "benchmark"] = None,
     device: str | list[str] = "CPU",
     max_n_files: int = 65_536,  # Limit to avoid excessive memory usage
-  ) -> PredictionSession[EncodingResult, EmbeddingsConfig, EmbeddingsTensor]:
-    n_feeders = ProcessingConfig.validate_n_feeders(n_feeders)
-    n_workers = ProcessingConfig.validate_n_workers(n_workers)
-    batch_size = ProcessingConfig.validate_batch_size(batch_size)
-    prefetch_ratio = ProcessingConfig.validate_prefetch_ratio(prefetch_ratio)
-    overlap_duration_s = ProcessingConfig.validate_overlap_duration(
-      overlap_duration_s, self.get_segment_size_s()
-    )
-
-    bandpass_fmin, bandpass_fmax = FilteringConfig.validate_bandpass_frequencies(
-      bandpass_fmin,
-      bandpass_fmax,
-      self.get_sig_fmin(),
-      self.get_sig_fmax(),
-    )
-
-    half_precision = ProcessingConfig.validate_half_precision(half_precision)
-
-    if max_audio_duration_min is not None:
-      max_audio_duration_min = ProcessingConfig.validate_max_audio_duration_min(
-        max_audio_duration_min
-      )
-
-    if show_stats is not None:
-      show_stats = OutputConfig.validate_show_stats(show_stats)
-
-    return PredictionSession(
-      conf=PredictionConfig(
-        model_conf=ModelConfig(
-          species_list=self.species_list,
-          path=self.model_path,
-          is_custom=self.use_custom_model,
-          version=self.get_version(),
-          precision=self.precision,
-          segment_size_s=self.get_segment_size_s(),
-          sample_rate=self.get_sample_rate(),
-          sig_fmin=self.get_sig_fmin(),
-          sig_fmax=self.get_sig_fmax(),
-          backend_type=self._backend_type,
-          backend_kwargs=self._backend_custom_kwargs,
-        ),
-        processing_conf=ProcessingConfig(
-          feeders=n_feeders,
-          workers=n_workers,
-          batch_size=batch_size,
-          prefetch_ratio=prefetch_ratio,
-          overlap_duration_s=overlap_duration_s,
-          half_precision=half_precision,
-          max_audio_duration_min=max_audio_duration_min,
-          device=device,
-          max_n_files=max_n_files,
-        ),
-        filtering_conf=FilteringConfig(
-          bandpass_fmin=bandpass_fmin,
-          bandpass_fmax=bandpass_fmax,
-        ),
-        output_conf=OutputConfig(
-          show_stats=show_stats,
-        ),
-      ),
-      strategy=EmbeddingsStrategy(),
-      specific_config=EmbeddingsConfig(
-        emb_dim=self.get_embeddings_dim(),
-      ),
+  ) -> EncodingSession:
+    return EncodingSession(
+      species_list=self.species_list,
+      model_path=self.model_path,
+      model_segment_size_s=self.get_segment_size_s(),
+      model_sample_rate=self.get_sample_rate(),
+      model_is_custom=self.use_custom_model,
+      model_precision=self.precision,
+      model_sig_fmin=self.get_sig_fmin(),
+      model_sig_fmax=self.get_sig_fmax(),
+      model_version=self.get_version(),
+      model_backend_type=self._backend_type,
+      model_backend_custom_kwargs=self._backend_custom_kwargs,
+      model_emb_dim=self.get_embeddings_dim(),
+      n_feeders=n_feeders,
+      n_workers=n_workers,
+      batch_size=batch_size,
+      prefetch_ratio=prefetch_ratio,
+      overlap_duration_s=overlap_duration_s,
+      bandpass_fmin=bandpass_fmin,
+      bandpass_fmax=bandpass_fmax,
+      half_precision=half_precision,
+      max_audio_duration_min=max_audio_duration_min,
+      show_stats=show_stats,
+      device=device,
+      max_n_files=max_n_files,
     )
 
   def predict_session(
@@ -287,94 +232,37 @@ class AcousticModelV2_4(AcousticModelBase):
     show_stats: Literal["minimal", "progress", "benchmark"] | None = None,
     device: str | list[str] = "CPU",
     max_n_files: int = 65_536,  # Limit to avoid excessive memory usage
-  ) -> PredictionSession[PredictionResult, ScoresConfig, ScoresTensor]:
-    if top_k is not None:
-      top_k = ScoresConfig.validate_top_k(top_k, len(self.species_list))
-    n_feeders = ProcessingConfig.validate_n_feeders(n_feeders)
-    n_workers = ProcessingConfig.validate_n_workers(n_workers)
-    batch_size = ProcessingConfig.validate_batch_size(batch_size)
-    prefetch_ratio = ProcessingConfig.validate_prefetch_ratio(prefetch_ratio)
-    overlap_duration_s = ProcessingConfig.validate_overlap_duration(
-      overlap_duration_s, self.get_segment_size_s()
-    )
-
-    bandpass_fmin, bandpass_fmax = FilteringConfig.validate_bandpass_frequencies(
-      bandpass_fmin,
-      bandpass_fmax,
-      self.get_sig_fmin(),
-      self.get_sig_fmax(),
-    )
-
-    half_precision = ProcessingConfig.validate_half_precision(half_precision)
-
-    if max_audio_duration_min is not None:
-      max_audio_duration_min = ProcessingConfig.validate_max_audio_duration_min(
-        max_audio_duration_min
-      )
-
-    if show_stats is not None:
-      show_stats = OutputConfig.validate_show_stats(show_stats)
-
-    if custom_confidence_thresholds is not None:
-      custom_confidence_thresholds = ScoresConfig.validate_custom_confidence_thresholds(
-        custom_confidence_thresholds, self.species_list
-      )
-
-    if custom_species_list is not None:
-      custom_species_list = ScoresConfig.validate_custom_species_list(
-        custom_species_list, self.species_list
-      )
-
-    if apply_sigmoid:
-      sigmoid_sensitivity = ScoresConfig.validate_sigmoid_sensitivity(
-        sigmoid_sensitivity
-      )
-
-    max_n_files = ProcessingConfig.validate_max_n_files(max_n_files)
-
-    return PredictionSession(
-      conf=PredictionConfig(
-        model_conf=ModelConfig(
-          species_list=self.species_list,
-          path=self.model_path,
-          is_custom=self.use_custom_model,
-          version=self.get_version(),
-          precision=self.precision,
-          segment_size_s=self.get_segment_size_s(),
-          sample_rate=self.get_sample_rate(),
-          sig_fmin=self.get_sig_fmin(),
-          sig_fmax=self.get_sig_fmax(),
-          backend_type=self._backend_type,
-          backend_kwargs=self._backend_custom_kwargs,
-        ),
-        processing_conf=ProcessingConfig(
-          feeders=n_feeders,
-          workers=n_workers,
-          batch_size=batch_size,
-          prefetch_ratio=prefetch_ratio,
-          overlap_duration_s=overlap_duration_s,
-          half_precision=half_precision,
-          max_audio_duration_min=max_audio_duration_min,
-          device=device,
-          max_n_files=max_n_files,
-        ),
-        filtering_conf=FilteringConfig(
-          bandpass_fmin=bandpass_fmin,
-          bandpass_fmax=bandpass_fmax,
-        ),
-        output_conf=OutputConfig(
-          show_stats=show_stats,
-        ),
-      ),
-      strategy=ScoresStrategy(),
-      specific_config=ScoresConfig(
-        top_k=top_k,
-        default_confidence_threshold=default_confidence_threshold,
-        custom_confidence_thresholds=custom_confidence_thresholds,
-        apply_sigmoid=apply_sigmoid,
-        sigmoid_sensitivity=sigmoid_sensitivity,
-        custom_species_list=custom_species_list,
-      ),
+  ) -> ScoreSession:
+    return ScoreSession(
+      species_list=self.species_list,
+      model_path=self.model_path,
+      model_segment_size_s=self.get_segment_size_s(),
+      model_sample_rate=self.get_sample_rate(),
+      model_is_custom=self.use_custom_model,
+      model_precision=self.precision,
+      model_sig_fmin=self.get_sig_fmin(),
+      model_sig_fmax=self.get_sig_fmax(),
+      model_version=self.get_version(),
+      model_backend_type=self._backend_type,
+      model_backend_custom_kwargs=self._backend_custom_kwargs,
+      top_k=top_k,
+      n_feeders=n_feeders,
+      n_workers=n_workers,
+      batch_size=batch_size,
+      prefetch_ratio=prefetch_ratio,
+      overlap_duration_s=overlap_duration_s,
+      bandpass_fmin=bandpass_fmin,
+      bandpass_fmax=bandpass_fmax,
+      apply_sigmoid=apply_sigmoid,
+      sigmoid_sensitivity=sigmoid_sensitivity,
+      default_confidence_threshold=default_confidence_threshold,
+      custom_confidence_thresholds=custom_confidence_thresholds,
+      custom_species_list=custom_species_list,
+      half_precision=half_precision,
+      max_audio_duration_min=max_audio_duration_min,
+      show_stats=show_stats,
+      device=device,
+      max_n_files=max_n_files,
     )
 
   def encode(
