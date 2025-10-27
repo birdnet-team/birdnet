@@ -237,6 +237,10 @@ Worker performance:
 <details>
 <summary><b>Result:</b> 2494 x real-time (RTF: 0.00040099)</summary>
 
+- Disk speed: `$ sudo hdparm -tT /dev/nvme0n1`
+  - Timing cached reads: 27324 MB in 1.99 seconds = 13707.90 MB/sec
+  - Timing buffered disk reads: 6880 MB in 3.00 seconds = 2293.17 MB/sec
+
 ```sh
 $ birdnet-benchmark test-dataset/test_dataset_100x60min --device GPU --backend pb -w 1 -f 5 -s 1025
 
