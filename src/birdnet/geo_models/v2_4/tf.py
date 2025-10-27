@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.backends import (
+from birdnet.backends import (
   TFBackend,
   VersionedGeoBackendProtocol,
 )

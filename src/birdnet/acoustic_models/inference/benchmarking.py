@@ -11,7 +11,7 @@ from typing import Any
 import numpy as np
 import psutil
 
-from birdnet.acoustic_models.inference.backends import (
+from birdnet.backends import (
   litert_installed,
   tf_installed,
 )

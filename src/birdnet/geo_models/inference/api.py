@@ -3,7 +3,7 @@ from typing import Any
 
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.backends import VersionedGeoBackendProtocol
+from birdnet.backends import VersionedGeoBackendProtocol
 from birdnet.geo_models.inference.configs import (
   ModelConfig,
   PredictionConfig,

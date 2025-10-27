@@ -9,7 +9,7 @@ from ordered_set import OrderedSet
 from birdnet.acoustic_models.base import (
   AcousticModelBase,
 )
-from birdnet.acoustic_models.inference.backends import (
+from birdnet.backends import (
   BackendLoader,
   VersionedAcousticBackendProtocol,
 )

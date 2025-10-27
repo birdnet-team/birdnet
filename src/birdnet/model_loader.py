@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from birdnet.acoustic_models.base import AcousticModelBase
-from birdnet.acoustic_models.inference.backends import (
+from birdnet.backends import (
   TF_BACKEND_LIB_ARG,
   litert_installed,
   tf_installed,

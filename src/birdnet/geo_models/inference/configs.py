@@ -6,7 +6,7 @@ import numpy as np
 from numpy.typing import DTypeLike
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.backends import VersionedBackendProtocol
+from birdnet.backends import VersionedBackendProtocol
 from birdnet.globals import GEO_MODEL_VERSIONS, MODEL_PRECISIONS
 
 

@@ -1,33 +1,21 @@
 from __future__ import annotations
 
 from abc import ABC
-from pathlib import Path
-from typing import Any, final
 
 import numpy as np
-from numpy.typing import DTypeLike
-from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.backends import (
+from birdnet.backends import (
   BackendLoader,
   VersionedGeoBackendProtocol,
 )
 from birdnet.base import SessionBase
-from birdnet.geo_models.base import GeoModelBase
 from birdnet.geo_models.inference.configs import (
   PredictionConfig,
-  ProcessingConfig,
   RunConfig,
   ScoresConfig,
 )
 from birdnet.geo_models.inference.prediction_result import PredictionResult
-from birdnet.globals import (
-  GEO_MODEL_VERSION_V2_4,
-  GEO_MODEL_VERSIONS,
-  MODEL_TYPE_GEO,
-  MODEL_TYPES,
-)
-from birdnet.helper import uint_dtype_for, validate_species_list
+from birdnet.helper import uint_dtype_for
 
 
 class GeoSessionBase(SessionBase, ABC):

@@ -8,7 +8,7 @@ import numpy.typing as npt
 import psutil
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.backends import TF_BACKEND_LIB_ARG
+from birdnet.backends import TF_BACKEND_LIB_ARG
 from birdnet.acoustic_models.inference.scores.benchmarking import (
   FullBenchmarkMeta,
   MinimalBenchmarkMeta,

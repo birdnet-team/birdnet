@@ -6,7 +6,7 @@ from typing import Any, Collection, Literal
 
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.backends import VersionedAcousticBackendProtocol
+from birdnet.backends import VersionedAcousticBackendProtocol
 from birdnet.acoustic_models.inference.emb.encoding_result import EncodingResult
 from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
 from birdnet.acoustic_models.inference_pipeline.configs import (

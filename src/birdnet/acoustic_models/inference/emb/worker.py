@@ -8,7 +8,7 @@ from multiprocessing.synchronize import Event, Semaphore
 import numpy as np
 from numpy.typing import DTypeLike
 
-from birdnet.acoustic_models.inference.backends import BackendLoader
+from birdnet.backends import BackendLoader
 from birdnet.acoustic_models.inference.worker import WorkerBase
 from birdnet.helper import RingField
 

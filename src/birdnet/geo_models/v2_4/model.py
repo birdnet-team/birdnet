@@ -3,11 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, final
 
-import numpy as np
-from numpy.typing import DTypeLike
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.backends import (
+from birdnet.backends import (
   BackendLoader,
   VersionedGeoBackendProtocol,
 )
@@ -20,7 +18,7 @@ from birdnet.globals import (
   MODEL_TYPE_GEO,
   MODEL_TYPES,
 )
-from birdnet.helper import uint_dtype_for, validate_species_list
+from birdnet.helper import validate_species_list
 
 
 class GeoDownloaderBaseV2_4:
