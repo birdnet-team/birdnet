@@ -3,11 +3,6 @@ from pathlib import Path
 from typing import Any, cast
 
 from birdnet.acoustic_models.base import AcousticModelBase
-from birdnet.backends import (
-  TF_BACKEND_LIB_ARG,
-  litert_installed,
-  tf_installed,
-)
 from birdnet.acoustic_models.v2_4.model import (
   AcousticModelV2_4,
 )
@@ -18,6 +13,11 @@ from birdnet.acoustic_models.v2_4.pb import (
 from birdnet.acoustic_models.v2_4.tf import (
   AcousticTFBackendV2_4,
   AcousticTFDownloaderV2_4,
+)
+from birdnet.backends import (
+  TF_BACKEND_LIB_ARG,
+  litert_installed,
+  tf_installed,
 )
 from birdnet.base import ModelBase
 from birdnet.geo_models.base import GeoModelBase
