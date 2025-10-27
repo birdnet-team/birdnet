@@ -11,10 +11,10 @@ import psutil
 from numpy.typing import DTypeLike
 from ordered_set import OrderedSet
 
+from birdnet.acoustic_models.inference.tensor import TensorBase
 from birdnet.backends import (
   VersionedBackendProtocol,
 )
-from birdnet.acoustic_models.inference.tensor import TensorBase
 from birdnet.base import PredictionResultBase
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSIONS,
@@ -24,6 +24,7 @@ from birdnet.helper import (
   SF_FORMATS,
   get_supported_audio_files,
   is_supported_audio_file,
+  validate_species_list,
 )
 
 ResultType = TypeVar("ResultType", bound="PredictionResultBase")
@@ -286,10 +287,14 @@ class ScoresConfig(SpecificConfigBase):
     custom_species_list: Any,  # noqa: ANN401
     model_species: Collection[str],
   ) -> set[str]:
-    if not isinstance(custom_species_list, Collection):
+    if isinstance(custom_species_list, Path | str):
+      custom_species_list_path = Path(custom_species_list)
+      custom_species_list = validate_species_list(custom_species_list_path)
+    elif not isinstance(custom_species_list, Collection):
       raise TypeError(
-        "custom species list must be a collection (list, set, tuple, etc.)"
+        "custom species list must be a str, path or collection (list, set, tuple, etc.)"
       )
+
     for species in custom_species_list:
       if not isinstance(species, str):
         raise TypeError("custom species list must contain strings")

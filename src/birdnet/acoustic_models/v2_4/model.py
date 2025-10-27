@@ -9,15 +9,15 @@ from ordered_set import OrderedSet
 from birdnet.acoustic_models.base import (
   AcousticModelBase,
 )
-from birdnet.backends import (
-  BackendLoader,
-  VersionedAcousticBackendProtocol,
-)
 from birdnet.acoustic_models.inference.emb.encoding_result import EncodingResult
 from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
 from birdnet.acoustic_models.inference_pipeline.api import EncodingSession, ScoreSession
 from birdnet.acoustic_models.inference_pipeline.configs import (
   PredictionConfig,
+)
+from birdnet.backends import (
+  BackendLoader,
+  VersionedAcousticBackendProtocol,
 )
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V2_4,
@@ -226,7 +226,7 @@ class AcousticModelV2_4(AcousticModelBase):
     sigmoid_sensitivity: float | None = 1.0,
     default_confidence_threshold: float | None = 0.1,
     custom_confidence_thresholds: dict[str, float] | None = None,
-    custom_species_list: Collection[str] | None = None,
+    custom_species_list: str | Path | Collection[str] | None = None,
     half_precision: bool = True,
     max_audio_duration_min: float | None = None,
     show_stats: Literal["minimal", "progress", "benchmark"] | None = None,
@@ -319,7 +319,7 @@ class AcousticModelV2_4(AcousticModelBase):
     sigmoid_sensitivity: float | None = 1.0,
     default_confidence_threshold: float | None = 0.1,
     custom_confidence_thresholds: dict[str, float] | None = None,
-    custom_species_list: Collection[str] | None = None,
+    custom_species_list: str | Path | Collection[str] | None = None,
     half_precision: bool = True,
     max_audio_duration_min: float | None = None,
     device: str | list[str] = "CPU",

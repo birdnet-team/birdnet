@@ -30,7 +30,7 @@ class GeoSessionBase(SessionBase, ABC):
     self._is_initialized = False
     super().__init__()
 
-  def __enter__(self):
+  def __enter__(self) -> GeoSessionBase:
     assert not self._is_initialized
 
     self._backend_loader = BackendLoader(

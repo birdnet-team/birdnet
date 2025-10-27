@@ -48,7 +48,7 @@ class AcousticSessionBase(
     self._is_initialized = False
     super().__init__()
 
-  def __enter__(self):
+  def __enter__(self) -> AcousticSessionBase[ResultType, ConfigType, TensorType]:
     assert not self._is_initialized
     self._resource_manager = ResourceManager(self._conf)
     res = self._resource_manager.create_resources(

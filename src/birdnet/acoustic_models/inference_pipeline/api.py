@@ -6,7 +6,6 @@ from typing import Any, Collection, Literal
 
 from ordered_set import OrderedSet
 
-from birdnet.backends import VersionedAcousticBackendProtocol
 from birdnet.acoustic_models.inference.emb.encoding_result import EncodingResult
 from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
 from birdnet.acoustic_models.inference_pipeline.configs import (
@@ -21,6 +20,7 @@ from birdnet.acoustic_models.inference_pipeline.configs import (
 from birdnet.acoustic_models.inference_pipeline.emb_strategy import EmbeddingsStrategy
 from birdnet.acoustic_models.inference_pipeline.scores_strategy import ScoresStrategy
 from birdnet.acoustic_models.inference_pipeline.session import AcousticSessionBase
+from birdnet.backends import VersionedAcousticBackendProtocol
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS, MODEL_PRECISIONS
 
 
@@ -164,7 +164,7 @@ class ScoreSession(AcousticSessionBase):
     sigmoid_sensitivity: float | None,
     default_confidence_threshold: float | None,
     custom_confidence_thresholds: dict[str, float] | None,
-    custom_species_list: Collection[str] | None,
+    custom_species_list: str | Path | Collection[str] | None,
     half_precision: bool = True,
     max_audio_duration_min: float | None,
     show_stats: Literal["minimal", "progress", "benchmark"] | None,
