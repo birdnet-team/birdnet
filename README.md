@@ -8,7 +8,7 @@ A Python library for identifying bird species by their sounds.
 
 The library is geared towards providing a robust workflow for ecological data analysis in bioacoustic projects. While it covers essential functionalities, it doesn’t include all the features found in BirdNET-Analyzer, which is available [here](https://github.com/birdnet-team/BirdNET-Analyzer). Some features might only be available in the BirdNET Analyzer and not in this package.
 
-Please note that the project is under active development, so you might encounter changes that could affect your current workflow. We recommend checking for updates regularly.
+**Please note** that the project is under active development, so you might encounter changes that could affect your current workflow. We recommend checking for updates regularly.
 
 The package is also available as an R package at: [birdnetR](https://github.com/birdnet-team/birdnetR).
 
@@ -30,34 +30,31 @@ pip install birdnet[litert] --user
 ### Identify species within an audio file
 
 ```py
-from pathlib import Path
-
 import birdnet
-from birdnet.utils import get_species_from_file
 
-model = birdnet.load("acoustic", "2.4", "tf", lang="en_us")
+model = birdnet.load("acoustic", "2.4", "tf")
 
-# predict only the species from the file
 predictions = model.predict(
   "example/soundscape.wav",
-  custom_species_list=get_species_from_file(Path("example/species_list.txt")),
+  # predict only the species from the file
+  custom_species_list="example/species_list.txt",
 )
 
-predictions.to_csv("example/predictions.csv")
+predictions.to_csv("example/scores.csv")
 ```
 
 The resulting predictions look like this (excerpt, scores may vary):
 
 <img src="example/scores_preview.png" alt="Preview" style="max-width: 700px; height: auto;">
 
-For a more detailed prediction you can take a look at [example/predictions.csv](example/scores.csv).
+For a more detailed prediction you can take a look at [example/scores.csv](example/scores.csv).
 
 ### Predict species for a given location and time
 
 ```py
 import birdnet
 
-model = birdnet.load("geo", "2.4", "tf", lang="en_us")
+model = birdnet.load("geo", "2.4", "tf")
 
 predictions = model.predict(42.5, -76.45, week=4)
 

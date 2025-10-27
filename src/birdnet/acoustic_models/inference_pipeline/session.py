@@ -6,7 +6,7 @@ from abc import ABC
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
-from typing import ContextManager, Generic
+from typing import ContextManager, Generic, Self
 
 from ordered_set import OrderedSet
 
@@ -48,7 +48,7 @@ class AcousticSessionBase(
     self._is_initialized = False
     super().__init__()
 
-  def __enter__(self) -> AcousticSessionBase[ResultType, ConfigType, TensorType]:
+  def __enter__(self) -> Self:
     assert not self._is_initialized
     self._resource_manager = ResourceManager(self._conf)
     res = self._resource_manager.create_resources(

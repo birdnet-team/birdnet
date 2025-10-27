@@ -7,7 +7,7 @@ from ordered_set import OrderedSet
 from birdnet.globals import MODEL_PRECISIONS
 
 
-class PredictionResultBase:
+class PredictionResultBase(ABC):
   @abstractmethod
   def save(self, *args, **kwargs) -> None: ...  # noqa: ANN002, ANN003
 

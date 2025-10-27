@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC
+from typing import Self
 
 import numpy as np
 
@@ -30,7 +31,7 @@ class GeoSessionBase(SessionBase, ABC):
     self._is_initialized = False
     super().__init__()
 
-  def __enter__(self) -> GeoSessionBase:
+  def __enter__(self) -> Self:
     assert not self._is_initialized
 
     self._backend_loader = BackendLoader(
