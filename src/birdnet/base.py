@@ -20,6 +20,17 @@ class PredictionResultBase:
   def memory_size_mb(self) -> float: ...
 
 
+class SessionBase(ABC):
+  @abstractmethod
+  def __enter__(self) -> Self: ...
+
+  @abstractmethod
+  def __exit__(self, *args): ...
+
+  @abstractmethod
+  def run(self, *args, **kwargs) -> PredictionResultBase: ...
+
+
 class ModelBase(ABC):
   def __init__(
     self,
@@ -67,4 +78,9 @@ class ModelBase(ABC):
   @classmethod
   @abstractmethod
   def predict(cls, *args, **kwargs) -> PredictionResultBase:  # noqa: ANN002, ANN003
+    ...
+
+  @classmethod
+  @abstractmethod
+  def predict_session(cls, *args, **kwargs) -> SessionBase:  # noqa: ANN002, ANN003
     ...

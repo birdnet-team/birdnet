@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+from abc import ABC
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -24,11 +25,14 @@ from birdnet.acoustic_models.inference_pipeline.resources import (
 from birdnet.acoustic_models.inference_pipeline.strategy import (
   PredictionStrategy,
 )
+from birdnet.base import SessionBase
 from birdnet.globals import WRITABLE_FLAG
 from birdnet.helper import create_shm_ring
 
 
-class SessionBase(Generic[ResultType, ConfigType, TensorType]):
+class AcousticSessionBase(
+  Generic[ResultType, ConfigType, TensorType], SessionBase, ABC
+):
   def __init__(
     self,
     conf: PredictionConfig,
@@ -42,7 +46,7 @@ class SessionBase(Generic[ResultType, ConfigType, TensorType]):
     self._process_manager: ProcessManager | None = None
     self._shm_context: ContextManager | None = None
     self._is_initialized = False
-    self._n_runs: int = 0
+    super().__init__()
 
   def __enter__(self):
     assert not self._is_initialized

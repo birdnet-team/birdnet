@@ -19,12 +19,12 @@ from birdnet.acoustic_models.inference_pipeline.configs import (
   ScoresConfig,
 )
 from birdnet.acoustic_models.inference_pipeline.emb_strategy import EmbeddingsStrategy
-from birdnet.acoustic_models.inference_pipeline.session import SessionBase
 from birdnet.acoustic_models.inference_pipeline.scores_strategy import ScoresStrategy
+from birdnet.acoustic_models.inference_pipeline.session import AcousticSessionBase
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS, MODEL_PRECISIONS
 
 
-class EncodingSession(SessionBase):
+class EncodingSession(AcousticSessionBase):
   def __init__(
     self,
     species_list: OrderedSet[str],
@@ -137,7 +137,7 @@ class EncodingSession(SessionBase):
     return super().run(paths)
 
 
-class ScoreSession(SessionBase):
+class ScoreSession(AcousticSessionBase):
   def __init__(
     self,
     species_list: OrderedSet[str],

@@ -12,6 +12,7 @@ from birdnet.acoustic_models.inference.backends import (
   VersionedGeoBackendProtocol,
 )
 from birdnet.geo_models.base import GeoModelBase
+from birdnet.geo_models.inference.api import ScoreSession
 from birdnet.geo_models.inference.prediction_result import PredictionResult
 from birdnet.globals import (
   GEO_MODEL_VERSION_V2_4,
@@ -129,6 +130,27 @@ class GeoModelV2_4(GeoModelBase):
   def get_model_type(cls) -> MODEL_TYPES:
     return MODEL_TYPE_GEO
 
+  def predict_session(
+    self,
+    /,
+    *,
+    min_confidence: float = 0.03,
+    half_precision: bool = True,
+    device: str = "CPU",
+  ) -> ScoreSession:
+    return ScoreSession(
+      species_list=self.species_list,
+      model_path=self.model_path,
+      model_is_custom=self.use_custom_model,
+      model_precision=self.precision,
+      model_version=self.get_version(),
+      model_backend_type=self._backend_type,
+      model_backend_custom_kwargs=self._backend_custom_kwargs,
+      min_confidence=min_confidence,
+      half_precision=half_precision,
+      device=device,
+    )
+
   def predict(
     self,
     latitude: float,
@@ -140,60 +162,13 @@ class GeoModelV2_4(GeoModelBase):
     half_precision: bool = True,
     device: str = "CPU",
   ) -> PredictionResult:
-    if not -90 <= latitude <= 90:
-      raise ValueError(
-        "Value for 'latitude' is invalid! It needs to be in interval [-90, 90]."
+    with self.predict_session(
+      min_confidence=min_confidence,
+      half_precision=half_precision,
+      device=device,
+    ) as session:
+      return session.run(
+        latitude,
+        longitude,
+        week=week,
       )
-
-    if not -180 <= longitude <= 180:
-      raise ValueError(
-        "Value for 'longitude' is invalid! It needs to be in interval [-180, 180]."
-      )
-
-    if not 0 <= min_confidence < 1.0:
-      raise ValueError(
-        "Value for 'min_confidence' is invalid! It needs to be in interval [0.0, 1.0)."
-      )
-
-    if week is not None and not (1 <= week <= 48):
-      raise ValueError(
-        "Value for 'week' is invalid! It needs to be either None or in interval [1, 48]."
-      )
-
-    if week is None:
-      week = -1
-    assert week is not None
-
-    sample = np.expand_dims(np.array([latitude, longitude, week], dtype=np.float32), 0)
-
-    prob_dtype: DTypeLike = np.float16 if half_precision else np.float32
-
-    backend_loader = BackendLoader(
-      model_path=self.model_path,
-      backend_type=self._backend_type,
-      backend_kwargs=self._backend_custom_kwargs,
-    )
-
-    backend = backend_loader.load_backend(device)
-    res = backend.predict(sample)
-    assert res.dtype == np.float32
-    res = res.astype(prob_dtype, copy=False)
-
-    res = np.squeeze(res, axis=0)
-
-    species_ids = np.arange(
-      len(self.species_list),
-      dtype=uint_dtype_for(
-        max(0, len(self.species_list) - 1),
-      ),
-    )
-
-    invalid_mask = res < min_confidence
-    prediction = PredictionResult(
-      species_list=self.species_list,
-      species_probs=res,
-      species_ids=species_ids,
-      species_masked=invalid_mask,
-    )
-
-    return prediction
