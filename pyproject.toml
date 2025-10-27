@@ -35,6 +35,7 @@ dependencies = [
   "ordered-set==4.1.0",
   "tqdm==4.64.1",
   "numpy==1.23.5",
+  "numba==0.62.1",
   "pandas==2.3.0",
   "psutil==7.0.0",
   "pyarrow==20.0.0",

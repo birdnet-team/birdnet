@@ -282,13 +282,14 @@ class Producer(bn_logging.LogableProcessBase):
       if self._check_cancel_event():
         return
 
-      while True:
-        try:
-          queue_entry = self._files_queue.get(block=True, timeout=1.0)
-          break
-        except Empty:
-          if self._check_cancel_event():
-            return
+      queue_entry = self._files_queue.get(block=True, timeout=None)
+      # while True:
+      #   try:
+      #     queue_entry = self._files_queue.get(block=True, timeout=1.0)
+      #     break
+      #   except Empty:
+      #     if self._check_cancel_event():
+      #       return
 
       poison_pill = queue_entry is None
       if poison_pill:
