@@ -21,11 +21,7 @@ from typing import (
 
 import numpy as np
 
-from birdnet.globals import (
-  LIBRARY_LITERT,
-  LIBRARY_TF,
-  LIBRARY_TYPES,
-)
+from birdnet.globals import LIBRARY_LITERT, LIBRARY_TF, LIBRARY_TYPES
 from birdnet.logging_utils import get_logger
 
 if TYPE_CHECKING:
@@ -237,7 +233,10 @@ class PBBackend(Backend, ABC):
       physical_devices = tf.config.list_physical_devices("GPU")
       if len(physical_devices) == 0:
         raise ValueError(
-          "No GPU found! Please check your TensorFlow installation and ensure that a GPU is available."
+          "No GPU found! "
+          "Please check your TensorFlow installation and ensure that a GPU is "
+          "available. Also ensure that birdnet is installed with GPU support "
+          "(pip install birdnet[and-cuda])."
         )
 
       gpus_with_name = [gpu for gpu in physical_devices if device_name in gpu.name]

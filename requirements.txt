@@ -4,7 +4,6 @@ astunparse==1.6.3
 av==14.4.0
 backports.strenum==1.2.8
 backports.tarfile==1.2.0
--e git+ssh://git@github.com/birdnet-team/birdnet.git@f72d627a2d62e5fbe35fc79da92263bd9ffb6d1f#egg=birdnet
 build==1.2.2.post1
 cachetools==5.5.2
 certifi==2025.4.26
