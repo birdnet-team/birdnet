@@ -287,7 +287,7 @@ class FullBenchmarkMetaBase(MinimalBenchmarkMetaBase):
     for k in del_keys:
       del result[k]
 
-    for name, attr in inspect.getmembers(
+    for name, _attr in inspect.getmembers(
       self.__class__, lambda o: isinstance(o, property)
     ):
       if name.startswith("_"):

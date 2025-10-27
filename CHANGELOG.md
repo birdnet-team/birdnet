@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-10-27
+
+### Changed
+
+- Refactored the whole codebase to be able to load model and predict scores in two separate steps
+
 ## [0.2.0a0] - 2025-07-29
 
 ### Changed

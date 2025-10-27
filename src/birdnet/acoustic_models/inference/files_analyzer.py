@@ -26,7 +26,7 @@ class FilesAnalyzer(bn_logging.LogableProcessBase):
     finished: Event,
     state: mp.RawValue,
     start_signal: Event,
-  ):
+  ) -> None:
     super().__init__(__name__, logging_queue, logging_level)
     # self._files = files
     self._state = state

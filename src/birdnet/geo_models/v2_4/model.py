@@ -106,7 +106,9 @@ class GeoModelV2_4(GeoModelBase):
 
       if n_species_in_model != len(loaded_species_list):
         raise ValueError(
-          f"Model '{model_path.absolute()}' has {n_species_in_model} outputs, but species list '{species_list.absolute()}' has {len(loaded_species_list)} species!"
+          f"Model '{model_path.absolute()}' has {n_species_in_model} outputs, "
+          f"but species list '{species_list.absolute()}' "
+          f"has {len(loaded_species_list)} species!"
         )
 
     result = GeoModelV2_4(

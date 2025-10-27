@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-import multiprocessing as mp
-import multiprocessing.synchronize
 from multiprocessing import Queue
-from multiprocessing.synchronize import Event, Semaphore
+from multiprocessing.synchronize import Event, Lock, Semaphore
 
 import numpy as np
 from numpy.typing import DTypeLike
 
-from birdnet.backends import BackendLoader
 from birdnet.acoustic_models.inference.worker import WorkerBase
+from birdnet.backends import BackendLoader
 from birdnet.helper import RingField
 
 
@@ -26,20 +24,20 @@ class EmbeddingsWorker(WorkerBase):
     rf_flags: RingField,
     segment_duration_samples: int,
     out_q: Queue,
-    wkr_ring_access_lock: multiprocessing.synchronize.Lock,
+    wkr_ring_access_lock: Lock,
     sem_free: Semaphore,
     sem_fill: Semaphore,
     sem_active_workers: Semaphore | None,
     emb_dtype: DTypeLike,
-    wkr_stats_queue: mp.Queue | None,
-    logging_queue: mp.Queue,
+    wkr_stats_queue: Queue | None,
+    logging_queue: Queue,
     logging_level: int,
     device: str,
     cancel_event: Event,
     prd_all_done_event: Event,
     start_signal: Event,
     end_event: Event,
-  ):
+  ) -> None:
     super().__init__(
       name=__name__,
       backend_loader=backend_loader,

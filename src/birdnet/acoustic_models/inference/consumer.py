@@ -15,14 +15,14 @@ class Consumer:
     worker_queue: mp.Queue,
     tensor: TensorBase,
     cancel_event: Event,
-  ):
+  ) -> None:
     self._n_workers = n_workers
     self._queue = worker_queue
     self._tensor = tensor
     self._cancel_event = cancel_event
     self._logger = bn_logging.get_logger(__name__)
 
-  def __call__(self):
+  def __call__(self) -> None:
     finished_workers = 0
     n_received_predictions = 0
     while finished_workers < self._n_workers:

@@ -201,7 +201,11 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       ) = self._wkr_stats_queue.get(block=True)
       self._logger.debug(
         f"PerformanceTracker received prediction duration from worker {worker_pid}: "
-        f"wall time: {wall_time:.3f}s, wait for filled slot: {dur_wait_for_filled_slot:.3f}s, find filled slot: {dur_search_for_filled_slot:.3f}s, inference: {dur_inference:.3f}s, add to queue: {dur_add_to_queue}s, batch size: {batch_size}"
+        f"wall time: {wall_time:.3f}s, "
+        f"wait for filled slot: {dur_wait_for_filled_slot:.3f}s, "
+        f"find filled slot: {dur_search_for_filled_slot:.3f}s, "
+        f"inference: {dur_inference:.3f}s, add to queue: {dur_add_to_queue}s, "
+        f"batch size: {batch_size}"
       )
       self._wkr_wall_times[worker_pid] = wall_time
       self._wkr_total_segments_processed += batch_size
@@ -228,8 +232,10 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       ) = self._prd_stats_queue.get(block=True)
       self._logger.debug(
         f"PerformanceTracker received producer stats from producer {prod_pid}: "
-        f"process: {process_total_duration:.3f}s, batch loading: {batch_loading_duration:.3f}s, "
-        f"wait for free slot: {wait_time_for_free_slot:.3f}s, flush: {flush_duration:.3f}s, n: {n}"
+        f"process: {process_total_duration:.3f}s, "
+        f"batch loading: {batch_loading_duration:.3f}s, "
+        f"wait for free slot: {wait_time_for_free_slot:.3f}s, "
+        f"flush: {flush_duration:.3f}s, n: {n}"
       )
       self._prd_wall_times[prod_pid] = process_total_duration
       self._prd_total_segments_processed += n
@@ -315,7 +321,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     assert self._ring_flags is not None
 
     output_msg_fields = [
-      # f"inference speed: {self._summed_raw_pred_duration / self._total_segments_processed * 1000:.0f} ms/segment",
+      # f"inference speed: {self._summed_raw_pred_duration /
+      # self._total_segments_processed * 1000:.0f} ms/segment",
       # f"last {len(self._pred_dur_deque)} predictions: {avg * 1000:.0f} ms/segment",
       # f"RTF: {real_time_factor:.8f}x [{raw_segments_per_s:.0f} segm/s]",
       # f"SPEED2: {speed_x_real_time_classic:.0f} xRT [{segments_per_s:.0f} seg/s]",
@@ -323,7 +330,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       f"MEM: {memory_usage_MiB:.0f} M",
       # f"CPU usage: {cpu_usage:.1f} %",
       f"BUF: {self._ring_flags.shape[0] - self._rng_free_slots_tracker.avg_val_last:.0f}/{self._ring_flags.shape[0]}",
-      # f"BUF2: {self._rng_preloaded_slots_tracker.avg_val_last:.0f}/{self._ring_flags.shape[0]}",
+      # f"BUF2: {self._rng_preloaded_slots_tracker.avg_val_last:.0f}/
+      # {self._ring_flags.shape[0]}",
       # f"S-FILL: {self._sem_filled_tracker.avg_val_last:.0f}",
       # f"free: {avg_free_slots:.0f}/{self._ring_flags.shape[0]}",
       f"F-SPEED: {prd_speed_xrt:.0f} xRT [{prd_speed_segments_per_s:.0f} seg/s]",

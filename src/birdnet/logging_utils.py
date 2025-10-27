@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import multiprocessing as mp
 import multiprocessing.synchronize
+import os
 from logging.handlers import MemoryHandler, QueueHandler
 from multiprocessing import Queue
 from pathlib import Path
@@ -70,7 +71,6 @@ def init_package_logger(logging_level: int) -> None:
 
 
 init_package_logger(logging.INFO)
-import os
 
 
 class QueueFileWriter:
@@ -141,7 +141,8 @@ class QueueFileWriter:
           logger.handle(record)
         mh.flush()
         # print(
-        #   f"Flushed logging entries from queue in {time.perf_counter() - perf_c}s. Queue size: {self._log_queue.qsize()}"
+        #   f"Flushed logging entries from queue in {time.perf_counter() - perf_c}s.
+        # Queue size: {self._log_queue.qsize()}"
         # )
       except OSError as e:
         # OSError can happen if the file is closed while writing
