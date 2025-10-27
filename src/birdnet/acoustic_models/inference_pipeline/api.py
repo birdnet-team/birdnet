@@ -19,7 +19,7 @@ from birdnet.acoustic_models.inference_pipeline.configs import (
   ScoresConfig,
 )
 from birdnet.acoustic_models.inference_pipeline.emb_strategy import EmbeddingsStrategy
-from birdnet.acoustic_models.inference_pipeline.pipeline import SessionBase
+from birdnet.acoustic_models.inference_pipeline.session import SessionBase
 from birdnet.acoustic_models.inference_pipeline.scores_strategy import ScoresStrategy
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS, MODEL_PRECISIONS
 
