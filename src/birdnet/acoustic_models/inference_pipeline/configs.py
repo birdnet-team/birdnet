@@ -80,11 +80,11 @@ class ProcessingConfig:
   @classmethod
   def validate_max_n_files(cls, max_n_files: Any) -> int:  # noqa: ANN401
     if not isinstance(max_n_files, int):
-      raise TypeError("maximum number of files must be an integer")
+      raise TypeError("max_n_files must be an integer")
     if not max_n_files >= 1:
-      raise ValueError("maximum number of files must be >= 1")
+      raise ValueError("max_n_files must be >= 1")
     if not max_n_files <= 2**64:
-      raise ValueError("maximum number of files must be <= 2^64")
+      raise ValueError("max_n_files must be <= 2^64")
     return max_n_files
 
   @classmethod
@@ -125,9 +125,9 @@ class ProcessingConfig:
   @classmethod
   def validate_prefetch_ratio(cls, prefetch_ratio: Any) -> int:  # noqa: ANN401
     if not isinstance(prefetch_ratio, int):
-      raise TypeError("prefetch ratio must be an integer")
+      raise TypeError("prefetch_ratio must be an integer")
     if not prefetch_ratio >= 0:
-      raise ValueError("prefetch ratio must be >= 0")
+      raise ValueError("prefetch_ratio must be >= 0")
     return prefetch_ratio
 
   @classmethod
@@ -151,11 +151,12 @@ class ProcessingConfig:
   ) -> str | list[str]:
     if isinstance(device, str):
       if "GPU" not in device and "CPU" not in device:
-        raise ValueError("device name must contain 'CPU' or 'GPU'")
+        raise ValueError("device must contain 'CPU' or 'GPU'")
     elif isinstance(device, list):
       if len(device) != workers:
         raise ValueError(
-          f"device list length ({len(device)}) must match workers count ({workers})"
+          f"length of device list ({len(device)}) must match number of "
+          f"workers ({workers})"
         )
       for d in device:
         cls.validate_device(d, workers)
@@ -166,15 +167,15 @@ class ProcessingConfig:
   @classmethod
   def validate_half_precision(cls, half_precision: Any) -> bool:  # noqa: ANN401
     if not isinstance(half_precision, bool):
-      raise TypeError("half precision must be a boolean")
+      raise TypeError("half_precision must be a boolean")
     return half_precision
 
   @classmethod
   def validate_max_audio_duration_min(cls, max_audio_duration_min: Any) -> float:  # noqa: ANN401
     if not isinstance(max_audio_duration_min, int | float):
-      raise TypeError("maximum audio duration must be a number")
+      raise TypeError("max_audio_duration_min must be a number")
     if not max_audio_duration_min > 0:
-      raise ValueError("maximum audio duration must be > 0")
+      raise ValueError("max_audio_duration_min must be > 0")
     return max_audio_duration_min
 
 

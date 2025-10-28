@@ -49,3 +49,11 @@ def test_non_number_raises_error() -> None:
     match=r"overlap duration must be a number",
   ):
     ProcessingConfig.validate_overlap_duration("1", 3)  # type: ignore
+
+
+def test_valid_small_value() -> None:
+  assert ProcessingConfig.validate_overlap_duration(0.1, 3) == 0.1
+
+
+def test_valid_large_value() -> None:
+  assert ProcessingConfig.validate_overlap_duration(2.9, 3) == 2.9

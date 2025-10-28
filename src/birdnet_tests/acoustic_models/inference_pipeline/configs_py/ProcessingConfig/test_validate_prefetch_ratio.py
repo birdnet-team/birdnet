@@ -8,7 +8,7 @@ from birdnet.acoustic_models.inference_pipeline.configs import (
 def test_negative_raises_error() -> None:
   with pytest.raises(
     ValueError,
-    match=r"prefetch ratio must be >= 0",
+    match=r"prefetch_ratio must be >= 0",
   ):
     ProcessingConfig.validate_prefetch_ratio(-1)
 
@@ -24,6 +24,6 @@ def test_one_is_valid() -> None:
 def test_non_integer_raises_error() -> None:
   with pytest.raises(
     TypeError,
-    match=r"prefetch ratio must be an integer",
+    match=r"prefetch_ratio must be an integer",
   ):
     ProcessingConfig.validate_prefetch_ratio(1.5)  # type: ignore
