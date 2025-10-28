@@ -97,13 +97,28 @@ class GeoPBBackendV2_4(PBBackend, VersionedGeoBackendProtocol):
     model_path: Path,
     device_name: str,
   ) -> None:
-    super().__init__(
-      model_path,
-      device_name,
-      input_key="MNET_INPUT",
-      scores_signature_name="serving_default",
-      scores_prediction_key="MNET_CLASS_ACTIVATION",
-      emb_supported=False,
-      emb_signature_name=None,
-      emb_prediction_key=None,
-    )
+    super().__init__(model_path, device_name)
+
+  @classmethod
+  def input_key(cls) -> str:
+    return "MNET_INPUT"
+
+  @classmethod
+  def scores_signature_name(cls) -> str:
+    return "serving_default"
+
+  @classmethod
+  def scores_prediction_key(cls) -> str:
+    return "MNET_CLASS_ACTIVATION"
+
+  @classmethod
+  def emb_supported(cls) -> bool:
+    return False
+
+  @classmethod
+  def emb_signature_name(cls) -> str | None:
+    return None
+
+  @classmethod
+  def emb_prediction_key(cls) -> str | None:
+    return None

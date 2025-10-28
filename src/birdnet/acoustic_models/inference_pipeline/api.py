@@ -61,6 +61,7 @@ class EncodingSession(AcousticSessionBase):
     assert model_backend_custom_kwargs is not None
     assert model_emb_dim > 0
 
+    ModelConfig.validate_backend_supports_embeddings(model_backend_type)
     n_feeders = ProcessingConfig.validate_n_feeders(n_feeders)
     n_workers = ProcessingConfig.validate_n_workers(n_workers)
     batch_size = ProcessingConfig.validate_batch_size(batch_size)

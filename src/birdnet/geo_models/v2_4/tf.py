@@ -100,17 +100,21 @@ class GeoTFDownloaderV2_4(GeoDownloaderBaseV2_4):
 
 
 class GeoTFBackendV2_4(TFBackend, VersionedGeoBackendProtocol):
-  def __init__(
-    self,
-    model_path: Path,
-    device_name: str,
-    **kwargs: dict,
-  ) -> None:
-    super().__init__(
-      model_path,
-      device_name,
-      in_idx=0,
-      emb_out_idx=-1,  # Embeddings not supported
-      scores_out_idx=62,
-      **kwargs,
-    )
+  def __init__(self, model_path: Path, device_name: str, **kwargs: dict) -> None:
+    super().__init__(model_path, device_name, **kwargs)
+
+  @classmethod
+  def in_idx(cls) -> int:
+    return 0
+
+  @classmethod
+  def scores_out_idx(cls) -> int:
+    return 62
+
+  @classmethod
+  def emb_supported(cls) -> bool:
+    return False
+
+  @classmethod
+  def emb_out_idx(cls) -> int | None:
+    return None

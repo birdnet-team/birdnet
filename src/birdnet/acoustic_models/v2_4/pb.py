@@ -7,12 +7,12 @@ from pathlib import Path
 
 from ordered_set import OrderedSet
 
+from birdnet.acoustic_models.v2_4.model import (
+  AcousticDownloaderBaseV2_4,
+)
 from birdnet.backends import (
   PBBackend,
   VersionedAcousticBackendProtocol,
-)
-from birdnet.acoustic_models.v2_4.model import (
-  AcousticDownloaderBaseV2_4,
 )
 from birdnet.globals import (
   MODEL_PRECISION_FP32,
@@ -94,20 +94,58 @@ class AcousticPBDownloaderV2_4(AcousticDownloaderBaseV2_4):
 
 
 class AcousticPBBackendV2_4(PBBackend, VersionedAcousticBackendProtocol):
-  def __init__(
-    self,
-    model_path: Path,
-    device_name: str,
-    **kwargs: dict,
-  ) -> None:
-    super().__init__(
-      model_path,
-      device_name,
-      input_key="inputs",
-      scores_signature_name="basic",
-      scores_prediction_key="scores",
-      emb_supported=True,
-      emb_signature_name="embeddings",
-      emb_prediction_key="embeddings",
-      **kwargs,
-    )
+  def __init__(self, model_path: Path, device_name: str, **kwargs: dict) -> None:
+    super().__init__(model_path, device_name, **kwargs)
+
+  @classmethod
+  def input_key(cls) -> str:
+    return "inputs"
+
+  @classmethod
+  def scores_signature_name(cls) -> str:
+    return "basic"
+
+  @classmethod
+  def scores_prediction_key(cls) -> str:
+    return "scores"
+
+  @classmethod
+  def emb_supported(cls) -> bool:
+    return True
+
+  @classmethod
+  def emb_signature_name(cls) -> str | None:
+    return "embeddings"
+
+  @classmethod
+  def emb_prediction_key(cls) -> str | None:
+    return "embeddings"
+
+
+class AcousticRavenBackendV2_4(PBBackend, VersionedAcousticBackendProtocol):
+  def __init__(self, model_path: Path, device_name: str, **kwargs: dict) -> None:
+    super().__init__(model_path, device_name, **kwargs)
+
+  @classmethod
+  def input_key(cls) -> str:
+    return "inputs"
+
+  @classmethod
+  def scores_signature_name(cls) -> str:
+    return "basic"
+
+  @classmethod
+  def scores_prediction_key(cls) -> str:
+    return "scores"
+
+  @classmethod
+  def emb_supported(cls) -> bool:
+    return False
+
+  @classmethod
+  def emb_signature_name(cls) -> str | None:
+    return None
+
+  @classmethod
+  def emb_prediction_key(cls) -> str | None:
+    return None

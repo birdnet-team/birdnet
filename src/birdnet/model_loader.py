@@ -9,6 +9,7 @@ from birdnet.acoustic_models.v2_4.model import (
 from birdnet.acoustic_models.v2_4.pb import (
   AcousticPBBackendV2_4,
   AcousticPBDownloaderV2_4,
+  AcousticRavenBackendV2_4,
 )
 from birdnet.acoustic_models.v2_4.tf import (
   AcousticTFBackendV2_4,
@@ -16,6 +17,7 @@ from birdnet.acoustic_models.v2_4.tf import (
 )
 from birdnet.backends import (
   TF_BACKEND_LIB_ARG,
+  VersionedAcousticBackendProtocol,
   litert_installed,
   tf_installed,
 )
@@ -32,10 +34,14 @@ from birdnet.geo_models.v2_4.tf import (
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V2_4,
   ACOUSTIC_MODEL_VERSIONS,
+  CUSTOM_PB_IS_RAVEN_DEFAULT,
+  CUSTOM_PB_IS_RAVEN_PARAM,
   GEO_MODEL_VERSION_V2_4,
   GEO_MODEL_VERSIONS,
   LIBRARY_LITERT,
   LIBRARY_TF,
+  LIBRARY_TF_DEFAULT,
+  LIBRARY_TF_PARAM,
   LIBRARY_TYPES,
   MODEL_BACKEND_PB,
   MODEL_BACKEND_TF,
@@ -167,7 +173,17 @@ def _validate_library(library: Any) -> LIBRARY_TYPES:  # noqa: ANN401
   return cast(LIBRARY_TYPES, library)
 
 
-def _validate_kwargs(model_kwargs: dict, allowed: set[str] | None) -> dict[str, Any]:
+def _validate_custom_pb_is_raven(is_raven: Any) -> bool:  # noqa: ANN401
+  if not isinstance(is_raven, bool):
+    raise ValueError(
+      f"Parameter '{CUSTOM_PB_IS_RAVEN_PARAM}' must be of type bool, got {type(is_raven)}."
+    )
+  return is_raven
+
+
+def _validate_kwargs_allowed(
+  model_kwargs: dict, allowed: set[str] | None
+) -> dict[str, Any]:
   if allowed is None:
     not_allowed = set(model_kwargs.keys())
   else:
@@ -261,8 +277,8 @@ def _load_acoustic_model_V2_4(
   **model_kwargs: object,
 ) -> AcousticModelV2_4:
   if backend == MODEL_BACKEND_TF:
-    model_kwargs = _validate_kwargs(model_kwargs, {"library"})
-    library = _validate_library(model_kwargs.get("library", LIBRARY_TF))
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, {LIBRARY_TF_PARAM})
+    library = _validate_library(model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT))
 
     model_path, species_list = AcousticTFDownloaderV2_4.get_model_path_and_labels(
       lang, precision
@@ -283,7 +299,7 @@ def _load_acoustic_model_V2_4(
         f"Unsupported model precision for acoustic pb model: {precision}. "
         f"Currently supported precision is: {MODEL_PRECISION_FP32}."
       )
-    model_kwargs = _validate_kwargs(model_kwargs, None)
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, None)
 
     model_path, species_list = AcousticPBDownloaderV2_4.get_model_path_and_labels(lang)
     return AcousticModelV2_4.load(
@@ -303,8 +319,8 @@ def _load_geo_model_V2_4(
   **model_kwargs: object,
 ) -> GeoModelV2_4:
   if backend == MODEL_BACKEND_TF:
-    model_kwargs = _validate_kwargs(model_kwargs, {"library"})
-    library = _validate_library(model_kwargs.get("library", LIBRARY_TF))
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, {LIBRARY_TF_PARAM})
+    library = _validate_library(model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT))
 
     model_path, species_list = GeoTFDownloaderV2_4.get_model_path_and_labels(lang)
 
@@ -317,7 +333,7 @@ def _load_geo_model_V2_4(
       },
     )
   elif backend == MODEL_BACKEND_PB:
-    model_kwargs = _validate_kwargs(model_kwargs, None)
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, None)
 
     model_path, species_list = GeoPBDownloaderV2_4.get_model_path_and_labels(lang)
     return GeoModelV2_4.load(
@@ -428,8 +444,8 @@ def _load_custom_acoustic_model_V2_4(
 ) -> AcousticModelV2_4:
   if backend == MODEL_BACKEND_TF:
     model = _validate_tf_file(model)
-    model_kwargs = _validate_kwargs(model_kwargs, {"library"})
-    library = _validate_library(model_kwargs.get("library", LIBRARY_TF))
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, {LIBRARY_TF_PARAM})
+    library = _validate_library(model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT))
 
     return AcousticModelV2_4.load_custom(
       model,
@@ -442,19 +458,26 @@ def _load_custom_acoustic_model_V2_4(
       check_validity=check_validity,
     )
   elif backend == MODEL_BACKEND_PB:
+    model = _validate_pb_model_folder(model)
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, {CUSTOM_PB_IS_RAVEN_PARAM})
+    is_raven = _validate_custom_pb_is_raven(
+      model_kwargs.get(CUSTOM_PB_IS_RAVEN_PARAM, CUSTOM_PB_IS_RAVEN_DEFAULT)
+    )
+    backend_type: type[VersionedAcousticBackendProtocol] = (
+      AcousticRavenBackendV2_4 if is_raven else AcousticPBBackendV2_4
+    )
+
     if precision != MODEL_PRECISION_FP32:
       raise ValueError(
         f"Unsupported model precision for acoustic pb model: {precision}. "
         f"Currently supported precision is: {MODEL_PRECISION_FP32}."
       )
-    model = _validate_pb_model_folder(model)
-    model_kwargs = _validate_kwargs(model_kwargs, None)
 
     return AcousticModelV2_4.load_custom(
       model,
       species_list,
       precision,
-      backend_type=AcousticPBBackendV2_4,
+      backend_type=backend_type,
       backend_kwargs={},
       check_validity=check_validity,
     )
@@ -471,8 +494,8 @@ def _load_custom_geo_model_V2_4(
 ) -> GeoModelV2_4:
   if backend == MODEL_BACKEND_TF:
     model = _validate_tf_file(model)
-    model_kwargs = _validate_kwargs(model_kwargs, {"library"})
-    library = _validate_library(model_kwargs.get("library", LIBRARY_TF))
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, {LIBRARY_TF_PARAM})
+    library = _validate_library(model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT))
 
     return GeoModelV2_4.load_custom(
       model,
@@ -485,7 +508,7 @@ def _load_custom_geo_model_V2_4(
     )
   elif backend == MODEL_BACKEND_PB:
     model = _validate_pb_model_folder(model)
-    model_kwargs = _validate_kwargs(model_kwargs, None)
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, None)
 
     return GeoModelV2_4.load_custom(
       model,

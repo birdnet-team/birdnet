@@ -50,6 +50,10 @@ class Backend(ABC):
   @abstractmethod
   def supports_cow(cls) -> bool: ...
 
+  @classmethod
+  @abstractmethod
+  def emb_supported(cls) -> bool: ...
+
   @property
   @abstractmethod
   def n_species(self) -> int: ...
@@ -71,6 +75,9 @@ class VersionedBackendProtocol(Protocol):
   def predict(self, batch: np.ndarray) -> np.ndarray: ...
 
   def embed(self, batch: np.ndarray) -> np.ndarray: ...
+
+  @classmethod
+  def emb_supported(cls) -> bool: ...
 
   @classmethod
   def supports_cow(cls) -> bool: ...
@@ -97,9 +104,6 @@ class TFBackend(Backend, ABC):
     self,
     model_path: Path,
     device_name: str,
-    in_idx: int,
-    scores_out_idx: int,
-    emb_out_idx: int,
     **kwargs: dict,
   ) -> None:
     assert device_name == "CPU"
@@ -110,14 +114,23 @@ class TFBackend(Backend, ABC):
     self._inference_library: LIBRARY_TYPES = cast(
       LIBRARY_TYPES, kwargs[TF_BACKEND_LIB_ARG]
     )
-    self._in_idx: int = in_idx
-    self._scores_out_idx: int = scores_out_idx
-    self._emb_out_idx: int = emb_out_idx
 
   @final
   @classmethod
   def supports_cow(cls) -> bool:
     return True
+
+  @classmethod
+  @abstractmethod
+  def in_idx(cls) -> int: ...
+
+  @classmethod
+  @abstractmethod
+  def scores_out_idx(cls) -> int: ...
+
+  @classmethod
+  @abstractmethod
+  def emb_out_idx(cls) -> int | None: ...
 
   def load(self) -> None:
     assert self._interp is None
@@ -144,11 +157,11 @@ class TFBackend(Backend, ABC):
 
     shape = batch.shape
     if self._cached_shape != shape:
-      self._interp.resize_tensor_input(self._in_idx, shape, strict=True)
+      self._interp.resize_tensor_input(self.in_idx(), shape, strict=True)
       self._interp.allocate_tensors()
       self._cached_shape = shape
     # self._in_view[:n, :] = batch
-    self._interp.set_tensor(self._in_idx, batch)
+    self._interp.set_tensor(self.in_idx(), batch)
 
   def _infer(self, batch: np.ndarray, out_idx: int) -> np.ndarray:
     # TODO: implement load on different CPUs
@@ -162,11 +175,13 @@ class TFBackend(Backend, ABC):
 
   @final
   def predict(self, batch: np.ndarray) -> np.ndarray:
-    return self._infer(batch, self._scores_out_idx)
+    return self._infer(batch, self.scores_out_idx())
 
   @final
   def embed(self, batch: np.ndarray) -> np.ndarray:
-    return self._infer(batch, self._emb_out_idx)
+    out_idx = self.emb_out_idx()
+    assert out_idx is not None
+    return self._infer(batch, out_idx)
 
 
 class PBBackend(Backend, ABC):
@@ -174,12 +189,6 @@ class PBBackend(Backend, ABC):
     self,
     model_path: Path,
     device_name: str,
-    input_key: str,
-    scores_signature_name: str,
-    scores_prediction_key: str,
-    emb_supported: bool,
-    emb_signature_name: str | None,
-    emb_prediction_key: str | None,
     **kwargs: dict,
   ) -> None:
     super().__init__(model_path, device_name)
@@ -188,25 +197,40 @@ class PBBackend(Backend, ABC):
     self._predict_fn: Callable | None = None
     self._emb_fn: Callable | None = None
     self._cached_device_name: str | None = None
-    self._scores_signature_name = scores_signature_name
-    self._scores_prediction_key = scores_prediction_key
-    self._emb_supported = emb_supported
-    self._emb_signature_name = emb_signature_name
-    self._emb_prediction_key = emb_prediction_key
-    self._input_key = input_key
 
   @final
   @classmethod
   def supports_cow(cls) -> bool:
     return False
 
+  @classmethod
+  @abstractmethod
+  def input_key(cls) -> str: ...
+
+  @classmethod
+  @abstractmethod
+  def scores_signature_name(cls) -> str: ...
+
+  @classmethod
+  @abstractmethod
+  def scores_prediction_key(cls) -> str: ...
+
+  @classmethod
+  @abstractmethod
+  def emb_signature_name(cls) -> str | None: ...
+
+  @classmethod
+  @abstractmethod
+  def emb_prediction_key(cls) -> str | None: ...
+
   @final
   def load(self) -> None:
     self._model = load_pb_model(self._model_path)
-    self._predict_fn = self._model.signatures[self._scores_signature_name]  # type: ignore
-    if self._emb_supported:
-      assert self._emb_signature_name is not None
-      self._emb_fn = self._model.signatures[self._emb_signature_name]  # type: ignore
+    self._predict_fn = self._model.signatures[self.scores_signature_name()]  # type: ignore
+    if self.emb_supported():
+      emb_sig_name = self.emb_signature_name()
+      assert emb_sig_name is not None
+      self._emb_fn = self._model.signatures[emb_sig_name]  # type: ignore
 
     self._set_logical_device(self._device_name)
 
@@ -221,7 +245,7 @@ class PBBackend(Backend, ABC):
   def n_species(self) -> int:
     assert self._predict_fn is not None
     n_species_in_model: int = (
-      self._predict_fn.output_shapes[self._scores_prediction_key].dims[1].value  # type: ignore
+      self._predict_fn.output_shapes[self.scores_prediction_key()].dims[1].value  # type: ignore
     )
     return n_species_in_model
 
@@ -270,8 +294,8 @@ class PBBackend(Backend, ABC):
 
     with device(self._logical_device.name):  # type: ignore
       # prediction = self._audio_model.basic(batch)["scores"]
-      predictions = self._predict_fn(**{self._input_key: batch})
-    scores: Tensor = predictions[self._scores_prediction_key]
+      predictions = self._predict_fn(**{self.input_key(): batch})
+    scores: Tensor = predictions[self.scores_prediction_key()]
     assert scores.dtype == float32
     scores_np = scores.numpy()  # type: ignore
     assert scores_np.dtype == np.float32
@@ -279,15 +303,16 @@ class PBBackend(Backend, ABC):
 
   @final
   def embed(self, batch: np.ndarray) -> np.ndarray:
-    assert self._emb_supported
-    assert self._emb_prediction_key is not None
+    assert self.emb_supported()
+    emb_pred_key = self.emb_prediction_key()
+    assert emb_pred_key is not None
     assert self._emb_fn is not None
     assert self._logical_device is not None
     from tensorflow import Tensor, device, float32
 
     with device(self._logical_device.name):  # type: ignore
-      predictions = self._emb_fn(**{self._input_key: batch})
-    emb: Tensor = predictions[self._emb_prediction_key]
+      predictions = self._emb_fn(**{self.input_key(): batch})
+    emb: Tensor = predictions[emb_pred_key]
     assert emb.dtype == float32
     emb_np = emb.numpy()  # type: ignore
     assert emb_np.dtype == np.float32

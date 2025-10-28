@@ -8,12 +8,12 @@ from pathlib import Path
 
 from ordered_set import OrderedSet
 
+from birdnet.acoustic_models.v2_4.model import (
+  AcousticDownloaderBaseV2_4,
+)
 from birdnet.backends import (
   TFBackend,
   VersionedAcousticBackendProtocol,
-)
-from birdnet.acoustic_models.v2_4.model import (
-  AcousticDownloaderBaseV2_4,
 )
 from birdnet.globals import (
   MODEL_BACKEND_TF,
@@ -128,17 +128,21 @@ class AcousticTFDownloaderV2_4(AcousticDownloaderBaseV2_4):
 
 
 class AcousticTFBackendV2_4(TFBackend, VersionedAcousticBackendProtocol):
-  def __init__(
-    self,
-    model_path: Path,
-    device_name: str,
-    **kwargs: dict,
-  ) -> None:
-    super().__init__(
-      model_path,
-      device_name,
-      in_idx=0,
-      emb_out_idx=545,
-      scores_out_idx=546,
-      **kwargs,
-    )
+  def __init__(self, model_path: Path, device_name: str, **kwargs: dict) -> None:
+    super().__init__(model_path, device_name, **kwargs)
+
+  @classmethod
+  def in_idx(cls) -> int:
+    return 0
+
+  @classmethod
+  def scores_out_idx(cls) -> int:
+    return 546
+
+  @classmethod
+  def emb_supported(cls) -> bool:
+    return True
+
+  @classmethod
+  def emb_out_idx(cls) -> int | None:
+    return 545

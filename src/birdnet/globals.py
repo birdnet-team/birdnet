@@ -10,6 +10,14 @@ VALID_LIBRARY_TYPES = [
   LIBRARY_LITERT,
 ]
 
+# name of the parameter to specify the library when loading a TF model
+LIBRARY_TF_PARAM = "library"
+LIBRARY_TF_DEFAULT = LIBRARY_TF
+
+# name of the parameter to specify whether a custom PB model is a Raven model
+CUSTOM_PB_IS_RAVEN_PARAM = "is_raven"
+CUSTOM_PB_IS_RAVEN_DEFAULT = True
+
 MODEL_TYPE_ACOUSTIC = "acoustic"
 MODEL_TYPE_GEO = "geo"
 MODEL_TYPES = Literal["acoustic", "geo"]

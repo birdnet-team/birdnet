@@ -8,6 +8,7 @@ from birdnet.acoustic_models.v2_4.tf import AcousticTFDownloaderV2_4
 from birdnet.globals import MODEL_PRECISIONS
 from birdnet.local_data import get_lang_dir, get_model_path
 from birdnet.model_loader import load_custom
+from birdnet_tests.test_files import TEST_FILES_DIR
 
 
 def test_v2_4_pb_with_library_raises_error() -> None:
@@ -190,3 +191,42 @@ def test_types_with_precisions_are_correct() -> None:
     )
     is AcousticModelV2_4
   )
+
+
+def test_custom_from_analyzer_v2_4_litert_fp32() -> None:
+  model = load_custom(
+    "acoustic",
+    "2.4",
+    "tf",
+    TEST_FILES_DIR / "custom_models/tf/CustomClassifier.tflite",
+    TEST_FILES_DIR / "custom_models/tf/CustomClassifier_Labels.txt",
+    library="litert",
+    check_validity=True,
+  )
+  assert isinstance(model, AcousticModelV2_4)
+
+
+def test_custom_from_analyzer_v2_4_tf_fp32() -> None:
+  model = load_custom(
+    "acoustic",
+    "2.4",
+    "tf",
+    TEST_FILES_DIR / "custom_models/tf/CustomClassifier.tflite",
+    TEST_FILES_DIR / "custom_models/tf/CustomClassifier_Labels.txt",
+    library="tf",
+    check_validity=True,
+  )
+  assert isinstance(model, AcousticModelV2_4)
+
+
+def test_custom_from_analyzer_v2_4_raven_fp32() -> None:
+  model = load_custom(
+    "acoustic",
+    "2.4",
+    "pb",
+    TEST_FILES_DIR / "custom_models/raven/CustomClassifier",
+    TEST_FILES_DIR / "custom_models/raven/CustomClassifier/labels/label_names.csv",
+    check_validity=True,
+    is_raven=True,
+  )
+  assert isinstance(model, AcousticModelV2_4)

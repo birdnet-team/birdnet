@@ -54,6 +54,13 @@ class ModelConfig:
   def n_species(self) -> int:
     return len(self.species_list)
 
+  @classmethod
+  def validate_backend_supports_embeddings(
+    cls, backend: type[VersionedBackendProtocol]
+  ) -> None:
+    if not backend.emb_supported():
+      raise ValueError("backend does not support embeddings!")
+
 
 @dataclass(frozen=True)
 class ProcessingConfig:
