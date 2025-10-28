@@ -21,7 +21,13 @@ from typing import (
 
 import numpy as np
 
-from birdnet.globals import LIBRARY_LITERT, LIBRARY_TF, LIBRARY_TYPES
+from birdnet.globals import (
+  LIBRARY_LITERT,
+  LIBRARY_TF,
+  LIBRARY_TYPES,
+  MODEL_PRECISION_INT8,
+  MODEL_PRECISIONS,
+)
 from birdnet.logging_utils import get_logger
 
 if TYPE_CHECKING:
@@ -30,9 +36,12 @@ if TYPE_CHECKING:
 
 
 class Backend(ABC):
-  def __init__(self, model_path: Path, device_name: str) -> None:
+  def __init__(
+    self, model_path: Path, device_name: str, precision: MODEL_PRECISIONS
+  ) -> None:
     self._model_path = model_path
     self._device_name = device_name
+    self._precision = precision
 
   @abstractmethod
   def load(self) -> None: ...
@@ -104,10 +113,11 @@ class TFBackend(Backend, ABC):
     self,
     model_path: Path,
     device_name: str,
+    precision: MODEL_PRECISIONS,
     **kwargs: dict,
   ) -> None:
     assert device_name == "CPU"
-    super().__init__(model_path, device_name)
+    super().__init__(model_path, device_name, precision)
     self._interp: LiteRTInterpreter | TFInterpreter | None = None
     self._cached_shape: tuple[int, ...] | None = None
     assert TF_BACKEND_LIB_ARG in kwargs
@@ -170,18 +180,24 @@ class TFBackend(Backend, ABC):
     self._set_tensor(batch)
     self._interp.invoke()
     res: np.ndarray = self._interp.get_tensor(out_idx)
-    assert res.dtype == np.float32
     return res
 
   @final
   def predict(self, batch: np.ndarray) -> np.ndarray:
-    return self._infer(batch, self.scores_out_idx())
+    res = self._infer(batch, self.scores_out_idx())
+    assert res.dtype == np.float32
+    return res
 
   @final
   def embed(self, batch: np.ndarray) -> np.ndarray:
     out_idx = self.emb_out_idx()
     assert out_idx is not None
-    return self._infer(batch, out_idx)
+    res = self._infer(batch, out_idx)
+    if self._precision == MODEL_PRECISION_INT8:
+      assert res.dtype == np.int8
+    else:
+      assert res.dtype == np.float32
+    return res
 
 
 class PBBackend(Backend, ABC):
@@ -189,9 +205,10 @@ class PBBackend(Backend, ABC):
     self,
     model_path: Path,
     device_name: str,
+    precision: MODEL_PRECISIONS,
     **kwargs: dict,
   ) -> None:
-    super().__init__(model_path, device_name)
+    super().__init__(model_path, device_name, precision)
     self._model: Any | None = None
     self._logical_device: Any | None = None
     self._predict_fn: Callable | None = None
@@ -323,10 +340,12 @@ class BackendLoader:
   def __init__(
     self,
     model_path: Path,
+    model_precision: MODEL_PRECISIONS,
     backend_type: type[VersionedBackendProtocol],
     backend_kwargs: dict[str, Any],
   ) -> None:
     self._model_path = model_path
+    self._model_precision = model_precision
     self._backend_type = backend_type
     self._backend_kwargs = backend_kwargs
     self._backend: VersionedBackendProtocol | None = None
@@ -341,6 +360,7 @@ class BackendLoader:
     backend = self._backend_type(
       model_path=self._model_path,
       device_name=device_name,
+      precision=self._model_precision,
       **self._backend_kwargs,
     )
     backend.load()
@@ -373,11 +393,12 @@ class BackendLoader:
   def _get_n_species(
     cls,
     model_path: Path,
+    model_precision: MODEL_PRECISIONS,
     backend_type: type[VersionedBackendProtocol],
     kwargs: dict[str, Any],
   ) -> int | None:
     try:
-      loader = cls(model_path, backend_type, kwargs)
+      loader = cls(model_path, model_precision, backend_type, kwargs)
       loader.load_backend("CPU")
       n_species_in_model = loader.backend.n_species
       return n_species_in_model
@@ -391,6 +412,7 @@ class BackendLoader:
   def check_model_can_be_loaded(
     cls,
     model_path: Path,
+    model_precision: MODEL_PRECISIONS,
     backend_type: type[VersionedBackendProtocol],
     kwargs: dict[str, Any],
   ) -> int:
@@ -403,7 +425,9 @@ class BackendLoader:
     try:
       n_species_in_model = None
       with ProcessPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(cls._get_n_species, model_path, backend_type, kwargs)
+        future = executor.submit(
+          cls._get_n_species, model_path, model_precision, backend_type, kwargs
+        )
         n_species_in_model = future.result(timeout=None)
       if n_species_in_model is None:
         raise ValueError("Failed to load model.")

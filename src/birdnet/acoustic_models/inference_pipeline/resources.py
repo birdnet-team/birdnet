@@ -15,11 +15,11 @@ from typing import cast, final
 import numpy as np
 
 import birdnet.logging_utils as bn_logging
-from birdnet.backends import BackendLoader
 from birdnet.acoustic_models.inference.perf_tracker import PerformanceTrackingResult
 from birdnet.acoustic_models.inference_pipeline.configs import (
   PredictionConfig,
 )
+from birdnet.backends import BackendLoader
 from birdnet.globals import (
   MODEL_TYPE_ACOUSTIC,
   PKG_NAME,
@@ -215,6 +215,7 @@ class WorkerResources:
 
     backend_loader = BackendLoader(
       model_path=config.model_conf.path,
+      model_precision=config.model_conf.precision,
       backend_type=config.model_conf.backend_type,
       backend_kwargs=config.model_conf.backend_kwargs,
     )

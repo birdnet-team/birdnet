@@ -24,6 +24,7 @@ def test_v2_4_pb_with_library_raises_error() -> None:
       get_model_path("acoustic", "2.4", "pb", "fp32"),
       get_lang_dir("acoustic", "2.4", "pb") / "en_us.txt",
       library="litert",
+      precision="fp32",
       check_validity=True,
       is_raven=False,
     )  # type: ignore
@@ -38,6 +39,7 @@ def test_v2_4_pb() -> None:
     get_model_path("acoustic", "2.4", "pb", "fp32"),
     get_lang_dir("acoustic", "2.4", "pb") / "en_us.txt",
     check_validity=True,
+    precision="fp32",
     is_raven=False,
   )
   assert isinstance(model, AcousticModelV2_4)
@@ -52,6 +54,7 @@ def test_v2_4_tf_fp32() -> None:
     get_model_path("acoustic", "2.4", "tf", "fp32"),
     get_lang_dir("acoustic", "2.4", "tf") / "en_us.txt",
     library="tf",
+    precision="fp32",
     check_validity=True,
   )
   assert isinstance(model, AcousticModelV2_4)
@@ -66,6 +69,7 @@ def test_v2_4_litert_fp32() -> None:
     get_model_path("acoustic", "2.4", "tf", "fp32"),
     get_lang_dir("acoustic", "2.4", "tf") / "en_us.txt",
     library="litert",
+    precision="fp32",
     check_validity=True,
   )
   assert isinstance(model, AcousticModelV2_4)
@@ -80,6 +84,7 @@ def test_v2_4_tf_fp16() -> None:
     get_model_path("acoustic", "2.4", "tf", "fp16"),
     get_lang_dir("acoustic", "2.4", "tf") / "en_us.txt",
     library="tf",
+    precision="fp16",
     check_validity=True,
   )
   assert isinstance(model, AcousticModelV2_4)
@@ -94,6 +99,7 @@ def test_v2_4_litert_fp16() -> None:
     get_model_path("acoustic", "2.4", "tf", "fp16"),
     get_lang_dir("acoustic", "2.4", "tf") / "en_us.txt",
     library="litert",
+    precision="fp16",
     check_validity=True,
   )
   assert isinstance(model, AcousticModelV2_4)
@@ -108,6 +114,7 @@ def test_v2_4_tf_int8() -> None:
     get_model_path("acoustic", "2.4", "tf", "int8"),
     get_lang_dir("acoustic", "2.4", "tf") / "en_us.txt",
     library="tf",
+    precision="int8",
     check_validity=True,
   )
   assert isinstance(model, AcousticModelV2_4)
@@ -122,6 +129,7 @@ def test_v2_4_litert_int8() -> None:
     get_model_path("acoustic", "2.4", "tf", "int8"),
     get_lang_dir("acoustic", "2.4", "tf") / "en_us.txt",
     library="litert",
+    precision="int8",
     check_validity=True,
   )
   assert isinstance(model, AcousticModelV2_4)
@@ -141,6 +149,7 @@ def test_types_are_correct() -> None:
         get_model_path(model_type, version, backend, precision),
         get_lang_dir(model_type, version, backend) / "en_us.txt",
         check_validity=False,
+        precision=precision,
         is_raven=False,
       )
     )
@@ -157,6 +166,7 @@ def test_types_are_correct() -> None:
         get_lang_dir(model_type, version, backend) / "en_us.txt",
         check_validity=False,
         is_raven=True,
+        precision=precision,
       )
     )
     is AcousticModelV2_4
@@ -171,6 +181,7 @@ def test_types_are_correct() -> None:
         get_model_path(model_type, version, backend, precision),
         get_lang_dir(model_type, version, backend) / "en_us.txt",
         check_validity=False,
+        precision=precision,
       )
     )
     is AcousticModelV2_4
@@ -237,6 +248,7 @@ def test_custom_from_analyzer_v2_4_litert_fp32() -> None:
     TEST_FILES_DIR / "custom_models/tf/CustomClassifier_Labels.txt",
     library="litert",
     check_validity=True,
+    precision="fp32",
   )
   assert isinstance(model, AcousticModelV2_4)
 
@@ -250,6 +262,7 @@ def test_custom_from_analyzer_v2_4_tf_fp32() -> None:
     TEST_FILES_DIR / "custom_models/tf/CustomClassifier_Labels.txt",
     library="tf",
     check_validity=True,
+    precision="fp32",
   )
   assert isinstance(model, AcousticModelV2_4)
 
@@ -263,6 +276,7 @@ def test_custom_from_analyzer_v2_4_raven_fp32() -> None:
     TEST_FILES_DIR / "custom_models/raven/CustomClassifier/labels/label_names.csv",
     check_validity=True,
     is_raven=True,
+    precision="fp32",
   )
   assert isinstance(model, AcousticModelV2_4)
 
@@ -280,5 +294,6 @@ def test_custom_from_analyzer_v2_4_as_no_raven_fp32_raises_exception() -> None:
       TEST_FILES_DIR / "custom_models/raven/CustomClassifier/labels/label_names.csv",
       check_validity=True,
       is_raven=False,
+      precision="fp32",
     )
     assert isinstance(model, AcousticModelV2_4)

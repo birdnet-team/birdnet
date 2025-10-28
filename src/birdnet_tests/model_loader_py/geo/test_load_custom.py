@@ -34,6 +34,7 @@ def test_load_custom_geo_model_v2_4_pb_fp32() -> None:
     "pb",
     get_model_path("geo", "2.4", "pb", "fp32"),
     get_lang_dir("geo", "2.4", "pb") / "en_us.txt",
+    precision="fp32",
     check_validity=True,
   )
   assert isinstance(model, GeoModelV2_4)

@@ -111,7 +111,7 @@ class AcousticModelV2_4(AcousticModelBase):
 
     if check_validity:
       n_species_in_model = BackendLoader.check_model_can_be_loaded(
-        model_path, backend_type, backend_kwargs
+        model_path, precision, backend_type, backend_kwargs
       )
 
       if n_species_in_model != len(loaded_species_list):
