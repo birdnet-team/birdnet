@@ -59,7 +59,7 @@ class ModelConfig:
     cls, backend: type[VersionedBackendProtocol]
   ) -> None:
     if not backend.emb_supported():
-      raise ValueError("backend does not support embeddings!")
+      raise ValueError("loaded backend does not support embeddings")
 
 
 @dataclass(frozen=True)

@@ -1,0 +1,57 @@
+import numpy.testing
+import pytest
+
+from birdnet.model_loader import load_custom
+from birdnet_tests.test_files import TEST_FILE_WAV, TEST_FILES_DIR
+
+
+def test_custom_from_analyzer_v2_4_tf_fp32() -> None:
+  model = load_custom(
+    "acoustic",
+    "2.4",
+    "tf",
+    TEST_FILES_DIR / "custom_models/tf/CustomClassifier.tflite",
+    TEST_FILES_DIR / "custom_models/tf/CustomClassifier_Labels.txt",
+    library="tf",
+    check_validity=False,
+  )
+
+  res = model.encode(TEST_FILE_WAV)
+  mean = res.embeddings.mean()
+  assert res.embeddings.shape == (1, 40, 1024)
+  numpy.testing.assert_allclose(mean, 0.3406, rtol=1e-4)
+
+
+def test_custom_from_analyzer_v2_4_litert_fp32() -> None:
+  model = load_custom(
+    "acoustic",
+    "2.4",
+    "tf",
+    TEST_FILES_DIR / "custom_models/tf/CustomClassifier.tflite",
+    TEST_FILES_DIR / "custom_models/tf/CustomClassifier_Labels.txt",
+    library="litert",
+    check_validity=False,
+  )
+
+  res = model.encode(TEST_FILE_WAV)
+  mean = res.embeddings.mean()
+  assert res.embeddings.shape == (1, 40, 1024)
+  numpy.testing.assert_allclose(mean, 0.3406, rtol=1e-4)
+
+
+def test_custom_from_analyzer_v2_4_raven_fp32_raise_exception() -> None:
+  model = load_custom(
+    "acoustic",
+    "2.4",
+    "pb",
+    TEST_FILES_DIR / "custom_models/raven/CustomClassifier",
+    TEST_FILES_DIR / "custom_models/raven/CustomClassifier/labels/label_names.csv",
+    check_validity=True,
+    is_raven=True,
+  )
+
+  with pytest.raises(
+    ValueError,
+    match=r"loaded backend does not support embeddings",
+  ):
+    model.encode(TEST_FILE_WAV)

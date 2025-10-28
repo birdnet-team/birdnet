@@ -52,6 +52,7 @@ def test_v2_4_litert_int8() -> None:
 
 def test_types_are_correct() -> None:
   assert type(load("acoustic", "2.4", "pb")) is AcousticModelV2_4
+  assert type(load("acoustic", "2.4", "pb")) is AcousticModelV2_4
   assert type(load("acoustic", "2.4", "tf")) is AcousticModelV2_4
   assert type(load("acoustic", "2.4", "tf", library="litert")) is AcousticModelV2_4
 

@@ -25,6 +25,7 @@ def test_v2_4_pb_with_library_raises_error() -> None:
       get_lang_dir("acoustic", "2.4", "pb") / "en_us.txt",
       library="litert",
       check_validity=True,
+      is_raven=False,
     )  # type: ignore
 
 
@@ -37,6 +38,7 @@ def test_v2_4_pb() -> None:
     get_model_path("acoustic", "2.4", "pb", "fp32"),
     get_lang_dir("acoustic", "2.4", "pb") / "en_us.txt",
     check_validity=True,
+    is_raven=False,
   )
   assert isinstance(model, AcousticModelV2_4)
 
@@ -139,6 +141,22 @@ def test_types_are_correct() -> None:
         get_model_path(model_type, version, backend, precision),
         get_lang_dir(model_type, version, backend) / "en_us.txt",
         check_validity=False,
+        is_raven=False,
+      )
+    )
+    is AcousticModelV2_4
+  )
+
+  assert (
+    type(
+      load_custom(
+        model_type,
+        version,
+        backend,
+        get_model_path(model_type, version, backend, precision),
+        get_lang_dir(model_type, version, backend) / "en_us.txt",
+        check_validity=False,
+        is_raven=True,
       )
     )
     is AcousticModelV2_4
@@ -173,6 +191,23 @@ def test_types_with_precisions_are_correct() -> None:
         get_lang_dir("acoustic", "2.4", "pb") / "en_us.txt",
         precision=cast(Literal["fp32"], f"fp{32}"),
         check_validity=False,
+        is_raven=False,
+      )
+    )
+    is AcousticModelV2_4
+  )
+
+  assert (
+    type(
+      load_custom(
+        "acoustic",
+        "2.4",
+        "pb",
+        get_model_path("acoustic", "2.4", "pb", "fp32"),
+        get_lang_dir("acoustic", "2.4", "pb") / "en_us.txt",
+        precision=cast(Literal["fp32"], f"fp{32}"),
+        check_validity=False,
+        is_raven=True,
       )
     )
     is AcousticModelV2_4
@@ -230,3 +265,20 @@ def test_custom_from_analyzer_v2_4_raven_fp32() -> None:
     is_raven=True,
   )
   assert isinstance(model, AcousticModelV2_4)
+
+
+def test_custom_from_analyzer_v2_4_as_no_raven_fp32_raises_exception() -> None:
+  with pytest.raises(
+    Exception,
+    match=r"Failed to load model.",
+  ):
+    model = load_custom(
+      "acoustic",
+      "2.4",
+      "pb",
+      TEST_FILES_DIR / "custom_models/raven/CustomClassifier",
+      TEST_FILES_DIR / "custom_models/raven/CustomClassifier/labels/label_names.csv",
+      check_validity=True,
+      is_raven=False,
+    )
+    assert isinstance(model, AcousticModelV2_4)
