@@ -22,16 +22,16 @@ from birdnet.helper import (
 from birdnet.local_data import get_lang_dir, get_model_path
 from birdnet.utils import download_file_tqdm, get_species_from_file
 
-# All meta models are same for all precisions and int8 is the smallest download
-model_info = ModelInfo(
-  dl_url="https://zenodo.org/records/15050749/files/BirdNET_v2.4_tflite_int8.zip",
-  dl_file_name="meta-model.tflite",
-  dl_size=45948867,
-  file_size=29526096,
-)
-
 
 class GeoTFDownloaderV2_4(GeoDownloaderBaseV2_4):
+  # All meta models are same for all precisions and int8 is the smallest download
+  _model_info = ModelInfo(
+    dl_url="https://zenodo.org/records/15050749/files/BirdNET_v2.4_tflite_int8.zip",
+    dl_file_name="meta-model.tflite",
+    dl_size=45948867,
+    file_size=29526096,
+  )
+
   @classmethod
   def _get_paths(cls) -> tuple[Path, Path]:
     model_path = get_model_path("geo", "2.4", "tf", MODEL_PRECISION_FP32)
@@ -46,7 +46,7 @@ class GeoTFDownloaderV2_4(GeoDownloaderBaseV2_4):
       return False
 
     file_stats = os.stat(model_path)
-    is_newest_version = file_stats.st_size == model_info.file_size
+    is_newest_version = file_stats.st_size == cls._model_info.file_size
     if not is_newest_version:
       return False
 
@@ -60,9 +60,9 @@ class GeoTFDownloaderV2_4(GeoDownloaderBaseV2_4):
     with tempfile.TemporaryDirectory(prefix="birdnet_download") as temp_dir:
       zip_download_path = Path(temp_dir) / "download.zip"
       download_file_tqdm(
-        model_info.dl_url,
+        cls._model_info.dl_url,
         zip_download_path,
-        download_size=model_info.dl_size,
+        download_size=cls._model_info.dl_size,
         description="Downloading model",
       )
 
@@ -71,7 +71,7 @@ class GeoTFDownloaderV2_4(GeoDownloaderBaseV2_4):
       with zipfile.ZipFile(zip_download_path, "r") as zip_ref:
         zip_ref.extractall(extract_dir)
 
-      geo_model_dl_path = extract_dir / model_info.dl_file_name
+      geo_model_dl_path = extract_dir / cls._model_info.dl_file_name
       species_dl_dir = extract_dir / "labels"
 
       geo_model_path, geo_lang_dir = cls._get_paths()
