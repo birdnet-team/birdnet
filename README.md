@@ -35,9 +35,9 @@ pip install birdnet[litert] --user
 * 🚀 **Multiprocessing** support for fast batch analysis of large datasets
 * 💾 **Low memory footprint** and small disk space requirements
 * 🎵 Support for **various audio file formats** (WAV, FLAC, OGG, MP3, etc.)
-* 📊 Export results in **various output file formats** (e.g., CSV, Arrow table, Parquet, Numpy)
+* 📊 Export results in **various output file formats** (CSV, Arrow table, Parquet, Numpy, etc.)
 * 💻 **Cross-platform**: Windows, macOS, and Linux
-* 🌍 Use **multilingual** species names (e.g., English, German, French, Spanish, ...)
+* 🌍 Use **multilingual** species names (English, German, French, Spanish, etc.)
 * ⬇️ **Auto-download** of all official models
 * 🛜 Full **offline usage** using local (custom) model files
 
