@@ -101,7 +101,7 @@ class GeoModelV2_4(GeoModelBase):
 
     if check_validity:
       n_species_in_model = BackendLoader.check_model_can_be_loaded(
-        model_path, "fp32", backend_type, backend_kwargs
+        model_path, backend_type, backend_kwargs
       )
 
       if n_species_in_model != len(loaded_species_list):

@@ -215,7 +215,6 @@ class WorkerResources:
 
     backend_loader = BackendLoader(
       model_path=config.model_conf.path,
-      model_precision=config.model_conf.precision,
       backend_type=config.model_conf.backend_type,
       backend_kwargs=config.model_conf.backend_kwargs,
     )

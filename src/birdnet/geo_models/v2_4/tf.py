@@ -15,6 +15,7 @@ from birdnet.backends import (
 from birdnet.geo_models.v2_4.model import GeoDownloaderBaseV2_4
 from birdnet.globals import (
   MODEL_PRECISION_FP32,
+  MODEL_PRECISIONS,
 )
 from birdnet.helper import (
   ModelInfo,
@@ -99,7 +100,7 @@ class GeoTFDownloaderV2_4(GeoDownloaderBaseV2_4):
     return model_path, labels
 
 
-class GeoTFBackendV2_4(TFBackend, VersionedGeoBackendProtocol):
+class GeoTFBackendFP32V2_4(TFBackend, VersionedGeoBackendProtocol):
   def __init__(self, model_path: Path, device_name: str, **kwargs: dict) -> None:
     super().__init__(model_path, device_name, **kwargs)
 
@@ -118,3 +119,7 @@ class GeoTFBackendV2_4(TFBackend, VersionedGeoBackendProtocol):
   @classmethod
   def emb_out_idx(cls) -> int | None:
     return None
+
+  @classmethod
+  def precision(cls) -> MODEL_PRECISIONS:
+    return MODEL_PRECISION_FP32

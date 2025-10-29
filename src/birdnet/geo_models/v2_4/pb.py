@@ -14,6 +14,7 @@ from birdnet.backends import (
 from birdnet.geo_models.v2_4.model import GeoDownloaderBaseV2_4
 from birdnet.globals import (
   MODEL_PRECISION_FP32,
+  MODEL_PRECISIONS,
 )
 from birdnet.helper import check_protobuf_model_files_exist
 from birdnet.local_data import get_lang_dir, get_model_path
@@ -91,7 +92,7 @@ class GeoPBDownloaderV2_4(GeoDownloaderBaseV2_4):
     return model_dir, labels
 
 
-class GeoPBBackendV2_4(PBBackend, VersionedGeoBackendProtocol):
+class GeoPBBackendFP32V2_4(PBBackend, VersionedGeoBackendProtocol):
   def __init__(
     self,
     model_path: Path,
@@ -122,3 +123,7 @@ class GeoPBBackendV2_4(PBBackend, VersionedGeoBackendProtocol):
   @classmethod
   def emb_prediction_key(cls) -> str | None:
     return None
+
+  @classmethod
+  def precision(cls) -> MODEL_PRECISIONS:
+    return MODEL_PRECISION_FP32

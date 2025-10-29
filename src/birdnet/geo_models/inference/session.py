@@ -36,7 +36,6 @@ class GeoSessionBase(SessionBase, ABC):
 
     self._backend_loader = BackendLoader(
       model_path=self._conf.model_conf.path,
-      model_precision=self._conf.model_conf.precision,
       backend_type=self._conf.model_conf.backend_type,
       backend_kwargs=self._conf.model_conf.backend_kwargs,
     )

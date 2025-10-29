@@ -16,6 +16,7 @@ from birdnet.backends import (
 )
 from birdnet.globals import (
   MODEL_PRECISION_FP32,
+  MODEL_PRECISIONS,
 )
 from birdnet.helper import check_protobuf_model_files_exist
 from birdnet.local_data import get_lang_dir, get_model_path
@@ -93,7 +94,7 @@ class AcousticPBDownloaderV2_4(AcousticDownloaderBaseV2_4):
     return model_dir, labels
 
 
-class AcousticPBBackendV2_4(PBBackend, VersionedAcousticBackendProtocol):
+class AcousticPBBackendFP32V2_4(PBBackend, VersionedAcousticBackendProtocol):
   def __init__(self, model_path: Path, device_name: str, **kwargs: dict) -> None:
     super().__init__(model_path, device_name, **kwargs)
 
@@ -121,8 +122,12 @@ class AcousticPBBackendV2_4(PBBackend, VersionedAcousticBackendProtocol):
   def emb_prediction_key(cls) -> str | None:
     return "embeddings"
 
+  @classmethod
+  def precision(cls) -> MODEL_PRECISIONS:
+    return MODEL_PRECISION_FP32
 
-class AcousticRavenBackendV2_4(PBBackend, VersionedAcousticBackendProtocol):
+
+class AcousticRavenBackendFP32V2_4(PBBackend, VersionedAcousticBackendProtocol):
   def __init__(self, model_path: Path, device_name: str, **kwargs: dict) -> None:
     super().__init__(model_path, device_name, **kwargs)
 
@@ -149,3 +154,7 @@ class AcousticRavenBackendV2_4(PBBackend, VersionedAcousticBackendProtocol):
   @classmethod
   def emb_prediction_key(cls) -> str | None:
     return None
+
+  @classmethod
+  def precision(cls) -> MODEL_PRECISIONS:
+    return MODEL_PRECISION_FP32

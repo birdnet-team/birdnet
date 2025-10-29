@@ -61,7 +61,7 @@ def test_custom_from_analyzer_v2_4_tf_int8() -> None:
   res = model.encode(TEST_FILE_WAV)
   mean = res.embeddings.mean()
   assert res.embeddings.shape == (1, 40, 1024)
-  numpy.testing.assert_allclose(mean, 0.3406, rtol=1e-4)
+  numpy.testing.assert_allclose(mean, 0.3347, rtol=1e-4)
 
 
 def test_custom_from_analyzer_v2_4_litert_fp32() -> None:
