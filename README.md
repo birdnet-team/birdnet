@@ -41,7 +41,6 @@ pip install birdnet[litert] --user
 * ⬇️ **Auto-download** of all official models
 * 🛜 Full **offline usage** using local (custom) model files
 
-
 *The library is optimized for a minimal memory footprint and maximum scalability, making it suitable for both edge devices and high-performance computing clusters.*
 
 ## Speed benchmarks
