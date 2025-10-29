@@ -58,7 +58,7 @@ For more detailed benchmarks, please refer to the [BENCHMARKING.md](BENCHMARKING
 
 | **Model** | Acoustic | Acoustic | Acoustic | Geo | Geo |
 |---|---|---|---|---|---|
-| **Backend** | Tensorflow/<br>LiteRT | ProtoBuf | ProtoBuf<br>Raven* | Tensorflow/<br>LiteRT | ProtoBuf |
+| **Backend** | TensorFlow/<br>LiteRT | ProtoBuf | ProtoBuf<br>Raven* | TensorFlow/<br>LiteRT | ProtoBuf |
 | `predict(..)` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `encode(..)` | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **int8** | CPU | ❌ | ❌ | ❌ | ❌ |
