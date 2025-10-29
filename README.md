@@ -28,7 +28,7 @@ pip install birdnet[litert] --user
 
 ## Speed Benchmarks
 
-| Device             | Specs       | Disk | OS      | Recording/s     | → 1 h of recording |
+| Device             | Specs       | Disk | OS      | Recordings/s     | → 1 h of recording |
 |--------------------|-------------|------|---------|---------------|---|
 | Intel i7 8th Gen   | 4 cores     | NVMe | Windows | 50 s         | 72 s
 | Ryzen 7 3800X      | 8 cores     | NVMe | Linux   | 7 min        | 8.5 s
