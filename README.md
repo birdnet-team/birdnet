@@ -53,7 +53,7 @@ pip install birdnet[litert] --user
 
 For more detailed benchmarks, please refer to the [BENCHMARKING.md](BENCHMARKING.md) file.
 
-## Supported features
+## Supported backends, precisions and devices
 
 ### V2.4
 
