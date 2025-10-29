@@ -26,6 +26,22 @@ pip install birdnet[and-cuda] --user
 pip install birdnet[litert] --user
 ```
 
+## Supported features
+
+### V2.4
+
+| **Model** | Acoustic | Acoustic | Acoustic | Geo | Geo |
+|---|---|---|---|---|---|
+| **Backend** | Tensorflow/<br>LiteRT | ProtoBuf | ProtoBuf<br>Raven* | Tensorflow/<br>LiteRT | ProtoBuf |
+| `predict(..)` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `encode(..)` | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **int8** | CPU | ❌ | ❌ | ❌ | ❌ |
+| **fp16** | CPU | ❌ | ❌ | ❌ | ❌ |
+| **fp32** | CPU | CPU/GPU | CPU/GPU | CPU | CPU/GPU |
+
+✅ = Supported ❌ = Not supported\
+**ProtoBuf Raven is only available for custom acoustic models.*
+
 ## Example usage
 
 ### Identify species within an audio file
