@@ -41,7 +41,6 @@ class ModelConfig:
   sample_rate: int
   sig_fmin: int
   sig_fmax: int
-  precision: MODEL_PRECISIONS
   is_custom: bool
   backend_type: type[VersionedBackendProtocol]
   backend_kwargs: dict[str, Any]

@@ -8,7 +8,6 @@ import numpy.typing as npt
 import psutil
 from ordered_set import OrderedSet
 
-from birdnet.backends import TF_BACKEND_LIB_ARG
 from birdnet.acoustic_models.inference.scores.benchmarking import (
   FullBenchmarkMeta,
   MinimalBenchmarkMeta,
@@ -29,6 +28,7 @@ from birdnet.acoustic_models.inference_pipeline.resources import (
 from birdnet.acoustic_models.inference_pipeline.strategy import (
   PredictionStrategy,
 )
+from birdnet.backends import TF_BACKEND_LIB_ARG
 from birdnet.globals import (
   MODEL_TYPE_ACOUSTIC,
 )
@@ -214,7 +214,7 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
       model_is_custom=config.model_conf.is_custom,
       model_path=str(config.model_conf.path.absolute()),
       model_species=len(config.model_conf.species_list),
-      model_precision=config.model_conf.precision,
+      model_precision=config.model_conf.backend_type.precision(),
       _file_durations=resources.analyzer_resources.file_durations,
       file_segments_maximum=resources.analyzer_resources.max_segment_idx_ptr.value + 1,
       file_segments_total=resources.analyzer_resources.tot_n_segments_ptr.value,

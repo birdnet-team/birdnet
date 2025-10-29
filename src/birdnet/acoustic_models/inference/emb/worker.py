@@ -76,6 +76,6 @@ class EmbeddingsWorker(WorkerBase):
   def _infer(self, batch: np.ndarray) -> np.ndarray:
     assert self._backend is not None
     res = self._backend.embed(batch)
-    assert res.dtype == np.float32 or res.dtype == np.int8
+    assert res.dtype == np.float32
     res = res.astype(self._infer_dtype, copy=False)
     return res
