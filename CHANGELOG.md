@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added parameter `is_raven` to load function to specify whether a custom Protobuf model is a Raven model or not
+- Fix int8 acoustic model wrong inference parameters
 - Added tests
 
 ## [0.2.0] - 2025-10-27
