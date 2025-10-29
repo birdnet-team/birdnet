@@ -5,7 +5,6 @@ from typing import Generator
 import numpy.testing
 from tqdm import tqdm
 
-from birdnet.acoustic_models.base import AcousticModelBase
 from birdnet.acoustic_models.inference.emb.encoding_result import EncodingResult
 from birdnet.acoustic_models.v2_4.model import AcousticModelV2_4
 from birdnet.model_loader import load
