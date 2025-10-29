@@ -26,9 +26,7 @@ TEST_CASES = {
   5: GeoTestCase(latitude=-33.9, longitude=151.2, week=25),
   6: GeoTestCase(latitude=51.5, longitude=-0.1, min_confidence=0.05, week=40),
 }
-TEST_CASES_REF_DIR = Path(
-  "src/birdnet_tests/geo_models/v2_4/model_py/test_predict/test_consistency"
-)
+TEST_CASES_REF_DIR = Path(__file__).with_suffix("")
 
 
 def predict_test_cases(
