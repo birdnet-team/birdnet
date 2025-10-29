@@ -15,6 +15,7 @@ from birdnet.backends import (
   VersionedAcousticBackendProtocol,
 )
 from birdnet.globals import (
+  MODEL_BACKEND_PB,
   MODEL_PRECISION_FP32,
   MODEL_PRECISIONS,
 )
@@ -130,6 +131,10 @@ class AcousticPBBackendFP32V2_4(PBBackend, VersionedAcousticBackendProtocol):
 class AcousticRavenBackendFP32V2_4(PBBackend, VersionedAcousticBackendProtocol):
   def __init__(self, model_path: Path, device_name: str, **kwargs: dict) -> None:
     super().__init__(model_path, device_name, **kwargs)
+
+  @classmethod
+  def name(cls) -> str:
+    return f"{MODEL_BACKEND_PB}-raven"
 
   @classmethod
   def input_key(cls) -> str:

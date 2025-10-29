@@ -25,6 +25,8 @@ from birdnet.globals import (
   LIBRARY_LITERT,
   LIBRARY_TF,
   LIBRARY_TYPES,
+  MODEL_BACKEND_PB,
+  MODEL_BACKEND_TF,
   MODEL_PRECISIONS,
 )
 from birdnet.logging_utils import get_logger
@@ -67,6 +69,10 @@ class Backend(ABC):
   @abstractmethod
   def precision(cls) -> MODEL_PRECISIONS: ...
 
+  @classmethod
+  @abstractmethod
+  def name(cls) -> str: ...
+
 
 @runtime_checkable
 class VersionedBackendProtocol(Protocol):
@@ -97,6 +103,9 @@ class VersionedBackendProtocol(Protocol):
   @classmethod
   def precision(cls) -> MODEL_PRECISIONS: ...
 
+  @classmethod
+  def name(cls) -> str: ...
+
 
 @runtime_checkable
 class VersionedAcousticBackendProtocol(VersionedBackendProtocol, Protocol):
@@ -126,6 +135,10 @@ class TFBackend(Backend, ABC):
     self._inference_library: LIBRARY_TYPES = cast(
       LIBRARY_TYPES, kwargs[TF_BACKEND_LIB_ARG]
     )
+
+  @classmethod
+  def name(cls) -> str:
+    return MODEL_BACKEND_TF
 
   @final
   @classmethod
@@ -212,6 +225,10 @@ class PBBackend(Backend, ABC):
     self._predict_fn: Callable | None = None
     self._emb_fn: Callable | None = None
     self._cached_device_name: str | None = None
+
+  @classmethod
+  def name(cls) -> str:
+    return MODEL_BACKEND_PB
 
   @final
   @classmethod

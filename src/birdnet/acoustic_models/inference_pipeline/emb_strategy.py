@@ -212,7 +212,7 @@ class EmbeddingsStrategy(
       file_batches_processed=perf_result.total_batches_processed,
       speed_worker_xrt=perf_result.worker_speed_xrt,
       speed_worker_xrt_max=perf_result.worker_speed_xrt_max,
-      model_backend=str(config.model_conf.backend_type),
+      model_backend=config.model_conf.backend_type.name(),
       model_sample_rate=config.model_conf.sample_rate,
       model_sig_fmin=config.model_conf.sig_fmin,
       model_sig_fmax=config.model_conf.sig_fmax,
