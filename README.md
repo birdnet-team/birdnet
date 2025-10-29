@@ -38,7 +38,8 @@ pip install birdnet[litert] --user
 - Export results in **various output file formats** (e.g., CSV, Arrow table, Parquet, Numpy)
 - **Cross-platform**: Windows, macOS, and Linux
 - Use **multilingual** species names (e.g. English, German, French, Spanish, ...)
-- **Auto-download** of all official models and full **offline usage** using local model files
+- **Auto-download** of all official models
+- Full **offline usage** using local (custom) model files
 
 *The library is optimized for a minimal memory footprint and maximum scalability, making it suitable for both edge devices and high-performance computing clusters.*
 
