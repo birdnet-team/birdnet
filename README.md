@@ -28,7 +28,7 @@ pip install birdnet[litert] --user
 
 ## Features
 
-- Identify 6,522 species from audio recordings
+- Extract classification scores and embeddings for 6,522 species from audio recordings
 - Predict 6,522 species presence for a given location and time
 - Train your custom acoustic models in BirdNET-Analyzer and use them here
 - Support for both CPU and GPU execution
