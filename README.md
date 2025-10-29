@@ -37,7 +37,7 @@ pip install birdnet[litert] --user
 - Support for **various audio file formats** (WAV, FLAC, OGG, MP3, etc.)
 - Export results in **various output file formats** (e.g., CSV, Arrow table, Parquet, Numpy)
 - **Cross-platform**: Windows, macOS, and Linux
-- Use **multilingual** species names (e.g. English, German, French, Spanish, ...)
+- Use **multilingual** species names (e.g., English, German, French, Spanish, ...)
 - **Auto-download** of all official models
 - Full **offline usage** using local (custom) model files
 
