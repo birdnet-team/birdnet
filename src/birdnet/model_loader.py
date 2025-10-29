@@ -12,7 +12,8 @@ from birdnet.acoustic_models.v2_4.pb import (
   AcousticRavenBackendV2_4,
 )
 from birdnet.acoustic_models.v2_4.tf import (
-  AcousticTFBackendV2_4,
+  AcousticTFBackendFP1632V2_4,
+  AcousticTFBackendInt8V2_4,
   AcousticTFDownloaderV2_4,
 )
 from birdnet.backends import (
@@ -48,6 +49,7 @@ from birdnet.globals import (
   MODEL_BACKENDS,
   MODEL_LANGUAGE_EN_US,
   MODEL_LANGUAGES,
+  MODEL_PRECISION_FP16,
   MODEL_PRECISION_FP32,
   MODEL_PRECISIONS,
   MODEL_TYPE_ACOUSTIC,
@@ -284,11 +286,17 @@ def _load_acoustic_model_V2_4(
       lang, precision
     )
 
+    backend_type = (
+      AcousticTFBackendFP1632V2_4
+      if precision in {MODEL_PRECISION_FP16, MODEL_PRECISION_FP32}
+      else AcousticTFBackendInt8V2_4
+    )
+
     return AcousticModelV2_4.load(
       model_path,
       species_list,
       precision,
-      backend_type=AcousticTFBackendV2_4,
+      backend_type=backend_type,
       backend_kwargs={
         TF_BACKEND_LIB_ARG: library,
       },
@@ -451,7 +459,7 @@ def _load_custom_acoustic_model_V2_4(
       model,
       species_list,
       precision,
-      backend_type=AcousticTFBackendV2_4,
+      backend_type=AcousticTFBackendFP1632V2_4,
       backend_kwargs={
         TF_BACKEND_LIB_ARG: library,
       },

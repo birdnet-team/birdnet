@@ -127,9 +127,15 @@ class AcousticTFDownloaderV2_4(AcousticDownloaderBaseV2_4):
     return model_path, labels
 
 
-class AcousticTFBackendV2_4(TFBackend, VersionedAcousticBackendProtocol):
-  def __init__(self, model_path: Path, device_name: str, **kwargs: dict) -> None:
-    super().__init__(model_path, device_name, **kwargs)
+class AcousticTFBackendFP1632V2_4(TFBackend, VersionedAcousticBackendProtocol):
+  def __init__(
+    self,
+    model_path: Path,
+    device_name: str,
+    precision: MODEL_PRECISIONS,
+    **kwargs: dict,
+  ) -> None:
+    super().__init__(model_path, device_name, precision, **kwargs)
 
   @classmethod
   def in_idx(cls) -> int:
@@ -146,3 +152,30 @@ class AcousticTFBackendV2_4(TFBackend, VersionedAcousticBackendProtocol):
   @classmethod
   def emb_out_idx(cls) -> int | None:
     return 545
+
+
+class AcousticTFBackendInt8V2_4(TFBackend, VersionedAcousticBackendProtocol):
+  def __init__(
+    self,
+    model_path: Path,
+    device_name: str,
+    precision: MODEL_PRECISIONS,
+    **kwargs: dict,
+  ) -> None:
+    super().__init__(model_path, device_name, precision, **kwargs)
+
+  @classmethod
+  def in_idx(cls) -> int:
+    return 0
+
+  @classmethod
+  def scores_out_idx(cls) -> int:
+    return 643
+
+  @classmethod
+  def emb_supported(cls) -> bool:
+    return True
+
+  @classmethod
+  def emb_out_idx(cls) -> int | None:
+    return 640

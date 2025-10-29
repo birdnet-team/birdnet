@@ -193,10 +193,7 @@ class TFBackend(Backend, ABC):
     out_idx = self.emb_out_idx()
     assert out_idx is not None
     res = self._infer(batch, out_idx)
-    if self._precision == MODEL_PRECISION_INT8:
-      assert res.dtype == np.int8
-    else:
-      assert res.dtype == np.float32
+    assert res.dtype == np.float32
     return res
 
 
