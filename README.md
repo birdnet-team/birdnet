@@ -28,17 +28,19 @@ pip install birdnet[litert] --user
 
 ## Features
 
-- Extract classification scores and embeddings for 6,522 species from audio recordings
-- Predict 6,522 species presence for a given location and time
-- Train your custom acoustic models in BirdNET-Analyzer and use them here
-- Support for both CPU and GPU execution
-- Multiprocessing support for fast batch analysis of large datasets
-- Low memory footprint and small disk space requirements
-- Support for various audio file formats (WAV, FLAC, OGG, MP3, etc.)
-- Export results in various file formats (e.g., CSV, Arrow table, Parquet, Numpy)
-- Cross-platform: Windows, macOS, and Linux
-- Use multilingual species names (e.g. English, German, French, Spanish, ...)
-- Auto-download of all official models and full offline usage using local model files
+- Extract **classification scores and embeddings** for 6,522 species from audio recordings
+- Predict 6,522 **species presence** for a given location and time
+- Train your **custom acoustic models** in BirdNET-Analyzer and use them here
+- Support for both **CPU and GPU** execution (including multiple GPUs at the same time)
+- **Multiprocessing support** for fast batch analysis of large datasets
+- **Low memory footprint** and small disk space requirements
+- Support for **various audio file formats** (WAV, FLAC, OGG, MP3, etc.)
+- Export results in **various output file formats** (e.g., CSV, Arrow table, Parquet, Numpy)
+- **Cross-platform**: Windows, macOS, and Linux
+- Use **multilingual** species names (e.g. English, German, French, Spanish, ...)
+- **Auto-download** of all official models and full **offline usage** using local model files
+
+*The library is optimized for a minimal memory footprint and maximum scalability, making it suitable for both edge devices and high-performance computing clusters.*
 
 ## Speed benchmarks
 
