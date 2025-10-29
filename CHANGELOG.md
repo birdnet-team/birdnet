@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2025-10-29
+
 ### Added
 
 - Added parameter `is_raven` to load function to specify whether a custom Protobuf model is a Raven model or not
@@ -111,8 +113,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release
 
-[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v0.2.0a0...HEAD
-[0.1.5]: https://github.com/birdnet-team/birdnet/compare/v0.2.0a0...v0.1.5
+[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/birdnet-team/birdnet/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/birdnet-team/birdnet/compare/v0.2.0a0...v0.2.0
+[0.1.5]: https://github.com/birdnet-team/birdnet/compare/v0.1.5...v0.2.0a0
 [0.1.5]: https://github.com/birdnet-team/birdnet/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/birdnet-team/birdnet/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/birdnet-team/birdnet/compare/v0.1.2...v0.1.3
