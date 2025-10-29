@@ -180,7 +180,8 @@ def _validate_library(library: Any) -> LIBRARY_TYPES:  # noqa: ANN401
 def _validate_custom_pb_is_raven(is_raven: Any) -> bool:  # noqa: ANN401
   if not isinstance(is_raven, bool):
     raise ValueError(
-      f"Parameter '{CUSTOM_PB_IS_RAVEN_PARAM}' must be of type bool, got {type(is_raven)}."
+      f"Parameter '{CUSTOM_PB_IS_RAVEN_PARAM}' must be of type bool, "
+      f"got {type(is_raven)}."
     )
   return is_raven
 

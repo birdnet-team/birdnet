@@ -26,7 +26,21 @@ pip install birdnet[and-cuda] --user
 pip install birdnet[litert] --user
 ```
 
-## Speed Benchmarks
+## Features
+
+- Identify 6,522 species from audio recordings
+- Predict 6,522 species presence for a given location and time
+- Train your custom acoustic models in BirdNET-Analyzer and use them here
+- Support for both CPU and GPU execution
+- Multiprocessing support for fast batch analysis of large datasets
+- Low memory footprint and small disk space requirements
+- Support for various audio file formats (WAV, FLAC, OGG, MP3, etc.)
+- Export results in various file formats (e.g., CSV, Arrow table, Parquet, Numpy)
+- Cross-platform: Windows, macOS, and Linux
+- Use multilingual species names (e.g. English, German, French, Spanish, ...)
+- Auto-download of all official models and full offline usage using local model files
+
+## Speed benchmarks
 
 | Device             | Specs       | Disk | OS      | Recordings/s     | → 1 h of recording |
 |--------------------|-------------|------|---------|---------------|---|
