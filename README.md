@@ -72,7 +72,19 @@ predictions.to_csv("example/scores.csv")
 
 The resulting predictions look like this (excerpt, scores may vary):
 
-<img src="example/scores_preview.png" alt="Preview" style="max-width: 700px; height: auto;">
+|file|start_time|end_time|species_name|confidence|
+|---|---|---|---|---|
+|/home/../example/soundscape.wav|00:00:00.00|00:00:03.00|Poecile atricapillus_Black-capped Chickadee|0.814|
+|/home/../example/soundscape.wav|00:00:03.00|00:00:06.00|Poecile atricapillus_Black-capped Chickadee|0.3084|
+|/home/../example/soundscape.wav|00:00:06.00|00:00:09.00|Baeolophus bicolor_Tufted Titmouse|0.1864|
+|/home/../example/soundscape.wav|00:00:09.00|00:00:12.00|Haemorhous mexicanus_House Finch|0.6392|
+|/home/../example/soundscape.wav|00:00:18.00|00:00:21.00|Cyanocitta cristata_Blue Jay|0.4353|
+|/home/../example/soundscape.wav|00:00:21.00|00:00:24.00|Cyanocitta cristata_Blue Jay|0.3291|
+|/home/../example/soundscape.wav|00:00:21.00|00:00:24.00|Haemorhous mexicanus_House Finch|0.1866|
+|/home/../example/soundscape.wav|00:00:24.00|00:00:27.00|Cyanocitta cristata_Blue Jay|0.1749|
+|/home/../example/soundscape.wav|00:00:27.00|00:00:30.00|Junco hyemalis_Dark-eyed Junco|0.2188|
+|/home/../example/soundscape.wav|00:00:33.00|00:00:36.00|Junco hyemalis_Dark-eyed Junco|0.459|
+|...|...|...|...|...|
 
 For a more detailed prediction you can take a look at [example/scores.csv](example/scores.csv).
 
@@ -88,9 +100,21 @@ predictions = model.predict(42.5, -76.45, week=4)
 predictions.to_csv("example/location.csv")
 ```
 
-<img src="example/location_preview.png" alt="Preview" style="max-width: 300px; height: auto;">
+The resulting predictions look like this (excerpt, scores may vary; sorted alphabetically):
 
-The result is at [example/location.csv](example/location.csv).
+| species_name                          | confidence |
+|---------------------------------------|------------|
+| Acanthis flammea_Common Redpoll       | 0.0442     |
+| Accipiter cooperii_Cooper's Hawk      | 0.0812     |
+| Agelaius phoeniceus_Red-winged Blackbird | 0.0996  |
+| Anas platyrhynchos_Mallard            | 0.4468     |
+| Anas rubripes_American Black Duck     | 0.11       |
+| Ardea herodias_Great Blue Heron       | 0.0607     |
+| Aythya collaris_Ring-necked Duck      | 0.05       |
+| Aythya marila_Greater Scaup           | 0.0538     |
+| ... | ... |
+
+The full result is at [example/location.csv](example/location.csv).
 
 ### Location of Log File
 
