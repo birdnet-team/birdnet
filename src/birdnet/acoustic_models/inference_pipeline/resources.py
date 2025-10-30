@@ -66,7 +66,7 @@ class ResourceManager:
   ) -> PipelineResources:
     assert self._resources is None
     stats_resources = StatisticsResources.create(self.conf, benchmark_dir_name)
-    logging_resources = LoggingResources.create(stats_resources)
+    logging_resources = LoggingResources.create(session_id, stats_resources)
     processing_resources = ProcessingResources.create()
     analyzer_resources = FilesAnalyzerResources.create(self.conf)
     producer_resources = ProducerResources.create(self.conf)
@@ -496,22 +496,22 @@ class LoggingResources:
     pass
 
   @classmethod
-  def create(cls, stats_resources: StatisticsResources) -> LoggingResources:
+  def create(cls, session_id: str, stats_resources: StatisticsResources) -> LoggingResources:
     if stats_resources.benchmarking:
       assert stats_resources.benchmark_session_dir is not None
       assert stats_resources.start_iso_time is not None
 
       session_log_file = (
         stats_resources.benchmark_session_dir
-        / f"session-{stats_resources.start_iso_time}.log"
+        / f"session_{session_id}_{stats_resources.start_iso_time}.log"
       )
       session_log_file.write_text("", encoding="utf-8")
       print(f"Writing logs to: {session_log_file.absolute()}")
     else:
-      session_log_file = Path(tempfile.gettempdir()) / f"{PKG_NAME}.log"
+      session_log_file = Path(tempfile.gettempdir()) / f"{PKG_NAME}_session_{session_id}.log"
 
     global_log_file = (
-      Path(tempfile.gettempdir()) / f"{PKG_NAME}-{stats_resources.start_iso_time}.log"
+      Path(tempfile.gettempdir()) / f"{PKG_NAME}_session_{session_id}_{stats_resources.start_iso_time}.log"
     )
 
     logging_queue = mp.Queue()

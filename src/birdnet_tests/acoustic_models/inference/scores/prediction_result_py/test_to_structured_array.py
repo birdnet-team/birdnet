@@ -90,7 +90,7 @@ def test_single_prediction() -> None:
   structured = result.to_structured_array()
 
   assert len(structured) == 1
-  assert structured[0]["file_path"] == "/test/file_0.wav"
+  assert structured[0]["file_path"] == str(Path("/test/file_0.wav").absolute())
   assert structured[0]["start_time"] == 0.0
   assert structured[0]["end_time"] == 3.0
   assert str(structured[0]["species_name"]).startswith("species_")
@@ -105,13 +105,13 @@ def test_two_segments() -> None:
   structured = result.to_structured_array()
 
   assert len(structured) == 2
-  assert structured[0]["file_path"] == "/test/file_0.wav"
+  assert structured[0]["file_path"] == str(Path("/test/file_0.wav").absolute())
   assert structured[0]["start_time"] == 0.0
   assert structured[0]["end_time"] == 3.0
   assert str(structured[0]["species_name"]).startswith("species_")
   assert structured[0]["confidence"] >= 0
 
-  assert structured[1]["file_path"] == "/test/file_0.wav"
+  assert structured[1]["file_path"] == str(Path("/test/file_0.wav").absolute())
   assert structured[1]["start_time"] == 3.0
   assert structured[1]["end_time"] == 6.0
   assert str(structured[1]["species_name"]).startswith("species_")
@@ -231,11 +231,11 @@ def test_multiple_files() -> None:
   structured = result.to_structured_array()
 
   assert len(structured) == 5
-  assert structured[0]["file_path"] == "/test/file_0.wav"
-  assert structured[1]["file_path"] == "/test/file_1.wav"
-  assert structured[2]["file_path"] == "/test/file_2.wav"
-  assert structured[3]["file_path"] == "/test/file_3.wav"
-  assert structured[4]["file_path"] == "/test/file_4.wav"
+  assert structured[0]["file_path"] == str(Path("/test/file_0.wav").absolute())
+  assert structured[1]["file_path"] == str(Path("/test/file_1.wav").absolute())
+  assert structured[2]["file_path"] == str(Path("/test/file_2.wav").absolute())
+  assert structured[3]["file_path"] == str(Path("/test/file_3.wav").absolute())
+  assert structured[4]["file_path"] == str(Path("/test/file_4.wav").absolute())
 
 
 def test_dtype_structure() -> None:
@@ -274,6 +274,6 @@ def test_masking_behavior() -> None:
   structured = result.to_structured_array()
 
   assert len(structured) == 3
-  assert structured[0]["file_path"] == "/test/file_0.wav"
-  assert structured[1]["file_path"] == "/test/file_0.wav"
-  assert structured[2]["file_path"] == "/test/file_1.wav"
+  assert structured[0]["file_path"] == str(Path("/test/file_0.wav").absolute())
+  assert structured[1]["file_path"] == str(Path("/test/file_0.wav").absolute())
+  assert structured[2]["file_path"] == str(Path("/test/file_1.wav").absolute())

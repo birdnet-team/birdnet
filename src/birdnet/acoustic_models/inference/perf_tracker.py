@@ -16,7 +16,7 @@ from multiprocessing.synchronize import Event, Semaphore
 import numpy as np
 import psutil
 
-import birdnet.logging_utils as bn_logging
+import birdnet.acoustic_models.inference_pipeline.logging as bn_logging
 from birdnet.globals import READABLE_FLAG, READING_FLAG, WRITABLE_FLAG
 from birdnet.helper import RingField
 

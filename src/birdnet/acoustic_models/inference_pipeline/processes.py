@@ -7,6 +7,7 @@ from pathlib import Path
 
 from ordered_set import OrderedSet
 
+import birdnet.acoustic_models.inference_pipeline.logging
 import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.inference.consumer import Consumer
 from birdnet.acoustic_models.inference.files_analyzer import FilesAnalyzer
@@ -49,7 +50,7 @@ class ProcessManager:
 
   def start_logging(self) -> threading.Thread:
     logging_listener = threading.Thread(
-      target=bn_logging.QueueFileWriter(
+      target=birdnet.acoustic_models.inference_pipeline.logging.QueueFileWriter(
         log_queue=self._res.logging_resources.logging_queue,
         logging_level=self._res.logging_resources.logging_level,
         log_file=self._res.logging_resources.session_log_file,

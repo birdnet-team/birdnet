@@ -11,7 +11,7 @@ from multiprocessing.synchronize import Event, Semaphore
 import numpy as np
 from numpy.typing import DTypeLike
 
-import birdnet.logging_utils as bn_logging
+import birdnet.acoustic_models.inference_pipeline.logging as bn_logging
 from birdnet.backends import BackendLoader
 from birdnet.globals import (
   READABLE_FLAG,
