@@ -36,14 +36,12 @@ class ModelBase(ABC):
     self,
     model_path: Path,
     species_list: OrderedSet[str],
-    precision: MODEL_PRECISIONS,
     use_custom_model: bool,
   ) -> None:
     super().__init__()
     self._model_path = model_path
     self._species_list = species_list
     self._use_custom_model = use_custom_model
-    self._precision: MODEL_PRECISIONS = precision
 
   @property
   def model_path(self) -> Path:

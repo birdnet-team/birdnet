@@ -66,12 +66,11 @@ class AcousticModelV2_4(AcousticModelBase):
     self,
     model_path: Path,
     species_list: OrderedSet[str],
-    precision: MODEL_PRECISIONS,
     use_custom_model: bool,
     backend_type: type[VersionedAcousticBackendProtocol],
     backend_kwargs: dict[str, Any],
   ) -> None:
-    super().__init__(model_path, species_list, precision, use_custom_model)
+    super().__init__(model_path, species_list, use_custom_model)
     self._backend_type = backend_type
     self._backend_custom_kwargs = backend_kwargs
 
@@ -189,7 +188,6 @@ class AcousticModelV2_4(AcousticModelBase):
       model_segment_size_s=self.get_segment_size_s(),
       model_sample_rate=self.get_sample_rate(),
       model_is_custom=self.use_custom_model,
-      model_precision=self.precision,
       model_sig_fmin=self.get_sig_fmin(),
       model_sig_fmax=self.get_sig_fmax(),
       model_version=self.get_version(),
@@ -239,7 +237,6 @@ class AcousticModelV2_4(AcousticModelBase):
       model_segment_size_s=self.get_segment_size_s(),
       model_sample_rate=self.get_sample_rate(),
       model_is_custom=self.use_custom_model,
-      model_precision=self.precision,
       model_sig_fmin=self.get_sig_fmin(),
       model_sig_fmax=self.get_sig_fmax(),
       model_version=self.get_version(),
