@@ -43,12 +43,14 @@ class EmbeddingsStrategy(
 
   def create_tensor(
     self,
+    session_id: str,
     config: PredictionConfig,
     specific_config: EmbeddingsConfig,
     resources: PipelineResources,
     n_files: int,
   ) -> EmbeddingsTensor:
     return EmbeddingsTensor(
+      session_id,
       n_files,
       emb_dim=specific_config.emb_dim,
       emb_dtype=config.processing_conf.result_dtype,
@@ -59,12 +61,14 @@ class EmbeddingsStrategy(
 
   def create_workers(
     self,
+    session_id: str,
     config: PredictionConfig,
     specific_config: EmbeddingsConfig,
     resources: PipelineResources,
   ) -> list[WorkerBase]:
     return [
       EmbeddingsWorker(
+        session_id=session_id,
         backend_loader=resources.worker_resources.backend_loader,
         device=resources.worker_resources.devices[i],
         batch_size=config.processing_conf.batch_size,

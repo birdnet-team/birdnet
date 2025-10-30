@@ -33,11 +33,13 @@ from birdnet.acoustic_models.inference_pipeline.strategy import (
 class ProcessManager:
   def __init__(
     self,
+    session_id: str,
     config: PredictionConfig,
     strategy: PredictionStrategy[ResultType, ConfigType, TensorType],
     specific_config: ConfigType,
     resources: PipelineResources,
   ) -> None:
+    self._session_id = session_id
     self._cfg = config
     self._strategy = strategy
     self._specific_cfg = specific_config
@@ -51,6 +53,7 @@ class ProcessManager:
   def start_logging(self) -> threading.Thread:
     logging_listener = threading.Thread(
       target=birdnet.acoustic_models.inference_pipeline.logging.QueueFileWriter(
+        session_id=self._session_id,
         log_queue=self._res.logging_resources.logging_queue,
         logging_level=self._res.logging_resources.logging_level,
         log_file=self._res.logging_resources.session_log_file,
@@ -76,6 +79,7 @@ class ProcessManager:
 
     perf_tracker_proc = mp.Process(
       target=PerformanceTracker(
+        session_id=self._session_id,
         pred_dur_queue=self._res.stats_resources.wkr_stats_queue,
         processing_finished_event=self._res.processing_resources.processing_finished_event,
         update_interval=0.5,
@@ -108,6 +112,7 @@ class ProcessManager:
   def start_file_analyzer(self) -> threading.Thread:
     file_analyzer_proc = threading.Thread(
       target=FilesAnalyzer(
+        session_id=self._session_id,
         # files=self._res.analyzer_resources.file_paths,
         logging_level=self._res.logging_resources.logging_level,
         logging_queue=self._res.logging_resources.logging_queue,
@@ -142,6 +147,7 @@ class ProcessManager:
     producer_processes = [
       mp.Process(
         target=Producer(
+          session_id=self._session_id,
           files_queue=self._res.producer_resources.files_queue,
           batch_size=self._cfg.processing_conf.batch_size,
           all_finished=self._res.producer_resources.all_finished,
@@ -200,7 +206,7 @@ class ProcessManager:
         daemon=True,
       )
       for i, w in enumerate(
-        self._strategy.create_workers(self._cfg, self._specific_cfg, self._res)
+        self._strategy.create_workers(self._session_id, self._cfg, self._specific_cfg, self._res)
       )
     ]
 
@@ -236,6 +242,7 @@ class ProcessManager:
 
   def run_consumer(self, result_tensor: TensorBase) -> None:
     consumer = Consumer(
+      session_id=self._session_id,
       n_workers=self._cfg.processing_conf.workers,
       worker_queue=self._res.worker_resources.results_queue,
       tensor=result_tensor,
@@ -252,7 +259,7 @@ class ProcessManager:
       self.start_performance_tracker()
 
   def join_main_processes(self) -> None:
-    logger = bn_logging.get_logger(__name__)
+    logger = birdnet.acoustic_models.inference_pipeline.logging.get_logger_from_session(self._session_id, __name__)
 
     logger.debug("Joining file analyzer thread...")
     assert self._analyzer_thread is not None

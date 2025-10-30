@@ -65,12 +65,14 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
 
   def create_tensor(
     self,
+    session_id: str,
     config: PredictionConfig,
     specific_config: ScoresConfig,
     resources: PipelineResources,
     n_files: int,
   ) -> ScoresTensor:
     return ScoresTensor(
+      session_id,
       n_files,
       top_k=self.get_top_k(config, specific_config),
       n_species=config.model_conf.n_species,
@@ -89,6 +91,7 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
 
   def create_workers(
     self,
+    session_id: str,
     config: PredictionConfig,
     specific_config: ScoresConfig,
     resources: PipelineResources,
@@ -99,6 +102,7 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
 
     return [
       ScoresWorker(
+        session_id=session_id,
         backend_loader=resources.worker_resources.backend_loader,
         device=resources.worker_resources.devices[i],
         top_k=top_k,

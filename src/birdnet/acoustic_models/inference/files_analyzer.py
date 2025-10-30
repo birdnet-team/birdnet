@@ -9,9 +9,10 @@ from birdnet.acoustic_models.inference.producer import get_audio_duration_s
 from birdnet.helper import RingField, get_max_n_segments, max_value_for_uint_dtype
 
 
-class FilesAnalyzer(bn_logging.LogableProcessBase):
+class FilesAnalyzer():
   def __init__(
     self,
+    session_id: str,
     logging_queue: mp.Queue,
     logging_level: int,
     segment_duration_s: float,
@@ -27,7 +28,8 @@ class FilesAnalyzer(bn_logging.LogableProcessBase):
     state: mp.RawValue,
     start_signal: Event,
   ) -> None:
-    super().__init__(__name__, logging_queue, logging_level)
+    # super().__init__(session_id, __name__, logging_queue, logging_level)
+    self._logger = bn_logging.get_logger_from_session(session_id, __name__)
     # self._files = files
     self._state = state
     self._input_files_queue = input_files_queue
@@ -58,9 +60,9 @@ class FilesAnalyzer(bn_logging.LogableProcessBase):
     return False
 
   def __call__(self) -> None:
-    self._init_logging()
+    #self._init_logging()
     self.run_main_loop()
-    self._uninit_logging()
+    # self._uninit_logging()
 
   def run_main_loop(self) -> None:
     while True:

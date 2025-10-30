@@ -10,6 +10,7 @@ from typing import ContextManager, Generic, Self
 
 from ordered_set import OrderedSet
 
+from birdnet.acoustic_models.inference_pipeline.logging import get_logger_from_session
 import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.inference_pipeline.configs import (
   ConfigType,
@@ -56,17 +57,17 @@ class AcousticSessionBase(
     )
 
     self._process_manager = ProcessManager(
-      self._conf, self._strategy, self._specific_config, res
+      self._session_id, self._conf, self._strategy, self._specific_config, res
     )
     self._process_manager.start_logging()
 
-    self._shm_context = shared_memory_context(res)
+    self._shm_context = shared_memory_context(self._session_id, res)
     self._shm_context.__enter__()
 
     self._process_manager.start_main_processes()
 
     self._is_initialized = True
-    self._logger = bn_logging.get_logger(__name__)
+    self._logger = get_logger_from_session(self._session_id, __name__)
     return self
 
   @property
@@ -86,7 +87,7 @@ class AcousticSessionBase(
     file_paths = OrderedSet(sorted(paths))
 
     result_tensor = self._strategy.create_tensor(
-      self._conf, self._specific_config, self._resources, len(file_paths)
+      self._session_id, self._conf, self._specific_config, self._resources, len(file_paths)
     )
 
     if not self._resources.processing_resources.is_first_run:
@@ -161,13 +162,13 @@ class AcousticSessionBase(
 
 
 @contextmanager
-def shared_memory_context(resources: PipelineResources):
+def shared_memory_context(session_id: str, resources: PipelineResources):
   with (
-    create_shm_ring(resources.ring_buffer_resources.rf_file_indices),
-    create_shm_ring(resources.ring_buffer_resources.rf_segment_indices),
-    create_shm_ring(resources.ring_buffer_resources.rf_audio_samples),
-    create_shm_ring(resources.ring_buffer_resources.rf_batch_sizes),
-    create_shm_ring(resources.ring_buffer_resources.rf_flags) as shm_ring_flags,
+    create_shm_ring(session_id, resources.ring_buffer_resources.rf_file_indices),
+    create_shm_ring(session_id, resources.ring_buffer_resources.rf_segment_indices),
+    create_shm_ring(session_id, resources.ring_buffer_resources.rf_audio_samples),
+    create_shm_ring(session_id, resources.ring_buffer_resources.rf_batch_sizes),
+    create_shm_ring(session_id, resources.ring_buffer_resources.rf_flags) as shm_ring_flags,
   ):
     flags = resources.ring_buffer_resources.rf_flags.get_array(shm_ring_flags)
     flags[:] = WRITABLE_FLAG

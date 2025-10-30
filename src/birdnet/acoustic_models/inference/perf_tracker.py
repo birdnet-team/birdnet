@@ -108,6 +108,7 @@ class ValueTracker:
 class PerformanceTracker(bn_logging.LogableProcessBase):
   def __init__(
     self,
+    session_id: str,
     pred_dur_queue: mp.Queue,
     prod_stats_queue: mp.Queue,
     processing_finished_event: Event,
@@ -128,7 +129,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     start_signal: Event,
     start: float,
   ) -> None:
-    super().__init__(__name__, logging_queue, logging_level)
+    super().__init__(session_id, __name__, logging_queue, logging_level)
 
     assert update_interval <= print_interval
 

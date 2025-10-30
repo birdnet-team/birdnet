@@ -29,7 +29,7 @@ from birdnet.globals import (
   MODEL_BACKEND_TF,
   MODEL_PRECISIONS,
 )
-from birdnet.logging_utils import get_logger
+from birdnet.logging_utils import get_logger_for_package
 
 if TYPE_CHECKING:
   from ai_edge_litert.interpreter import Interpreter as LiteRTInterpreter
@@ -414,9 +414,7 @@ class BackendLoader:
       n_species_in_model = loader.backend.n_species
       return n_species_in_model
     except Exception as ex:
-      from birdnet.logging_utils import get_logger
-
-      get_logger(__name__).error(f"Error loading model: {ex}")
+      get_logger_for_package(__name__).error(f"Error loading model: {ex}")
       return None
 
   @classmethod
@@ -441,7 +439,7 @@ class BackendLoader:
         raise ValueError("Failed to load model.")
       return n_species_in_model
     except Exception as e:
-      get_logger(__name__).error(f"Failed to load model in subprocess: {e}")
+      get_logger_for_package(__name__).error(f"Failed to load model in subprocess: {e}")
       raise ValueError("Failed to load model.") from e
 
 
@@ -464,7 +462,7 @@ def load_pb_model(model_path: Path) -> Any:
   start = time.perf_counter()
   model = tf.saved_model.load(str(model_path.absolute()))
   end = time.perf_counter()
-  logger = get_logger(__name__)
+  logger = get_logger_for_package(__name__)
   logger.debug(
     f"Model loaded from {model_path.absolute()} in {end - start:.2f} seconds."
   )
@@ -539,7 +537,7 @@ def load_lib_tf_model(
     ) from e
 
   end = time.perf_counter()
-  logger = get_logger(__name__)
+  logger = get_logger_for_package(__name__)
   logger.debug(
     f"Model loaded from {model_path.absolute()} using 'tensorflow' "
     f"in {end - start:.2f} seconds."
@@ -582,7 +580,7 @@ def load_lib_litert_model(
     ) from e
 
   end = time.perf_counter()
-  logger = get_logger(__name__)
+  logger = get_logger_for_package(__name__)
   logger.debug(
     f"Model loaded from {model_path.absolute()} using 'ai_edge_litert' "
     f"in {end - start:.2f} seconds."

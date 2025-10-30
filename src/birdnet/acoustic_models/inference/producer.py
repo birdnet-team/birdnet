@@ -107,6 +107,7 @@ def resample_array(
 class Producer(bn_logging.LogableProcessBase):
   def __init__(
     self,
+    session_id: str,
     files_queue: Queue,
     batch_size: int,
     n_slots: int,
@@ -143,7 +144,7 @@ class Producer(bn_logging.LogableProcessBase):
     fmin: int | None,
     fmax: int | None,
   ):
-    super().__init__(__name__, logging_queue, logging_level)
+    super().__init__(session_id, __name__, logging_queue, logging_level)
     self._end_event = end_event
     self._all_finished = all_finished
     self._prd_ring_access_lock = prd_ring_access_lock

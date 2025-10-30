@@ -25,6 +25,7 @@ from birdnet.helper import RingField
 class WorkerBase(bn_logging.LogableProcessBase):
   def __init__(
     self,
+    session_id: str,
     name: str,
     backend_loader: BackendLoader,
     batch_size: int,
@@ -50,7 +51,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
     start_signal: Event,
     end_event: Event,
   ) -> None:
-    super().__init__(name, logging_queue, logging_level)
+    super().__init__(session_id, name, logging_queue, logging_level)
 
     self._end_event = end_event
     self._start_signal = start_signal

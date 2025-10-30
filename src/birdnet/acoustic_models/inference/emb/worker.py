@@ -14,6 +14,7 @@ from birdnet.helper import RingField
 class EmbeddingsWorker(WorkerBase):
   def __init__(
     self,
+    session_id: str,
     backend_loader: BackendLoader,
     batch_size: int,
     n_slots: int,
@@ -39,6 +40,7 @@ class EmbeddingsWorker(WorkerBase):
     end_event: Event,
   ) -> None:
     super().__init__(
+      session_id=session_id,
       name=__name__,
       backend_loader=backend_loader,
       batch_size=batch_size,

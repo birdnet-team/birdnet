@@ -17,6 +17,7 @@ from birdnet.utils import flat_sigmoid_logaddexp_fast
 class ScoresWorker(WorkerBase):
   def __init__(
     self,
+    session_id: str,
     backend_loader: BackendLoader,
     top_k: int,
     species_thresholds: np.ndarray,
@@ -65,6 +66,7 @@ class ScoresWorker(WorkerBase):
     self._species_dtype: DTypeLike | None = None
 
     super().__init__(
+      session_id=session_id,
       name=__name__,
       backend_loader=backend_loader,
       batch_size=batch_size,

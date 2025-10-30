@@ -13,7 +13,7 @@ import numpy as np
 from numpy.typing import DTypeLike
 from ordered_set import OrderedSet
 
-from birdnet.logging_utils import get_logger
+from birdnet.acoustic_models.inference_pipeline.logging import get_logger_from_session
 from birdnet.utils import get_species_from_file
 
 
@@ -162,13 +162,13 @@ class RingField:
     """
     return shared_memory.SharedMemory(name=self.name, create=False)
 
-  def cleanup(self) -> None:
+  def cleanup(self, session_id: str) -> None:
     try:
       shm = self.attach_shared_memory()
     except FileNotFoundError:
       return
     else:
-      logger = get_logger(__name__)
+      logger = get_logger_from_session(session_id, __name__)
       logger.debug(f"Cleaning up shared memory {self.name}.")
       shm.close()
       with suppress(FileNotFoundError):
@@ -186,7 +186,7 @@ class RingField:
 
 
 @contextmanager  # type: ignore
-def create_shm_ring(ring: RingField) -> shared_memory.SharedMemory:  # type: ignore
+def create_shm_ring(session_id: str, ring: RingField) -> shared_memory.SharedMemory:  # type: ignore
   shm = shared_memory.SharedMemory(name=ring.name, create=True, size=ring.nbytes)
   try:
     yield shm  # type: ignore
@@ -194,7 +194,7 @@ def create_shm_ring(ring: RingField) -> shared_memory.SharedMemory:  # type: ign
     shm.close()
     with suppress(FileNotFoundError):
       shm.unlink()
-    logger = logging.getLogger(__name__)
+    logger = get_logger_from_session(session_id, __name__)
     logger.debug(f"Shared memory {ring.name} cleaned up.")
 
 

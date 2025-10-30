@@ -7,6 +7,19 @@ from multiprocessing import Queue
 
 from birdnet.globals import PKG_NAME
 
+"""
+loggers:
+
+root:
+- birdnet (INFO)
+  - birdnet.session_XXX (INFO, inherited)
+    - logger for each predict/encode session
+    - birdnet.session_XXX.modules... e.g. birdnet.session_XXX.birdnet.acoustic_models.inference_pipeline.processes
+- birdnet_file_writer.session_XXX (INFO, inherited)
+  - file writer for each predict/encode session
+
+"""
+
 
 def get_package_logger() -> logging.Logger:
   return logging.getLogger(PKG_NAME)
@@ -24,14 +37,14 @@ def get_package_logger() -> logging.Logger:
 #   root.addHandler(h)
 
 
-def add_queue_handler(logging_queue: Queue) -> QueueHandler:
+def xadd_queue_handler(logging_queue: Queue) -> QueueHandler:
   root = get_package_logger()
   h = QueueHandler(logging_queue)  # Just the one handler needed
   root.addHandler(h)
   return h
 
 
-def queue_handler_exists(logging_queue: Queue) -> bool:
+def xqueue_handler_exists(logging_queue: Queue) -> bool:
   root = get_package_logger()
   for handler in root.handlers:
     if isinstance(handler, QueueHandler) and handler.queue is logging_queue:
@@ -39,14 +52,14 @@ def queue_handler_exists(logging_queue: Queue) -> bool:
   return False
 
 
-def remove_queue_handler(handler: QueueHandler) -> None:
+def xremove_queue_handler(handler: QueueHandler) -> None:
   root = get_package_logger()
   # check has queue handler already
   assert handler in root.handlers
   root.removeHandler(handler)
 
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger_for_package(name: str) -> logging.Logger:
   logger = logging.getLogger(name)
   logger.parent = get_package_logger()
   return logger

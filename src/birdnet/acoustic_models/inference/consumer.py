@@ -4,6 +4,7 @@ import multiprocessing as mp
 from multiprocessing.synchronize import Event
 from queue import Empty
 
+from birdnet.acoustic_models.inference_pipeline.logging import get_logger_from_session
 import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.inference.tensor import TensorBase
 
@@ -11,6 +12,7 @@ from birdnet.acoustic_models.inference.tensor import TensorBase
 class Consumer:
   def __init__(
     self,
+    session_id: str,
     n_workers: int,
     worker_queue: mp.Queue,
     tensor: TensorBase,
@@ -20,7 +22,7 @@ class Consumer:
     self._queue = worker_queue
     self._tensor = tensor
     self._cancel_event = cancel_event
-    self._logger = bn_logging.get_logger(__name__)
+    self._logger = get_logger_from_session(session_id, __name__)
 
   def __call__(self) -> None:
     finished_workers = 0

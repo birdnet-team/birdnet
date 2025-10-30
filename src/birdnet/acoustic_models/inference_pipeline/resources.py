@@ -14,6 +14,7 @@ from typing import cast, final
 
 import numpy as np
 
+from birdnet.acoustic_models.inference_pipeline.logging import add_session_queue_handler
 import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.inference.perf_tracker import PerformanceTrackingResult
 from birdnet.acoustic_models.inference_pipeline.configs import (
@@ -152,11 +153,11 @@ class RingBufferResources:
       shape=(n_slots,),
     )
 
-    rf_file_indices.cleanup()
-    rf_segment_indices.cleanup()
-    rf_audio_samples.cleanup()
-    rf_batch_sizes.cleanup()
-    rf_flags.cleanup()
+    rf_file_indices.cleanup(session_id)
+    rf_segment_indices.cleanup(session_id)
+    rf_audio_samples.cleanup(session_id)
+    rf_batch_sizes.cleanup(session_id)
+    rf_flags.cleanup(session_id)
 
     return RingBufferResources(
       rf_file_indices=rf_file_indices,
@@ -515,7 +516,7 @@ class LoggingResources:
     )
 
     logging_queue = mp.Queue()
-    queue_handler = bn_logging.add_queue_handler(logging_queue)
+    queue_handler = add_session_queue_handler(session_id, logging_queue)
 
     return LoggingResources(
       session_log_file=session_log_file,

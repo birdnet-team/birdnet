@@ -31,6 +31,7 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
   @abstractmethod
   def create_tensor(
     self,
+    session_id: str,
     config: PredictionConfig,
     specific_config: ConfigType,
     resources: PipelineResources,
@@ -40,6 +41,7 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
   @abstractmethod
   def create_workers(
     self,
+    session_id: str,
     config: PredictionConfig,
     specific_config: ConfigType,
     resources: PipelineResources,

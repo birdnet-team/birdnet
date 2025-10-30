@@ -5,6 +5,7 @@ import multiprocessing as mp
 import numpy as np
 from numpy.typing import DTypeLike
 
+from birdnet.acoustic_models.inference_pipeline.logging import get_logger_from_session
 import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.inference.tensor import TensorBase
 
@@ -12,6 +13,7 @@ from birdnet.acoustic_models.inference.tensor import TensorBase
 class EmbeddingsTensor(TensorBase):
   def __init__(
     self,
+    session_id: str,
     n_files: int,
     emb_dim: int,
     emb_dtype: DTypeLike,
@@ -19,7 +21,8 @@ class EmbeddingsTensor(TensorBase):
     segment_indices_dtype: DTypeLike,
     max_segment_index: mp.RawValue,
   ) -> None:
-    self._logger = bn_logging.get_logger(__name__)
+    self._session_id = session_id
+    self._logger = get_logger_from_session(session_id, __name__)
 
     self._files_dtype = files_dtype
     self._segment_indices_dtype = segment_indices_dtype

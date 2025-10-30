@@ -1,7 +1,8 @@
 from multiprocessing import Queue
 import multiprocessing.synchronize
+import os
 from pathlib import Path
-from birdnet.logging_utils import add_queue_handler, get_logger, init_package_logger, queue_handler_exists, remove_queue_handler
+from birdnet.logging_utils import get_package_logger, init_package_logger
 
 
 import logging
@@ -10,12 +11,50 @@ from logging.handlers import MemoryHandler, QueueHandler
 
 def get_session_logger(session_id: str) -> logging.Logger:
   logger_name = f"birdnet.session_{session_id}"
-  logger = get_logger(logger_name)
+  logger = logging.getLogger(logger_name)
+  logger.parent = get_package_logger()
   return logger
+
+def get_session_logging_level(session_id: str) -> int:
+  result = get_session_logger(session_id).level
+  return result
+
+def init_session_logger(session_id: str, logging_level: int) -> None:
+  init_package_logger(logging_level)
+  root = get_session_logger(session_id)
+  root.setLevel(logging_level)
+  root.propagate = False
+
+def get_logger_from_session(session_id: str, name: str) -> logging.Logger:
+  session_logger = get_session_logger(session_id)
+  logger = logging.getLogger(f"{session_logger.name}.{name}")
+  logger.parent = session_logger
+  return logger
+
+def remove_session_queue_handler(session_id: str,handler: QueueHandler) -> None:
+  root = get_session_logger(session_id)
+  # check has queue handler already
+  assert handler in root.handlers
+  root.removeHandler(handler)
+
+def add_session_queue_handler(session_id: str,logging_queue: Queue) -> QueueHandler:
+  root = get_session_logger(session_id)
+  h = QueueHandler(logging_queue)  # Just the one handler needed
+  root.addHandler(h)
+  return h
+
+def session_queue_handler_exists(session_id: str,logging_queue: Queue) -> bool:
+  root = get_session_logger(session_id)
+  for handler in root.handlers:
+    if isinstance(handler, QueueHandler) and handler.queue is logging_queue:
+      return True
+  return False
+
 
 class LogableProcessBase:
   def __init__(
     self,
+    session_id: str,
     name: str,
     logging_queue: mp.Queue,
     logging_level: int,
@@ -25,23 +64,24 @@ class LogableProcessBase:
     self.__logging_level = logging_level
     self.__local_queue_handler: QueueHandler | None = None
     self.__name = name
+    self.__session_id = session_id
 
   def _init_logging(self) -> None:
     if mp.get_start_method() in ("spawn", "forkserver"):
-      init_package_logger(self.__logging_level)
-      self.__local_queue_handler = add_queue_handler(self.__logging_queue)
+      init_session_logger(self.__session_id, self.__logging_level)
+      self.__local_queue_handler = add_session_queue_handler(self.__session_id, self.__logging_queue)
     else:
       assert mp.get_start_method() == "fork"
-      assert queue_handler_exists(self.__logging_queue)
-    self.__logger = get_logger(self.__name)
-    self.__logger.debug(f"Initialized logging for {self.__name}.")
+      assert session_queue_handler_exists(self.__session_id, self.__logging_queue)
+    self.__logger = get_logger_from_session(self.__session_id, self.__name)
+    self.__logger.debug(f"Initialized logging for session {self.__session_id} -> {self.__name}.")
 
   def _uninit_logging(self) -> None:
     assert self.__logger is not None
-    self.__logger.debug(f"Uninitializing logging for {self.__name}.")
+    self.__logger.debug(f"Uninitializing logging for session {self.__session_id} -> {self.__name}.")
     if mp.get_start_method() in ("spawn", "forkserver"):
       assert self.__local_queue_handler is not None
-      remove_queue_handler(self.__local_queue_handler)
+      remove_session_queue_handler(self.__session_id, self.__local_queue_handler)
     else:
       assert mp.get_start_method() == "fork"
       assert self.__local_queue_handler is None
@@ -57,6 +97,7 @@ class LogableProcessBase:
 class QueueFileWriter:
   def __init__(
     self,
+    session_id: str,
     log_queue: Queue,
     logging_level: int,
     log_file: Path,
@@ -64,6 +105,7 @@ class QueueFileWriter:
     stop_event: multiprocessing.synchronize.Event,
     processing_finished_event: multiprocessing.synchronize.Event,
   ) -> None:
+    self._session_id = session_id
     self._logging_level = logging_level
     self._log_queue = log_queue
     self._log_file = log_file
@@ -73,12 +115,10 @@ class QueueFileWriter:
     self._processing_finished_event = processing_finished_event
 
   def __call__(self) -> None:
-    logger = logging.getLogger("birdnet-file-writer")
+    logger = logging.getLogger(f"birdnet_file_writer.session_{self._session_id}")
     logger.setLevel(self._logging_level)
     logger.propagate = False
-    if "PYTEST_CURRENT_TEST" not in os.environ:
-      # on testruns multiple processes write to the same log file
-      assert len(logger.handlers) == 0
+    assert len(logger.handlers) == 0
 
     # log to temp
     f = logging.Formatter(
