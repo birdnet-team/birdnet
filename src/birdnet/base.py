@@ -1,4 +1,3 @@
-import os
 from abc import ABC, abstractmethod
 from multiprocessing import current_process
 from pathlib import Path

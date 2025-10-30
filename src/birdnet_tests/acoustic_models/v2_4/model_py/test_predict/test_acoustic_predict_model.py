@@ -1,12 +1,10 @@
 import multiprocessing
+import multiprocessing.synchronize
 import threading
-from concurrent.futures import ProcessPoolExecutor
-from multiprocessing import Barrier
 from queue import Queue
 
 import numpy
 
-from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
 from birdnet.model_loader import load
 from birdnet_tests.test_files import TEST_FILE_WAV
 

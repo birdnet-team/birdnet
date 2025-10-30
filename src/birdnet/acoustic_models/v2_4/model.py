@@ -22,7 +22,6 @@ from birdnet.backends import (
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V2_4,
   ACOUSTIC_MODEL_VERSIONS,
-  MODEL_PRECISIONS,
 )
 from birdnet.helper import validate_species_list
 
