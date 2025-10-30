@@ -296,7 +296,6 @@ def _load_acoustic_model_V2_4(
     return AcousticModelV2_4.load(
       model_path,
       species_list,
-      precision,
       backend_type=backend_type,
       backend_kwargs={
         TF_BACKEND_LIB_ARG: library,
@@ -314,7 +313,6 @@ def _load_acoustic_model_V2_4(
     return AcousticModelV2_4.load(
       model_path,
       species_list,
-      precision,
       backend_type=AcousticPBBackendFP32V2_4,
       backend_kwargs={},
     )
@@ -476,7 +474,6 @@ def _load_custom_acoustic_model_V2_4(
     return AcousticModelV2_4.load_custom(
       model,
       species_list,
-      precision,
       backend_type=backend_type,
       backend_kwargs={
         TF_BACKEND_LIB_ARG: library,
@@ -505,7 +502,6 @@ def _load_custom_acoustic_model_V2_4(
     return AcousticModelV2_4.load_custom(
       model,
       species_list,
-      precision,
       backend_type=backend_type,
       backend_kwargs={},
       check_validity=check_validity,

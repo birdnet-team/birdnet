@@ -79,14 +79,12 @@ class AcousticModelV2_4(AcousticModelBase):
     cls,
     model_path: Path,
     species_list: OrderedSet[str],
-    precision: MODEL_PRECISIONS,
     backend_type: type[VersionedAcousticBackendProtocol],
     backend_kwargs: dict[str, Any],
   ) -> AcousticModelV2_4:
     result = AcousticModelV2_4(
       model_path,
       species_list,
-      precision,
       use_custom_model=False,
       backend_type=backend_type,
       backend_kwargs=backend_kwargs,
@@ -98,7 +96,6 @@ class AcousticModelV2_4(AcousticModelBase):
     cls,
     model_path: Path,
     species_list: Path,
-    precision: MODEL_PRECISIONS,
     backend_type: type[VersionedAcousticBackendProtocol],
     backend_kwargs: dict[str, Any],
     check_validity: bool,
@@ -123,7 +120,6 @@ class AcousticModelV2_4(AcousticModelBase):
     result = AcousticModelV2_4(
       model_path,
       loaded_species_list,
-      precision,
       use_custom_model=True,
       backend_type=backend_type,
       backend_kwargs=backend_kwargs,

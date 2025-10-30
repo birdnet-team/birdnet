@@ -107,21 +107,22 @@ class RingBufferResources:
     cls, conf: PredictionConfig, analyzer_resources: FilesAnalyzerResources
   ) -> RingBufferResources:
     n_slots = conf.processing_conf.n_slots
+    session_id = int(time.time() * 1000)
 
     rf_file_indices = RingField(
-      "bn_ring_file_indices",
+      f"bn_ring_file_indices_{session_id}",
       dtype=uint_dtype_for(max(0, conf.processing_conf.max_n_files - 1)),
       shape=(n_slots, conf.processing_conf.batch_size),
     )
 
     rf_segment_indices = RingField(
-      "bn_ring_segment_indices",
+      f"bn_ring_segment_indices_{session_id}",
       dtype=analyzer_resources.segments_dtype,
       shape=(n_slots, conf.processing_conf.batch_size),
     )
 
     rf_audio_samples = RingField(
-      "bn_ring_audio_samples",
+      f"bn_ring_audio_samples_{session_id}",
       dtype=np.dtype(np.float32),
       shape=(
         n_slots,
@@ -131,13 +132,13 @@ class RingBufferResources:
     )
 
     rf_batch_sizes = RingField(
-      "bn_ring_batch_sizes",
+      f"bn_ring_batch_sizes_{session_id}",
       dtype=uint_dtype_for(conf.processing_conf.batch_size),
       shape=(n_slots,),
     )
 
     rf_flags = RingField(
-      "bn_ring_flags",
+      f"bn_ring_flags_{session_id}",
       dtype=np.dtype(np.uint8),
       shape=(n_slots,),
     )
