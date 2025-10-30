@@ -1,6 +1,8 @@
 import multiprocessing
+import threading
 from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import Barrier
+from queue import Queue
 
 import numpy
 
@@ -90,7 +92,7 @@ def run_session(
     queue.put(result)
 
 
-def test_tf_fp32_twice_two_sessions_parallel() -> None:
+def test_tf_fp32_twice_two_sessions_parallel_processes() -> None:
   with multiprocessing.Manager() as manager:
     x = manager.Barrier(2)
     queue = manager.Queue()
@@ -106,6 +108,39 @@ def test_tf_fp32_twice_two_sessions_parallel() -> None:
 
     p1.join()
     p2.join()
+
+  mean = res.species_probs.mean()
+  assert res.species_probs.shape == (1, 40, 5)
+  numpy.testing.assert_almost_equal(mean, 0.06287, decimal=4)
+
+  mean = res2.species_probs.mean()
+  assert res2.species_probs.shape == (1, 40, 5)
+  numpy.testing.assert_almost_equal(mean, 0.06287, decimal=4)
+
+
+def run_session_thread(barrier: threading.Barrier, queue: Queue) -> None:
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tf")
+  barrier.wait()
+  with model.predict_session(n_workers=1) as session:
+    result = session.run(TEST_FILE_WAV)
+    queue.put(result)
+
+
+def test_tf_fp32_twice_two_sessions_parallel_threads() -> None:
+  barrier = threading.Barrier(2)
+  queue = Queue()
+
+  t1 = threading.Thread(target=run_session_thread, args=(barrier, queue))
+  t2 = threading.Thread(target=run_session_thread, args=(barrier, queue))
+
+  t1.start()
+  t2.start()
+
+  res = queue.get(timeout=None)
+  res2 = queue.get(timeout=None)
+
+  t1.join()
+  t2.join()
 
   mean = res.species_probs.mean()
   assert res.species_probs.shape == (1, 40, 5)

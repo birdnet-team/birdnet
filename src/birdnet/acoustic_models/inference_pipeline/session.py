@@ -52,7 +52,7 @@ class AcousticSessionBase(
     assert not self._is_initialized
     self._resource_manager = ResourceManager(self._conf)
     res = self._resource_manager.create_resources(
-      self._strategy.get_benchmark_dir_name()
+      self._session_id, self._strategy.get_benchmark_dir_name()
     )
 
     self._process_manager = ProcessManager(

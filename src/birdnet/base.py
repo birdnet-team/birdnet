@@ -1,5 +1,8 @@
+import os
 from abc import ABC, abstractmethod
+from multiprocessing import current_process
 from pathlib import Path
+from threading import current_thread
 from typing import Self
 
 from ordered_set import OrderedSet
@@ -21,6 +24,9 @@ class PredictionResultBase(ABC):
 
 
 class SessionBase(ABC):
+  def __init__(self) -> None:
+    self._session_id = get_session_id()
+
   @abstractmethod
   def __enter__(self) -> Self: ...
 
@@ -29,6 +35,23 @@ class SessionBase(ABC):
 
   @abstractmethod
   def run(self, *args, **kwargs) -> PredictionResultBase: ...
+
+
+def get_session_id() -> str:
+  """
+  Get a unique session ID based on the current process and thread.
+
+  Example for two processes:
+    Process 1: 47653_130955222058816
+    Process 2: 47654_130955222058816
+
+  Example for two threads in the same process:
+    Thread 1: 48556_131607413388992
+    Thread 2: 48556_131607404996288
+  """
+  proc = current_process()
+  thread = current_thread()
+  return f"{proc.ident}_{thread.ident}"
 
 
 class ModelBase(ABC):

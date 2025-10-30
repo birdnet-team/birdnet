@@ -61,7 +61,9 @@ class ResourceManager:
     self.conf = conf
     self._resources: PipelineResources | None = None
 
-  def create_resources(self, benchmark_dir_name: str) -> PipelineResources:
+  def create_resources(
+    self, session_id: str, benchmark_dir_name: str
+  ) -> PipelineResources:
     assert self._resources is None
     stats_resources = StatisticsResources.create(self.conf, benchmark_dir_name)
     logging_resources = LoggingResources.create(stats_resources)
@@ -69,7 +71,9 @@ class ResourceManager:
     analyzer_resources = FilesAnalyzerResources.create(self.conf)
     producer_resources = ProducerResources.create(self.conf)
     worker_resources = WorkerResources.create(self.conf)
-    buf_resources = RingBufferResources.create(self.conf, analyzer_resources)
+    buf_resources = RingBufferResources.create(
+      session_id, self.conf, analyzer_resources
+    )
 
     self._resources = PipelineResources(
       stats_resources=stats_resources,
@@ -104,10 +108,15 @@ class RingBufferResources:
 
   @classmethod
   def create(
-    cls, conf: PredictionConfig, analyzer_resources: FilesAnalyzerResources
+    cls,
+    session_id: str,
+    conf: PredictionConfig,
+    analyzer_resources: FilesAnalyzerResources,
   ) -> RingBufferResources:
+    # session_id is required to run multiple sessions in parallel
+    # in multiple processes or threads in the same session
+
     n_slots = conf.processing_conf.n_slots
-    session_id = int(time.time() * 1000)
 
     rf_file_indices = RingField(
       f"bn_ring_file_indices_{session_id}",
