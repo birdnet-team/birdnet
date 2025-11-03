@@ -9,8 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added support for running multiple sessions in parallel using threading or multiprocessing
+- Added support for running multiple sessions in a row or in parallel using threading or multiprocessing
 - Each session has its own logger and log file
+
+### Changed
+
+- Changed naming of the benchmark output files
 
 ## [0.2.1] - 2025-10-29
 
