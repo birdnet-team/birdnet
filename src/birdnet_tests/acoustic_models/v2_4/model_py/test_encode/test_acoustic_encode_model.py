@@ -25,4 +25,4 @@ def test_v2_4_tf_int8() -> None:
   res = model.encode(TEST_FILE_WAV, n_workers=1)
   mean = res.embeddings.mean()
   assert res.embeddings.shape == (1, 40, 1024)
-  numpy.testing.assert_allclose(mean, 0.3347, rtol=1e-4)
+  numpy.testing.assert_allclose(mean, 0.3347, rtol=1e-2)

@@ -3,6 +3,7 @@ import numpy
 
 from birdnet.model_loader import load
 from birdnet_tests.helper import (
+  ensure_litert_or_skip,
   use_fork_or_skip,
   use_forkserver_or_skip,
   use_spawn_or_skip,
@@ -11,6 +12,7 @@ from birdnet_tests.test_files import TEST_FILE_WAV
 
 
 def test_litert_fork() -> None:
+  ensure_litert_or_skip()
   use_fork_or_skip()
 
   model = load("acoustic", "2.4", "tf", precision="fp32", library="litert")
@@ -38,6 +40,7 @@ def test_pb_fork() -> None:
 
 
 def test_litert_forkserver() -> None:
+  ensure_litert_or_skip()
   use_forkserver_or_skip()
 
   model = load("acoustic", "2.4", "tf", precision="fp32", library="litert")
@@ -65,6 +68,7 @@ def test_pb_forkserver() -> None:
 
 
 def test_litert_spawn() -> None:
+  ensure_litert_or_skip()
   use_spawn_or_skip()
 
   model = load("acoustic", "2.4", "tf", precision="fp32", library="litert")

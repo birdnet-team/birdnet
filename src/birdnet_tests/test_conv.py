@@ -25,7 +25,7 @@ def get_cached_result(audio_paths: list[Path], k: int, conf: float) -> Predictio
       audio_paths,
       top_k=k,
       default_confidence_threshold=conf,
-      n_workers=12,
+      n_workers=1,
     )
     result.save(npz_path)
     return result

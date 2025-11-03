@@ -69,6 +69,12 @@ For more detailed benchmarks, please refer to the [BENCHMARKING.md](BENCHMARKING
 ✅ = Supported ❌ = Not supported\
 **ProtoBuf Raven is only available for custom acoustic models.*
 
+## Supported versions
+
+- macOS: >= 10.12.6 (Sierra)
+- Python 3.11
+  - macOS: >= 10.14 (Mojave)
+
 ## Example usage
 
 ### Identify species within an audio file

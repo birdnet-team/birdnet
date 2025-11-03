@@ -8,6 +8,7 @@ from tqdm import tqdm
 from birdnet.geo_models.inference.prediction_result import PredictionResult
 from birdnet.geo_models.v2_4.model import GeoModelV2_4
 from birdnet.model_loader import load
+from birdnet_tests.helper import ensure_litert_or_skip
 
 
 @dataclass()
@@ -107,6 +108,8 @@ def test_tf32_is_same() -> None:
 
 
 def test_tf32_litert_is_very_close() -> None:
+  ensure_litert_or_skip()
+  
   model = load("geo", "2.4", "tf", precision="fp32", library="litert")
   for case_nr, result in predict_test_cases(model):
     ref_case_file = TEST_CASES_REF_DIR / f"{case_nr}.npz"

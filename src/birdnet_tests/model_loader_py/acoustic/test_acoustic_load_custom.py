@@ -8,10 +8,13 @@ from birdnet.acoustic_models.v2_4.tf import AcousticTFDownloaderV2_4
 from birdnet.globals import MODEL_PRECISIONS
 from birdnet.local_data import get_lang_dir, get_model_path
 from birdnet.model_loader import load_custom
+from birdnet_tests.helper import ensure_litert_or_skip
 from birdnet_tests.test_files import TEST_FILES_DIR
 
 
 def test_v2_4_pb_with_library_raises_error() -> None:
+  ensure_litert_or_skip()
+  
   with pytest.raises(
     ValueError,
     match=r"Unexpected keyword arguments: library.",
@@ -61,6 +64,8 @@ def test_v2_4_tf_fp32() -> None:
 
 
 def test_v2_4_litert_fp32() -> None:
+  ensure_litert_or_skip()
+  
   AcousticTFDownloaderV2_4.get_model_path_and_labels("en_us", "fp32")
   model = load_custom(
     "acoustic",
@@ -91,6 +96,8 @@ def test_v2_4_tf_fp16() -> None:
 
 
 def test_v2_4_litert_fp16() -> None:
+  ensure_litert_or_skip()
+  
   AcousticTFDownloaderV2_4.get_model_path_and_labels("en_us", "fp16")
   model = load_custom(
     "acoustic",
@@ -121,6 +128,8 @@ def test_v2_4_tf_int8() -> None:
 
 
 def test_v2_4_litert_int8() -> None:
+  ensure_litert_or_skip()
+  
   AcousticTFDownloaderV2_4.get_model_path_and_labels("en_us", "int8")
   model = load_custom(
     "acoustic",
@@ -240,6 +249,8 @@ def test_types_with_precisions_are_correct() -> None:
 
 
 def test_custom_from_analyzer_v2_4_litert_fp32() -> None:
+  ensure_litert_or_skip()
+  
   model = load_custom(
     "acoustic",
     "2.4",

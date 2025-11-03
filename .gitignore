@@ -133,3 +133,4 @@ src/birdnet_debug/benchmark_script.prof
 improvements.txt
 benchmark/
 requirements.txt
+venv-3.12/

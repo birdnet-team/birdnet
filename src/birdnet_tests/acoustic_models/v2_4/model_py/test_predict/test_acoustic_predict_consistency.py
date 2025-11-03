@@ -8,6 +8,7 @@ from tqdm import tqdm
 from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
 from birdnet.acoustic_models.v2_4.model import AcousticModelV2_4
 from birdnet.model_loader import load
+from birdnet_tests.helper import ensure_litert_or_skip
 from birdnet_tests.test_files import TEST_FILE_WAV
 
 
@@ -137,6 +138,8 @@ def test_tf32_is_same() -> None:
 
 
 def test_tf32_litert_is_very_close() -> None:
+  ensure_litert_or_skip()
+  
   model = load("acoustic", "2.4", "tf", precision="fp32", library="litert")
   for case_nr, result in predict_test_cases(model):
     ref_case_file = TEST_CASES_REF_DIR / f"{case_nr}.npz"

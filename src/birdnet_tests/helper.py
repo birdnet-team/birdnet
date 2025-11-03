@@ -9,6 +9,11 @@ from multiprocessing import get_all_start_methods, set_start_method
 import psutil
 import pytest
 
+from birdnet.backends import litert_installed
+
+def ensure_litert_or_skip() -> None:
+  if not litert_installed():
+    pytest.skip("litert library is not available")
 
 def use_forkserver_or_skip() -> None:
   if "forkserver" in get_all_start_methods():

@@ -1,6 +1,7 @@
 import numpy.testing
 
 from birdnet.model_loader import load_custom
+from birdnet_tests.helper import ensure_litert_or_skip
 from birdnet_tests.test_files import TEST_FILE_WAV, TEST_FILES_DIR
 
 
@@ -22,6 +23,8 @@ def test_custom_from_analyzer_v2_4_tf_fp32() -> None:
 
 
 def test_custom_from_analyzer_v2_4_litert_fp32() -> None:
+  ensure_litert_or_skip()
+  
   model = load_custom(
     "acoustic",
     "2.4",
