@@ -6,7 +6,6 @@ import numpy as np
 from numpy.typing import DTypeLike
 
 from birdnet.acoustic_models.inference_pipeline.logging import get_logger_from_session
-import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.inference.tensor import TensorBase
 
 

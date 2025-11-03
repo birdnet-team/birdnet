@@ -1,6 +1,5 @@
 from multiprocessing import Queue
 import multiprocessing.synchronize
-import os
 from pathlib import Path
 from birdnet.logging_utils import get_package_logger, init_package_logger
 

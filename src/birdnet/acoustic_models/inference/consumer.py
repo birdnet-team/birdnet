@@ -5,7 +5,6 @@ from multiprocessing.synchronize import Event
 from queue import Empty
 
 from birdnet.acoustic_models.inference_pipeline.logging import get_logger_from_session
-import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.inference.tensor import TensorBase
 
 

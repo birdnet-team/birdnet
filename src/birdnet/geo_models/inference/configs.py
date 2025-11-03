@@ -7,7 +7,7 @@ from numpy.typing import DTypeLike
 from ordered_set import OrderedSet
 
 from birdnet.backends import VersionedBackendProtocol
-from birdnet.globals import GEO_MODEL_VERSIONS, MODEL_PRECISIONS
+from birdnet.globals import GEO_MODEL_VERSIONS
 
 
 @dataclass(frozen=True)
@@ -15,7 +15,6 @@ class ModelConfig:
   species_list: OrderedSet[str]
   path: Path
   version: GEO_MODEL_VERSIONS
-  precision: MODEL_PRECISIONS
   is_custom: bool
   backend_type: type[VersionedBackendProtocol]
   backend_kwargs: dict[str, Any]

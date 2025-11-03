@@ -8,7 +8,6 @@ from pathlib import Path
 from ordered_set import OrderedSet
 
 import birdnet.acoustic_models.inference_pipeline.logging
-import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.inference.consumer import Consumer
 from birdnet.acoustic_models.inference.files_analyzer import FilesAnalyzer
 from birdnet.acoustic_models.inference.perf_tracker import (

@@ -219,7 +219,7 @@ def test_tf_fp32_twice_same_session() -> None:
   numpy.testing.assert_almost_equal(mean, 0.06287, decimal=4)
 
 
-def test_pb_tf32_twice_two_sessions() -> None:
+def test_pb_fp32_twice_two_sessions() -> None:
   model = load("acoustic", "2.4", "pb", precision="fp32")
   with model.predict_session(n_workers=1) as session:
     res = session.run(TEST_FILE_WAV)
@@ -230,7 +230,7 @@ def test_pb_tf32_twice_two_sessions() -> None:
   numpy.testing.assert_almost_equal(mean, 0.06287, decimal=4)
 
 
-def test_pb_tf32_twice_same_session() -> None:
+def test_pb_fp32_twice_same_session() -> None:
   model = load("acoustic", "2.4", "pb", precision="fp32")
   with model.predict_session(n_workers=1) as session:
     res = session.run(TEST_FILE_WAV)

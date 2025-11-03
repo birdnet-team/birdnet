@@ -142,7 +142,6 @@ class GeoModelV2_4(GeoModelBase):
       species_list=self.species_list,
       model_path=self.model_path,
       model_is_custom=self.use_custom_model,
-      model_precision=self.precision,
       model_version=self.get_version(),
       model_backend_type=self._backend_type,
       model_backend_custom_kwargs=self._backend_custom_kwargs,

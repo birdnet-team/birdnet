@@ -15,7 +15,6 @@ from typing import cast, final
 import numpy as np
 
 from birdnet.acoustic_models.inference_pipeline.logging import add_session_queue_handler
-import birdnet.logging_utils as bn_logging
 from birdnet.acoustic_models.inference.perf_tracker import PerformanceTrackingResult
 from birdnet.acoustic_models.inference_pipeline.configs import (
   PredictionConfig,

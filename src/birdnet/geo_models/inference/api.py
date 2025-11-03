@@ -13,7 +13,7 @@ from birdnet.geo_models.inference.configs import (
 )
 from birdnet.geo_models.inference.prediction_result import PredictionResult
 from birdnet.geo_models.inference.session import GeoSessionBase
-from birdnet.globals import GEO_MODEL_VERSIONS, MODEL_PRECISIONS
+from birdnet.globals import GEO_MODEL_VERSIONS
 
 
 class ScoreSession(GeoSessionBase):
@@ -22,7 +22,6 @@ class ScoreSession(GeoSessionBase):
     species_list: OrderedSet[str],
     model_path: Path,
     model_is_custom: bool,
-    model_precision: MODEL_PRECISIONS,
     model_version: GEO_MODEL_VERSIONS,
     model_backend_type: type[VersionedGeoBackendProtocol],
     model_backend_custom_kwargs: dict[str, Any],
@@ -48,7 +47,6 @@ class ScoreSession(GeoSessionBase):
           path=model_path,
           is_custom=model_is_custom,
           version=model_version,
-          precision=model_precision,
           backend_type=model_backend_type,
           backend_kwargs=model_backend_custom_kwargs,
         ),
