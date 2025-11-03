@@ -62,9 +62,9 @@ For more detailed benchmarks, please refer to the [BENCHMARKING.md](BENCHMARKING
 | **Backend** | TensorFlow/<br>LiteRT | ProtoBuf | ProtoBuf<br>Raven* | TensorFlow/<br>LiteRT | ProtoBuf |
 | `predict(..)` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `encode(..)` | ✅ | ✅ | ❌ | ❌ | ❌ |
-| **int8** | CPU | ❌ | ❌ | ❌ | ❌ |
-| **fp16** | CPU | ❌ | ❌ | ❌ | ❌ |
-| **fp32** | CPU | CPU/GPU | CPU/GPU | CPU | CPU/GPU |
+| **INT8** | CPU | ❌ | ❌ | ❌ | ❌ |
+| **FP16** | CPU | ❌ | ❌ | ❌ | ❌ |
+| **FP32** | CPU | CPU/GPU | CPU/GPU | CPU | CPU/GPU |
 
 ✅ = Supported ❌ = Not supported\
 **ProtoBuf Raven is only available for custom acoustic models.*
