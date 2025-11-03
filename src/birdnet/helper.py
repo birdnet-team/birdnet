@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ctypes
+import hashlib
 import math
 from collections.abc import Generator
 from contextlib import contextmanager, suppress
@@ -14,6 +15,11 @@ from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference_pipeline.logging import get_logger_from_session
 from birdnet.utils import get_species_from_file
+
+
+def get_hash(session_id: str) -> str:
+  hash_digest = hashlib.sha256(session_id.encode()).hexdigest()
+  return hash_digest
 
 
 def check_protobuf_model_files_exist(folder: Path) -> bool:

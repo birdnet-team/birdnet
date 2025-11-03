@@ -10,13 +10,13 @@ from typing import ContextManager, Generic, Self
 
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference_pipeline.logging import get_logger_from_session
 from birdnet.acoustic_models.inference_pipeline.configs import (
   ConfigType,
   PredictionConfig,
   ResultType,
   TensorType,
 )
+from birdnet.acoustic_models.inference_pipeline.logging import get_logger_from_session
 from birdnet.acoustic_models.inference_pipeline.processes import ProcessManager
 from birdnet.acoustic_models.inference_pipeline.resources import (
   PipelineResources,
@@ -25,7 +25,7 @@ from birdnet.acoustic_models.inference_pipeline.resources import (
 from birdnet.acoustic_models.inference_pipeline.strategy import (
   PredictionStrategy,
 )
-from birdnet.base import SessionBase
+from birdnet.base import SessionBase, get_session_id_hash
 from birdnet.globals import WRITABLE_FLAG
 from birdnet.helper import create_shm_ring
 
@@ -86,7 +86,11 @@ class AcousticSessionBase(
     file_paths = OrderedSet(sorted(paths))
 
     result_tensor = self._strategy.create_tensor(
-      self._session_id, self._conf, self._specific_config, self._resources, len(file_paths)
+      self._session_id,
+      self._conf,
+      self._specific_config,
+      self._resources,
+      len(file_paths),
     )
 
     if not self._resources.processing_resources.is_first_run:
@@ -111,7 +115,12 @@ class AcousticSessionBase(
     )
 
     _handle_statistics(
-      self._conf, self._strategy, self._specific_config, result, self._resources
+      self._session_id,
+      self._conf,
+      self._strategy,
+      self._specific_config,
+      result,
+      self._resources,
     )
 
     self._resources.processing_resources.increment_run_nr()
@@ -167,7 +176,9 @@ def shared_memory_context(session_id: str, resources: PipelineResources):
     create_shm_ring(session_id, resources.ring_buffer_resources.rf_segment_indices),
     create_shm_ring(session_id, resources.ring_buffer_resources.rf_audio_samples),
     create_shm_ring(session_id, resources.ring_buffer_resources.rf_batch_sizes),
-    create_shm_ring(session_id, resources.ring_buffer_resources.rf_flags) as shm_ring_flags,
+    create_shm_ring(
+      session_id, resources.ring_buffer_resources.rf_flags
+    ) as shm_ring_flags,
   ):
     flags = resources.ring_buffer_resources.rf_flags.get_array(shm_ring_flags)
     flags[:] = WRITABLE_FLAG
@@ -175,6 +186,7 @@ def shared_memory_context(session_id: str, resources: PipelineResources):
 
 
 def _handle_statistics(
+  session_id: str,
   config: PredictionConfig,
   strategy: PredictionStrategy[ResultType, ConfigType, TensorType],
   specific_config: ConfigType,
@@ -191,6 +203,7 @@ def _handle_statistics(
     )
   elif config.output_conf.show_stats == "benchmark":
     _create_benchmark_statistics(
+      session_id,
       config,
       strategy,
       resources,
@@ -233,6 +246,7 @@ def _show_minimal_statistics(
 
 
 def _create_benchmark_statistics(
+  session_id: str,
   config: PredictionConfig,
   strategy: PredictionStrategy[ResultType, ConfigType, TensorType],
   resources: PipelineResources,
@@ -248,20 +262,20 @@ def _create_benchmark_statistics(
 
   benchmark_dir = resources.stats_resources.benchmark_dir
   benchmark_session_dir = resources.stats_resources.benchmark_session_dir
-  iso_time = resources.stats_resources.start_iso_time
-  benchmark_run_dir = (
-    benchmark_session_dir
-    / f"{iso_time}-run-{resources.processing_resources.current_run_nr}"
-  )
+  # iso_time = resources.stats_resources.start_iso_time
+  run_name = f"run-{resources.processing_resources.current_run_nr}"
+  session_id_hash = get_session_id_hash(session_id)
+  benchmark_run_dir = benchmark_session_dir / run_name
   benchmark_run_dir.mkdir(parents=True, exist_ok=True)
+  prepend = f"{session_id_hash}-{run_name}"
 
   sessions_meta_df_out = resources.logging_resources.session_log_file.with_stem(
     resources.logging_resources.session_log_file.stem + "-runs"
   ).with_suffix(".csv")
   all_sessions_meta_df_out = benchmark_dir / "runs.csv"
-  stats_out_json = benchmark_run_dir / f"stats-{iso_time}.json"
-  stats_human_readable_out = benchmark_run_dir / f"stats-{iso_time}.txt"
-  result_npz = benchmark_run_dir / f"result-{iso_time}.npz"
+  stats_out_json = benchmark_run_dir / f"{prepend}-stats.json"
+  stats_human_readable_out = benchmark_run_dir / f"{prepend}-stats.txt"
+  result_npz = benchmark_run_dir / f"{prepend}-result.npz"
 
   bm = asdict(bmm)
   del_keys = [k for k in bm if k.startswith("_")]
@@ -322,7 +336,7 @@ def _create_benchmark_statistics(
   print("Saving result using internal format (.npz)...")
   result.save(result_npz)
   saved_files = [result_npz]
-  saved_files += strategy.save_results_extra(result, benchmark_run_dir, iso_time)
+  saved_files += strategy.save_results_extra(result, benchmark_run_dir, prepend)
 
   summary += (
     f"-------------------------------\n"

@@ -231,6 +231,6 @@ class EmbeddingsStrategy(
     return "emb"
 
   def save_results_extra(
-    self, result: EncodingResult, benchmark_run_out_dir: Path, iso_time: str
+    self, result: EncodingResult, benchmark_run_out_dir: Path, prepend: str
   ) -> list[Path]:
     return []

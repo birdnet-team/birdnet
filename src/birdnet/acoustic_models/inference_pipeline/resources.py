@@ -14,12 +14,13 @@ from typing import cast, final
 
 import numpy as np
 
-from birdnet.acoustic_models.inference_pipeline.logging import add_session_queue_handler
 from birdnet.acoustic_models.inference.perf_tracker import PerformanceTrackingResult
 from birdnet.acoustic_models.inference_pipeline.configs import (
   PredictionConfig,
 )
+from birdnet.acoustic_models.inference_pipeline.logging import add_session_queue_handler
 from birdnet.backends import BackendLoader
+from birdnet.base import get_session_id_hash
 from birdnet.globals import (
   MODEL_TYPE_ACOUSTIC,
   PKG_NAME,
@@ -65,7 +66,9 @@ class ResourceManager:
     self, session_id: str, benchmark_dir_name: str
   ) -> PipelineResources:
     assert self._resources is None
-    stats_resources = StatisticsResources.create(self.conf, benchmark_dir_name)
+    stats_resources = StatisticsResources.create(
+      session_id, self.conf, benchmark_dir_name
+    )
     logging_resources = LoggingResources.create(session_id, stats_resources)
     processing_resources = ProcessingResources.create()
     analyzer_resources = FilesAnalyzerResources.create(self.conf)
@@ -417,6 +420,7 @@ class StatisticsResources:
   @classmethod
   def create(
     cls,
+    session_id: str,
     conf: PredictionConfig,
     benchmark_dir_name: str,
   ) -> StatisticsResources:
@@ -446,8 +450,11 @@ class StatisticsResources:
       benchmark_dir = get_benchmark_dir(
         model=MODEL_TYPE_ACOUSTIC, dir_name=benchmark_dir_name
       )
+      session_id_hash = get_session_id_hash(session_id)
       start_iso_time = get_iso_time(start_timepoint)
-      benchmark_session_dir = benchmark_dir / f"session-{start_iso_time}"
+      benchmark_session_dir = (
+        benchmark_dir / f"{start_iso_time}-session-{session_id_hash}"
+      )
       benchmark_session_dir.mkdir(parents=True, exist_ok=True)
 
     return StatisticsResources(
@@ -496,22 +503,26 @@ class LoggingResources:
     pass
 
   @classmethod
-  def create(cls, session_id: str, stats_resources: StatisticsResources) -> LoggingResources:
+  def create(
+    cls, session_id: str, stats_resources: StatisticsResources
+  ) -> LoggingResources:
+    session_id_hash = get_session_id_hash(session_id)
     if stats_resources.benchmarking:
       assert stats_resources.benchmark_session_dir is not None
       assert stats_resources.start_iso_time is not None
 
       session_log_file = (
-        stats_resources.benchmark_session_dir
-        / f"session_{session_id}_{stats_resources.start_iso_time}.log"
+        stats_resources.benchmark_session_dir / f"{session_id_hash}.log"
       )
       session_log_file.write_text("", encoding="utf-8")
       print(f"Writing logs to: {session_log_file.absolute()}")
     else:
-      session_log_file = Path(tempfile.gettempdir()) / f"{PKG_NAME}_session_{session_id}.log"
+      session_log_file = (
+        Path(tempfile.gettempdir()) / f"{PKG_NAME}_session_{session_id_hash}.log"
+      )
 
     global_log_file = (
-      Path(tempfile.gettempdir()) / f"{PKG_NAME}_session_{session_id}_{stats_resources.start_iso_time}.log"
+      Path(tempfile.gettempdir()) / f"{PKG_NAME}_session_{session_id}.log"
     )
 
     logging_queue = mp.Queue()

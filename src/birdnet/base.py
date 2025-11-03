@@ -7,6 +7,7 @@ from typing import Self
 
 from ordered_set import OrderedSet
 
+from birdnet.helper import get_hash
 
 
 class PredictionResultBase(ABC):
@@ -61,6 +62,11 @@ def get_session_id() -> str:
   timestamp = time.time_ns()
   result = f"{proc.ident}_{thread.ident}_{timestamp}"
   return result
+
+
+def get_session_id_hash(session_id: str) -> str:
+  hash_digest = get_hash(session_id)[:5]
+  return hash_digest
 
 
 class ModelBase(ABC):

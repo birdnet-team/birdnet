@@ -79,5 +79,5 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
 
   @abstractmethod
   def save_results_extra(
-    self, result: ResultType, benchmark_run_out_dir: Path, iso_time: str
+    self, result: ResultType, benchmark_run_out_dir: Path, prepend: str
   ) -> list[Path]: ...

@@ -284,10 +284,10 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
     return "scores"
 
   def save_results_extra(
-    self, result: PredictionResult, benchmark_run_out_dir: Path, iso_time: str
+    self, result: PredictionResult, benchmark_run_out_dir: Path, prepend: str
   ) -> list[Path]:
     print("Saving result using CSV format (.csv)...")
-    csv_path = benchmark_run_out_dir / f"result-{iso_time}.csv"
+    csv_path = benchmark_run_out_dir / f"{prepend}-result.csv"
     result.to_csv(csv_path, encoding="utf-8", silent=False)
     return [csv_path]
 
