@@ -1,9 +1,9 @@
 [project]
 name = "birdnet"
-version = "0.2.2"
+version = "0.2.3"
 description = "A Python library for identifying bird species by their sounds."
 readme = "README.md"
-requires-python = ">=3.12, <3.13"
+requires-python = ">=3.11, <3.13"
 license = { text = "MIT" }
 authors = [{ name = "Stefan Taubert" }]
 maintainers = [{ name = "Stefan Taubert" }]
@@ -25,6 +25,7 @@ classifiers = [
   "Operating System :: Microsoft :: Windows",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "License :: OSI Approved :: MIT License",
 ]
@@ -114,7 +115,7 @@ known-first-party = ["birdnet*"]
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-envlist = py{312}
+envlist = py{311,312}
 isolated_build = True
 
 [testenv]

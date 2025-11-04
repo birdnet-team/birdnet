@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3]
+
+### Added
+
+- Added support for Python 3.12
+
+### Changed
+
+- Changed tensorflow to newest version 2.20.0
+
 ## [0.2.2]
 
 ### Added
