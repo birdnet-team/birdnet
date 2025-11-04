@@ -2,6 +2,7 @@ import contextlib
 import ctypes
 import importlib.util
 import os
+import subprocess
 import threading
 import time
 from collections.abc import Callable, Generator
@@ -14,6 +15,17 @@ from birdnet.backends import litert_installed
 
 
 def ensure_gpu_or_skip() -> None:
+  gpu_available = False
+  try:
+    subprocess.check_output("nvidia-smi")
+    gpu_available = True
+  except Exception:
+    pass
+  if not gpu_available:
+    pytest.skip("Nvidia GPU not available")
+
+
+def ensure_gpu_or_skip_old() -> None:
   cuda_available = importlib.util.find_spec("nvidia", "cuda_runtime") is not None
   if not cuda_available:
     pytest.skip("Nvidia CUDA runtime not available")

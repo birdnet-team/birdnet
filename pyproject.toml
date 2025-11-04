@@ -128,7 +128,7 @@ deps =
   pytest-xdist
   mypy
   ruff
-  .[litert]
+  .[litert,and-cuda]
 commands = 
   # ruff check src/birdnet
   # ruff check src/birdnet_tests
