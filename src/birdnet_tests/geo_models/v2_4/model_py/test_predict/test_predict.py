@@ -49,6 +49,7 @@ def test_pb_cpu() -> None:
 
 def test_pb_gpu() -> None:
   ensure_gpu_or_skip()
+
   model = load("geo", "2.4", "pb", precision="fp32")
   result = model.predict(
     20,

@@ -9,7 +9,7 @@ from tqdm import tqdm
 from birdnet.geo_models.inference.prediction_result import PredictionResult
 from birdnet.geo_models.v2_4.model import GeoModelV2_4
 from birdnet.model_loader import load
-from birdnet_tests.helper import ensure_litert_or_skip
+from birdnet_tests.helper import ensure_gpu_or_skip, ensure_litert_or_skip
 
 
 @dataclass()
@@ -33,11 +33,12 @@ TEST_CASES_REF_DIR = Path(__file__).with_suffix("")
 
 def predict_test_cases(
   model: GeoModelV2_4,
+  device: str = "CPU",
 ) -> Generator[tuple[int, PredictionResult], None, None]:
   for case_nr, default in tqdm(list(TEST_CASES.items())):
     with model.predict_session(
       half_precision=False,
-      device="CPU",
+      device=device,
       min_confidence=default.min_confidence,
     ) as session:
       result = session.run(
@@ -90,9 +91,21 @@ def assert_prediction_results_are_close(
   )
 
 
-def test_pb_is_very_close() -> None:
+def test_pb_cpu_is_very_close() -> None:
   model = load("geo", "2.4", "pb", precision="fp32")
-  for case_nr, result in predict_test_cases(model):
+  for case_nr, result in predict_test_cases(model, device="CPU"):
+    ref_case_file = TEST_CASES_REF_DIR / f"{case_nr}.npz"
+    ref_result = PredictionResult.load(ref_case_file)
+    assert_prediction_results_are_close(
+      result, ref_result, case_nr, rtol=0.00001, atol=1e-8
+    )
+
+
+def test_pb_gpu_is_very_close() -> None:
+  ensure_gpu_or_skip()
+
+  model = load("geo", "2.4", "pb", precision="fp32")
+  for case_nr, result in predict_test_cases(model, device="GPU"):
     ref_case_file = TEST_CASES_REF_DIR / f"{case_nr}.npz"
     ref_result = PredictionResult.load(ref_case_file)
     assert_prediction_results_are_close(

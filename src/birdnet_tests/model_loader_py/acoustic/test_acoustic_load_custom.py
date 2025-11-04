@@ -15,7 +15,7 @@ from birdnet_tests.test_files import TEST_FILES_DIR
 @pytest.mark.litert
 def test_v2_4_pb_with_library_raises_error() -> None:
   ensure_litert_or_skip()
-  
+
   with pytest.raises(
     ValueError,
     match=r"Unexpected keyword arguments: library.",
@@ -67,7 +67,7 @@ def test_v2_4_tf_fp32() -> None:
 @pytest.mark.litert
 def test_v2_4_litert_fp32() -> None:
   ensure_litert_or_skip()
-  
+
   AcousticTFDownloaderV2_4.get_model_path_and_labels("en_us", "fp32")
   model = load_custom(
     "acoustic",
@@ -100,7 +100,7 @@ def test_v2_4_tf_fp16() -> None:
 @pytest.mark.litert
 def test_v2_4_litert_fp16() -> None:
   ensure_litert_or_skip()
-  
+
   AcousticTFDownloaderV2_4.get_model_path_and_labels("en_us", "fp16")
   model = load_custom(
     "acoustic",
@@ -133,7 +133,7 @@ def test_v2_4_tf_int8() -> None:
 @pytest.mark.litert
 def test_v2_4_litert_int8() -> None:
   ensure_litert_or_skip()
-  
+
   AcousticTFDownloaderV2_4.get_model_path_and_labels("en_us", "int8")
   model = load_custom(
     "acoustic",
@@ -255,7 +255,7 @@ def test_types_with_precisions_are_correct() -> None:
 @pytest.mark.litert
 def test_custom_from_analyzer_v2_4_litert_fp32() -> None:
   ensure_litert_or_skip()
-  
+
   model = load_custom(
     "acoustic",
     "2.4",
