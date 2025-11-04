@@ -4,6 +4,7 @@ import threading
 from queue import Queue
 
 import numpy
+import pytest
 
 from birdnet.model_loader import load
 from birdnet_tests.helper import (
@@ -48,6 +49,7 @@ def test_tf_int8() -> None:
   numpy.testing.assert_almost_equal(mean, 0.06216, decimal=2)
 
 
+@pytest.mark.litert
 def test_litert_fp32() -> None:
   ensure_litert_or_skip()
 
@@ -59,6 +61,7 @@ def test_litert_fp32() -> None:
   numpy.testing.assert_almost_equal(mean, 0.06287, decimal=4)
 
 
+@pytest.mark.litert
 def test_litert_fp16() -> None:
   ensure_litert_or_skip()
 
@@ -70,6 +73,7 @@ def test_litert_fp16() -> None:
   numpy.testing.assert_almost_equal(mean, 0.06305, decimal=4)
 
 
+@pytest.mark.litert
 def test_litert_int8() -> None:
   ensure_litert_or_skip()
 
@@ -92,6 +96,18 @@ def test_tf_fp32_twice_two_sessions() -> None:
   numpy.testing.assert_almost_equal(mean, 0.06287, decimal=4)
 
 
+@pytest.mark.litert
+def test_litert_fp32_twice_two_sessions() -> None:
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="litert")
+  with model.predict_session(n_workers=1) as session:
+    res = session.run(TEST_FILE_WAV)
+  with model.predict_session(n_workers=1) as session:
+    res = session.run(TEST_FILE_WAV)
+  mean = res.species_probs.mean()
+  assert res.species_probs.shape == (1, 40, 5)
+  numpy.testing.assert_almost_equal(mean, 0.06287, decimal=4)
+
+
 def run_session(
   x: multiprocessing.synchronize.Barrier, queue: multiprocessing.Queue
 ) -> None:
@@ -104,6 +120,7 @@ def run_session(
 
 def test_tf_fp32_twice_two_sessions_parallel_processes_fork() -> None:
   use_fork_or_skip()
+
   with multiprocessing.Manager() as manager:
     x = manager.Barrier(2)
     queue = manager.Queue()

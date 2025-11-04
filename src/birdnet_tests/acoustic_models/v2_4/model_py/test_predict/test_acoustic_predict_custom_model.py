@@ -1,4 +1,5 @@
 import numpy.testing
+import pytest
 
 from birdnet.model_loader import load_custom
 from birdnet_tests.helper import ensure_litert_or_skip
@@ -22,9 +23,10 @@ def test_custom_from_analyzer_v2_4_tf_fp32() -> None:
   numpy.testing.assert_almost_equal(mean, 0.1442, decimal=4)
 
 
+@pytest.mark.litert
 def test_custom_from_analyzer_v2_4_litert_fp32() -> None:
   ensure_litert_or_skip()
-  
+
   model = load_custom(
     "acoustic",
     "2.4",

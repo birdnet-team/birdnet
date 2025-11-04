@@ -55,7 +55,7 @@ Issues = "https://github.com/birdnet-team/birdnet/issues"
 birdnet-benchmark = "birdnet.benchmark_script:run_benchmark"
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
@@ -72,6 +72,9 @@ log_cli = true
 log_level = "DEBUG"
 testpaths = ["src/birdnet_tests"]
 norecursedirs = ["src/birdnet_v1_tests"]
+markers = [
+  "litert: tests requiring ai_edge_litert backend which can not be loaded after tf is imported (raises ImportError) which happens on parallel test runs",
+]
 
 [tool.ruff]
 src = ["src/birdnet"]
@@ -111,7 +114,7 @@ known-first-party = ["birdnet*"]
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-envlist = py{311}
+envlist = py{312}
 isolated_build = True
 
 [testenv]
@@ -128,10 +131,8 @@ deps =
 commands = 
   # ruff check src/birdnet
   # ruff check src/birdnet_tests
-  pytest -n auto \
-    --cov=src/birdnet \
-    --cov-append \
-    --cov-report=
+  pytest -m "not litert" -n auto
+  pytest -m "litert" -n auto
 """
 
 [build-system]

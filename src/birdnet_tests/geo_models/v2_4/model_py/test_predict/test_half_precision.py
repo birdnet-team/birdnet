@@ -1,12 +1,14 @@
 import numpy.testing
+import pytest
 
 from birdnet.model_loader import load
 from birdnet_tests.helper import ensure_litert_or_skip
 
 
+@pytest.mark.litert
 def test_litert_half():
   ensure_litert_or_skip()
-  
+
   model = load("geo", "2.4", "tf", precision="fp32", library="litert")
   result = model.predict(
     20,

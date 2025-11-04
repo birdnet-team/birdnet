@@ -1,5 +1,5 @@
-
 import numpy
+import pytest
 
 from birdnet.model_loader import load
 from birdnet_tests.helper import (
@@ -11,6 +11,7 @@ from birdnet_tests.helper import (
 from birdnet_tests.test_files import TEST_FILE_WAV
 
 
+@pytest.mark.litert
 def test_litert_fork() -> None:
   ensure_litert_or_skip()
   use_fork_or_skip()
@@ -39,6 +40,7 @@ def test_pb_fork() -> None:
   numpy.testing.assert_almost_equal(result.species_probs.mean(), 0.06287, decimal=5)
 
 
+@pytest.mark.litert
 def test_litert_forkserver() -> None:
   ensure_litert_or_skip()
   use_forkserver_or_skip()
@@ -67,6 +69,7 @@ def test_pb_forkserver() -> None:
   numpy.testing.assert_almost_equal(result.species_probs.mean(), 0.06287, decimal=5)
 
 
+@pytest.mark.litert
 def test_litert_spawn() -> None:
   ensure_litert_or_skip()
   use_spawn_or_skip()

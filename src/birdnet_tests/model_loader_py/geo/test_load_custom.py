@@ -12,7 +12,7 @@ from birdnet_tests.helper import ensure_litert_or_skip
 
 def test_load_pb_with_custom_library_raises_error() -> None:
   ensure_litert_or_skip()
-  
+
   with pytest.raises(
     ValueError,
     match=r"Unexpected keyword arguments: library.",
@@ -57,6 +57,7 @@ def test_load_custom_geo_model_v2_4_tf_fp32() -> None:
   assert isinstance(model, GeoModelV2_4)
 
 
+@pytest.mark.litert
 def test_load_custom_geo_model_v2_4_litert_fp32() -> None:
   GeoTFDownloaderV2_4.get_model_path_and_labels("en_us")
   model = load_custom(

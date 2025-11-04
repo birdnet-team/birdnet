@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Generator
 
 import numpy.testing
+import pytest
 from tqdm import tqdm
 
 from birdnet.geo_models.inference.prediction_result import PredictionResult
@@ -107,9 +108,10 @@ def test_tf32_is_same() -> None:
     assert_prediction_results_are_close(result, ref_result, case_nr, rtol=0, atol=0)
 
 
+@pytest.mark.litert
 def test_tf32_litert_is_very_close() -> None:
   ensure_litert_or_skip()
-  
+
   model = load("geo", "2.4", "tf", precision="fp32", library="litert")
   for case_nr, result in predict_test_cases(model):
     ref_case_file = TEST_CASES_REF_DIR / f"{case_nr}.npz"

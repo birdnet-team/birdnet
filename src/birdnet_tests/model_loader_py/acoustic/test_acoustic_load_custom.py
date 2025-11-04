@@ -12,6 +12,7 @@ from birdnet_tests.helper import ensure_litert_or_skip
 from birdnet_tests.test_files import TEST_FILES_DIR
 
 
+@pytest.mark.litert
 def test_v2_4_pb_with_library_raises_error() -> None:
   ensure_litert_or_skip()
   
@@ -63,6 +64,7 @@ def test_v2_4_tf_fp32() -> None:
   assert isinstance(model, AcousticModelV2_4)
 
 
+@pytest.mark.litert
 def test_v2_4_litert_fp32() -> None:
   ensure_litert_or_skip()
   
@@ -95,6 +97,7 @@ def test_v2_4_tf_fp16() -> None:
   assert isinstance(model, AcousticModelV2_4)
 
 
+@pytest.mark.litert
 def test_v2_4_litert_fp16() -> None:
   ensure_litert_or_skip()
   
@@ -127,6 +130,7 @@ def test_v2_4_tf_int8() -> None:
   assert isinstance(model, AcousticModelV2_4)
 
 
+@pytest.mark.litert
 def test_v2_4_litert_int8() -> None:
   ensure_litert_or_skip()
   
@@ -248,6 +252,7 @@ def test_types_with_precisions_are_correct() -> None:
   )
 
 
+@pytest.mark.litert
 def test_custom_from_analyzer_v2_4_litert_fp32() -> None:
   ensure_litert_or_skip()
   
