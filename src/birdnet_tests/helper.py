@@ -1,6 +1,7 @@
 import contextlib
 import ctypes
 import importlib.util
+import multiprocessing as mp
 import os
 import subprocess
 import threading
@@ -14,7 +15,29 @@ import pytest
 from birdnet.backends import litert_installed
 
 
+def _check_tf_gpu() -> bool:
+  try:
+    import tensorflow as tf
+
+    devices = tf.config.list_physical_devices("GPU")
+    return len(devices) > 0
+  except Exception:
+    return False
+
+
+def tensorflow_gpu_available() -> bool:
+  ctx = mp.get_context()
+  with ctx.Pool(1) as pool:
+    result = pool.apply(_check_tf_gpu)
+  return result
+
+
 def ensure_gpu_or_skip() -> None:
+  if not tensorflow_gpu_available():
+    pytest.skip("GPU not available")
+
+
+def ensure_gpu_or_skip_smi() -> None:
   gpu_available = False
   try:
     subprocess.check_output("nvidia-smi")
