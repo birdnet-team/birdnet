@@ -9,7 +9,7 @@ from tqdm import tqdm
 from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
 from birdnet.acoustic_models.v2_4.model import AcousticModelV2_4
 from birdnet.model_loader import load
-from birdnet_tests.helper import ensure_litert_or_skip
+from birdnet_tests.helper import ensure_gpu_or_skip, ensure_litert_or_skip
 from birdnet_tests.test_files import TEST_FILE_WAV
 
 
@@ -39,6 +39,7 @@ TEST_CASES_REF_DIR = Path(__file__).with_suffix("")
 
 def predict_test_cases(
   model: AcousticModelV2_4,
+  device: str = "CPU",
 ) -> Generator[tuple[int, PredictionResult], None, None]:
   for case_nr, default in tqdm(list(TEST_CASES.items())):
     with model.predict_session(
@@ -49,7 +50,7 @@ def predict_test_cases(
       half_precision=False,
       show_stats=None,
       max_audio_duration_min=None,
-      device="CPU",
+      device=device,
       max_n_files=1,
       batch_size=1,
       overlap_duration_s=default.chunk_overlap_s,
@@ -78,11 +79,12 @@ def assert_prediction_results_are_close(
   rtol: float,
   atol: float,
 ) -> None:
-  numpy.testing.assert_equal(
-    result.files,
-    ref_result.files,
-    err_msg=f"Files do not match for test case '{case_nr}'",
-  )
+  # filepaths differ on different systems
+  # numpy.testing.assert_equal(
+  #   result.files,
+  #   ref_result.files,
+  #   err_msg=f"Files do not match for test case '{case_nr}'",
+  # )
 
   numpy.testing.assert_equal(
     result.file_durations,
@@ -120,9 +122,21 @@ def assert_prediction_results_are_close(
   )
 
 
-def test_pb_is_close() -> None:
+def test_pb_cpu_is_close() -> None:
   model = load("acoustic", "2.4", "pb", precision="fp32")
   for case_nr, result in predict_test_cases(model):
+    ref_case_file = TEST_CASES_REF_DIR / f"{case_nr}.npz"
+    ref_result = PredictionResult.load(ref_case_file)
+    assert_prediction_results_are_close(
+      result, ref_result, case_nr, rtol=0.02, atol=1e-8
+    )
+
+
+def test_pb_gpu_is_close() -> None:
+  ensure_gpu_or_skip()
+
+  model = load("acoustic", "2.4", "pb", precision="fp32")
+  for case_nr, result in predict_test_cases(model, device="GPU"):
     ref_case_file = TEST_CASES_REF_DIR / f"{case_nr}.npz"
     ref_result = PredictionResult.load(ref_case_file)
     assert_prediction_results_are_close(

@@ -2,7 +2,7 @@ import numpy.testing
 import pytest
 
 from birdnet.model_loader import load
-from birdnet_tests.helper import ensure_litert_or_skip
+from birdnet_tests.helper import ensure_gpu_or_skip, ensure_litert_or_skip
 
 
 @pytest.mark.litert
@@ -34,7 +34,7 @@ def test_tf():
   numpy.testing.assert_almost_equal(result.species_probs.mean(), 0.030548334, decimal=8)
 
 
-def test_pb():
+def test_pb_cpu() -> None:
   model = load("geo", "2.4", "pb", precision="fp32")
   result = model.predict(
     20,
@@ -42,6 +42,21 @@ def test_pb():
     week=1,
     min_confidence=0.03,
     half_precision=False,
+  )
+
+  numpy.testing.assert_almost_equal(result.species_probs.mean(), 0.030548334, decimal=8)
+
+
+def test_pb_gpu() -> None:
+  ensure_gpu_or_skip()
+  model = load("geo", "2.4", "pb", precision="fp32")
+  result = model.predict(
+    20,
+    50,
+    week=1,
+    min_confidence=0.03,
+    half_precision=False,
+    device="GPU",
   )
 
   numpy.testing.assert_almost_equal(result.species_probs.mean(), 0.030548334, decimal=8)

@@ -1,5 +1,6 @@
 import contextlib
 import ctypes
+import importlib.util
 import os
 import threading
 import time
@@ -11,9 +12,17 @@ import pytest
 
 from birdnet.backends import litert_installed
 
+
+def ensure_gpu_or_skip() -> None:
+  cuda_available = importlib.util.find_spec("nvidia", "cuda_runtime") is not None
+  if not cuda_available:
+    pytest.skip("Nvidia CUDA runtime not available")
+
+
 def ensure_litert_or_skip() -> None:
   if not litert_installed():
     pytest.skip("litert library is not available")
+
 
 def use_forkserver_or_skip() -> None:
   if "forkserver" in get_all_start_methods():

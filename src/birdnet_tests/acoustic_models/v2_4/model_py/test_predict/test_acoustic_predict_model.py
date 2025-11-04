@@ -8,6 +8,7 @@ import pytest
 
 from birdnet.model_loader import load
 from birdnet_tests.helper import (
+  ensure_gpu_or_skip,
   ensure_litert_or_skip,
   use_fork_or_skip,
   use_forkserver_or_skip,
@@ -16,9 +17,19 @@ from birdnet_tests.helper import (
 from birdnet_tests.test_files import TEST_FILE_WAV
 
 
-def test_pb_fp32() -> None:
+def test_pb_cpu_fp32() -> None:
   model = load("acoustic", "2.4", "pb", precision="fp32")
-  res = model.predict(TEST_FILE_WAV, n_workers=1)
+  res = model.predict(TEST_FILE_WAV, n_workers=1, device="CPU")
+  mean = res.species_probs.mean()
+  assert res.species_probs.shape == (1, 40, 5)
+  numpy.testing.assert_almost_equal(mean, 0.06287, decimal=4)
+
+
+def test_pb_gpu_fp32() -> None:
+  ensure_gpu_or_skip()
+
+  model = load("acoustic", "2.4", "pb", precision="fp32")
+  res = model.predict(TEST_FILE_WAV, n_workers=1, device="GPU")
   mean = res.species_probs.mean()
   assert res.species_probs.shape == (1, 40, 5)
   numpy.testing.assert_almost_equal(mean, 0.06287, decimal=4)
@@ -243,7 +254,7 @@ def test_tf_fp32_twice_same_session() -> None:
   numpy.testing.assert_almost_equal(mean, 0.06287, decimal=4)
 
 
-def test_pb_fp32_twice_two_sessions() -> None:
+def test_pb_cpu_fp32_twice_two_sessions() -> None:
   model = load("acoustic", "2.4", "pb", precision="fp32")
   with model.predict_session(n_workers=1) as session:
     res = session.run(TEST_FILE_WAV)
@@ -254,9 +265,34 @@ def test_pb_fp32_twice_two_sessions() -> None:
   numpy.testing.assert_almost_equal(mean, 0.06287, decimal=4)
 
 
-def test_pb_fp32_twice_same_session() -> None:
+def test_pb_gpu_fp32_twice_two_sessions() -> None:
+  ensure_gpu_or_skip()
+
+  model = load("acoustic", "2.4", "pb", precision="fp32")
+  with model.predict_session(n_workers=1, device="GPU") as session:
+    res = session.run(TEST_FILE_WAV)
+  with model.predict_session(n_workers=1, device="GPU") as session:
+    res = session.run(TEST_FILE_WAV)
+  mean = res.species_probs.mean()
+  assert res.species_probs.shape == (1, 40, 5)
+  numpy.testing.assert_almost_equal(mean, 0.06287, decimal=4)
+
+
+def test_pb_cpu_fp32_twice_same_session() -> None:
   model = load("acoustic", "2.4", "pb", precision="fp32")
   with model.predict_session(n_workers=1) as session:
+    res = session.run(TEST_FILE_WAV)
+    res = session.run(TEST_FILE_WAV)
+  mean = res.species_probs.mean()
+  assert res.species_probs.shape == (1, 40, 5)
+  numpy.testing.assert_almost_equal(mean, 0.06287, decimal=4)
+
+
+def test_pb_gpu_fp32_twice_same_session() -> None:
+  ensure_gpu_or_skip()
+
+  model = load("acoustic", "2.4", "pb", precision="fp32")
+  with model.predict_session(n_workers=1, device="GPU") as session:
     res = session.run(TEST_FILE_WAV)
     res = session.run(TEST_FILE_WAV)
   mean = res.species_probs.mean()
