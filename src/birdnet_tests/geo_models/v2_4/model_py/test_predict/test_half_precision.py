@@ -48,6 +48,7 @@ def test_pb_cpu_half() -> None:
   numpy.testing.assert_almost_equal(result.species_probs.mean(), 0.03055, decimal=5)
 
 
+@pytest.mark.gpu
 def test_pb_gpu_half() -> None:
   ensure_gpu_or_skip()
 

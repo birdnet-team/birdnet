@@ -25,6 +25,7 @@ def test_pb_cpu_fp32() -> None:
   numpy.testing.assert_almost_equal(mean, 0.06287, decimal=4)
 
 
+@pytest.mark.gpu
 def test_pb_gpu_fp32() -> None:
   ensure_gpu_or_skip()
 
@@ -265,6 +266,7 @@ def test_pb_cpu_fp32_twice_two_sessions() -> None:
   numpy.testing.assert_almost_equal(mean, 0.06287, decimal=4)
 
 
+@pytest.mark.gpu
 def test_pb_gpu_fp32_twice_two_sessions() -> None:
   ensure_gpu_or_skip()
 
@@ -288,6 +290,7 @@ def test_pb_cpu_fp32_twice_same_session() -> None:
   numpy.testing.assert_almost_equal(mean, 0.06287, decimal=4)
 
 
+@pytest.mark.gpu
 def test_pb_gpu_fp32_twice_same_session() -> None:
   ensure_gpu_or_skip()
 

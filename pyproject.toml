@@ -75,6 +75,7 @@ testpaths = ["src/birdnet_tests"]
 norecursedirs = ["src/birdnet_v1_tests"]
 markers = [
   "litert: tests requiring ai_edge_litert backend which can not be loaded after tf is imported (raises ImportError) which happens on parallel test runs",
+  "gpu: tests requiring a GPU to run and to be runned sequentially",
 ]
 
 [tool.ruff]
@@ -132,8 +133,9 @@ deps =
 commands = 
   # ruff check src/birdnet
   # ruff check src/birdnet_tests
-  pytest -m "not litert" -n auto
+  pytest -m "not litert and not gpu" -n auto
   pytest -m "litert" -n auto
+  pytest -m "gpu" -n 1
 """
 
 [build-system]

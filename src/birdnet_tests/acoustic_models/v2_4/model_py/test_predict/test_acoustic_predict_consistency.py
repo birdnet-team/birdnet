@@ -132,6 +132,7 @@ def test_pb_cpu_is_close() -> None:
     )
 
 
+@pytest.mark.gpu
 def test_pb_gpu_is_close() -> None:
   ensure_gpu_or_skip()
 

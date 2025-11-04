@@ -41,6 +41,7 @@ def test_pb_cpu_fork() -> None:
   numpy.testing.assert_almost_equal(result.species_probs.mean(), 0.06287, decimal=5)
 
 
+@pytest.mark.gpu
 def test_pb_gpu_fork() -> None:
   ensure_gpu_or_skip()
   use_fork_or_skip()
@@ -80,6 +81,7 @@ def test_pb_cpu_forkserver() -> None:
   numpy.testing.assert_almost_equal(result.species_probs.mean(), 0.06287, decimal=5)
 
 
+@pytest.mark.gpu
 def test_pb_gpu_forkserver() -> None:
   ensure_gpu_or_skip()
   use_forkserver_or_skip()
@@ -119,6 +121,7 @@ def test_pb_cpu_spawn() -> None:
   numpy.testing.assert_almost_equal(result.species_probs.mean(), 0.06287, decimal=5)
 
 
+@pytest.mark.gpu
 def test_pb_gpu_spawn() -> None:
   ensure_gpu_or_skip()
   use_spawn_or_skip()

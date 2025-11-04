@@ -106,6 +106,7 @@ def test_pb_cpu_is_close() -> None:
     assert_encoding_results_are_close(result, ref_result, case_nr, rtol=0.01, atol=0.01)
 
 
+@pytest.mark.gpu
 def test_pb_gpu_is_close() -> None:
   ensure_gpu_or_skip()
 
