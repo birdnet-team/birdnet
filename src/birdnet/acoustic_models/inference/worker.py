@@ -288,7 +288,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
         self._sem_active_workers.release()
 
       perf_c = time.perf_counter()
-      n = self._ring_batch_sizes[claimed_slot]
+      n = int(self._ring_batch_sizes[claimed_slot])
       audio_samples = self._ring_audio_samples[claimed_slot, :n]
       file_indices = self._ring_file_indices[claimed_slot, :n].copy()  # copy needed
       segment_indices = self._ring_segment_indices[

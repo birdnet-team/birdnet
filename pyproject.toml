@@ -33,7 +33,7 @@ dependencies = [
   "soundfile==0.12.1",
   "scipy==1.16.3",
   "ordered-set==4.1.0",
-  "tqdm==4.64.1",
+  "tqdm==4.67.1",
   "numpy==2.3.4",
   "numba==0.62.1",
   "pandas==2.3.3",

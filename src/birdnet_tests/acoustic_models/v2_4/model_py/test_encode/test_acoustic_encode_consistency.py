@@ -22,8 +22,8 @@ class AudioTestCase:
 
 TEST_CASES = {
   1: AudioTestCase(),
-  4: AudioTestCase(chunk_overlap_s=0.5),
-  5: AudioTestCase(bandpass_fmin=1_000, bandpass_fmax=8_000),
+  2: AudioTestCase(chunk_overlap_s=0.5),
+  3: AudioTestCase(bandpass_fmin=1_000, bandpass_fmax=8_000),
 }
 TEST_CASES_REF_DIR = Path(__file__).with_suffix("")
 

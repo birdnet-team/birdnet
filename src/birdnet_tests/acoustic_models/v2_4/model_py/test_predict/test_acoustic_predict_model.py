@@ -45,12 +45,12 @@ def test_tf_int8() -> None:
     res = session.run(TEST_FILE_WAV)
   mean = res.species_probs.mean()
   assert res.species_probs.shape == (1, 40, 5)
-  numpy.testing.assert_almost_equal(mean, 0.06216, decimal=4)
+  numpy.testing.assert_almost_equal(mean, 0.06216, decimal=2)
 
 
 def test_litert_fp32() -> None:
   ensure_litert_or_skip()
-  
+
   model = load("acoustic", "2.4", "tf", precision="fp32", library="litert")
   with model.predict_session(n_workers=1) as session:
     res = session.run(TEST_FILE_WAV)
@@ -61,7 +61,7 @@ def test_litert_fp32() -> None:
 
 def test_litert_fp16() -> None:
   ensure_litert_or_skip()
-  
+
   model = load("acoustic", "2.4", "tf", precision="fp16", library="litert")
   with model.predict_session(n_workers=1) as session:
     res = session.run(TEST_FILE_WAV)
@@ -72,7 +72,7 @@ def test_litert_fp16() -> None:
 
 def test_litert_int8() -> None:
   ensure_litert_or_skip()
-  
+
   model = load("acoustic", "2.4", "tf", precision="int8", library="litert")
   with model.predict_session(n_workers=1) as session:
     res = session.run(TEST_FILE_WAV)

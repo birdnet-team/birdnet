@@ -52,11 +52,11 @@ class EncodingResult(PredictionResultBase):
 
   @property
   def segment_duration_s(self) -> float:
-    return float(self._segment_duration_s)
+    return float(self._segment_duration_s[0])
 
   @property
   def overlap_duration_s(self) -> float:
-    return float(self._overlap_duration_s)
+    return float(self._overlap_duration_s[0])
 
   @property
   def file_durations(self) -> np.ndarray:

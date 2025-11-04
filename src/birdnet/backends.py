@@ -523,18 +523,43 @@ def load_lib_tf_model(
   # f = open(self._model_path, "rb")
   # self._mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
   start = time.perf_counter()
-  try:
-    interp = tflite.Interpreter(
-      str(model_path.absolute()),
-      num_threads=1,
-      experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,
-      # tensor#187 is a dynamic-sized tensor # type: ignore
+
+  import warnings
+
+  # Suppress deprecation warning about tf.lite.Interpreter
+  # because the tf Interpreter is way faster than the litert one:
+  # -> e.g. 183 seg/s vs. 238 seg/s
+  # ---
+  # "tensorflow/lite/python/interpreter.py:457: UserWarning:
+  # Warning: tf.lite.Interpreter is deprecated and is scheduled for deletion in TF 2.20.
+  # Please use the LiteRT interpreter from the ai_edge_litert package.
+  # See the [migration guide](https://ai.google.dev/edge/litert/migration) for details."
+  # warnings.filterwarnings(
+  #   "ignore",
+  #   message=r".*tf\.lite\.Interpreter is deprecated.*",
+  #   category=UserWarning,
+  #   module="tensorflow.lite.python.interpreter",
+  # )
+  # ---
+  with warnings.catch_warnings():
+    warnings.filterwarnings(
+      "ignore",
+      message=r".*tf\.lite\.Interpreter is deprecated.*",
+      category=UserWarning,
+      module="tensorflow.lite.python.interpreter",
     )
-  except ValueError as e:
-    raise ValueError(
-      f"Failed to load model '{model_path.absolute()}' using 'tensorflow'. "
-      "Ensure it is a valid TFLite model."
-    ) from e
+    try:
+      interp = tflite.Interpreter(
+        str(model_path.absolute()),
+        num_threads=1,
+        experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,
+        # tensor#187 is a dynamic-sized tensor # type: ignore
+      )
+    except ValueError as e:
+      raise ValueError(
+        f"Failed to load model '{model_path.absolute()}' using 'tensorflow'. "
+        "Ensure it is a valid TFLite model."
+      ) from e
 
   end = time.perf_counter()
   logger = get_logger_for_package(__name__)

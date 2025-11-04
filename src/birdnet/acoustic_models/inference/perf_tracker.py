@@ -190,6 +190,9 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
   def _get_worker_stats(self) -> None:
     entry_count = self._wkr_stats_queue.qsize()
     for _ in range(entry_count):
+      stats: tuple[int, float, float, float, float, float, float, int] = (
+        self._wkr_stats_queue.get(block=True)
+      )
       (
         worker_pid,
         wall_time,
@@ -199,7 +202,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         dur_inference,
         dur_add_to_queue,
         batch_size,
-      ) = self._wkr_stats_queue.get(block=True)
+      ) = stats
       self._logger.debug(
         f"PerformanceTracker received prediction duration from worker {worker_pid}: "
         f"wall time: {wall_time:.3f}s, "
