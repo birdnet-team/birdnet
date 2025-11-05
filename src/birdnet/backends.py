@@ -334,11 +334,11 @@ class PBBackend(Backend, ABC):
     with device(self._logical_device.name):  # type: ignore
       # prediction = self._audio_model.basic(batch)["scores"]
       predictions = self._predict_fn(**{self.input_key(): batch})
-    scores: Tensor = predictions[self.scores_prediction_key()]
-    assert scores.dtype == float32
-    if self._half_precision:
-      # perform operation on GPU for faster conversion
-      scores = cast(scores, float16)
+      scores: Tensor = predictions[self.scores_prediction_key()]
+      assert scores.dtype == float32
+      if self._half_precision:
+        # perform operation on GPU for faster conversion
+        scores = cast(scores, float16)
     scores_np = scores.numpy()  # type: ignore
     if self._half_precision:
       assert scores_np.dtype == np.float16
