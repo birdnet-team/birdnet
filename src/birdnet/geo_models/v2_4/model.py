@@ -135,7 +135,7 @@ class GeoModelV2_4(GeoModelBase):
     /,
     *,
     min_confidence: float = 0.03,
-    half_precision: bool = True,
+    half_precision: bool = False,
     device: str = "CPU",
   ) -> ScoreSession:
     return ScoreSession(
@@ -158,7 +158,7 @@ class GeoModelV2_4(GeoModelBase):
     *,
     week: int | None = None,
     min_confidence: float = 0.03,
-    half_precision: bool = True,
+    half_precision: bool = False,
     device: str = "CPU",
   ) -> PredictionResult:
     with self.predict_session(

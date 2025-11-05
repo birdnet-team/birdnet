@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Increased half-precision prediction speed
 - Set "pyarrow==22.0.0"
 - Set "numpy==2.0.2" because of compatibility with `perch-hoplite`
+- Set default "half_precision" parameter to False because of lower speed
 
 ### Added
 
