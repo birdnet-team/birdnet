@@ -5,8 +5,8 @@ import multiprocessing as mp
 import numpy as np
 from numpy.typing import DTypeLike
 
-from birdnet.acoustic_models.inference_pipeline.logging import get_logger_from_session
 from birdnet.acoustic_models.inference.tensor import TensorBase
+from birdnet.acoustic_models.inference_pipeline.logging import get_logger_from_session
 from birdnet.helper import uint_dtype_for
 
 
@@ -17,7 +17,7 @@ class ScoresTensor(TensorBase):
     n_files: int,
     top_k: int,
     n_species: int,
-    prob_dtype: DTypeLike,
+    half_precision: bool,
     files_dtype: DTypeLike,
     segment_indices_dtype: DTypeLike,
     max_segment_index: mp.RawValue,  # TODO: watch max_n_segments instead
@@ -39,8 +39,10 @@ class ScoresTensor(TensorBase):
       ),
     )
 
+    _species_probs_type = np.float16 if half_precision else np.float32
+
     self._species_probs = np.empty(
-      (n_files, initial_n_segments, self._top_k), dtype=prob_dtype
+      (n_files, initial_n_segments, self._top_k), dtype=_species_probs_type
     )
 
     self._species_masked = np.full(

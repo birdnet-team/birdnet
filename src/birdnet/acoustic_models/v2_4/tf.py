@@ -128,8 +128,10 @@ class AcousticTFDownloaderV2_4(AcousticDownloaderBaseV2_4):
 
 
 class AcousticTFBackendInt8V2_4(TFBackend, VersionedAcousticBackendProtocol):
-  def __init__(self, model_path: Path, device_name: str, **kwargs: dict) -> None:
-    super().__init__(model_path, device_name, **kwargs)
+  def __init__(
+    self, model_path: Path, device_name: str, half_precision: bool, **kwargs: dict
+  ) -> None:
+    super().__init__(model_path, device_name, half_precision, **kwargs)
 
   @classmethod
   def in_idx(cls) -> int:
@@ -153,8 +155,10 @@ class AcousticTFBackendInt8V2_4(TFBackend, VersionedAcousticBackendProtocol):
 
 
 class AcousticTFBackendFP16V2_4(TFBackend, VersionedAcousticBackendProtocol):
-  def __init__(self, model_path: Path, device_name: str, **kwargs: dict) -> None:
-    super().__init__(model_path, device_name, **kwargs)
+  def __init__(
+    self, model_path: Path, device_name: str, half_precision: bool, **kwargs: dict
+  ) -> None:
+    super().__init__(model_path, device_name, half_precision, **kwargs)
 
   @classmethod
   def in_idx(cls) -> int:
@@ -178,8 +182,10 @@ class AcousticTFBackendFP16V2_4(TFBackend, VersionedAcousticBackendProtocol):
 
 
 class AcousticTFBackendFP32V2_4(TFBackend, VersionedAcousticBackendProtocol):
-  def __init__(self, model_path: Path, device_name: str, **kwargs: dict) -> None:
-    super().__init__(model_path, device_name, **kwargs)
+  def __init__(
+    self, model_path: Path, device_name: str, half_precision: bool, **kwargs: dict
+  ) -> None:
+    super().__init__(model_path, device_name, half_precision, **kwargs)
 
   @classmethod
   def in_idx(cls) -> int:

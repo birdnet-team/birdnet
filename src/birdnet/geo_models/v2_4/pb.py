@@ -97,8 +97,9 @@ class GeoPBBackendFP32V2_4(PBBackend, VersionedGeoBackendProtocol):
     self,
     model_path: Path,
     device_name: str,
+    half_precision: bool,
   ) -> None:
-    super().__init__(model_path, device_name)
+    super().__init__(model_path, device_name, half_precision)
 
   @classmethod
   def input_key(cls) -> str:

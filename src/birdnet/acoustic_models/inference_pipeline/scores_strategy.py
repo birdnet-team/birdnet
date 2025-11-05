@@ -76,7 +76,7 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
       n_files,
       top_k=self.get_top_k(config, specific_config),
       n_species=config.model_conf.n_species,
-      prob_dtype=config.processing_conf.result_dtype,
+      half_precision=config.processing_conf.half_precision,
       segment_indices_dtype=resources.ring_buffer_resources.rf_segment_indices.dtype,
       files_dtype=resources.ring_buffer_resources.rf_file_indices.dtype,
       max_segment_index=resources.analyzer_resources.max_segment_idx_ptr,
@@ -124,13 +124,13 @@ class ScoresStrategy(PredictionStrategy[PredictionResult, ScoresConfig, ScoresTe
         sem_fill=resources.ring_buffer_resources.sem_filled_slots,
         sem_free=resources.ring_buffer_resources.sem_free_slots,
         apply_sigmoid=specific_config.apply_sigmoid,
-        prob_dtype=config.processing_conf.result_dtype,
         sigmoid_sensitivity=specific_config.sigmoid_sensitivity,
         wkr_stats_queue=resources.stats_resources.wkr_stats_queue,
         cancel_event=resources.processing_resources.cancel_event,
         sem_active_workers=resources.stats_resources.sem_active_workers,
         end_event=resources.processing_resources.end_event,
         start_signal=resources.worker_resources.start_signals[i],
+        half_precision=config.processing_conf.half_precision,
       )
       for i in range(config.processing_conf.workers)
     ]

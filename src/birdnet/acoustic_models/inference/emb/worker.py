@@ -4,7 +4,6 @@ from multiprocessing import Queue
 from multiprocessing.synchronize import Event, Lock, Semaphore
 
 import numpy as np
-from numpy.typing import DTypeLike
 
 from birdnet.acoustic_models.inference.worker import WorkerBase
 from birdnet.backends import BackendLoader
@@ -29,7 +28,7 @@ class EmbeddingsWorker(WorkerBase):
     sem_free: Semaphore,
     sem_fill: Semaphore,
     sem_active_workers: Semaphore | None,
-    emb_dtype: DTypeLike,
+    half_precision: bool,
     wkr_stats_queue: Queue | None,
     logging_queue: Queue,
     logging_level: int,
@@ -56,7 +55,7 @@ class EmbeddingsWorker(WorkerBase):
       sem_free=sem_free,
       sem_fill=sem_fill,
       sem_active_workers=sem_active_workers,
-      infer_dtype=emb_dtype,
+      half_precision=half_precision,
       wkr_stats_queue=wkr_stats_queue,
       logging_queue=logging_queue,
       logging_level=logging_level,
@@ -78,6 +77,8 @@ class EmbeddingsWorker(WorkerBase):
   def _infer(self, batch: np.ndarray) -> np.ndarray:
     assert self._backend is not None
     res = self._backend.embed(batch)
-    assert res.dtype == np.float32
-    res = res.astype(self._infer_dtype, copy=False)
+    if self._half_precision:
+      assert res.dtype == np.float16
+    else:
+      assert res.dtype == np.float32
     return res

@@ -129,8 +129,10 @@ class AcousticPBBackendFP32V2_4(PBBackend, VersionedAcousticBackendProtocol):
 
 
 class AcousticRavenBackendFP32V2_4(PBBackend, VersionedAcousticBackendProtocol):
-  def __init__(self, model_path: Path, device_name: str, **kwargs: dict) -> None:
-    super().__init__(model_path, device_name, **kwargs)
+  def __init__(
+    self, model_path: Path, device_name: str, half_precision: bool, **kwargs: dict
+  ) -> None:
+    super().__init__(model_path, device_name, half_precision, **kwargs)
 
   @classmethod
   def name(cls) -> str:

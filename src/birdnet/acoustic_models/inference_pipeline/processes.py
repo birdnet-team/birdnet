@@ -193,7 +193,7 @@ class ProcessManager:
   def start_workers(self) -> list[mp.Process]:
     try:
       self._res.worker_resources.backend_loader.load_backend_in_main_process_if_possible(
-        self._res.worker_resources.devices
+        self._res.worker_resources.devices, self._cfg.processing_conf.half_precision
       )
     except Exception as exc:
       raise RuntimeError(f"Error during backend initialization: {exc}") from exc
@@ -205,7 +205,9 @@ class ProcessManager:
         daemon=True,
       )
       for i, w in enumerate(
-        self._strategy.create_workers(self._session_id, self._cfg, self._specific_cfg, self._res)
+        self._strategy.create_workers(
+          self._session_id, self._cfg, self._specific_cfg, self._res
+        )
       )
     ]
 
@@ -258,7 +260,9 @@ class ProcessManager:
       self.start_performance_tracker()
 
   def join_main_processes(self) -> None:
-    logger = birdnet.acoustic_models.inference_pipeline.logging.get_logger_from_session(self._session_id, __name__)
+    logger = birdnet.acoustic_models.inference_pipeline.logging.get_logger_from_session(
+      self._session_id, __name__
+    )
 
     logger.debug("Joining file analyzer thread...")
     assert self._analyzer_thread is not None
