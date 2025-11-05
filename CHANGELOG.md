@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Increased half-precision prediction speed
+- Set "pyarrow==22.0.0"
+
 
 ## [0.2.3] - 2025-11-04
 

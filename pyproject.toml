@@ -39,7 +39,7 @@ dependencies = [
   "numba==0.62.1",
   "pandas==2.3.3",
   "psutil==7.0.0",
-  "pyarrow==20.0.0",
+  "pyarrow==22.0.0",
   "tensorflow==2.20.0",
 ]
 
