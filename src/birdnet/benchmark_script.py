@@ -130,6 +130,13 @@ def run_benchmark_from_args(args: list[str]) -> None:
   )
 
   parser.add_argument(
+    "--half-precision",
+    action="store_true",
+    help="use half-precision (float16) for model inference (slower but uses less memory)",
+    default=False,
+  )
+
+  parser.add_argument(
     "-d",
     "--devices",
     type=parse_non_empty_or_whitespace,
@@ -179,6 +186,7 @@ def run_benchmark_from_args(args: list[str]) -> None:
 
 
 def run_benchmark_from_ns(ns: Namespace) -> None:
+  model: AcousticModelV2_4
   if ns.backend == MODEL_BACKEND_TF:
     model = birdnet.model_loader.load(
       MODEL_TYPE_ACOUSTIC,
@@ -187,26 +195,6 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
       precision=cast(MODEL_PRECISIONS, ns.precision),
       library=cast(LIBRARY_TYPES, ns.tf_library),
     )
-
-    model.predict(
-      ns.inputs,
-      top_k=ns.top_k,
-      n_feeders=ns.feeders,
-      n_workers=ns.workers,
-      batch_size=ns.batch_size,
-      overlap_duration_s=ns.overlap,
-      default_confidence_threshold=ns.confidence,
-      custom_confidence_thresholds=None,
-      apply_sigmoid=True,
-      sigmoid_sensitivity=1.0,
-      custom_species_list=None,
-      half_precision=True,
-      max_audio_duration_min=None,
-      show_stats=ns.show_stats,
-      prefetch_ratio=ns.prefetch_ratio,
-      bandpass_fmin=AcousticModelV2_4.get_sig_fmin(),
-      bandpass_fmax=AcousticModelV2_4.get_sig_fmax(),
-    )
   elif ns.backend == MODEL_BACKEND_PB:
     model = birdnet.model_loader.load(
       MODEL_TYPE_ACOUSTIC,
@@ -214,26 +202,26 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
       MODEL_BACKEND_PB,
       precision=MODEL_PRECISION_FP32,
     )
-
-    model.predict(
-      ns.inputs,
-      top_k=ns.top_k,
-      n_feeders=ns.feeders,
-      n_workers=ns.workers,
-      batch_size=ns.batch_size,
-      overlap_duration_s=ns.overlap,
-      default_confidence_threshold=ns.confidence,
-      custom_confidence_thresholds=None,
-      apply_sigmoid=True,
-      sigmoid_sensitivity=1.0,
-      custom_species_list=None,
-      half_precision=True,
-      max_audio_duration_min=None,
-      show_stats=ns.show_stats,
-      device=ns.devices if len(ns.devices) > 1 else ns.devices[0],
-      prefetch_ratio=ns.prefetch_ratio,
-      bandpass_fmin=AcousticModelV2_4.get_sig_fmin(),
-      bandpass_fmax=AcousticModelV2_4.get_sig_fmax(),
-    )
   else:
     raise AssertionError()
+
+  model.predict(
+    ns.inputs,
+    top_k=ns.top_k,
+    n_feeders=ns.feeders,
+    n_workers=ns.workers,
+    batch_size=ns.batch_size,
+    overlap_duration_s=ns.overlap,
+    default_confidence_threshold=ns.confidence,
+    custom_confidence_thresholds=None,
+    apply_sigmoid=True,
+    sigmoid_sensitivity=1.0,
+    custom_species_list=None,
+    half_precision=ns.half_precision,
+    max_audio_duration_min=None,
+    show_stats=ns.show_stats,
+    device=ns.devices if len(ns.devices) > 1 else ns.devices[0],
+    prefetch_ratio=ns.prefetch_ratio,
+    bandpass_fmin=AcousticModelV2_4.get_sig_fmin(),
+    bandpass_fmax=AcousticModelV2_4.get_sig_fmax(),
+  )
