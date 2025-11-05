@@ -1,6 +1,6 @@
 [project]
 name = "birdnet"
-version = "0.2.3"
+version = "0.2.4"
 description = "A Python library for identifying bird species by their sounds."
 readme = "README.md"
 requires-python = ">=3.11, <3.13"
@@ -35,11 +35,11 @@ dependencies = [
   "scipy==1.16.3",
   "ordered-set==4.1.0",
   "tqdm==4.67.1",
-  "numpy==2.3.4",
+  "numpy==2.0.2",
   "numba==0.62.1",
   "pandas==2.3.3",
   "psutil==7.0.0",
-  "pyarrow==20.0.0",
+  "pyarrow==22.0.0",
   "tensorflow==2.20.0",
 ]
 

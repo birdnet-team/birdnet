@@ -6,9 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, TypeVar
 
-import numpy as np
 import psutil
-from numpy.typing import DTypeLike
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.tensor import TensorBase
@@ -71,11 +69,6 @@ class ProcessingConfig:
   max_audio_duration_min: float | None
   device: str | list[str]
   max_n_files: int
-
-  @property
-  def result_dtype(self) -> DTypeLike:
-    result_dtype = np.float16 if self.half_precision else np.float32
-    return result_dtype
 
   @property
   def n_slots(self) -> int:

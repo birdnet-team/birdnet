@@ -8,8 +8,8 @@ from multiprocessing.synchronize import Event, Semaphore
 import numpy as np
 from numpy.typing import DTypeLike
 
-from birdnet.backends import BackendLoader
 from birdnet.acoustic_models.inference.worker import WorkerBase
+from birdnet.backends import BackendLoader
 from birdnet.helper import RingField, uint_dtype_for
 from birdnet.utils import flat_sigmoid_logaddexp_fast
 
@@ -35,7 +35,7 @@ class ScoresWorker(WorkerBase):
     sem_free: Semaphore,
     sem_fill: Semaphore,
     sem_active_workers: Semaphore | None,
-    prob_dtype: DTypeLike,
+    half_precision: bool,
     apply_sigmoid: bool,
     sigmoid_sensitivity: float | None,
     wkr_stats_queue: mp.Queue | None,
@@ -82,7 +82,7 @@ class ScoresWorker(WorkerBase):
       sem_free=sem_free,
       sem_fill=sem_fill,
       sem_active_workers=sem_active_workers,
-      infer_dtype=prob_dtype,
+      half_precision=half_precision,
       wkr_stats_queue=wkr_stats_queue,
       logging_queue=logging_queue,
       logging_level=logging_level,
@@ -96,8 +96,10 @@ class ScoresWorker(WorkerBase):
   def _infer(self, batch: np.ndarray) -> np.ndarray:
     assert self._backend is not None
     res = self._backend.predict(batch)
-    assert res.dtype == np.float32
-    res = res.astype(self._infer_dtype, copy=False)
+    if self._half_precision:
+      assert res.dtype == np.float16
+    else:
+      assert res.dtype == np.float32
     return res
 
   def _get_block(

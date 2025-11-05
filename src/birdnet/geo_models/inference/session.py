@@ -40,7 +40,9 @@ class GeoSessionBase(SessionBase, ABC):
       backend_kwargs=self._conf.model_conf.backend_kwargs,
     )
 
-    self._backend = self._backend_loader.load_backend(self._conf.processing_conf.device)
+    self._backend = self._backend_loader.load_backend(
+      self._conf.processing_conf.device, self._conf.processing_conf.half_precision
+    )
 
     self._is_initialized = True
     return self
@@ -58,8 +60,6 @@ class GeoSessionBase(SessionBase, ABC):
     )
 
     res = self._backend.predict(sample)
-    assert res.dtype == np.float32
-    res = res.astype(self._conf.processing_conf.prob_dtype, copy=False)
 
     res = np.squeeze(res, axis=0)
 

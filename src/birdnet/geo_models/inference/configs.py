@@ -2,8 +2,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-from numpy.typing import DTypeLike
 from ordered_set import OrderedSet
 
 from birdnet.backends import VersionedBackendProtocol
@@ -28,10 +26,6 @@ class ModelConfig:
 class ProcessingConfig:
   half_precision: bool
   device: str
-
-  @property
-  def prob_dtype(self) -> DTypeLike:
-    return np.float16 if self.half_precision else np.float32
 
   @classmethod
   def validate_device(

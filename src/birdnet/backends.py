@@ -37,9 +37,10 @@ if TYPE_CHECKING:
 
 
 class Backend(ABC):
-  def __init__(self, model_path: Path, device_name: str) -> None:
+  def __init__(self, model_path: Path, device_name: str, half_precision: bool) -> None:
     self._model_path = model_path
     self._device_name = device_name
+    self._half_precision = half_precision
 
   @abstractmethod
   def load(self) -> None: ...
@@ -125,10 +126,11 @@ class TFBackend(Backend, ABC):
     self,
     model_path: Path,
     device_name: str,
+    half_precision: bool,
     **kwargs: dict,
   ) -> None:
     assert device_name == "CPU"
-    super().__init__(model_path, device_name)
+    super().__init__(model_path, device_name, half_precision)
     self._interp: LiteRTInterpreter | TFInterpreter | None = None
     self._cached_shape: tuple[int, ...] | None = None
     assert TF_BACKEND_LIB_ARG in kwargs
@@ -195,12 +197,17 @@ class TFBackend(Backend, ABC):
     self._set_tensor(batch)
     self._interp.invoke()
     res: np.ndarray = self._interp.get_tensor(out_idx)
+
+    if self._half_precision:
+      res = res.astype(np.float16, copy=False)
+      assert res.dtype == np.float16
+    else:
+      assert res.dtype == np.float32
     return res
 
   @final
   def predict(self, batch: np.ndarray) -> np.ndarray:
     res = self._infer(batch, self.scores_out_idx())
-    assert res.dtype == np.float32
     return res
 
   @final
@@ -208,7 +215,6 @@ class TFBackend(Backend, ABC):
     out_idx = self.emb_out_idx()
     assert out_idx is not None
     res = self._infer(batch, out_idx)
-    assert res.dtype == np.float32
     return res
 
 
@@ -217,9 +223,10 @@ class PBBackend(Backend, ABC):
     self,
     model_path: Path,
     device_name: str,
+    half_precision: bool,
     **kwargs: dict,
   ) -> None:
-    super().__init__(model_path, device_name)
+    super().__init__(model_path, device_name, half_precision)
     self._model: Any | None = None
     self._logical_device: Any | None = None
     self._predict_fn: Callable | None = None
@@ -322,15 +329,21 @@ class PBBackend(Backend, ABC):
   def predict(self, batch: np.ndarray) -> np.ndarray:
     assert self._logical_device is not None
     assert self._predict_fn is not None
-    from tensorflow import Tensor, device, float32
+    from tensorflow import Tensor, cast, device, float16, float32
 
     with device(self._logical_device.name):  # type: ignore
       # prediction = self._audio_model.basic(batch)["scores"]
       predictions = self._predict_fn(**{self.input_key(): batch})
     scores: Tensor = predictions[self.scores_prediction_key()]
     assert scores.dtype == float32
+    if self._half_precision:
+      # perform operation on GPU for faster conversion
+      scores = cast(scores, float16)
     scores_np = scores.numpy()  # type: ignore
-    assert scores_np.dtype == np.float32
+    if self._half_precision:
+      assert scores_np.dtype == np.float16
+    else:
+      assert scores_np.dtype == np.float32
     return scores_np
 
   @final
@@ -368,18 +381,23 @@ class BackendLoader:
     self._backend.unload()
     self._backend = None
 
-  def _load_backend(self, device_name: str) -> VersionedBackendProtocol:
+  def _load_backend(
+    self, device_name: str, half_precision: bool
+  ) -> VersionedBackendProtocol:
     assert self._backend is None
     backend = self._backend_type(
       model_path=self._model_path,
       device_name=device_name,
+      half_precision=half_precision,
       **self._backend_kwargs,
     )
     backend.load()
     self._backend = backend
     return backend
 
-  def load_backend_in_main_process_if_possible(self, devices: list[str]) -> None:
+  def load_backend_in_main_process_if_possible(
+    self, devices: list[str], half_precision: bool
+  ) -> None:
     unique_devices = set(devices)
     same_device_for_all_workers = len(unique_devices) == 1
     if (
@@ -388,11 +406,13 @@ class BackendLoader:
       and self._backend_type.supports_cow()
     ):
       device_name = unique_devices.pop()
-      self._load_backend(device_name)
+      self._load_backend(device_name, half_precision)
 
-  def load_backend(self, device_name: str) -> VersionedBackendProtocol:
+  def load_backend(
+    self, device_name: str, half_precision: bool
+  ) -> VersionedBackendProtocol:
     if self._backend is None:
-      return self._load_backend(device_name)
+      return self._load_backend(device_name, half_precision)
     assert self._backend is not None
     return self._backend
 
@@ -410,7 +430,7 @@ class BackendLoader:
   ) -> int | None:
     try:
       loader = cls(model_path, backend_type, kwargs)
-      loader.load_backend("CPU")
+      loader.load_backend("CPU", half_precision=False)
       n_species_in_model = loader.backend.n_species
       return n_species_in_model
     except Exception as ex:

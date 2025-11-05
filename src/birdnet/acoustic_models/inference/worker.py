@@ -41,7 +41,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
     sem_free: Semaphore,
     sem_fill: Semaphore,
     sem_active_workers: Semaphore | None,
-    infer_dtype: DTypeLike,
+    half_precision: bool,
     wkr_stats_queue: mp.Queue | None,
     logging_queue: mp.Queue,
     logging_level: int,
@@ -53,6 +53,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
   ) -> None:
     super().__init__(session_id, name, logging_queue, logging_level)
 
+    self._half_precision = half_precision
     self._end_event = end_event
     self._start_signal = start_signal
     self._backend_loader = backend_loader
@@ -65,8 +66,6 @@ class WorkerBase(bn_logging.LogableProcessBase):
     self._sem_filled = sem_fill
     self._sem_active_workers = sem_active_workers
     self._prediction_count = 0
-    assert np.dtype(infer_dtype) in (np.float16, np.float32)
-    self._infer_dtype = infer_dtype
     # Interpreter
     self._slot = 0
     self._batch_idx_cache = {}
@@ -111,7 +110,9 @@ class WorkerBase(bn_logging.LogableProcessBase):
   def _load_model(self) -> None:
     self._log_debug("Loading model...")
     try:
-      self._backend = self._backend_loader.load_backend(self._device_name)
+      self._backend = self._backend_loader.load_backend(
+        self._device_name, half_precision=self._half_precision
+      )
     except ValueError as e:
       self._log_debug(f"Failed to load model: {e}")
       raise e
