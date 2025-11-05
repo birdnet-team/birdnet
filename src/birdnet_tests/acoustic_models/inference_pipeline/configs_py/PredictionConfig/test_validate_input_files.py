@@ -44,6 +44,15 @@ def test_one_supported_file() -> None:
     assert result == {file_a.absolute()}
 
 
+def test_one_supported_file_as_str() -> None:
+  with TemporaryDirectory() as tmpdir:
+    folder = Path(tmpdir)
+    file_a = folder / "a.wav"
+    file_a.touch()
+    result = PredictionConfig.validate_input_files(str(folder.absolute()))
+    assert result == {file_a.absolute()}
+
+
 def test_one_supported_file_in_subfolder() -> None:
   with TemporaryDirectory() as tmpdir:
     folder = Path(tmpdir)
