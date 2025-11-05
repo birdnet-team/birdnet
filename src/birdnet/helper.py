@@ -81,10 +81,13 @@ _UINT_DTYPE_TO_CTYPE = {
 }
 
 
-def get_supported_audio_files(folder: Path) -> Generator[Path, None, None]:
+def get_supported_audio_files_recursive(folder: Path) -> Generator[Path, None, None]:
   assert folder.is_dir()
-  result = (p.absolute() for p in folder.rglob("**/*") if is_supported_audio_file(p))
-  yield from result
+  yield from (
+    p.absolute()
+    for p in folder.rglob("*")
+    if p.is_file() and is_supported_audio_file(p)
+  )
 
 
 def is_supported_audio_file(file_path: Path) -> bool:

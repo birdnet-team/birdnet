@@ -19,7 +19,7 @@ from birdnet.globals import (
 )
 from birdnet.helper import (
   SF_FORMATS,
-  get_supported_audio_files,
+  get_supported_audio_files_recursive,
   is_supported_audio_file,
   validate_species_list,
 )
@@ -328,6 +328,7 @@ class PredictionConfig:
     parsed_audio_paths: set[Path] = set()
 
     if isinstance(input_files, Path | str):
+      # progress further as Iterable
       input_files = (Path(input_files),)
 
     if isinstance(input_files, Iterable):
@@ -342,7 +343,7 @@ class PredictionConfig:
                 f"Input file '{inp_path}' is not a supported audio format! Supported formats: {sorted(SF_FORMATS)}."
               )
           elif inp_path.is_dir():
-            parsed_audio_paths.update(get_supported_audio_files(inp_path))
+            parsed_audio_paths.update(get_supported_audio_files_recursive(inp_path))
           else:
             raise ValueError(f"Input path '{inp_path}' was not found.")
         else:

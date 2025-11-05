@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Bugfixes
+
+- Fixed issue with loading supported files from a folder
+
 ### Changed
 
 - Increased half-precision prediction speed
