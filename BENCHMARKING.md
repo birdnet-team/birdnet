@@ -235,39 +235,40 @@ Worker performance:
 - Disk: NVMe SSD (Samsung MZVLB1T0HBLR-00000)
 
 <details>
-<summary><b>Result:</b> 2494 x real-time (RTF: 0.00040099)</summary>
+<summary><b>Result:</b> 2702 x real-time (RTF: 0.00037009)</summary>
 
 - Disk speed: `$ sudo hdparm -tT /dev/nvme0n1`
   - Timing cached reads: 27324 MB in 1.99 seconds = 13707.90 MB/sec
   - Timing buffered disk reads: 6880 MB in 3.00 seconds = 2293.17 MB/sec
 
 ```sh
-$ birdnet-benchmark test-dataset/test_dataset_100x60min --device GPU --backend pb -w 1 -f 5 -s 1025
+$ birdnet-benchmark test-dataset/test_dataset_100x60min --device GPU --backend pb -w 1 -f 5 -s 1025 --prefetch-ratio 5
 
 -------------------------------
 ------ Benchmark summary ------
 -------------------------------
-Start time: 07/09/2025 02:47 PM
-End time:   07/09/2025 02:49 PM
-Wall time:  0:02:24.357884
+Start time: 11/05/2025 01:54 PM
+End time:   11/05/2025 01:56 PM
+Wall time:  0:02:13.231957
 Input: 100 file(s) (WAV)
   Total duration: 4 days, 4:00:00
   Average duration: 1:00:00
   Minimum duration (single file): 1:00:00
   Maximum duration (single file): 1:00:00
 Feeder(s): 5
-Buffer: 1.9/2 filled slots (mean)
-Busy workers: 1.0/1 (mean)
-  Average wait time for next batch: 0.051 ms
+Buffer: 1.7/6 filled slots (mean)
+Busy workers: 0.9/1 (mean)
+  Average wait time for next batch: 0.001 ms
 Memory usage:
-  Program: 9368.30 M (total max)
-  Buffer: 1126.11 M (shared memory)
-  Result: 2.94 M (NumPy)
+  Program: 8543.88 M (total max)
+  Buffer: 3295.93 M (shared memory)
+  Result: 5.58 M (NumPy)
 Performance:
-  2494 x real-time (RTF: 0.00040099)
-  831 segments/s (0:41:33.802132 audio/s)
+  2702 x real-time (RTF: 0.00037009)
+  901 segments/s (0:45:02.054441 audio/s)
 Worker performance:
-  2614 x real-time (RTF: 0.00038252)
+  2869 x real-time (RTF: 0.00034853)
+  956 segments/s (0:47:49.160292 audio/s)
 ```
 </details>
 
