@@ -21,7 +21,7 @@ def test_custom_from_analyzer_v2_4_tf_fp32() -> None:
     check_validity=False,
   )
 
-  res = model.encode(TEST_FILE_WAV)
+  res = model.encode(TEST_FILE_WAV, half_precision=True)
   mean = res.embeddings.mean()
   assert res.embeddings.shape == (1, 40, 1024)
   numpy.testing.assert_allclose(mean, 0.3406, rtol=1e-4)
@@ -40,7 +40,7 @@ def test_custom_from_analyzer_v2_4_tf_fp16() -> None:
     check_validity=False,
   )
 
-  res = model.encode(TEST_FILE_WAV)
+  res = model.encode(TEST_FILE_WAV, half_precision=True)
   mean = res.embeddings.mean()
   assert res.embeddings.shape == (1, 40, 1024)
   numpy.testing.assert_allclose(mean, 0.3406, rtol=1e-4)
@@ -59,7 +59,7 @@ def test_custom_from_analyzer_v2_4_tf_int8() -> None:
     check_validity=False,
   )
 
-  res = model.encode(TEST_FILE_WAV)
+  res = model.encode(TEST_FILE_WAV, half_precision=True)
   mean = res.embeddings.mean()
   assert res.embeddings.shape == (1, 40, 1024)
   numpy.testing.assert_allclose(mean, 0.3347, rtol=1e-3)
@@ -68,7 +68,7 @@ def test_custom_from_analyzer_v2_4_tf_int8() -> None:
 @pytest.mark.litert
 def test_custom_from_analyzer_v2_4_litert_fp32() -> None:
   ensure_litert_or_skip()
-  
+
   model = load_custom(
     "acoustic",
     "2.4",
@@ -79,7 +79,7 @@ def test_custom_from_analyzer_v2_4_litert_fp32() -> None:
     check_validity=False,
   )
 
-  res = model.encode(TEST_FILE_WAV)
+  res = model.encode(TEST_FILE_WAV, half_precision=True)
   mean = res.embeddings.mean()
   assert res.embeddings.shape == (1, 40, 1024)
   numpy.testing.assert_allclose(mean, 0.3406, rtol=1e-4)

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Improved prediction speed, esp. for half-precision models (+10 seg/s)
+
 ## [0.2.4] - 2025-11-05
 
 ### Bugfixes

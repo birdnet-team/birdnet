@@ -44,7 +44,7 @@ def predict_test_cases(
   for case_nr, default in tqdm(list(TEST_CASES.items())):
     with model.predict_session(
       top_k=default.top_k,
-      n_workers=1,
+      n_workers=4,
       n_feeders=1,
       prefetch_ratio=1,
       half_precision=False,

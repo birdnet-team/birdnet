@@ -211,6 +211,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
       self.run_main()
 
   def run_main(self) -> None:
+    assert self._backend is not None
     assert self._ring_flags is not None
     assert self._ring_file_indices is not None
     assert self._ring_segment_indices is not None
@@ -302,7 +303,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
 
       perf_c = time.perf_counter()
       try:
-        infer_result = self._infer(audio_samples)
+        raw_infer_result = self._infer(audio_samples)
       except Exception as e:
         self._log_debug(f"Error during inference: {e}")
         self._cancel_event.set()
@@ -321,6 +322,15 @@ class WorkerBase(bn_logging.LogableProcessBase):
         f"Filled slots: {self._sem_filled}"
       )
 
+      perf_c = time.perf_counter()
+      if self._half_precision:
+        raw_infer_result = self._backend.half_precision(raw_infer_result)
+      dur_half_precision = time.perf_counter() - perf_c
+
+      perf_c = time.perf_counter()
+      infer_result = self._backend.infer_result_to_numpy(raw_infer_result)
+      dur_to_numpy = time.perf_counter() - perf_c
+
       assert infer_result.flags.aligned
 
       perf_c = time.perf_counter()
@@ -332,6 +342,8 @@ class WorkerBase(bn_logging.LogableProcessBase):
       self._log_debug(
         f"Prediction made ({dur_inference:.4} s). "
         f"Total predictions: {self._prediction_count}. Chunks: {segment_indices}"
+        f"Duration half precision: {dur_half_precision:.4f} s. "
+        f"Duration to numpy: {dur_to_numpy:.4f} s. "
       )
 
       if self._wkr_stats_queue is not None:

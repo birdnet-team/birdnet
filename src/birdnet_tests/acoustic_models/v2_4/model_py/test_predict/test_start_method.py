@@ -9,7 +9,7 @@ from birdnet_tests.helper import (
   use_forkserver_or_skip,
   use_spawn_or_skip,
 )
-from birdnet_tests.test_files import TEST_FILE_WAV
+from birdnet_tests.test_files import TEST_FILE_MEAN_TF_FP32, TEST_FILE_WAV
 
 
 @pytest.mark.litert
@@ -18,27 +18,33 @@ def test_litert_fork() -> None:
   use_fork_or_skip()
 
   model = load("acoustic", "2.4", "tf", precision="fp32", library="litert")
-  result = model.predict(TEST_FILE_WAV, n_workers=2)
+  result = model.predict(TEST_FILE_WAV, n_workers=4)
 
-  numpy.testing.assert_almost_equal(result.species_probs.mean(), 0.06287, decimal=5)
+  numpy.testing.assert_almost_equal(
+    result.species_probs.mean(), TEST_FILE_MEAN_TF_FP32, decimal=5
+  )
 
 
 def test_tf_fork() -> None:
   use_fork_or_skip()
 
   model = load("acoustic", "2.4", "tf", precision="fp32", library="tf")
-  result = model.predict(TEST_FILE_WAV, n_workers=2)
+  result = model.predict(TEST_FILE_WAV, n_workers=4)
 
-  numpy.testing.assert_almost_equal(result.species_probs.mean(), 0.06287, decimal=5)
+  numpy.testing.assert_almost_equal(
+    result.species_probs.mean(), TEST_FILE_MEAN_TF_FP32, decimal=5
+  )
 
 
 def test_pb_cpu_fork() -> None:
   use_fork_or_skip()
 
   model = load("acoustic", "2.4", "pb", precision="fp32")
-  result = model.predict(TEST_FILE_WAV, n_workers=2)
+  result = model.predict(TEST_FILE_WAV, n_workers=4)
 
-  numpy.testing.assert_almost_equal(result.species_probs.mean(), 0.06287, decimal=5)
+  numpy.testing.assert_almost_equal(
+    result.species_probs.mean(), TEST_FILE_MEAN_TF_FP32, decimal=5
+  )
 
 
 @pytest.mark.gpu
@@ -49,7 +55,9 @@ def test_pb_gpu_fork() -> None:
   model = load("acoustic", "2.4", "pb", precision="fp32")
   result = model.predict(TEST_FILE_WAV, n_workers=1, device="GPU")
 
-  numpy.testing.assert_almost_equal(result.species_probs.mean(), 0.06287, decimal=5)
+  numpy.testing.assert_almost_equal(
+    result.species_probs.mean(), TEST_FILE_MEAN_TF_FP32, decimal=5
+  )
 
 
 @pytest.mark.litert
@@ -58,27 +66,33 @@ def test_litert_forkserver() -> None:
   use_forkserver_or_skip()
 
   model = load("acoustic", "2.4", "tf", precision="fp32", library="litert")
-  result = model.predict(TEST_FILE_WAV, n_workers=2)
+  result = model.predict(TEST_FILE_WAV, n_workers=4)
 
-  numpy.testing.assert_almost_equal(result.species_probs.mean(), 0.06287, decimal=5)
+  numpy.testing.assert_almost_equal(
+    result.species_probs.mean(), TEST_FILE_MEAN_TF_FP32, decimal=5
+  )
 
 
 def test_tf_forkserver() -> None:
   use_forkserver_or_skip()
 
   model = load("acoustic", "2.4", "tf", precision="fp32", library="tf")
-  result = model.predict(TEST_FILE_WAV, n_workers=2)
+  result = model.predict(TEST_FILE_WAV, n_workers=4)
 
-  numpy.testing.assert_almost_equal(result.species_probs.mean(), 0.06287, decimal=5)
+  numpy.testing.assert_almost_equal(
+    result.species_probs.mean(), TEST_FILE_MEAN_TF_FP32, decimal=5
+  )
 
 
 def test_pb_cpu_forkserver() -> None:
   use_forkserver_or_skip()
 
   model = load("acoustic", "2.4", "pb", precision="fp32")
-  result = model.predict(TEST_FILE_WAV, n_workers=2, device="CPU")
+  result = model.predict(TEST_FILE_WAV, n_workers=4, device="CPU")
 
-  numpy.testing.assert_almost_equal(result.species_probs.mean(), 0.06287, decimal=5)
+  numpy.testing.assert_almost_equal(
+    result.species_probs.mean(), TEST_FILE_MEAN_TF_FP32, decimal=5
+  )
 
 
 @pytest.mark.gpu
@@ -89,7 +103,9 @@ def test_pb_gpu_forkserver() -> None:
   model = load("acoustic", "2.4", "pb", precision="fp32")
   result = model.predict(TEST_FILE_WAV, n_workers=1, device="GPU")
 
-  numpy.testing.assert_almost_equal(result.species_probs.mean(), 0.06287, decimal=5)
+  numpy.testing.assert_almost_equal(
+    result.species_probs.mean(), TEST_FILE_MEAN_TF_FP32, decimal=5
+  )
 
 
 @pytest.mark.litert
@@ -98,27 +114,33 @@ def test_litert_spawn() -> None:
   use_spawn_or_skip()
 
   model = load("acoustic", "2.4", "tf", precision="fp32", library="litert")
-  result = model.predict(TEST_FILE_WAV, n_workers=2)
+  result = model.predict(TEST_FILE_WAV, n_workers=4)
 
-  numpy.testing.assert_almost_equal(result.species_probs.mean(), 0.06287, decimal=5)
+  numpy.testing.assert_almost_equal(
+    result.species_probs.mean(), TEST_FILE_MEAN_TF_FP32, decimal=5
+  )
 
 
 def test_tf_spawn() -> None:
   use_spawn_or_skip()
 
   model = load("acoustic", "2.4", "tf", precision="fp32", library="tf")
-  result = model.predict(TEST_FILE_WAV, n_workers=2)
+  result = model.predict(TEST_FILE_WAV, n_workers=4)
 
-  numpy.testing.assert_almost_equal(result.species_probs.mean(), 0.06287, decimal=5)
+  numpy.testing.assert_almost_equal(
+    result.species_probs.mean(), TEST_FILE_MEAN_TF_FP32, decimal=5
+  )
 
 
 def test_pb_cpu_spawn() -> None:
   use_spawn_or_skip()
 
   model = load("acoustic", "2.4", "pb", precision="fp32")
-  result = model.predict(TEST_FILE_WAV, n_workers=2, device="CPU")
+  result = model.predict(TEST_FILE_WAV, n_workers=4, device="CPU")
 
-  numpy.testing.assert_almost_equal(result.species_probs.mean(), 0.06287, decimal=5)
+  numpy.testing.assert_almost_equal(
+    result.species_probs.mean(), TEST_FILE_MEAN_TF_FP32, decimal=5
+  )
 
 
 @pytest.mark.gpu
@@ -129,4 +151,6 @@ def test_pb_gpu_spawn() -> None:
   model = load("acoustic", "2.4", "pb", precision="fp32")
   result = model.predict(TEST_FILE_WAV, n_workers=1, device="GPU")
 
-  numpy.testing.assert_almost_equal(result.species_probs.mean(), 0.06287, decimal=5)
+  numpy.testing.assert_almost_equal(
+    result.species_probs.mean(), TEST_FILE_MEAN_TF_FP32, decimal=5
+  )

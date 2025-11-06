@@ -74,6 +74,12 @@ class Backend(ABC):
   @abstractmethod
   def name(cls) -> str: ...
 
+  @abstractmethod
+  def infer_result_to_numpy(self, inference_result: Any) -> np.ndarray: ...  # noqa: ANN401
+
+  @abstractmethod
+  def half_precision(self, inference_result: Any) -> Any: ...  # noqa: ANN401
+
 
 @runtime_checkable
 class VersionedBackendProtocol(Protocol):
@@ -106,6 +112,10 @@ class VersionedBackendProtocol(Protocol):
 
   @classmethod
   def name(cls) -> str: ...
+
+  def infer_result_to_numpy(self, inference_result: Any) -> np.ndarray: ...  # noqa: ANN401
+
+  def half_precision(self, inference_result: Any) -> Any: ...  # noqa: ANN401
 
 
 @runtime_checkable
@@ -197,25 +207,30 @@ class TFBackend(Backend, ABC):
     self._set_tensor(batch)
     self._interp.invoke()
     res: np.ndarray = self._interp.get_tensor(out_idx)
+    assert res.dtype == np.float32
+    return res
 
+  def infer_result_to_numpy(self, inference_result: Any) -> np.ndarray:  # noqa: ANN401
+    assert isinstance(inference_result, np.ndarray)
+    return inference_result
+
+  def half_precision(self, inference_result: Any) -> Any:
+    assert isinstance(inference_result, np.ndarray)
+    assert inference_result.dtype == np.float32
     if self._half_precision:
-      res = res.astype(np.float16, copy=False)
-      assert res.dtype == np.float16
-    else:
-      assert res.dtype == np.float32
-    return res
+      inference_result = inference_result.astype(np.float16, copy=False)
+      assert inference_result.dtype == np.float16
+    return inference_result
 
   @final
-  def predict(self, batch: np.ndarray) -> np.ndarray:
-    res = self._infer(batch, self.scores_out_idx())
-    return res
+  def predict(self, batch: np.ndarray) -> Any:
+    return self._infer(batch, self.scores_out_idx())
 
   @final
-  def embed(self, batch: np.ndarray) -> np.ndarray:
+  def embed(self, batch: np.ndarray) -> Any:
     out_idx = self.emb_out_idx()
     assert out_idx is not None
-    res = self._infer(batch, out_idx)
-    return res
+    return self._infer(batch, out_idx)
 
 
 class PBBackend(Backend, ABC):
@@ -326,28 +341,20 @@ class PBBackend(Backend, ABC):
       raise AssertionError()
 
   @final
-  def predict(self, batch: np.ndarray) -> np.ndarray:
+  def predict(self, batch: np.ndarray) -> Any:
     assert self._logical_device is not None
     assert self._predict_fn is not None
-    from tensorflow import Tensor, cast, device, float16, float32
+    from tensorflow import Tensor, device, float32
 
     with device(self._logical_device.name):  # type: ignore
       # prediction = self._audio_model.basic(batch)["scores"]
       predictions = self._predict_fn(**{self.input_key(): batch})
-      scores: Tensor = predictions[self.scores_prediction_key()]
-      assert scores.dtype == float32
-      if self._half_precision:
-        # perform operation on GPU for faster conversion
-        scores = cast(scores, float16)
-    scores_np = scores.numpy()  # type: ignore
-    if self._half_precision:
-      assert scores_np.dtype == np.float16
-    else:
-      assert scores_np.dtype == np.float32
-    return scores_np
+    scores: Tensor = predictions[self.scores_prediction_key()]
+    assert scores.dtype == float32
+    return scores
 
   @final
-  def embed(self, batch: np.ndarray) -> np.ndarray:
+  def embed(self, batch: np.ndarray) -> Any:
     assert self.emb_supported()
     emb_pred_key = self.emb_prediction_key()
     assert emb_pred_key is not None
@@ -359,9 +366,24 @@ class PBBackend(Backend, ABC):
       predictions = self._emb_fn(**{self.input_key(): batch})
     emb: Tensor = predictions[emb_pred_key]
     assert emb.dtype == float32
-    emb_np = emb.numpy()  # type: ignore
-    assert emb_np.dtype == np.float32
-    return emb_np
+    return emb
+
+  def infer_result_to_numpy(self, inference_result: Any) -> np.ndarray:  # noqa: ANN401
+    from tensorflow import Tensor
+
+    assert isinstance(inference_result, Tensor)
+    inference_result = inference_result.numpy()  # type: ignore
+    return inference_result
+
+  def half_precision(self, inference_result: Any) -> Any:
+    from tensorflow import Tensor, cast, device, float16, float32
+
+    assert isinstance(inference_result, Tensor)
+    assert inference_result.dtype == float32
+    with device(self._logical_device.name):  # type: ignore
+      inference_result = cast(inference_result, float16)
+      assert inference_result.dtype == float16
+    return inference_result
 
 
 class BackendLoader:
