@@ -65,13 +65,14 @@ repro = [
   "ai-edge-litert == 2.0.2; sys_platform == 'linux'",
 ]
 tests = [
+  "uv >= 0.9.7",
   "pytest >= 8.4.2",
   "pytest-cov >= 7.0.0",
   "pytest-xdist >= 3.8.0",
   "mypy >= 1.18.2",
   "ruff >= 0.14.4"
 ]
-dev = ["ruff", "mypy", "rope", "build", "twine", "scipy-stubs", "tuna", "pyarrow-stubs", "types-tqdm", "types-requests", "pandas-stubs", "types-tensorflow"]
+dev = ["uv", "ruff", "mypy", "rope", "build", "twine", "scipy-stubs", "tuna", "pyarrow-stubs", "types-tqdm", "types-requests", "pandas-stubs", "types-tensorflow"]
 
 [project.urls]
 Homepage = "https://github.com/birdnet-team/birdnet"

@@ -1,14 +1,10 @@
-import multiprocessing
-import multiprocessing.synchronize
-import threading
-from queue import Queue
 
 import numpy
 import pytest
 
 from birdnet.model_loader import load
 from birdnet_tests.helper import ensure_gpu_or_skip, ensure_litert_or_skip
-from birdnet_tests.test_files import TEST_FILE_MEAN_TF_FP32, TEST_FILE_WAV
+from birdnet_tests.test_files import TEST_FILE_WAV
 
 
 @pytest.mark.repro
@@ -24,12 +20,13 @@ def test_pb_cpu_fp32() -> None:
 @pytest.mark.gpu
 def test_pb_gpu_fp32() -> None:
   ensure_gpu_or_skip()
-
+    
   model = load("acoustic", "2.4", "pb", precision="fp32")
   res = model.predict(TEST_FILE_WAV, n_workers=1, device="GPU")
   mean = res.species_probs.mean()
   assert res.species_probs.shape == (1, 40, 5)
-  numpy.testing.assert_almost_equal(mean, TEST_FILE_MEAN_TF_FP32, decimal=4)
+  # last decimal differs on different runs
+  numpy.testing.assert_almost_equal(mean, 0.0623320, decimal=7)
 
 
 @pytest.mark.repro

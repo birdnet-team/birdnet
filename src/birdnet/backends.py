@@ -499,7 +499,8 @@ def load_pb_model(model_path: Path, device: Any) -> Any:
   logging.getLogger("tensorflow").setLevel(logging.ERROR)
   os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
   import tensorflow as tf
-
+  
+  # tf.random.set_seed(0)
   # Note: memory growth needs to be set before loading the model and
   # maybe only once in the main process
   # physical_gpu_device = gpus_with_name[0]
