@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Improved prediction speed, esp. for half-precision models (+10 seg/s)
+- Lowered dependencies
+
+### Added
+
+- Added `repro` option to be able to get reproducible results
 
 ## [0.2.4] - 2025-11-05
 
