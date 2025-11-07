@@ -279,14 +279,13 @@ class PBBackend(Backend, ABC):
 
   @final
   def load(self) -> None:
-    self._model = load_pb_model(self._model_path)
+    self._set_logical_device(self._device_name)
+    self._model = load_pb_model(self._model_path, self._logical_device)
     self._predict_fn = self._model.signatures[self.scores_signature_name()]  # type: ignore
     if self.emb_supported():
       emb_sig_name = self.emb_signature_name()
       assert emb_sig_name is not None
       self._emb_fn = self._model.signatures[emb_sig_name]  # type: ignore
-
-    self._set_logical_device(self._device_name)
 
   def unload(self) -> None:
     self._model = None
@@ -305,10 +304,10 @@ class PBBackend(Backend, ABC):
 
   def _set_logical_device(self, device_name: str) -> None:
     assert "GPU" in device_name or "CPU" in device_name
-    import tensorflow as tf
+    import tensorflow.config
 
     if "GPU" in device_name:
-      physical_devices = tf.config.list_physical_devices("GPU")
+      physical_devices = tensorflow.config.list_physical_devices("GPU")
       if len(physical_devices) == 0:
         raise ValueError(
           "No GPU found! "
@@ -324,14 +323,20 @@ class PBBackend(Backend, ABC):
 
       self._logical_device = [
         log_dev
-        for log_dev in tf.config.list_logical_devices()
+        for log_dev in tensorflow.config.list_logical_devices("GPU")
         if device_name in log_dev.name
       ][0]
 
     elif "CPU" in device_name:
+      # disable GPUs for TF when using CPU backend
+      # because if GPU is available TF will try to use it by default
+      # and raise: tensorflow.python.framework.errors_impl.InternalError:
+      # cudaSetDevice() on GPU:0 failed. Status: out of memory
+      # at call of tensorflow.config.list_logical_devices("CPU")
+      tensorflow.config.set_visible_devices([], "GPU")
       all_devices_with_name: list = [
         log_dev
-        for log_dev in tf.config.list_logical_devices()
+        for log_dev in tensorflow.config.list_logical_devices("CPU")
         if device_name in log_dev.name
       ]
       if len(all_devices_with_name) == 0:
@@ -485,7 +490,7 @@ class BackendLoader:
       raise ValueError("Failed to load model.") from e
 
 
-def load_pb_model(model_path: Path) -> Any:
+def load_pb_model(model_path: Path, device: Any) -> Any:
   import absl.logging
 
   absl_verbosity_before = absl.logging.get_verbosity()
@@ -502,7 +507,8 @@ def load_pb_model(model_path: Path) -> Any:
   #   tf.config.experimental.set_memory_growth(physical_gpu_device, True)
 
   start = time.perf_counter()
-  model = tf.saved_model.load(str(model_path.absolute()))
+  with tf.device(device.name):  # type: ignore
+    model = tf.saved_model.load(str(model_path.absolute()))
   end = time.perf_counter()
   logger = get_logger_for_package(__name__)
   logger.debug(

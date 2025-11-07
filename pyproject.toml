@@ -101,6 +101,7 @@ norecursedirs = ["src/birdnet_v1_tests"]
 markers = [
   "litert: tests requiring ai_edge_litert backend which can not be loaded after tf is imported (raises ImportError) which happens on parallel test runs",
   "gpu: tests requiring a GPU to run and to be runned sequentially",
+  "repro: tests requiring exact package versions to reproduce results",
 ]
 
 [tool.ruff]

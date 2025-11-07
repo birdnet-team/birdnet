@@ -7,10 +7,7 @@ import numpy
 import pytest
 
 from birdnet.model_loader import load
-from birdnet_tests.helper import (
-  ensure_gpu_or_skip,
-  ensure_litert_or_skip,
-)
+from birdnet_tests.helper import ensure_gpu_or_skip, ensure_litert_or_skip
 from birdnet_tests.test_files import TEST_FILE_MEAN_TF_FP32, TEST_FILE_WAV
 
 

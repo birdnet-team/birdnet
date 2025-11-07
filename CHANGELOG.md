@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Bugfix
+
+- Fixed issue with using ProtoBuf CPU backend and TensorFlow GPU being available
+
 ### Changed
 
 - Improved prediction speed, esp. for half-precision models (+10 seg/s)
