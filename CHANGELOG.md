@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added `repro` option to be able to get reproducible results
 
+### Removed
+
+- Remove unused dependencies `numba` and `resampy`
+
 ## [0.2.4] - 2025-11-05
 
 ### Bugfixes
