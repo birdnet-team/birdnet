@@ -9,6 +9,7 @@ import time
 from collections.abc import Callable, Generator
 from multiprocessing import get_all_start_methods, set_start_method
 
+import numpy as np
 import psutil
 import pytest
 
@@ -124,3 +125,43 @@ def duration_counter() -> Generator[Callable, None, None]:
     yield get_duration
   finally:
     pass  # No cleanup needed
+
+
+def estimate_best_rtol_atol(a, b):
+  a = np.asarray(a)
+  b = np.asarray(b)
+
+  diff = np.abs(a - b)
+  denom = np.abs(b)
+
+  with np.errstate(divide="ignore", invalid="ignore"):
+    rel = np.where(denom == 0, np.inf, diff / denom)
+
+  max_rel = np.max(rel)
+  max_abs = np.max(diff)
+
+  return max_rel, max_abs
+
+
+def get_max_relative_tolerance(a: np.ndarray, b: np.ndarray):
+  a = np.asarray(a)
+  b = np.asarray(b)
+
+  diff = np.abs(a - b)
+  denom = np.abs(b)
+
+  # Sonderfall: b == 0 → relative Fehler ist nur sinnvoll, wenn diff ebenfalls 0 ist
+  with np.errstate(divide="ignore", invalid="ignore"):
+    rel = np.where(denom == 0, np.inf, diff / denom)
+
+  return np.max(rel)
+
+
+def worst_decimal_precision(a: np.ndarray, b: np.ndarray, max_decimals: int = 8):
+  diff = np.abs(a - b)
+  max_diff = np.max(diff)
+
+  for decimals in range(max_decimals, 0, -1):
+    if max_diff < 10 ** (-decimals):
+      return decimals
+  return 0

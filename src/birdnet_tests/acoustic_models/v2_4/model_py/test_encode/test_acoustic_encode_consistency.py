@@ -18,14 +18,13 @@ class AudioTestCase:
   chunk_overlap_s: float = 0.0
   bandpass_fmin: int = 0
   bandpass_fmax: int = 15_000
-  filter_species: set[str] | None = None
 
 
-TEST_CASES = {
-  1: AudioTestCase(),
-  2: AudioTestCase(chunk_overlap_s=0.5),
-  3: AudioTestCase(bandpass_fmin=1_000, bandpass_fmax=8_000),
-}
+TEST_CASES = [
+  AudioTestCase(),
+  AudioTestCase(chunk_overlap_s=0.5),
+  AudioTestCase(bandpass_fmin=1_000, bandpass_fmax=8_000),
+]
 TEST_CASES_REF_DIR = Path(__file__).with_suffix("")
 
 
@@ -33,7 +32,7 @@ def predict_test_cases(
   model: AcousticModelV2_4,
   device: str = "CPU",
 ) -> Generator[tuple[int, EncodingResult], None, None]:
-  for case_nr, default in tqdm(list(TEST_CASES.items())):
+  for case_nr, default in enumerate(tqdm(TEST_CASES)):
     with model.encode_session(
       n_workers=1,
       n_feeders=1,
@@ -147,7 +146,7 @@ def test_tf16_is_somewhat_close() -> None:
 
 
 def test_int8_is_somewhat_close() -> None:
-  model = load("acoustic", "2.4", "tf", precision="fp16")
+  model = load("acoustic", "2.4", "tf", precision="int8")
   for case_nr, result in predict_test_cases(model):
     ref_case_file = TEST_CASES_REF_DIR / f"{case_nr}.npz"
     ref_result = EncodingResult.load(ref_case_file)
