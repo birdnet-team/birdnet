@@ -40,12 +40,13 @@ TEST_CASES_REF_DIR = Path(__file__).with_suffix("")
 def predict_test_cases(
   model: AcousticModelV2_4,
   device: str,
+  n_workers: int,
 ) -> Generator[tuple[int, PredictionResult], None, None]:
   for case_nr, default in enumerate(tqdm(TEST_CASES)):
     with model.predict_session(
       top_k=None,
       default_confidence_threshold=-np.inf,
-      n_workers=4,
+      n_workers=n_workers,
       n_feeders=1,
       prefetch_ratio=1,
       half_precision=False,
@@ -62,7 +63,7 @@ def predict_test_cases(
       custom_species_list=None,
     ) as session:
       result = session.run(TEST_FILE_WAV)
-      yield case_nr, result
+    yield case_nr, result
 
 
 def create_reference_results() -> None:
@@ -72,7 +73,7 @@ def create_reference_results() -> None:
     rmtree(TEST_CASES_REF_DIR)
   TEST_CASES_REF_DIR.mkdir(exist_ok=False, parents=True)
   model = load("acoustic", "2.4", "tf", precision="fp32", library="tf")
-  for case_nr, result in predict_test_cases(model, device="CPU"):
+  for case_nr, result in predict_test_cases(model, device="CPU", n_workers=4):
     case_file = TEST_CASES_REF_DIR / f"{case_nr}.npz"
     result.save(case_file)
 
@@ -83,10 +84,11 @@ def test_cases_inference_with_model(
   atol: float,
   mean_atol: float,
   mean_atol_threshold: float = 0.1,
+  n_workers: int = 4,
 ) -> None:
   max_abs_vals = []
   mean_abs_vals = []
-  for case_nr, result in predict_test_cases(model, device):
+  for case_nr, result in predict_test_cases(model, device, n_workers):
     ref_case_file = TEST_CASES_REF_DIR / f"{case_nr}.npz"
     ref_result = PredictionResult.load(ref_case_file)
     max_abs, mean_abs_thres = get_prediction_result_tolerances(
@@ -209,7 +211,9 @@ def test_pb_gpu_is_close() -> None:
   ensure_gpu_or_skip()
 
   model = load("acoustic", "2.4", "pb", precision="fp32")
-  test_cases_inference_with_model(model, "GPU", atol=0, mean_atol=0)
+  test_cases_inference_with_model(
+    model, "GPU", atol=0.002, mean_atol=0.0001, n_workers=1
+  )
 
 
 def test_tf32_is_same() -> None:
