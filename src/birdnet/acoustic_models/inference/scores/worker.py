@@ -116,8 +116,10 @@ class ScoresWorker(WorkerBase):
 
     invalid_mask = (infer_result < self._thresholds) | self._blacklist
 
+    # set invalid scores to -inf for top-k selection
     shadow = np.where(invalid_mask, -np.inf, infer_result)
 
+    # select top-k species (order is random!)
     top_k_species = np.argpartition(shadow, -self._top_k, axis=1)[
       :, -self._top_k :
     ].astype(self._species_dtype, copy=False)

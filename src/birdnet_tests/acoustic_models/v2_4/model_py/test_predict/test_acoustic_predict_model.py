@@ -57,8 +57,20 @@ def test_tf_int8() -> None:
   with model.predict_session(n_workers=4) as session:
     res = session.run(TEST_FILE_WAV)
   mean = res.species_probs.mean()
-  assert res.species_probs.shape == (1, 40, 5)
+  assert res.species_probs.shape == (1, 40, 6522)
   numpy.testing.assert_almost_equal(mean, TEST_FILE_MEAN_TF_FP32, decimal=2)
+
+
+def test_tf_int8_all_species_no_threshold_should_not_mask_anything() -> None:
+  model = load("acoustic", "2.4", "tf", precision="int8", library="tf")
+  with model.predict_session(
+    n_workers=4,
+    top_k=None,
+    default_confidence_threshold=-numpy.inf,
+    apply_sigmoid=False,
+  ) as session:
+    res = session.run(TEST_FILE_WAV)
+  assert numpy.all(~res.species_masked)
 
 
 @pytest.mark.litert

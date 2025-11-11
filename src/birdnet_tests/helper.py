@@ -127,6 +127,39 @@ def duration_counter() -> Generator[Callable, None, None]:
     pass  # No cleanup needed
 
 
+def get_max_absolute_tolerance(a: np.ndarray, b: np.ndarray):
+  a = np.asarray(a)
+  b = np.asarray(b)
+
+  diff = np.abs(a - b)
+
+  mean = np.mean(diff)
+  std = np.std(diff)
+  minimum = np.min(diff)
+  maximum = np.max(diff)
+  return maximum
+
+
+def get_max_absolute_tolerance_threshold(
+  a: np.ndarray, b: np.ndarray, threshold: float = 0.1
+) -> float:
+  a = np.asarray(a)
+  b = np.asarray(b)
+
+  mask = a > threshold
+  if not np.any(mask):
+    return 0.0
+
+  diff = np.abs(a - b)
+  masked_diff = diff[mask]
+
+  mean = np.mean(masked_diff)
+  std = np.std(masked_diff)
+  minimum = np.min(masked_diff)
+  maximum = np.max(masked_diff)
+  return mean
+
+
 def estimate_best_rtol_atol(a, b):
   a = np.asarray(a)
   b = np.asarray(b)
