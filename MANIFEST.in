@@ -8,11 +8,8 @@ include \
   CONTRIBUTING.md \
   LICENSE.md \
   MANIFEST.in \
-  Pipfile \
-  Pipfile.lock \
   README.md \
   pyproject.toml \
-  setup.cfg \
   example/soundscape.wav \
   example/species_list.txt
 
