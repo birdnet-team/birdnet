@@ -1,4 +1,3 @@
-import sys
 from collections.abc import Generator
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,7 +13,6 @@ from birdnet.model_loader import load
 from birdnet_tests.helper import (
   ensure_gpu_or_skip,
   ensure_litert_or_skip,
-  estimate_best_rtol_atol,
   get_max_absolute_tolerance,
   get_max_absolute_tolerance_threshold,
 )

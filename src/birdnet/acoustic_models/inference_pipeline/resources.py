@@ -10,7 +10,7 @@ from datetime import datetime
 from logging.handlers import QueueHandler
 from multiprocessing.sharedctypes import Synchronized
 from pathlib import Path
-from typing import cast, final
+from typing import Self, cast, final
 
 import numpy as np
 
@@ -110,28 +110,30 @@ class RingBufferResources:
     pass
 
   @classmethod
-  def create(
+  def _create(
     cls,
     session_id: str,
-    conf: PredictionConfig,
-    analyzer_resources: FilesAnalyzerResources,
-  ) -> RingBufferResources:
+    n_slots: int,
+    batch_size: int,
+    segment_size_samples: int,
+    segments_dtype: np.dtype,
+    max_n_files: int,
+  ) -> Self:
     # session_id is required to run multiple sessions in parallel
     # in multiple processes or threads in the same session
 
-    n_slots = conf.processing_conf.n_slots
     sid_hash = get_session_id_hash(session_id)
 
     rf_file_indices = RingField(
       f"bn_file_idx_{sid_hash}",
-      dtype=uint_dtype_for(max(0, conf.processing_conf.max_n_files - 1)),
-      shape=(n_slots, conf.processing_conf.batch_size),
+      dtype=uint_dtype_for(max(0, max_n_files - 1)),
+      shape=(n_slots, batch_size),
     )
 
     rf_segment_indices = RingField(
       f"bn_seg_idx_{sid_hash}",
-      dtype=analyzer_resources.segments_dtype,
-      shape=(n_slots, conf.processing_conf.batch_size),
+      dtype=segments_dtype,
+      shape=(n_slots, batch_size),
     )
 
     rf_audio_samples = RingField(
@@ -139,14 +141,14 @@ class RingBufferResources:
       dtype=np.dtype(np.float32),
       shape=(
         n_slots,
-        conf.processing_conf.batch_size,
-        conf.model_conf.segment_size_samples,
+        batch_size,
+        segment_size_samples,
       ),
     )
 
     rf_batch_sizes = RingField(
       f"bn_bs_{sid_hash}",
-      dtype=uint_dtype_for(conf.processing_conf.batch_size),
+      dtype=uint_dtype_for(batch_size),
       shape=(n_slots,),
     )
 
@@ -162,7 +164,7 @@ class RingBufferResources:
     rf_batch_sizes.cleanup(sid_hash)
     rf_flags.cleanup(sid_hash)
 
-    return RingBufferResources(
+    return cls(
       rf_file_indices=rf_file_indices,
       rf_segment_indices=rf_segment_indices,
       rf_audio_samples=rf_audio_samples,
@@ -170,6 +172,22 @@ class RingBufferResources:
       rf_flags=rf_flags,
       sem_free_slots=mp.Semaphore(n_slots),
       sem_filled_slots=mp.Semaphore(0),
+    )
+
+  @classmethod
+  def create(
+    cls,
+    session_id: str,
+    conf: PredictionConfig,
+    analyzer_resources: FilesAnalyzerResources,
+  ) -> RingBufferResources:
+    return cls._create(
+      session_id=session_id,
+      n_slots=conf.processing_conf.n_slots,
+      batch_size=conf.processing_conf.batch_size,
+      segment_size_samples=conf.model_conf.segment_size_samples,
+      segments_dtype=analyzer_resources.segments_dtype,
+      max_n_files=conf.processing_conf.max_n_files,
     )
 
 
