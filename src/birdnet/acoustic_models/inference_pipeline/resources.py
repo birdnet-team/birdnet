@@ -120,21 +120,22 @@ class RingBufferResources:
     # in multiple processes or threads in the same session
 
     n_slots = conf.processing_conf.n_slots
+    sid_hash = get_session_id_hash(session_id)
 
     rf_file_indices = RingField(
-      f"bn_ring_file_indices_{session_id}",
+      f"bn_file_idx_{sid_hash}",
       dtype=uint_dtype_for(max(0, conf.processing_conf.max_n_files - 1)),
       shape=(n_slots, conf.processing_conf.batch_size),
     )
 
     rf_segment_indices = RingField(
-      f"bn_ring_segment_indices_{session_id}",
+      f"bn_seg_idx_{sid_hash}",
       dtype=analyzer_resources.segments_dtype,
       shape=(n_slots, conf.processing_conf.batch_size),
     )
 
     rf_audio_samples = RingField(
-      f"bn_ring_audio_samples_{session_id}",
+      f"bn_samples_{sid_hash}",
       dtype=np.dtype(np.float32),
       shape=(
         n_slots,
@@ -144,22 +145,22 @@ class RingBufferResources:
     )
 
     rf_batch_sizes = RingField(
-      f"bn_ring_batch_sizes_{session_id}",
+      f"bn_bs_{sid_hash}",
       dtype=uint_dtype_for(conf.processing_conf.batch_size),
       shape=(n_slots,),
     )
 
     rf_flags = RingField(
-      f"bn_ring_flags_{session_id}",
+      f"bn_flags_{sid_hash}",
       dtype=np.dtype(np.uint8),
       shape=(n_slots,),
     )
 
-    rf_file_indices.cleanup(session_id)
-    rf_segment_indices.cleanup(session_id)
-    rf_audio_samples.cleanup(session_id)
-    rf_batch_sizes.cleanup(session_id)
-    rf_flags.cleanup(session_id)
+    rf_file_indices.cleanup(sid_hash)
+    rf_segment_indices.cleanup(sid_hash)
+    rf_audio_samples.cleanup(sid_hash)
+    rf_batch_sizes.cleanup(sid_hash)
+    rf_flags.cleanup(sid_hash)
 
     return RingBufferResources(
       rf_file_indices=rf_file_indices,

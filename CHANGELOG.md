@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Bugfix
 
 - Fixed issue with using ProtoBuf CPU backend and TensorFlow GPU being available
+- Fixed #17: Issue on macOS with too long ring buffer names
 
 ### Changed
 
