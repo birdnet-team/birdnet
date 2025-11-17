@@ -46,6 +46,46 @@ def assert_prediction_result_is_equal(a: PredictionResult, b: PredictionResult) 
   np.testing.assert_array_equal(sorted_masks_a, sorted_masks_b)
 
 
+def assert_prediction_result_is_close(
+  a: PredictionResult, b: PredictionResult, max_abs_diff: float
+) -> None:
+  assert isinstance(a, PredictionResult)
+  assert isinstance(b, PredictionResult)
+
+  np.testing.assert_array_equal(a.segment_duration_s, b.segment_duration_s)
+  np.testing.assert_array_equal(a.overlap_duration_s, b.overlap_duration_s)
+  np.testing.assert_array_equal(a.files, b.files)
+  np.testing.assert_array_equal(a.species_list, b.species_list)
+  np.testing.assert_array_equal(a.file_durations, b.file_durations)
+
+  # Sort species probabilities by species IDs before comparison
+  sort_idx_a = np.argsort(a.species_ids, axis=-1)
+  sort_idx_b = np.argsort(b.species_ids, axis=-1)
+
+  sorted_ids_a = np.take_along_axis(a.species_ids, sort_idx_a, axis=-1)
+  sorted_ids_b = np.take_along_axis(b.species_ids, sort_idx_b, axis=-1)
+
+  # order may differ due to different top-k selection, but ids must be the same
+  np.testing.assert_array_equal(sorted_ids_a, sorted_ids_b)
+
+  sorted_masks_a = np.take_along_axis(a.species_masked, sort_idx_a, axis=-1)
+  sorted_masks_b = np.take_along_axis(b.species_masked, sort_idx_b, axis=-1)
+  np.testing.assert_array_equal(sorted_masks_a, sorted_masks_b)
+
+  sorted_probs_a = np.take_along_axis(a.species_probs, sort_idx_a, axis=-1)
+  sorted_probs_b = np.take_along_axis(b.species_probs, sort_idx_b, axis=-1)
+
+  np.testing.assert_array_equal(sorted_probs_a.shape, sorted_probs_b.shape)
+  max_abs = get_max_absolute_tolerance(
+    sorted_probs_a,
+    sorted_probs_b,
+  )
+
+  assert max_abs <= max_abs_diff, (
+    f"Max absolute difference {max_abs} exceeds threshold {max_abs_diff}"
+  )
+
+
 def _check_tf_gpu() -> bool:
   try:
     import tensorflow as tf

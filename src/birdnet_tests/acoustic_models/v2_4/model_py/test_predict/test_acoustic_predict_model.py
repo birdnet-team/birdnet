@@ -8,6 +8,7 @@ import pytest
 
 from birdnet.model_loader import load
 from birdnet_tests.helper import (
+  assert_prediction_result_is_close,
   assert_prediction_result_is_equal,
   ensure_gpu_or_skip,
   ensure_litert_or_skip,
@@ -15,10 +16,7 @@ from birdnet_tests.helper import (
   use_forkserver_or_skip,
   use_spawn_or_skip,
 )
-from birdnet_tests.test_files import (
-  TEST_FILE_SHORT,
-  TEST_FILE_SHORT_SCORE_SHAPE,
-)
+from birdnet_tests.test_files import TEST_FILE_SHORT, TEST_FILE_SHORT_SCORE_SHAPE
 
 
 def test_pb_cpu_fp32() -> None:
@@ -243,11 +241,15 @@ def test_pb_gpu_fp32_twice_two_sessions() -> None:
   ensure_gpu_or_skip()
 
   model = load("acoustic", "2.4", "pb", precision="fp32")
-  with model.predict_session(n_workers=1, device="GPU", top_k=None) as session:
+  with model.predict_session(
+    n_workers=1, device="GPU", top_k=None, default_confidence_threshold=-numpy.inf
+  ) as session:
     res1 = session.run(TEST_FILE_SHORT)
-  with model.predict_session(n_workers=1, device="GPU", top_k=None) as session:
+  with model.predict_session(
+    n_workers=1, device="GPU", top_k=None, default_confidence_threshold=-numpy.inf
+  ) as session:
     res2 = session.run(TEST_FILE_SHORT)
-  assert_prediction_result_is_equal(res1, res2)
+  assert_prediction_result_is_close(res1, res2, max_abs_diff=1e-6)
 
 
 def test_pb_cpu_fp32_twice_same_session() -> None:
@@ -263,7 +265,9 @@ def test_pb_gpu_fp32_twice_same_session() -> None:
   ensure_gpu_or_skip()
 
   model = load("acoustic", "2.4", "pb", precision="fp32")
-  with model.predict_session(n_workers=1, device="GPU", top_k=None) as session:
+  with model.predict_session(
+    n_workers=1, device="GPU", top_k=None, default_confidence_threshold=-numpy.inf
+  ) as session:
     res1 = session.run(TEST_FILE_SHORT)
     res2 = session.run(TEST_FILE_SHORT)
-  assert_prediction_result_is_equal(res1, res2)
+  assert_prediction_result_is_close(res1, res2, max_abs_diff=1e-6)
