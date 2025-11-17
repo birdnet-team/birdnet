@@ -73,7 +73,7 @@ tests = [
   "mypy >= 1.18.2",
   "ruff >= 0.14.4"
 ]
-dev = ["uv", "ruff", "mypy", "rope", "build", "twine", "scipy-stubs", "tuna", "pyarrow-stubs", "types-tqdm", "types-requests", "pandas-stubs", "types-tensorflow"]
+dev = ["jupyter", "uv", "ruff", "mypy", "rope", "build", "twine", "scipy-stubs", "tuna", "pyarrow-stubs", "types-tqdm", "types-requests", "pandas-stubs", "types-tensorflow"]
 
 [project.urls]
 Homepage = "https://github.com/birdnet-team/birdnet"
