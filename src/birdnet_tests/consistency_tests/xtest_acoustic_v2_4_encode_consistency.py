@@ -10,7 +10,7 @@ from birdnet.acoustic_models.inference.emb.encoding_result import EncodingResult
 from birdnet.acoustic_models.v2_4.model import AcousticModelV2_4
 from birdnet.model_loader import load
 from birdnet_tests.helper import ensure_gpu_or_skip, ensure_litert_or_skip
-from birdnet_tests.test_files import TEST_FILE_WAV
+from birdnet_tests.test_files import TEST_FILE_LONG
 
 
 @dataclass()
@@ -47,7 +47,7 @@ def predict_test_cases(
       bandpass_fmin=default.bandpass_fmin,
       bandpass_fmax=default.bandpass_fmax,
     ) as session:
-      result = session.run(TEST_FILE_WAV)
+      result = session.run(TEST_FILE_LONG)
       yield case_nr, result
 
 

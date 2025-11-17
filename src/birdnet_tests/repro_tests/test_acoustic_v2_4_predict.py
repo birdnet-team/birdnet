@@ -4,7 +4,7 @@ import pytest
 from birdnet.acoustic_models.v2_4.model import AcousticModelV2_4
 from birdnet.model_loader import load
 from birdnet_tests.helper import ensure_gpu_or_skip, ensure_litert_or_skip
-from birdnet_tests.test_files import TEST_FILE_WAV
+from birdnet_tests.test_files import TEST_FILE_LONG
 
 
 def predict_test_case(
@@ -13,7 +13,7 @@ def predict_test_case(
   device: str,
 ) -> float:
   res = model.predict(
-    TEST_FILE_WAV,
+    TEST_FILE_LONG,
     n_workers=n_workers,
     device=device,
     apply_sigmoid=True,

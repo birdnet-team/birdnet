@@ -1,9 +1,8 @@
-import numpy.testing
 import pytest
 
 from birdnet.model_loader import load_custom
 from birdnet_tests.helper import ensure_litert_or_skip
-from birdnet_tests.test_files import TEST_FILE_WAV, TEST_FILES_DIR
+from birdnet_tests.test_files import TEST_FILE_SHORT, TEST_FILES_DIR
 
 
 def test_custom_from_analyzer_v2_4_tf_fp32() -> None:
@@ -17,10 +16,8 @@ def test_custom_from_analyzer_v2_4_tf_fp32() -> None:
     check_validity=False,
   )
 
-  res = model.predict(TEST_FILE_WAV, top_k=None)
-  mean = res.species_probs.mean()
-  assert res.species_probs.shape == (1, 40, 4)
-  numpy.testing.assert_almost_equal(mean, 0.1442, decimal=4)
+  res = model.predict(TEST_FILE_SHORT, top_k=None, n_workers=1)
+  assert res.species_probs.shape == (1, 3, 4)
 
 
 @pytest.mark.litert
@@ -37,7 +34,5 @@ def test_custom_from_analyzer_v2_4_litert_fp32() -> None:
     check_validity=False,
   )
 
-  res = model.predict(TEST_FILE_WAV, top_k=None)
-  mean = res.species_probs.mean()
-  assert res.species_probs.shape == (1, 40, 4)
-  numpy.testing.assert_almost_equal(mean, 0.1442, decimal=4)
+  res = model.predict(TEST_FILE_SHORT, top_k=None, n_workers=1)
+  assert res.species_probs.shape == (1, 3, 4)

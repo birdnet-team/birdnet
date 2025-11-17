@@ -6,7 +6,7 @@ from birdnet.acoustic_models.inference.scores.prediction_result import (
   PredictionResult,
 )
 from birdnet.model_loader import load
-from birdnet_tests.test_files import TEST_FILE_WAV
+from birdnet_tests.test_files import TEST_FILE_LONG
 
 
 def get_cached_result(audio_paths: list[Path], k: int, conf: float) -> PredictionResult:
@@ -32,7 +32,7 @@ def get_cached_result(audio_paths: list[Path], k: int, conf: float) -> Predictio
 
 
 def test_soundscape() -> None:
-  audio_path = [TEST_FILE_WAV]
+  audio_path = [TEST_FILE_LONG]
 
   result = get_cached_result(audio_path, 5, 0.1)
   array = result.to_structured_array()

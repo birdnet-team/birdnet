@@ -5,7 +5,7 @@ import pytest
 from birdnet.acoustic_models.inference.producer import (
   load_audio_in_segments_with_overlap,
 )
-from birdnet_tests.test_files import AUDIO_FORMATS_DIR, TEST_FILE_WAV
+from birdnet_tests.test_files import AUDIO_FORMATS_DIR, TEST_FILE_LONG
 
 
 def format_can_be_read(filename: str) -> bool:
@@ -86,7 +86,7 @@ def test_wma_can_not_be_read() -> None:
 def get_segments(seg: float = 3, overlap: float = 0, sr: int = 48_000) -> list:
   return list(
     load_audio_in_segments_with_overlap(
-      TEST_FILE_WAV,
+      TEST_FILE_LONG,
       segment_duration_s=seg,
       overlap_duration_s=overlap,
       target_sample_rate=sr,

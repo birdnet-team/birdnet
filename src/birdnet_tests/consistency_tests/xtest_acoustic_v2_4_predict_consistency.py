@@ -16,7 +16,7 @@ from birdnet_tests.helper import (
   get_max_absolute_tolerance,
   get_max_absolute_tolerance_threshold,
 )
-from birdnet_tests.test_files import TEST_FILE_WAV
+from birdnet_tests.test_files import TEST_FILE_LONG
 
 
 @dataclass()
@@ -60,7 +60,7 @@ def predict_test_cases(
       sigmoid_sensitivity=1.0,
       custom_species_list=None,
     ) as session:
-      result = session.run(TEST_FILE_WAV)
+      result = session.run(TEST_FILE_LONG)
     yield case_nr, result
 
 

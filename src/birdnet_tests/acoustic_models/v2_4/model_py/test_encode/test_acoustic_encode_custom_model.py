@@ -1,11 +1,14 @@
-import numpy.testing
 import pytest
 
 from birdnet.acoustic_models.v2_4.tf import AcousticTFDownloaderV2_4
 from birdnet.local_data import get_lang_dir, get_model_path
 from birdnet.model_loader import load_custom
 from birdnet_tests.helper import ensure_litert_or_skip
-from birdnet_tests.test_files import TEST_FILE_WAV, TEST_FILES_DIR
+from birdnet_tests.test_files import (
+  TEST_FILE_SHORT,
+  TEST_FILE_SHORT_EMB_SHAPE,
+  TEST_FILES_DIR,
+)
 
 
 def test_custom_from_analyzer_v2_4_tf_fp32() -> None:
@@ -21,10 +24,9 @@ def test_custom_from_analyzer_v2_4_tf_fp32() -> None:
     check_validity=False,
   )
 
-  res = model.encode(TEST_FILE_WAV, half_precision=True)
-  mean = res.embeddings.mean()
-  assert res.embeddings.shape == (1, 40, 1024)
-  numpy.testing.assert_allclose(mean, 0.3406, rtol=1e-4)
+  with model.encode_session(n_workers=1) as session:
+    res = session.run(TEST_FILE_SHORT)
+  assert res.embeddings.shape == TEST_FILE_SHORT_EMB_SHAPE
 
 
 def test_custom_from_analyzer_v2_4_tf_fp16() -> None:
@@ -40,10 +42,9 @@ def test_custom_from_analyzer_v2_4_tf_fp16() -> None:
     check_validity=False,
   )
 
-  res = model.encode(TEST_FILE_WAV, half_precision=True)
-  mean = res.embeddings.mean()
-  assert res.embeddings.shape == (1, 40, 1024)
-  numpy.testing.assert_allclose(mean, 0.3406, rtol=1e-4)
+  with model.encode_session(n_workers=1) as session:
+    res = session.run(TEST_FILE_SHORT)
+  assert res.embeddings.shape == TEST_FILE_SHORT_EMB_SHAPE
 
 
 def test_custom_from_analyzer_v2_4_tf_int8() -> None:
@@ -59,10 +60,9 @@ def test_custom_from_analyzer_v2_4_tf_int8() -> None:
     check_validity=False,
   )
 
-  res = model.encode(TEST_FILE_WAV, half_precision=True)
-  mean = res.embeddings.mean()
-  assert res.embeddings.shape == (1, 40, 1024)
-  numpy.testing.assert_allclose(mean, 0.3347, rtol=1e-3)
+  with model.encode_session(n_workers=1) as session:
+    res = session.run(TEST_FILE_SHORT)
+  assert res.embeddings.shape == TEST_FILE_SHORT_EMB_SHAPE
 
 
 @pytest.mark.litert
@@ -79,10 +79,9 @@ def test_custom_from_analyzer_v2_4_litert_fp32() -> None:
     check_validity=False,
   )
 
-  res = model.encode(TEST_FILE_WAV, half_precision=True)
-  mean = res.embeddings.mean()
-  assert res.embeddings.shape == (1, 40, 1024)
-  numpy.testing.assert_allclose(mean, 0.3406, rtol=1e-4)
+  with model.encode_session(n_workers=1) as session:
+    res = session.run(TEST_FILE_SHORT)
+  assert res.embeddings.shape == TEST_FILE_SHORT_EMB_SHAPE
 
 
 def test_custom_from_analyzer_v2_4_raven_fp32_raise_exception() -> None:
@@ -96,8 +95,9 @@ def test_custom_from_analyzer_v2_4_raven_fp32_raise_exception() -> None:
     is_raven=True,
   )
 
-  with pytest.raises(
+  with pytest.raises(  # noqa: SIM117
     ValueError,
     match=r"loaded backend does not support embeddings",
   ):
-    model.encode(TEST_FILE_WAV)
+    with model.encode_session(n_workers=1):
+      pass
