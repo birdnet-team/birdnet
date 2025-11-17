@@ -6,7 +6,7 @@ from birdnet.acoustic_models.inference_pipeline.resources import (
 from birdnet.base import get_session_id
 
 
-def test_ring_names_shorter_than_30_chars() -> None:
+def test_ring_names_have_max_30_chars() -> None:
   result = RingBufferResources._create(
     get_session_id(), 4, 1, 48_000 * 3, np.dtype(np.uint32), 1000
   )
