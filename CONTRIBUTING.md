@@ -38,3 +38,7 @@ Final lines of test result output:
   py311: commands succeeded
   congratulations :)
 ```
+
+## Notes
+
+- Python 3.10 is not supported because of missing `typing` features -> `from typing import Self`
