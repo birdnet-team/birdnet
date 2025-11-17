@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added `repro` option to be able to get reproducible results
+- Added support for Python 3.13
 
 ### Removed
 

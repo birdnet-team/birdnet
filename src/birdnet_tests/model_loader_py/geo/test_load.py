@@ -10,7 +10,7 @@ from birdnet_tests.helper import ensure_litert_or_skip
 @pytest.mark.litert
 def test_pb_v2_4_with_library_raises_error() -> None:
   ensure_litert_or_skip()
-  
+
   with pytest.raises(
     ValueError,
     match=r"Unexpected keyword arguments: library.",
@@ -31,14 +31,23 @@ def test_v2_4_tf_fp32() -> None:
 @pytest.mark.litert
 def test_v2_4_litert_fp32() -> None:
   ensure_litert_or_skip()
-  
+
   model = load("geo", "2.4", "tf", precision="fp32", library="litert")
   assert isinstance(model, GeoModelV2_4)
 
 
-def test_types_are_correct() -> None:
+def test_pb_type_is_correct() -> None:
   assert type(load("geo", "2.4", "pb")) is GeoModelV2_4
+
+
+def test_tf_type_is_correct() -> None:
   assert type(load("geo", "2.4", "tf")) is GeoModelV2_4
+
+
+@pytest.mark.litert
+def test_tf_litert_type_is_correct() -> None:
+  ensure_litert_or_skip()
+
   assert type(load("geo", "2.4", "tf", library="litert")) is GeoModelV2_4
 
 

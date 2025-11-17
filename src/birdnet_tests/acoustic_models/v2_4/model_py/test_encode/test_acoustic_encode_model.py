@@ -64,7 +64,7 @@ def test_v2_4_pb_fp32_cpu() -> None:
 
 
 @pytest.mark.gpu
-def test_pb_gpu_is_close() -> None:
+def test_pb_gpu() -> None:
   ensure_gpu_or_skip()
 
   model = load("acoustic", "2.4", "pb", precision="fp32")

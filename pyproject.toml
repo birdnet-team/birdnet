@@ -3,7 +3,7 @@ name = "birdnet"
 version = "0.2.4"
 description = "A Python library for identifying bird species by their sounds."
 readme = "README.md"
-requires-python = ">=3.11, <3.13"
+requires-python = ">=3.11, <3.14"
 license = { text = "MIT" }
 authors = [{ name = "Stefan Taubert" }]
 maintainers = [{ name = "Stefan Taubert" }]
@@ -27,6 +27,7 @@ classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "License :: OSI Approved :: MIT License",
 ]
 dependencies = [
@@ -143,7 +144,7 @@ known-first-party = ["birdnet*"]
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-envlist = py{311,312}, py{312}-repro
+envlist = py{311,312}, py{312}-repro, py{313}
 isolated_build = True
 
 [testenv]
@@ -169,6 +170,13 @@ commands =
   pytest -m "repro and (not litert and not gpu)" -n auto
   pytest -m "repro and litert" -n auto
   pytest -m "repro and gpu" -n 1
+
+[testenv:py313]
+deps =
+  .[tests,and-cuda]
+commands = 
+  pytest -m "not repro and (not litert and not gpu)" -n auto
+  pytest -m "not repro and gpu" -n 1
 """
 
 [build-system]
