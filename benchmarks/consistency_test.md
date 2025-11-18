@@ -1,5 +1,6 @@
+# Consistency Test
 
-# Linux/macOS
+## Linux/macOS
 
 ```sh
 python3.12 -m venv .venv-py12
@@ -8,7 +9,7 @@ pip install birdnet[and-cuda,litert]
 python3.12 consistency_test.py
 ```
 
-# Windows
+## Windows
 
 ```ps1
 py -311 -m venv .venv-py12
