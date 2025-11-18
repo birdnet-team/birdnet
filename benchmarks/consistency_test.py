@@ -1,4 +1,7 @@
+import importlib.metadata
 import multiprocessing as mp
+import pickle
+import platform
 from datetime import datetime
 from pathlib import Path
 
@@ -6,6 +9,7 @@ import numpy as np
 
 from birdnet.acoustic_models.v2_4.model import AcousticModelV2_4
 from birdnet.backends import litert_installed
+from birdnet.local_data import get_package_version
 from birdnet.model_loader import load
 
 
@@ -65,7 +69,13 @@ def predict(
     "precision": model._backend_type.precision(),
     "device": device,
     "result": result,
+    "version": get_package_version(),
+    "python": f"{platform.python_version()} {platform.python_implementation()}",
+    "hw_host": platform.platform(),
+    "hw_cpu": platform.processor(),
+    "tensorflow_version": importlib.metadata.version("tensorflow"),
   }
+
   return prediction_result
 
 
@@ -129,12 +139,13 @@ def save_results(results: list[dict]):
   out_path = Path(__file__).parent
   report_path = out_path / fname
   report_path.parent.mkdir(parents=True, exist_ok=True)
-  import pickle
 
   with open(report_path, "wb") as f:
     pickle.dump(results, f)
   print("Saved results to:", report_path.absolute())
-  print(f"Please update them to: https://mytuc.org/sknk")
+  print(
+    f"Please include a name (e.g., '..._report_stefan_laptop') and update the results to: https://mytuc.org/sknk"
+  )
 
 
 def main() -> None:

@@ -8,7 +8,7 @@ Use `and-cuda` extra if you have a CUDA-capable GPU.
 python3.12 -m venv .venv-py12
 source .venv-py12/bin/activate
 pip install uv
-uv pip install birdnet[and-cuda,litert]==0.2.5
+uv pip install birdnet[repro,and-cuda]==0.2.5
 python3.12 consistency_test.py
 ```
 
