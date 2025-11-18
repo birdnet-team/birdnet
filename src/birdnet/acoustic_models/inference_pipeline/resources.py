@@ -3,6 +3,7 @@ from __future__ import annotations
 import ctypes
 import multiprocessing as mp
 import multiprocessing.synchronize
+import queue
 import tempfile
 import time
 from dataclasses import dataclass
@@ -202,7 +203,7 @@ class ProducerResources:
   )
   all_finished: multiprocessing.synchronize.Event
   ring_access_lock: multiprocessing.synchronize.Lock
-  files_queue: mp.Queue
+  files_queue: queue.Queue
   start_signals: list[multiprocessing.synchronize.Event]
 
   def reset(self) -> None:
@@ -218,10 +219,11 @@ class ProducerResources:
       uint_ctype_from_dtype(uint_dtype_for(n_producers)), 0, lock=True
     )
 
+    m = multiprocessing.Manager()
     return ProducerResources(
       n_producers=n_producers,
       n_finished_pointer=n_finished_pointer,
-      files_queue=mp.Queue(),
+      files_queue=m.Queue(),
       ring_access_lock=mp.Lock(),
       all_finished=mp.Event(),
       start_signals=[mp.Event() for _ in range(n_producers)],
@@ -230,7 +232,7 @@ class ProducerResources:
 
 @dataclass(frozen=True)
 class WorkerResources:
-  results_queue: mp.Queue
+  results_queue: queue.Queue
   ring_access_lock: multiprocessing.synchronize.Lock
   devices: list[str]
   backend_loader: BackendLoader
@@ -251,8 +253,10 @@ class WorkerResources:
       backend_kwargs=config.model_conf.backend_kwargs,
     )
 
+    m = multiprocessing.Manager()
+
     return WorkerResources(
-      results_queue=mp.Queue(),
+      results_queue=m.Queue(),
       ring_access_lock=mp.Lock(),
       devices=devices,
       backend_loader=backend_loader,
@@ -340,9 +344,11 @@ class FilesAnalyzerResources:
       max_segment_ptr_value,
     )
 
+    m = multiprocessing.Manager()
+
     return FilesAnalyzerResources(
-      analyzer_queue=mp.Queue(),
-      input_files_queue=mp.Queue(),
+      analyzer_queue=m.Queue(),
+      input_files_queue=m.Queue(),
       tot_n_segments_ptr=mp.RawValue(ctypes.c_uint64, 0),
       max_segment_idx_ptr=max_segment_idx_ptr,
       segments_dtype=segments_dtype,
@@ -456,11 +462,12 @@ class StatisticsResources:
     prd_stats_queue = None
     sem_active_workers = None
 
+    m = multiprocessing.Manager()
     if track_performance:
-      perf_res_queue = mp.Queue()
+      perf_res_queue = m.Queue()
       perf_res_start_signal = mp.Event()
-      wkr_stats_queue = mp.Queue()
-      prd_stats_queue = mp.Queue()
+      wkr_stats_queue = m.Queue()
+      prd_stats_queue = m.Queue()
       sem_active_workers = mp.Semaphore(0)
 
     benchmark_dir = None
@@ -514,7 +521,7 @@ class LoggingResources:
   session_log_file: Path
   global_log_file: Path
   logging_level: int
-  logging_queue: mp.Queue
+  logging_queue: queue.Queue
   queue_handler: QueueHandler
   stop_logging_event: multiprocessing.synchronize.Event
 
@@ -544,7 +551,8 @@ class LoggingResources:
       Path(tempfile.gettempdir()) / f"{PKG_NAME}_session_{session_id}.log"
     )
 
-    logging_queue = mp.Queue()
+    m = multiprocessing.Manager()
+    logging_queue = m.Queue()
     queue_handler = add_session_queue_handler(session_id, logging_queue)
 
     return LoggingResources(

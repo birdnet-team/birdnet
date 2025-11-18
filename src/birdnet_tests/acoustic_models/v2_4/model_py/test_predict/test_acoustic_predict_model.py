@@ -1,7 +1,7 @@
 import multiprocessing
 import multiprocessing.synchronize
+import queue
 import threading
-from queue import Queue
 
 import numpy
 import pytest
@@ -192,7 +192,7 @@ def test_tf_fp32_twice_two_sessions_parallel_processes_spawn() -> None:
   assert_prediction_result_is_equal(res1, res2)
 
 
-def run_session_thread(barrier: threading.Barrier, queue: Queue) -> None:
+def run_session_thread(barrier: threading.Barrier, queue: queue.Queue) -> None:
   model = load("acoustic", "2.4", "tf", precision="fp32", library="tf")
   barrier.wait()
   with model.predict_session(n_workers=1, top_k=None) as session:
@@ -202,7 +202,8 @@ def run_session_thread(barrier: threading.Barrier, queue: Queue) -> None:
 
 def test_tf_fp32_twice_two_sessions_parallel_threads() -> None:
   barrier = threading.Barrier(2)
-  queue = Queue()
+  m = multiprocessing.Manager()
+  queue = m.Queue()
 
   t1 = threading.Thread(target=run_session_thread, args=(barrier, queue))
   t2 = threading.Thread(target=run_session_thread, args=(barrier, queue))

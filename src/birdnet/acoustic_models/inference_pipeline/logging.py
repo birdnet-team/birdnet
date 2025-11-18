@@ -1,6 +1,7 @@
 from multiprocessing import Queue
 import multiprocessing.synchronize
 from pathlib import Path
+import queue
 from birdnet.logging_utils import get_package_logger, init_package_logger
 
 
@@ -30,19 +31,19 @@ def get_logger_from_session(session_id: str, name: str) -> logging.Logger:
   logger.parent = session_logger
   return logger
 
-def remove_session_queue_handler(session_id: str,handler: QueueHandler) -> None:
+def remove_session_queue_handler(session_id: str, handler: QueueHandler) -> None:
   root = get_session_logger(session_id)
   # check has queue handler already
   assert handler in root.handlers
   root.removeHandler(handler)
 
-def add_session_queue_handler(session_id: str,logging_queue: Queue) -> QueueHandler:
+def add_session_queue_handler(session_id: str, logging_queue: queue.Queue) -> QueueHandler:
   root = get_session_logger(session_id)
   h = QueueHandler(logging_queue)  # Just the one handler needed
   root.addHandler(h)
   return h
 
-def session_queue_handler_exists(session_id: str,logging_queue: Queue) -> bool:
+def session_queue_handler_exists(session_id: str, logging_queue: Queue) -> bool:
   root = get_session_logger(session_id)
   for handler in root.handlers:
     if isinstance(handler, QueueHandler) and handler.queue is logging_queue:
