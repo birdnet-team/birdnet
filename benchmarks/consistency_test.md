@@ -1,6 +1,6 @@
 # Consistency Test
 
-## Linux/macOS
+## Linux
 
 Use `and-cuda` extra if you have a CUDA-capable GPU.
 
