@@ -1,26 +1,29 @@
-import platform
-from collections.abc import Generator
+import multiprocessing as mp
 from datetime import datetime
 from pathlib import Path
-from time import perf_counter
 
 import numpy as np
-import pandas as pd
 
-from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
 from birdnet.acoustic_models.v2_4.model import AcousticModelV2_4
 from birdnet.backends import litert_installed
-from birdnet.helper import get_hash
-from birdnet.local_data import get_package_version
 from birdnet.model_loader import load
-from birdnet_tests.helper import tensorflow_gpu_available
-from birdnet_tests.test_files import TEST_FILE_LONG, TEST_FILE_SHORT
 
-REPORT_DIR = Path(__file__).parent
-COMPARE_THRESHOLDS = [0, 0.001, 0.01, 0.1, 0.2, 0.3]
-TEST_FILE = TEST_FILE_SHORT
-TEST_FILE = TEST_FILE_LONG
-assert TEST_FILE.is_file()
+
+def _check_tf_gpu() -> bool:
+  try:
+    import tensorflow as tf
+
+    devices = tf.config.list_physical_devices("GPU")
+    return len(devices) > 0
+  except Exception:
+    return False
+
+
+def tensorflow_gpu_available() -> bool:
+  ctx = mp.get_context()
+  with ctx.Pool(1) as pool:
+    result = pool.apply(_check_tf_gpu)
+  return result
 
 
 def predict(
@@ -30,7 +33,12 @@ def predict(
   n_workers: int | None,
   batch_size: int,
 ) -> dict:
-  start = perf_counter()
+  path = Path("consistency_test.wav")
+  if not path.is_file():
+    raise ValueError(
+      f"Test file not found. Ensure the test file is available: {path.absolute()}"
+    )
+
   with model.predict_session(
     top_k=None,
     default_confidence_threshold=-np.inf,
@@ -50,99 +58,15 @@ def predict(
     sigmoid_sensitivity=1.0,
     custom_species_list=None,
   ) as session:
-    init_time = perf_counter() - start
-    result = session.run(TEST_FILE)
-  total_time = perf_counter() - start
+    result = session.run(path)
   prediction_result = {
     "run_name": run_name,
     "backend": model._backend_type.name(),
     "precision": model._backend_type.precision(),
-    "init_time_s": init_time,
-    "prediction_time_s": total_time - init_time,
-    "total_time_s": total_time,
     "device": device,
-    "n_workers": n_workers,
-    "batch_size": batch_size,
     "result": result,
   }
   return prediction_result
-
-
-def get_sorted_probs(prediction_result: PredictionResult) -> np.ndarray:
-  sort_idx = np.argsort(prediction_result.species_ids, axis=-1)
-  sorted_probs = np.take_along_axis(prediction_result.species_probs, sort_idx, axis=-1)
-  return sorted_probs
-
-
-def create_report(reference, results, thresholds: list[float]):
-  report = []
-
-  now = datetime.now()
-  now_time = now.strftime("%Y/%m/%d %I:%M:%S %p")
-  now_fname = now.strftime("%Y-%m-%d_%H-%M-%S")
-
-  meta = {
-    "run_name": "",
-    "setup_hash": "",
-    "version": get_package_version(),
-    "python": f"{platform.python_version()} {platform.python_implementation()}",
-    "hw_host": platform.platform(),
-    "hw_cpu": platform.processor(),
-  }
-  platform_hash = f"{meta['python']}-{meta['hw_host']}-{meta['hw_cpu']}"
-  hash_digest = get_hash(platform_hash)[:5]
-  meta["setup_hash"] = hash_digest
-
-  fname = f"{now_fname}_{hash_digest}.csv"
-  report_path = REPORT_DIR / fname
-  REPORT_DIR.mkdir(parents=True, exist_ok=True)
-
-  ref = get_sorted_probs(reference["result"])
-  for res in results:
-    for threshold in thresholds:
-      mask = ref >= threshold
-      scores = get_sorted_probs(res["result"])
-      prob_diff = np.abs(ref - scores)
-      masked_diff = prob_diff[mask]
-      max_diff = np.max(masked_diff)
-      mean_diff = np.mean(masked_diff)
-      min_diff = np.min(masked_diff)
-      std_diff = np.std(masked_diff)
-      q1 = np.percentile(masked_diff, 25)
-      median_diff = np.median(masked_diff)
-      q3 = np.percentile(masked_diff, 75)
-      n_segments = ref.shape[1]
-      n_species = ref.shape[2]
-      n_values = masked_diff.size
-      total_values = prob_diff.size
-
-      report_entry = meta | {
-        "date": now_time,
-        "backend": res["backend"],
-        "precision": res["precision"],
-        "n_species": n_species,
-        "device": res["device"],
-        # "init_time_s": res["init_time_s"],
-        # "prediction_time_s": res["prediction_time_s"],
-        # "total_time_s": res["total_time_s"],
-        "compare_threshold": threshold,
-        "n_segments": n_segments,
-        "total_values": total_values,
-        "n_values": n_values,
-        "n_values_percent": round(n_values / total_values * 100, 2),
-        "mean_diff": mean_diff,
-        "std_diff": std_diff,
-        "min_diff": min_diff,
-        "max_diff": max_diff,
-        "q1_diff": q1,
-        "q2_diff": median_diff,
-        "q3_diff": q3,
-      }
-      report_entry["run_name"] = res["run_name"]
-      report.append(report_entry)
-  df_report = pd.DataFrame(report)
-  df_report.to_csv(report_path, index=False)
-  return df_report
 
 
 def run_reference_model():
@@ -197,33 +121,35 @@ def run_litert_tests() -> list[dict]:
   return [tf32, tf16, int8]
 
 
-def merge_results():
-  df_report = pd.DataFrame()
-  files = (
-    p.absolute()
-    for p in REPORT_DIR.rglob("*")
-    if p.is_file() and p.suffix.lower() == ".csv" and p.parent != REPORT_DIR
-  )
-  for file in files:
-    df_part = pd.read_csv(file)
-    df_report = pd.concat([df_report, df_part], ignore_index=True)
-  df_report.to_csv(REPORT_DIR / "report.csv", index=False)
-  return df_report
+def save_results(results: list[dict]):
+  now = datetime.now()
+  now_fname = now.strftime("%Y-%m-%d_%H-%M-%S")
+
+  fname = f"{now_fname}_report.pkl"
+  out_path = Path(__file__).parent
+  report_path = out_path / fname
+  report_path.parent.mkdir(parents=True, exist_ok=True)
+  import pickle
+
+  with open(report_path, "wb") as f:
+    pickle.dump(results, f)
+  print("Saved results to:", report_path.absolute())
+  print(f"Please update them to: https://mytuc.org/sknk")
 
 
 def main() -> None:
-  reference = run_reference_model()
-
   reports = []
+  reference = run_reference_model()
+  reports.append(reference)
   if tensorflow_gpu_available():
     reports.extend(run_gpu_model())
   # run is possible only in this order
-  reports.extend(run_tflite_models())
   if litert_installed():
     reports.extend(run_litert_tests())
-  create_report(reference, reports, COMPARE_THRESHOLDS)
+  reports.extend(run_tflite_models())
+
+  save_results(reports)
 
 
 if __name__ == "__main__":
   main()
-  merge_results()
