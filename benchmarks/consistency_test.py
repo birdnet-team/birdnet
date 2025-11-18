@@ -16,7 +16,7 @@ from birdnet.model_loader import load
 from birdnet_tests.helper import tensorflow_gpu_available
 from birdnet_tests.test_files import TEST_FILE_LONG, TEST_FILE_SHORT
 
-JOINT_REPORT = Path("benchmarks/consistency/report.csv")
+REPORT_DIR = Path(__file__).parent
 COMPARE_THRESHOLDS = [0, 0.001, 0.01, 0.1, 0.2, 0.3]
 TEST_FILE = TEST_FILE_SHORT
 TEST_FILE = TEST_FILE_LONG
@@ -24,6 +24,7 @@ assert TEST_FILE.is_file()
 
 
 def predict(
+  run_name: str,
   model: AcousticModelV2_4,
   device: str,
   n_workers: int | None,
@@ -53,6 +54,7 @@ def predict(
     result = session.run(TEST_FILE)
   total_time = perf_counter() - start
   prediction_result = {
+    "run_name": run_name,
     "backend": model._backend_type.name(),
     "precision": model._backend_type.precision(),
     "init_time_s": init_time,
@@ -66,23 +68,6 @@ def predict(
   return prediction_result
 
 
-def run_reference_model():
-  pb_model = load("acoustic", "2.4", "pb", precision="fp32")
-
-  pb_cpu = predict(pb_model, "CPU", n_workers=None, batch_size=1)
-  print("PB CPU done.")
-  return pb_cpu
-
-
-def run_gpu_model() -> None:
-  if tensorflow_gpu_available():
-    reference = run_reference_model()
-    pb_model = load("acoustic", "2.4", "pb", precision="fp32")
-    pb_gpu = predict(pb_model, "GPU", n_workers=1, batch_size=1025)
-    print("PB GPU done.")
-    create_report(reference, [pb_gpu], COMPARE_THRESHOLDS)
-
-
 def get_sorted_probs(prediction_result: PredictionResult) -> np.ndarray:
   sort_idx = np.argsort(prediction_result.species_ids, axis=-1)
   sorted_probs = np.take_along_axis(prediction_result.species_probs, sort_idx, axis=-1)
@@ -94,9 +79,10 @@ def create_report(reference, results, thresholds: list[float]):
 
   now = datetime.now()
   now_time = now.strftime("%Y/%m/%d %I:%M:%S %p")
-  now_fname = now.strftime("%Y-%m-%d_%H%M%S")
+  now_fname = now.strftime("%Y-%m-%d_%H-%M-%S")
 
   meta = {
+    "run_name": "",
     "setup_hash": "",
     "version": get_package_version(),
     "python": f"{platform.python_version()} {platform.python_implementation()}",
@@ -104,10 +90,12 @@ def create_report(reference, results, thresholds: list[float]):
     "hw_cpu": platform.processor(),
   }
   platform_hash = f"{meta['python']}-{meta['hw_host']}-{meta['hw_cpu']}"
-  hash_digest = get_hash(platform_hash)[:6]
+  hash_digest = get_hash(platform_hash)[:5]
   meta["setup_hash"] = hash_digest
 
-  fname = "{}"
+  fname = f"{now_fname}_{hash_digest}.csv"
+  report_path = REPORT_DIR / fname
+  REPORT_DIR.mkdir(parents=True, exist_ok=True)
 
   ref = get_sorted_probs(reference["result"])
   for res in results:
@@ -150,59 +138,92 @@ def create_report(reference, results, thresholds: list[float]):
         "q2_diff": median_diff,
         "q3_diff": q3,
       }
+      report_entry["run_name"] = res["run_name"]
       report.append(report_entry)
   df_report = pd.DataFrame(report)
+  df_report.to_csv(report_path, index=False)
   return df_report
 
 
-def run_tflite_models():
-  reference = run_reference_model()
+def run_reference_model():
+  pb_model = load("acoustic", "2.4", "pb", precision="fp32")
+
+  pb_cpu = predict("pb-cpu", pb_model, "CPU", n_workers=None, batch_size=1)
+  print("PB CPU done.")
+  return pb_cpu
+
+
+def run_gpu_model() -> list[dict]:
+  assert tensorflow_gpu_available()
+  pb_model = load("acoustic", "2.4", "pb", precision="fp32")
+  pb_gpu = predict("pb-gpu", pb_model, "GPU", n_workers=1, batch_size=1025)
+  print("PB GPU done.")
+  return [pb_gpu]
+
+
+def run_tflite_models() -> list[dict]:
+  run_name = "tflite"
 
   model_tf32 = load("acoustic", "2.4", "tf", precision="fp32", library="tf")
-  tf32 = predict(model_tf32, "CPU", n_workers=None, batch_size=1)
+  tf32 = predict(run_name, model_tf32, "CPU", n_workers=None, batch_size=1)
   print("TF FP32 done.")
 
   model_tf16 = load("acoustic", "2.4", "tf", precision="fp16", library="tf")
-  tf16 = predict(model_tf16, "CPU", n_workers=None, batch_size=1)
+  tf16 = predict(run_name, model_tf16, "CPU", n_workers=None, batch_size=1)
   print("TF FP16 done.")
 
   model_int8 = load("acoustic", "2.4", "tf", precision="int8", library="tf")
-  int8 = predict(model_int8, "CPU", n_workers=None, batch_size=1)
+  int8 = predict(run_name, model_int8, "CPU", n_workers=None, batch_size=1)
   print("TF INT8 done.")
-  create_report(reference, [tf32, tf16, int8], COMPARE_THRESHOLDS)
+  return [tf32, tf16, int8]
 
 
-def run_litert_tests():
-  if litert_installed():
-    reference = run_reference_model()
+def run_litert_tests() -> list[dict]:
+  assert litert_installed()
 
-    model_tf32 = load("acoustic", "2.4", "tf", precision="fp32", library="litert")
-    tf32 = predict(model_tf32, "CPU", n_workers=None, batch_size=1)
-    print("LiteRT FP32 done.")
+  run_name = "litert"
 
-    model_tf16 = load("acoustic", "2.4", "tf", precision="fp16", library="litert")
-    tf16 = predict(model_tf16, "CPU", n_workers=None, batch_size=1)
-    print("LiteRT FP16 done.")
+  model_tf32 = load("acoustic", "2.4", "tf", precision="fp32", library="litert")
+  tf32 = predict(run_name, model_tf32, "CPU", n_workers=None, batch_size=1)
+  print("LiteRT FP32 done.")
 
-    model_int8 = load("acoustic", "2.4", "tf", precision="int8", library="litert")
-    int8 = predict(model_int8, "CPU", n_workers=None, batch_size=1)
-    print("LiteRT INT8 done.")
-    create_report(reference, [tf32, tf16, int8], COMPARE_THRESHOLDS)
+  model_tf16 = load("acoustic", "2.4", "tf", precision="fp16", library="litert")
+  tf16 = predict(run_name, model_tf16, "CPU", n_workers=None, batch_size=1)
+  print("LiteRT FP16 done.")
+
+  model_int8 = load("acoustic", "2.4", "tf", precision="int8", library="litert")
+  int8 = predict(run_name, model_int8, "CPU", n_workers=None, batch_size=1)
+  print("LiteRT INT8 done.")
+  return [tf32, tf16, int8]
 
 
 def merge_results():
   df_report = pd.DataFrame()
-  for file in JOINT_REPORT.parent.glob("*.csv"):
+  files = (
+    p.absolute()
+    for p in REPORT_DIR.rglob("*")
+    if p.is_file() and p.suffix.lower() == ".csv" and p.parent != REPORT_DIR
+  )
+  for file in files:
     df_part = pd.read_csv(file)
     df_report = pd.concat([df_report, df_part], ignore_index=True)
+  df_report.to_csv(REPORT_DIR / "report.csv", index=False)
   return df_report
 
 
-def main():
-  run_gpu_model()
-  run_litert_tests()
-  run_tflite_models()
+def main() -> None:
+  reference = run_reference_model()
+
+  reports = []
+  if tensorflow_gpu_available():
+    reports.extend(run_gpu_model())
+  # run is possible only in this order
+  reports.extend(run_tflite_models())
+  if litert_installed():
+    reports.extend(run_litert_tests())
+  create_report(reference, reports, COMPARE_THRESHOLDS)
 
 
 if __name__ == "__main__":
-  df_report.to_csv("consistency_report.csv", index=False)
+  main()
+  merge_results()

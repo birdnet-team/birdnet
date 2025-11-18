@@ -26,3 +26,20 @@ def test_load_tf_and_litert_after_each_other_is_not_possible() -> None:
     match=r"generic_type: type \"InterpreterWrapper\" is already registered!",
   ):
     load_tf_model(model_path, library="litert", allocate_tensors=False)
+
+
+@pytest.mark.litert
+def test_load_litert_and_tf_after_each_other_is_possible() -> None:
+  ensure_litert_or_skip()
+  # needs fork because it the backend is loaded in the main process
+  use_fork_or_skip()
+
+  AcousticTFDownloaderV2_4.get_model_path_and_labels("en_us", "fp32")
+  model_path = get_model_path("acoustic", "2.4", "tf", "fp32")
+
+  model_litert = load_tf_model(model_path, library="litert", allocate_tensors=False)
+  assert model_litert is not None
+
+  # Load TF model
+  model_tf = load_tf_model(model_path, library="tf", allocate_tensors=False)
+  assert model_tf is not None
