@@ -2,7 +2,7 @@
 
 ## Linux
 
-Use `and-cuda` extra if you have a CUDA-capable GPU.
+Use `and-cuda` extra if you have a CUDA-capable GPU. If so, adjust the batch size in `consistency_test.py` accordingly: 1025 works for 24 GB VRAM.
 
 ```sh
 python3.12 -m venv .venv-py12
