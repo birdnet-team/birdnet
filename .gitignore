@@ -1,4 +1,5 @@
 # Custom
+benchmarks/consistency_reports/
 example/soundscape.BirdNET.selection.table.txt
 example/soundscape.birdnet_legacy.selection.table.txt
 src/birdnet_legacy
