@@ -1,3 +1,5 @@
+import platform
+
 import pytest
 
 from birdnet.acoustic_models.v2_4.tf import AcousticTFDownloaderV2_4
@@ -21,10 +23,8 @@ def test_load_tf_and_litert_after_each_other_is_not_possible() -> None:
   assert model_tf is not None
 
   # Loading Litert model after TF fails
-  with pytest.raises(
-    ImportError,
-    match=r"generic_type: type \"InterpreterWrapper\" is already registered!",
-  ):
+  # Error message differs between platforms
+  with pytest.raises(ImportError):
     load_tf_model(model_path, library="litert", allocate_tensors=False)
 
 
@@ -41,5 +41,11 @@ def test_load_litert_and_tf_after_each_other_is_possible() -> None:
   assert model_litert is not None
 
   # Load TF model
-  model_tf = load_tf_model(model_path, library="tf", allocate_tensors=False)
-  assert model_tf is not None
+  # on macOS it can't be loaded after liteRT
+  if platform.system() == "Darwin":
+    # Loading Litert model after TF fails
+    with pytest.raises(ImportError):
+      load_tf_model(model_path, library="tf", allocate_tensors=False)
+  else:
+    model_tf = load_tf_model(model_path, library="tf", allocate_tensors=False)
+    assert model_tf is not None
