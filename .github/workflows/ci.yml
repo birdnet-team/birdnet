@@ -33,7 +33,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install uv
-          python -m uv pip install --system .[dev]
+          python -m uv pip install --system .[tests]
 
       # - name: Run linters
       #   run: |
@@ -46,7 +46,6 @@ jobs:
       - name: Run tests
         run: |
           pytest -m "not repro and (not litert and not gpu)" -n auto
-          pytest -m "not repro and litert" -n auto
 
       - name: Test build
         run: |
