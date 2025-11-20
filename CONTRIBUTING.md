@@ -15,9 +15,10 @@ sudo apt install python3-pip \
 git clone https://github.com/birdnet-team/birdnet.git
 cd birdnet
 # create virtual environment
-python3.11 -m venv .venv-bn
-source .venv-bn/bin/activate
-python3.11 -m pip install -e .[dev,litert]
+python3.11 -m venv .venv311
+source .venv311/bin/activate
+python3.11 -m pip install uv
+python3.11 -m uv pip install -e .[tests,dev,and-cuda,litert]
 ```
 
 ## Running the tests
@@ -27,7 +28,7 @@ python3.11 -m pip install -e .[dev,litert]
 # then, navigate into the directory of the repo (if not already done)
 cd birdnet
 # activate environment
-source .venv-bn/bin/activate
+source .venv311/bin/activate
 # run tests
 tox
 ```
