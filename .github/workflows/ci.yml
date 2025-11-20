@@ -24,9 +24,8 @@ jobs:
             macos-15,
             macos-15-intel,
             windows-2025,
-            windows-11-arm,
           ]
-        python-version: ["3.12"]
+        python-version: ["3.11", "3.12"]
 
     steps:
       - uses: actions/checkout@v4
@@ -71,9 +70,8 @@ jobs:
             macos-15,
             macos-15-intel,
             windows-2025,
-            windows-11-arm,
           ]
-        python-version: ["3.12"]
+        python-version: ["3.11", "3.12"]
 
     steps:
       - uses: actions/checkout@v4
@@ -120,10 +118,9 @@ jobs:
             ubuntu-24.04,
             ubuntu-24.04-arm,
             macos-15,
-            windows-11-arm,
             # intel mac and windows not supported for litert
           ]
-        python-version: ["3.12"]
+        python-version: ["3.11", "3.12"]
 
     steps:
       - uses: actions/checkout@v4
