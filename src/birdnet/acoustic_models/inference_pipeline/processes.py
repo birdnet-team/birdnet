@@ -113,8 +113,6 @@ class ProcessManager:
       target=FilesAnalyzer(
         session_id=self._session_id,
         # files=self._res.analyzer_resources.file_paths,
-        logging_level=self._res.logging_resources.logging_level,
-        logging_queue=self._res.logging_resources.logging_queue,
         segment_duration_s=self._cfg.model_conf.segment_size_s,
         overlap_duration_s=self._cfg.processing_conf.overlap_duration_s,
         max_segment_idx_ptr=self._res.analyzer_resources.max_segment_idx_ptr,

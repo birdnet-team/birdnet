@@ -14,8 +14,6 @@ class FilesAnalyzer:
   def __init__(
     self,
     session_id: str,
-    logging_queue: Queue,
-    logging_level: int,
     segment_duration_s: float,
     overlap_duration_s: float,
     rf_segment_indices: RingField,
@@ -50,24 +48,25 @@ class FilesAnalyzer:
 
   def _check_cancel_event(self) -> bool:
     if self._cancel_event.is_set():
-      self._logger.debug(f"FilesAnalyzer({os.getpid()}) - Received cancel event.")
+      self._log("Received cancel event.")
       return True
     return False
 
   def _check_end_event(self) -> bool:
     if self._end_event.is_set():
-      self._logger.debug(f"FilesAnalyzer({os.getpid()}) - Received end event.")
+      self._log("Received end event.")
       return True
     return False
 
+  def _log(self, message: str) -> None:
+    self._logger.debug(f"FILES_ANALYZER({os.getpid()}) - {message}")
+
   def __call__(self) -> None:
-    # self._init_logging()
     self.run_main_loop()
-    # self._uninit_logging()
 
   def run_main_loop(self) -> None:
     while True:
-      self._logger.info("FilesAnalyzer waiting for input files batch...")
+      self._log("FilesAnalyzer waiting for input files batch...")
       while not self._start_signal.wait(timeout=1.0):
         if self._check_cancel_event():
           # self._uninit_logging()
@@ -76,9 +75,7 @@ class FilesAnalyzer:
           return
 
       self._start_signal.clear()
-      self._logger.debug(
-        f"FilesAnalyzer({os.getpid()}) - Received start signal. Starting processing."
-      )
+      self._log("Received start signal. Starting processing.")
       # check that it was resetted
       assert self._tot_n_segments.value == 0
       self.run_main()
@@ -97,7 +94,7 @@ class FilesAnalyzer:
         if self._check_cancel_event():
           return
 
-    self._logger.info(f"FilesAnalyzer received {len(files)} files to analyze.")
+    self._log(f"Received {len(files)} files to analyze.")
 
     for path in files:
       if self._check_cancel_event():
@@ -121,15 +118,14 @@ class FilesAnalyzer:
             f"Please set maximum audio duration."
           )
           self._cancel_event.set()
-          self._uninit_logging()
           return
 
         current_max_segment_index = file_max_segment_index
         self._max_segment_idx_ptr.value = current_max_segment_index
     self._tot_n_segments.value = n_segments
-    self._logger.debug("Putting analyzing result into queue.")
+    self._log("Putting analyzing result into queue.")
     self._analyzing_result.put(durations, block=True)
-    self._logger.debug("Done putting analyzing result into queue.")
-    self._logger.info(f"Total duration of all files: {sum(durations) / 60**2:.2f} h.")
+    self._log("Done putting analyzing result into queue.")
+    self._log(f"Total duration of all files: {sum(durations) / 60**2:.2f} h.")
 
     self._finished.set()

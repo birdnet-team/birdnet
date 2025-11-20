@@ -295,7 +295,7 @@ class Producer(bn_logging.LogableProcessBase):
 
       poison_pill = queue_entry is None
       if poison_pill:
-        self._logger.debug(f"PRODUCER({os.getpid()}) - Received poison pill. Exiting.")
+        self._log("Received poison pill. Exiting.")
         break
       assert isinstance(queue_entry, tuple)
       file_index, path = queue_entry
@@ -309,9 +309,6 @@ class Producer(bn_logging.LogableProcessBase):
 
   def _iter_files(self) -> None:
     start_time = time.perf_counter()
-    if self._check_cancel_event():
-      return
-
     buffer_input = self.get_segments_from_files()
     batches = itertools_batched(buffer_input, self._batch_size)
 
@@ -322,8 +319,9 @@ class Producer(bn_logging.LogableProcessBase):
           return
       wait_time_for_free_slot = time.perf_counter() - perf_c
 
-      self._logger.debug(
-        f"PRODUCER({os.getpid()}) - Producer acquired FREE. Free slots remaining: {self._sem_free_slots}; Filled slots: {self._sem_filled_slots}"
+      self._log(
+        f"Producer acquired FREE. Free slots remaining: {self._sem_free_slots}; "
+        f"Filled slots: {self._sem_filled_slots}"
       )
 
       if self._check_cancel_event():
@@ -333,18 +331,18 @@ class Producer(bn_logging.LogableProcessBase):
       try:
         batch = next(batches)
       except StopIteration:
-        self._logger.debug(
-          f"PRODUCER({os.getpid()}) - No more batches to process. Exiting."
-        )
+        self._log("No more batches to process. Exiting.")
         self._sem_free_slots.release()
         break
       batch_loading_duration = time.perf_counter() - perf_c
 
-      file_indices, segment_indices, audio_samples = zip(*batch, strict=False)
-      max_segment_index = max(segment_indices)
+      b_file_indices, b_segment_indices, b_audio_samples = zip(*batch, strict=False)
+      max_segment_index = max(b_segment_indices)
       if max_segment_index > self._max_supported_segment_index:
         self._logger.error(
-          f"Chunk index {max_segment_index} exceeds maximum supported segment index {self._max_supported_segment_index}. Please set maximum audio duration. Cancelling proceessing."
+          f"Chunk index {max_segment_index} exceeds maximum supported segment index "
+          f"{self._max_supported_segment_index}. Please set maximum audio duration. "
+          f"Cancelling proceessing."
         )
         self._cancel_event.set()
         return
@@ -378,15 +376,15 @@ class Producer(bn_logging.LogableProcessBase):
         )
       assert claimed_flag == WRITABLE_FLAG
 
-      self._logger.debug(
-        f"PRODUCER({os.getpid()}) - Acquired WRITING_FLAG for slot {claimed_slot}."
-      )
+      self._log(f"Acquired WRITING_FLAG for slot {claimed_slot}.")
 
       if self._check_cancel_event():
         return
 
       perf_c = time.perf_counter()
-      self._flush_batch(claimed_slot, file_indices, segment_indices, audio_samples)
+      self._write_batch_to_slot(
+        claimed_slot, b_file_indices, b_segment_indices, b_audio_samples
+      )
       flush_duration = time.perf_counter() - perf_c
 
       self._ring_flags[claimed_slot] = READABLE_FLAG
@@ -401,7 +399,7 @@ class Producer(bn_logging.LogableProcessBase):
       if self._prod_stats_queue is not None:
         now = time.perf_counter()
         process_total_duration = now - start_time
-        n = len(file_indices)
+        n = len(b_file_indices)
         self._prod_stats_queue.put(
           (
             self._pid,
@@ -421,58 +419,66 @@ class Producer(bn_logging.LogableProcessBase):
 
   def _check_cancel_event(self) -> bool:
     if self._cancel_event.is_set():
-      self._logger.debug(f"PRODUCER({os.getpid()}) - Received cancel event.")
+      self._log("Received cancel event.")
       return True
     return False
 
   def _check_end_event(self) -> bool:
     if self._end_event.is_set():
-      self._logger.debug(f"PRODUCER({os.getpid()}) - Received end event.")
+      self._log("Received end event.")
       return True
     return False
 
-  def _flush_batch(
-    self, claimed_slot, file_indices, segment_indices, audio_samples
+  def _write_batch_to_slot(
+    self,
+    claimed_slot: int,
+    batch_file_indices: tuple[int, ...],
+    batch_segment_indices: tuple[int, ...],
+    batch_audio_samples: tuple[int, ...],
   ) -> None:
     assert self._ring_audio_samples is not None
     assert self._ring_file_indices is not None
     assert self._ring_segment_indices is not None
     assert self._ring_batch_sizes is not None
 
-    current_batch_size = len(audio_samples)
-    assert len(file_indices) == current_batch_size
-    assert len(segment_indices) == current_batch_size
+    current_batch_size = len(batch_audio_samples)
+    assert len(batch_file_indices) == current_batch_size
+    assert len(batch_segment_indices) == current_batch_size
     assert 0 <= claimed_slot < self._n_slots
     assert current_batch_size <= self._batch_size
     self._ring_file_indices[claimed_slot, :current_batch_size] = np.asarray(
-      file_indices, self._ring_file_indices.dtype
+      batch_file_indices, self._ring_file_indices.dtype
     )
     # TODO könnte man noch bei den anderen auch machen
-    assert max(segment_indices) < max_value_for_uint_dtype(
+    assert max(batch_segment_indices) < max_value_for_uint_dtype(
       self._ring_segment_indices.dtype
     )
-    assert min(segment_indices) >= 0
+    assert min(batch_segment_indices) >= 0
     self._ring_segment_indices[claimed_slot, :current_batch_size] = np.asarray(
-      segment_indices, self._ring_segment_indices.dtype
+      batch_segment_indices, self._ring_segment_indices.dtype
     )
 
     self._ring_audio_samples[claimed_slot, :current_batch_size] = np.asarray(
-      np.stack(audio_samples, 0), self._ring_audio_samples.dtype
+      np.stack(batch_audio_samples, 0), self._ring_audio_samples.dtype
     )
     self._ring_batch_sizes[claimed_slot] = current_batch_size
 
-    self._logger.debug(
-      f"PRODUCER({os.getpid()}) - Flushed batch to shared memory on slot {claimed_slot}, batch size {current_batch_size}. Chunk indices: {segment_indices}"
+    self._log(
+      f"Flushed batch to shared memory on slot {claimed_slot}, "
+      f"batch size {current_batch_size}. Chunk indices: {batch_segment_indices}"
     )
+
+  def _log(self, message: str) -> None:
+    self._logger.debug(f"PRODUCER({os.getpid()}) - {message}")
 
   def __call__(self) -> None:
     self._init()
-    self.run_main_loop()
+    self._run_main_loop()
     self._uninit()
 
-  def run_main_loop(self) -> None:
+  def _run_main_loop(self) -> None:
     while True:
-      self._logger.info(f"PRODUCER({os.getpid()}) waiting for start signal...")
+      self._log("Waiting for start signal...")
       while not self._start_signal.wait(timeout=1.0):
         if self._check_cancel_event():
           # self._uninit_logging()
@@ -481,26 +487,26 @@ class Producer(bn_logging.LogableProcessBase):
           return
 
       self._start_signal.clear()
-      self._logger.debug(
-        f"PRODUCER({os.getpid()}) - Received start signal. Starting processing."
-      )
-      self.run_main()
+      self._log("Received start signal. Starting processing.")
+      self._run_main()
 
-  def run_main(self) -> None:
+  def _run_main(self) -> None:
+    if self._check_cancel_event():
+      return
+
     self._iter_files()
+    self._log("Itered all files.")
 
     if self._check_cancel_event():
       return
 
     with self._prod_done_ptr:
       self._prod_done_ptr.value = self._prod_done_ptr.value + 1
-      self._logger.debug(
-        f"PRODUCER({os.getpid()}) - Set prod_done_ptr to {self._prod_done_ptr.value}."
-      )
+      self._log(f"Set prod_done_ptr to {self._prod_done_ptr.value}.")
       is_last_producer = self._prod_done_ptr.value == self._n_producers
 
     if is_last_producer:
-      self._logger.debug(f"PRODUCER({os.getpid()}) - Last producer finished.")
+      self._log("Last producer finished.")
       self._all_finished.set()
       assert_queue_is_empty(self._files_queue)
 

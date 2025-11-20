@@ -187,17 +187,24 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._start_signal = start_signal
     self._start = start
 
+  def _log(self, message: str) -> None:
+    self._logger.debug(f"PERF_TRACKER({os.getpid()}) - {message}")
+
   def _get_worker_stats(self) -> bool:
     # get entries until the marker, entries added in the meanwhile are ignored
     # fix for queue.qsize() which is not supported on macOS
     get_end_marker = None
     self._wkr_stats_queue.put(get_end_marker)
     is_empty = True
+    n_received = 0
+    receive_duration_start = time.perf_counter()
+
     while True:
       queue_entry = self._wkr_stats_queue.get(block=True)
       if is_end_marker := queue_entry is get_end_marker:
         break
       is_empty = False
+      n_received += 1
 
       stats: tuple[int, float, float, float, float, float, float, int] = queue_entry
       (
@@ -210,14 +217,14 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         dur_add_to_queue,
         batch_size,
       ) = stats
-      self._logger.debug(
-        f"PerformanceTracker received prediction duration from worker {worker_pid}: "
-        f"wall time: {wall_time:.3f}s, "
-        f"wait for filled slot: {dur_wait_for_filled_slot:.3f}s, "
-        f"find filled slot: {dur_search_for_filled_slot:.3f}s, "
-        f"inference: {dur_inference:.3f}s, add to queue: {dur_add_to_queue}s, "
-        f"batch size: {batch_size}"
-      )
+      # self._log(
+      #   f"Received prediction duration from worker {worker_pid}: "
+      #   f"wall time: {wall_time:.3f}s, "
+      #   f"wait for filled slot: {dur_wait_for_filled_slot:.3f}s, "
+      #   f"find filled slot: {dur_search_for_filled_slot:.3f}s, "
+      #   f"inference: {dur_inference:.3f}s, add to queue: {dur_add_to_queue}s, "
+      #   f"batch size: {batch_size}"
+      # )
       self._wkr_wall_times[worker_pid] = wall_time
       self._wkr_total_segments_processed += batch_size
 
@@ -228,17 +235,25 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       self._wkr_3_get_job_dur_tracker.add_value(dur_get_job)
       self._wkr_4_inference_dur_tracker.add_value(dur_inference)
       self._wkr_5_add_to_queue_dur_tracker.add_value(dur_add_to_queue)
+    self._log(
+      f"Received {n_received} worker stats entries in "
+      f"{time.perf_counter() - receive_duration_start} ms."
+    )
     return is_empty
 
   def _get_producer_stats(self) -> bool:
     get_end_marker = None
     self._prd_stats_queue.put(get_end_marker)
     is_empty = True
+    n_received = 0
+    receive_duration_start = time.perf_counter()
+
     while True:
       queue_entry = self._prd_stats_queue.get(block=True)
       if is_end_marker := queue_entry is get_end_marker:
         break
       is_empty = False
+      n_received += 1
       stats: tuple[int, float, float, float, float, float, int] = queue_entry
       (
         prod_pid,
@@ -249,13 +264,13 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         flush_duration,
         n,
       ) = stats
-      self._logger.debug(
-        f"PerformanceTracker received producer stats from producer {prod_pid}: "
-        f"process: {process_total_duration:.3f}s, "
-        f"batch loading: {batch_loading_duration:.3f}s, "
-        f"wait for free slot: {wait_time_for_free_slot:.3f}s, "
-        f"flush: {flush_duration:.3f}s, n: {n}"
-      )
+      # self._log(
+      #   f"Received producer stats from producer {prod_pid}: "
+      #   f"process: {process_total_duration:.3f}s, "
+      #   f"batch loading: {batch_loading_duration:.3f}s, "
+      #   f"wait for free slot: {wait_time_for_free_slot:.3f}s, "
+      #   f"flush: {flush_duration:.3f}s, n: {n}"
+      # )
       self._prd_wall_times[prod_pid] = process_total_duration
       self._prd_total_segments_processed += n
 
@@ -263,6 +278,10 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       self._prd_2_wait_dur_free_slot_tracker.add_value(wait_time_for_free_slot)
       self._prd_3_free_slot_search_dur_tracker.add_value(free_slot_search_time)
       self._prd_4_flush_dur_tracker.add_value(flush_duration)
+    self._log(
+      f"Received {n_received} producer stats entries in "
+      f"{time.perf_counter() - receive_duration_start} ms."
+    )
     return is_empty
 
   def _print_stats(self) -> None:
@@ -401,26 +420,26 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     # self._logger.info(output_msg)
     print(output_msg, file=sys.stdout)
 
-  def print_stats_continuously(self):
+  def print_stats_continuously(self) -> None:
     while not self._processing_finished_event.wait(self._print_interval):
       if self._cancel_event.is_set():
         return
       self._print_stats()
-    self._logger.debug("PerformanceTracker.PrintThread thread finished.")
+    self._log("PerformanceTracker.PrintThread thread finished.")
 
   def _check_cancel_event(self) -> bool:
     if self._cancel_event.is_set():
-      self._logger.debug(f"PERF_TRACKER({os.getpid()}) - Received cancel event.")
+      self._log("Received cancel event.")
       return True
     return False
 
   def _check_end_event(self) -> bool:
     if self._end_event.is_set():
-      self._logger.debug(f"PERF_TRACKER({os.getpid()}) - Received end event.")
+      self._log("Received end event.")
       return True
     return False
 
-  def __call__(self):
+  def __call__(self) -> None:
     self._init_logging()
     self._shm_ring_flags, self._ring_flags = self._rf_flags.attach_and_get_array()
 
@@ -430,7 +449,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
   def run_main_loop(self) -> None:
     while True:
-      self._logger.info(f"PERF_TRACKER({os.getpid()}) waiting for start signal...")
+      self._log("Waiting for start signal...")
       while not self._start_signal.wait(timeout=1.0):
         if self._check_cancel_event():
           # self._uninit_logging()
@@ -439,9 +458,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
           return
 
       self._start_signal.clear()
-      self._logger.debug(
-        f"PERF_TRACKER({os.getpid()}) - Received start signal. Starting processing."
-      )
+      self._log("Received start signal. Starting processing.")
 
       self.run_main()
 
@@ -574,12 +591,12 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       # avg_segments_per_s_last=(np.mean(avg_segments_per_s) if avg_segments_per_s else 0),
     )
 
-    self._logger.debug("Putting performance tracking result into queue.")
+    self._log("Putting performance tracking result into queue.")
     self._perf_res.put(stats, block=True)
     # self._perf_res.close()
     # self._perf_res.join_thread()
-    self._logger.debug("Done putting performance tracking result into queue.")
+    self._log("Done putting performance tracking result into queue.")
 
-    self._logger.info("Joining print thread...")
+    self._log("Joining print thread...")
     print_thread.join()
-    self._logger.info("Print thread joined.")
+    self._log("Print thread joined.")

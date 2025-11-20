@@ -97,9 +97,9 @@ def assert_queue_is_empty(queue: Queue) -> None:
   # assert self._files_queue.qsize() == 0
   try:
     queue.get_nowait()
-    raise AssertionError("Queue is not empty")
+    raise AssertionError("Queue is not empty!")
   except Empty:
-    print("war empty -------------")
+    pass
 
 
 def is_supported_audio_file(file_path: Path) -> bool:
