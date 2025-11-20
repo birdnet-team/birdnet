@@ -13,11 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed #17: Issue on macOS with too long ring buffer names
 - Fixed #19: `queue.qsize()` is not used anymore
 - Fixed issue with hanging session because of logging
+- Fixed issue with downloading same model simultaneously
 
 ### Changed
 
 - Improved prediction speed, esp. for half-precision models (+10 seg/s)
 - Lowered dependencies
+- Update `ai-edge-litert` to version 2.0.3 on `repro`
+- Better download progress indication of model files
+- Model loading in tests is done before running other tests
 
 ### Added
 

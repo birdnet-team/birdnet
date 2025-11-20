@@ -46,7 +46,7 @@ class AcousticPBDownloaderV2_4(AcousticDownloaderBaseV2_4):
     return model_is_downloaded
 
   @classmethod
-  def _download_acoustic_model(cls) -> None:
+  def _download_model(cls) -> None:
     dl_url = "https://zenodo.org/records/15050749/files/BirdNET_v2.4_protobuf.zip"
     dl_size = 124522908
 
@@ -56,10 +56,10 @@ class AcousticPBDownloaderV2_4(AcousticDownloaderBaseV2_4):
         dl_url,
         zip_download_path,
         download_size=dl_size,
-        description="Downloading model",
+        description="Downloading acoustic model v2.4 (pb)",
       )
 
-      print("Extracting models...")
+      print("Extracting...")
       extract_dir = Path(temp_dir) / "extracted"
 
       with zipfile.ZipFile(zip_download_path, "r") as zip_ref:
@@ -70,11 +70,13 @@ class AcousticPBDownloaderV2_4(AcousticDownloaderBaseV2_4):
 
       acoustic_model_dir, acoustic_lang_dir = cls._get_paths()
       acoustic_model_dir.parent.mkdir(parents=True, exist_ok=True)
+      shutil.rmtree(acoustic_model_dir, ignore_errors=True)
       shutil.move(acoustic_model_dl_dir, acoustic_model_dir)
 
       acoustic_lang_dir.parent.mkdir(parents=True, exist_ok=True)
+      shutil.rmtree(acoustic_lang_dir, ignore_errors=True)
       shutil.move(species_dl_dir, acoustic_lang_dir)
-      print("Models extracted.")
+      print("Extracted.")
 
   @classmethod
   def get_model_path_and_labels(
@@ -82,7 +84,7 @@ class AcousticPBDownloaderV2_4(AcousticDownloaderBaseV2_4):
     lang: str,
   ) -> tuple[Path, OrderedSet[str]]:
     if not cls._check_acoustic_model_available():
-      cls._download_acoustic_model()
+      cls._download_model()
     assert cls._check_acoustic_model_available()
 
     model_dir, langs_path = cls._get_paths()

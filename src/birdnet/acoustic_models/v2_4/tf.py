@@ -82,14 +82,14 @@ class AcousticTFDownloaderV2_4(AcousticDownloaderBaseV2_4):
     return all((lang_dir / f"{lang}.txt").is_file() for lang in cls.AVAILABLE_LANGUAGES)
 
   @classmethod
-  def _download_acoustic_model(cls, precision: MODEL_PRECISIONS) -> None:
+  def _download_model(cls, precision: MODEL_PRECISIONS) -> None:
     with tempfile.TemporaryDirectory(prefix="birdnet_download") as temp_dir:
       zip_download_path = Path(temp_dir) / "download.zip"
       download_file_tqdm(
         models[precision].dl_url,
         zip_download_path,
         download_size=models[precision].dl_size,
-        description="Downloading model",
+        description=f"Downloading acoustic model v2.4 (tf, {precision})",
       )
 
       extract_dir = Path(temp_dir) / "extracted"
@@ -114,7 +114,7 @@ class AcousticTFDownloaderV2_4(AcousticDownloaderBaseV2_4):
   ) -> tuple[Path, OrderedSet[str]]:
     assert lang in cls.AVAILABLE_LANGUAGES
     if not cls._check_acoustic_model_available(precision):
-      cls._download_acoustic_model(precision)
+      cls._download_model(precision)
     assert cls._check_acoustic_model_available(precision)
 
     model_path, langs_path = cls._get_paths(precision)

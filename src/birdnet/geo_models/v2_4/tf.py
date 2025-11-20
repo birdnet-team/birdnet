@@ -57,14 +57,14 @@ class GeoTFDownloaderV2_4(GeoDownloaderBaseV2_4):
     return all((lang_dir / f"{lang}.txt").is_file() for lang in cls.AVAILABLE_LANGUAGES)
 
   @classmethod
-  def _download_geo_model(cls) -> None:
+  def _download_model(cls) -> None:
     with tempfile.TemporaryDirectory(prefix="birdnet_download") as temp_dir:
       zip_download_path = Path(temp_dir) / "download.zip"
       download_file_tqdm(
         cls._model_info.dl_url,
         zip_download_path,
         download_size=cls._model_info.dl_size,
-        description="Downloading model",
+        description="Downloading geo model v2.4 (tf)",
       )
 
       extract_dir = Path(temp_dir) / "extracted"
@@ -87,7 +87,7 @@ class GeoTFDownloaderV2_4(GeoDownloaderBaseV2_4):
   def get_model_path_and_labels(cls, lang: str) -> tuple[Path, OrderedSet[str]]:
     assert lang in cls.AVAILABLE_LANGUAGES
     if not cls._check_geo_model_available():
-      cls._download_geo_model()
+      cls._download_model()
     assert cls._check_geo_model_available()
 
     model_path, langs_path = cls._get_paths()

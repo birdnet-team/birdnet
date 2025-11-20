@@ -11,7 +11,53 @@ on:
   workflow_dispatch:
 
 jobs:
+  build-and-dl-models:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os:
+          [
+            ubuntu-slim,
+            ubuntu-24.04,
+            ubuntu-24.04-arm,
+            macos-15,
+            macos-15-intel,
+            windows-2025,
+          ]
+        python-version: ["3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install uv build --upgrade
+          python -m uv pip install twine build --upgrade
+          python -m uv pip install --system .[tests]
+
+      # - name: Run linters
+      #   run: |
+      #     ruff check src/birdnet
+      #     ruff check src/birdnet_tests
+
+      # - name: Type checking
+      #   run: mypy
+
+      - name: Download models
+        run: |
+          pytest -m "load_model" -n auto
+
   build-and-test-no-litert:
+    needs: build-and-dl-models
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -62,6 +108,7 @@ jobs:
           python -m twine check dist/*
 
   build-and-test-with-litert:
+    needs: build-and-dl-models
     runs-on: ${{ matrix.os }}
 
     strategy:

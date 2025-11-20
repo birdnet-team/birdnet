@@ -63,7 +63,7 @@ repro = [
   "psutil == 7.1.3",
   "pyarrow == 22.0.0",
   "tensorflow == 2.20.0",
-  "ai-edge-litert == 2.0.2; sys_platform == 'linux' or sys_platform == 'darwin'",
+  "ai-edge-litert == 2.0.3; sys_platform == 'linux' or sys_platform == 'darwin'",
 ]
 tests = [
   "uv >= 0.9.7",
@@ -101,6 +101,7 @@ log_level = "DEBUG"
 testpaths = ["src/birdnet_tests"]
 norecursedirs = ["src/birdnet_v1_tests"]
 markers = [
+  "load_model: tests that download all models, should be run before other tests",
   "litert: tests requiring ai_edge_litert backend which can not be loaded after tf is imported (raises ImportError) which happens on parallel test runs",
   "gpu: tests requiring a GPU to run and to be runned sequentially",
   "repro: tests requiring exact package versions to reproduce results",
@@ -159,24 +160,27 @@ deps =
 commands = 
   # ruff check src/birdnet
   # ruff check src/birdnet_tests
-  pytest -m "not repro and (not litert and not gpu)" -n auto
-  pytest -m "not repro and litert" -n auto
-  pytest -m "not repro and gpu" -n 1
+  pytest -m "load_model" -n auto
+  pytest -m "not load_model and not repro and (not litert and not gpu)" -n auto
+  pytest -m "not load_model and not repro and litert" -n auto
+  pytest -m "not load_model and not repro and gpu" -n 1
 
 [testenv:py312-repro]
 deps =
   .[tests,repro]
 commands = 
-  pytest -m "repro and (not litert and not gpu)" -n auto
-  pytest -m "repro and litert" -n auto
-  pytest -m "repro and gpu" -n 1
+  pytest -m "load_model" -n auto
+  pytest -m "not load_model repro and (not litert and not gpu)" -n auto
+  pytest -m "not load_model repro and litert" -n auto
+  pytest -m "not load_model repro and gpu" -n 1
 
 [testenv:py313]
 deps =
   .[tests,and-cuda]
 commands = 
-  pytest -m "not repro and (not litert and not gpu)" -n auto
-  pytest -m "not repro and gpu" -n 1
+  pytest -m "load_model" -n auto
+  pytest -m "not load_model not repro and (not litert and not gpu)" -n auto
+  pytest -m "not load_model not repro and gpu" -n 1
 """
 
 [build-system]

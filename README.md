@@ -23,7 +23,7 @@ pip install birdnet --user
 pip install birdnet[and-cuda] --user
 
 # For edge devices (e.g., Raspberry Pi)
-# Note: Does NOT work on Windows and not on Python 3.13 yet
+# Note: Does NOT work on Windows, Intel-based Macs and not on Python 3.13 yet
 pip install birdnet[litert] --user
 ```
 

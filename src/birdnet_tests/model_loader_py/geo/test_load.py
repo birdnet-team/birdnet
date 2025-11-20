@@ -18,11 +18,13 @@ def test_pb_v2_4_with_library_raises_error() -> None:
     load("geo", "2.4", "pb", precision="fp32", library="litert")  # type: ignore
 
 
+@pytest.mark.load_model
 def test_v2_4_pb() -> None:
   model = load("geo", "2.4", "pb", precision="fp32")
   assert isinstance(model, GeoModelV2_4)
 
 
+@pytest.mark.load_model
 def test_v2_4_tf_fp32() -> None:
   model = load("geo", "2.4", "tf", precision="fp32", library="tf")
   assert isinstance(model, GeoModelV2_4)
