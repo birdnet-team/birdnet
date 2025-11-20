@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import multiprocessing as mp
 import os
 import threading
+from multiprocessing import Process
 from pathlib import Path
 
 from ordered_set import OrderedSet
@@ -45,9 +45,9 @@ class ProcessManager:
     self._res = resources
     self._logging_thread: threading.Thread | None = None
     self._analyzer_thread: threading.Thread | None = None
-    self._perf_tracker_process: mp.Process | None = None
-    self._producer_processes: list[mp.Process] | None = None
-    self._worker_processes: list[mp.Process] | None = None
+    self._perf_tracker_process: Process | None = None
+    self._producer_processes: list[Process] | None = None
+    self._worker_processes: list[Process] | None = None
 
   def start_logging(self) -> threading.Thread:
     logging_listener = threading.Thread(
@@ -68,7 +68,7 @@ class ProcessManager:
     self._logging_thread = logging_listener
     return logging_listener
 
-  def start_performance_tracker(self) -> mp.Process:
+  def start_performance_tracker(self) -> Process:
     assert self._res.stats_resources.track_performance
     assert self._res.stats_resources.sem_active_workers is not None
     assert self._res.stats_resources.perf_res_queue is not None
@@ -76,7 +76,7 @@ class ProcessManager:
     assert self._res.stats_resources.wkr_stats_queue is not None
     assert self._res.stats_resources.prd_stats_queue is not None
 
-    perf_tracker_proc = mp.Process(
+    perf_tracker_proc = Process(
       target=PerformanceTracker(
         session_id=self._session_id,
         pred_dur_queue=self._res.stats_resources.wkr_stats_queue,
@@ -137,14 +137,14 @@ class ProcessManager:
     self._analyzer_thread = file_analyzer_proc
     return file_analyzer_proc
 
-  def start_producers(self) -> list[mp.Process]:
+  def start_producers(self) -> list[Process]:
     use_bandpass = not (
       self._cfg.model_conf.sig_fmin == self._cfg.filtering_conf.bandpass_fmin
       and self._cfg.model_conf.sig_fmax == self._cfg.filtering_conf.bandpass_fmax
     )
 
     producer_processes = [
-      mp.Process(
+      Process(
         target=Producer(
           session_id=self._session_id,
           files_queue=self._res.producer_resources.files_queue,
@@ -190,7 +190,7 @@ class ProcessManager:
     self._producer_processes = producer_processes
     return producer_processes
 
-  def start_workers(self) -> list[mp.Process]:
+  def start_workers(self) -> list[Process]:
     try:
       self._res.worker_resources.backend_loader.load_backend_in_main_process_if_possible(
         self._res.worker_resources.devices, self._cfg.processing_conf.half_precision
@@ -199,7 +199,7 @@ class ProcessManager:
       raise RuntimeError(f"Error during backend initialization: {exc}") from exc
 
     worker_processes = [
-      mp.Process(
+      Process(
         target=w,
         name=f"Worker-{i}",
         daemon=True,
