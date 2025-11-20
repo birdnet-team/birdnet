@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import multiprocessing as mp
 import multiprocessing.synchronize
-from multiprocessing import Queue
+from multiprocessing.queues import Queue
 from multiprocessing.synchronize import Event, Semaphore
 
 import numpy as np
@@ -38,8 +37,8 @@ class ScoresWorker(WorkerBase):
     half_precision: bool,
     apply_sigmoid: bool,
     sigmoid_sensitivity: float | None,
-    wkr_stats_queue: mp.Queue | None,
-    logging_queue: mp.Queue,
+    wkr_stats_queue: Queue | None,
+    logging_queue: Queue,
     logging_level: int,
     device: str,
     cancel_event: Event,

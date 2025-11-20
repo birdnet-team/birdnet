@@ -3,11 +3,11 @@ from __future__ import annotations
 import ctypes
 import hashlib
 import math
-import multiprocessing as mp
 from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from multiprocessing import shared_memory
+from multiprocessing.queues import Queue
 from pathlib import Path
 from queue import Empty
 
@@ -92,7 +92,7 @@ def get_supported_audio_files_recursive(folder: Path) -> Generator[Path, None, N
   )
 
 
-def assert_queue_is_empty(queue: mp.Queue) -> None:
+def assert_queue_is_empty(queue: Queue) -> None:
   # this doesn't work on macOS:
   # assert self._files_queue.qsize() == 0
   try:

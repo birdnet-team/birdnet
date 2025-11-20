@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import multiprocessing as mp
+from multiprocessing.queues import Queue
 from multiprocessing.synchronize import Event
 from queue import Empty
 
-from birdnet.acoustic_models.inference_pipeline.logging import get_logger_from_session
 from birdnet.acoustic_models.inference.tensor import TensorBase
+from birdnet.acoustic_models.inference_pipeline.logging import get_logger_from_session
 
 
 class Consumer:
@@ -13,7 +13,7 @@ class Consumer:
     self,
     session_id: str,
     n_workers: int,
-    worker_queue: mp.Queue,
+    worker_queue: Queue,
     tensor: TensorBase,
     cancel_event: Event,
   ) -> None:

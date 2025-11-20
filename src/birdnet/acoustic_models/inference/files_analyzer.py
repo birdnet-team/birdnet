@@ -1,6 +1,7 @@
 import ctypes
 import multiprocessing as mp
 import os
+from multiprocessing.queues import Queue
 from multiprocessing.synchronize import Event
 from queue import Empty
 
@@ -9,18 +10,18 @@ from birdnet.acoustic_models.inference.producer import get_audio_duration_s
 from birdnet.helper import RingField, get_max_n_segments, max_value_for_uint_dtype
 
 
-class FilesAnalyzer():
+class FilesAnalyzer:
   def __init__(
     self,
     session_id: str,
-    logging_queue: mp.Queue,
+    logging_queue: Queue,
     logging_level: int,
     segment_duration_s: float,
     overlap_duration_s: float,
     rf_segment_indices: RingField,
     max_segment_idx_ptr: mp.RawValue,
-    input_files_queue: mp.Queue,
-    analyzing_result: mp.Queue,
+    input_files_queue: Queue,
+    analyzing_result: Queue,
     tot_n_segments: ctypes.c_uint64,
     cancel_event: Event,
     end_event: Event,
@@ -60,7 +61,7 @@ class FilesAnalyzer():
     return False
 
   def __call__(self) -> None:
-    #self._init_logging()
+    # self._init_logging()
     self.run_main_loop()
     # self._uninit_logging()
 

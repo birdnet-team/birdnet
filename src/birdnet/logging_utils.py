@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 from logging.handlers import QueueHandler
-from multiprocessing import Queue
+from multiprocessing.queues import Queue
 
 from birdnet.globals import PKG_NAME
 
@@ -74,4 +74,3 @@ def init_package_logger(logging_level: int) -> None:
   root = get_package_logger()
   root.setLevel(logging_level)
   root.propagate = False
-

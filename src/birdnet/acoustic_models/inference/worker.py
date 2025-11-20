@@ -5,7 +5,8 @@ import multiprocessing.synchronize
 import os
 import time
 from abc import abstractmethod
-from multiprocessing import Queue, shared_memory
+from multiprocessing import shared_memory
+from multiprocessing.queues import Queue
 from multiprocessing.synchronize import Event, Semaphore
 
 import numpy as np
@@ -42,8 +43,8 @@ class WorkerBase(bn_logging.LogableProcessBase):
     sem_fill: Semaphore,
     sem_active_workers: Semaphore | None,
     half_precision: bool,
-    wkr_stats_queue: mp.Queue | None,
-    logging_queue: mp.Queue,
+    wkr_stats_queue: Queue | None,
+    logging_queue: Queue,
     logging_level: int,
     device: str,
     cancel_event: Event,

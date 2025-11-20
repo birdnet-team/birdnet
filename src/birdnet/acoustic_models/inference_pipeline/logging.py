@@ -1,9 +1,8 @@
 import logging
 import multiprocessing as mp
 import multiprocessing.synchronize
-import queue
 from logging.handlers import MemoryHandler, QueueHandler
-from multiprocessing import Queue
+from multiprocessing.queues import Queue
 from pathlib import Path
 
 from birdnet.logging_utils import get_package_logger, init_package_logger
@@ -42,9 +41,7 @@ def remove_session_queue_handler(session_id: str, handler: QueueHandler) -> None
   root.removeHandler(handler)
 
 
-def add_session_queue_handler(
-  session_id: str, logging_queue: queue.Queue
-) -> QueueHandler:
+def add_session_queue_handler(session_id: str, logging_queue: Queue) -> QueueHandler:
   root = get_session_logger(session_id)
   h = QueueHandler(logging_queue)  # Just the one handler needed
   root.addHandler(h)
@@ -64,7 +61,7 @@ class LogableProcessBase:
     self,
     session_id: str,
     name: str,
-    logging_queue: mp.Queue,
+    logging_queue: Queue,
     logging_level: int,
   ) -> None:
     self.__logger: logging.Logger | None = None

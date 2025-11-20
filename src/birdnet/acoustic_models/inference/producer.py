@@ -6,7 +6,8 @@ import os
 import time
 from collections.abc import Generator
 from itertools import count
-from multiprocessing import Queue, shared_memory
+from multiprocessing import shared_memory
+from multiprocessing.queues import Queue
 from multiprocessing.sharedctypes import Synchronized
 from multiprocessing.synchronize import Event, Semaphore
 from pathlib import Path

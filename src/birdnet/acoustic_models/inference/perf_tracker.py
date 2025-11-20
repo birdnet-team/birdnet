@@ -3,7 +3,6 @@ from __future__ import annotations
 import ctypes
 import datetime
 import math
-import multiprocessing as mp
 import os
 import sys
 import threading as th
@@ -11,6 +10,7 @@ import time
 from collections import Counter, deque
 from dataclasses import dataclass
 from multiprocessing import shared_memory
+from multiprocessing.queues import Queue
 from multiprocessing.synchronize import Event, Semaphore
 
 import numpy as np
@@ -109,15 +109,15 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
   def __init__(
     self,
     session_id: str,
-    pred_dur_queue: mp.Queue,
-    prod_stats_queue: mp.Queue,
+    pred_dur_queue: Queue,
+    prod_stats_queue: Queue,
     processing_finished_event: Event,
     update_interval: float,
     print_interval: float,
     n_workers: int,
-    logging_queue: mp.Queue,
+    logging_queue: Queue,
     logging_level: int,
-    perf_res: mp.Queue,
+    perf_res: Queue,
     sem_active_workers: Semaphore,
     sem_filled_slots: Semaphore,
     segment_size_s: float,
