@@ -24,6 +24,7 @@ jobs:
             macos-15,
             macos-15-intel,
             windows-2025,
+            windows-11-arm,
           ]
         python-version: ["3.12"]
 
@@ -70,6 +71,7 @@ jobs:
             macos-15,
             macos-15-intel,
             windows-2025,
+            windows-11-arm,
           ]
         python-version: ["3.12"]
 
@@ -100,7 +102,7 @@ jobs:
 
       - name: Run tests
         run: |
-          pytest -m "not repro and (not litert and not gpu)" -n auto
+          pytest -m "not load_model and not repro and (not litert and not gpu)" -n auto
 
       - name: Test build
         run: |
@@ -118,6 +120,7 @@ jobs:
             ubuntu-24.04,
             ubuntu-24.04-arm,
             macos-15,
+            windows-11-arm,
             # intel mac and windows not supported for litert
           ]
         python-version: ["3.12"]
@@ -148,4 +151,4 @@ jobs:
 
       - name: Run tests
         run: |
-          pytest -m "not repro and litert" -n auto
+          pytest -m "not load_model and not repro and litert" -n auto

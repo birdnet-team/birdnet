@@ -170,17 +170,17 @@ deps =
   .[tests,repro]
 commands = 
   pytest -m "load_model" -n auto
-  pytest -m "not load_model repro and (not litert and not gpu)" -n auto
-  pytest -m "not load_model repro and litert" -n auto
-  pytest -m "not load_model repro and gpu" -n 1
+  pytest -m "not load_model and repro and (not litert and not gpu)" -n auto
+  pytest -m "not load_model and repro and litert" -n auto
+  pytest -m "not load_model and repro and gpu" -n 1
 
 [testenv:py313]
 deps =
   .[tests,and-cuda]
 commands = 
   pytest -m "load_model" -n auto
-  pytest -m "not load_model not repro and (not litert and not gpu)" -n auto
-  pytest -m "not load_model not repro and gpu" -n 1
+  pytest -m "not load_model and not repro and (not litert and not gpu)" -n auto
+  pytest -m "not load_model and not repro and gpu" -n 1
 """
 
 [build-system]
