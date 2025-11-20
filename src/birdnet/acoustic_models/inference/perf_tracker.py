@@ -187,12 +187,19 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._start_signal = start_signal
     self._start = start
 
-  def _get_worker_stats(self) -> None:
-    entry_count = self._wkr_stats_queue.qsize()
-    for _ in range(entry_count):
-      stats: tuple[int, float, float, float, float, float, float, int] = (
-        self._wkr_stats_queue.get(block=True)
-      )
+  def _get_worker_stats(self) -> bool:
+    # get entries until the marker, entries added in the meanwhile are ignored
+    # fix for queue.qsize() which is not supported on macOS
+    get_end_marker = None
+    self._wkr_stats_queue.put(get_end_marker)
+    is_empty = True
+    while True:
+      queue_entry = self._wkr_stats_queue.get(block=True)
+      if is_end_marker := queue_entry is get_end_marker:
+        break
+      is_empty = False
+
+      stats: tuple[int, float, float, float, float, float, float, int] = queue_entry
       (
         worker_pid,
         wall_time,
@@ -221,10 +228,18 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       self._wkr_3_get_job_dur_tracker.add_value(dur_get_job)
       self._wkr_4_inference_dur_tracker.add_value(dur_inference)
       self._wkr_5_add_to_queue_dur_tracker.add_value(dur_add_to_queue)
+    return is_empty
 
-  def _get_producer_stats(self) -> None:
-    entry_count = self._prd_stats_queue.qsize()
-    for _ in range(entry_count):
+  def _get_producer_stats(self) -> bool:
+    get_end_marker = None
+    self._prd_stats_queue.put(get_end_marker)
+    is_empty = True
+    while True:
+      queue_entry = self._prd_stats_queue.get(block=True)
+      if is_end_marker := queue_entry is get_end_marker:
+        break
+      is_empty = False
+      stats: tuple[int, float, float, float, float, float, int] = queue_entry
       (
         prod_pid,
         process_total_duration,
@@ -233,7 +248,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         free_slot_search_time,
         flush_duration,
         n,
-      ) = self._prd_stats_queue.get(block=True)
+      ) = stats
       self._logger.debug(
         f"PerformanceTracker received producer stats from producer {prod_pid}: "
         f"process: {process_total_duration:.3f}s, "
@@ -248,6 +263,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       self._prd_2_wait_dur_free_slot_tracker.add_value(wait_time_for_free_slot)
       self._prd_3_free_slot_search_dur_tracker.add_value(free_slot_search_time)
       self._prd_4_flush_dur_tracker.add_value(flush_duration)
+    return is_empty
 
   def _print_stats(self) -> None:
     received_at_least_one_prediction = len(self._wkr_wall_times) > 0
@@ -468,16 +484,16 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self.reset()
     worker_speed_xrt_max = 0
 
-    while (
-      not self._processing_finished_event.is_set()
-      or self._wkr_stats_queue.qsize() != 0
-      or self._prd_stats_queue.qsize() != 0
-    ):
+    while True:
       if self._check_cancel_event():
         return
 
-      self._get_producer_stats()
-      self._get_worker_stats()
+      finished = self._processing_finished_event.is_set()
+      prod_queue_is_empty = self._get_producer_stats()
+      worker_queue_is_empty = self._get_worker_stats()
+
+      if finished and prod_queue_is_empty and worker_queue_is_empty:
+        break
 
       if not self._processing_finished_event.wait(self._update_every):
         if self._parent_process is None:

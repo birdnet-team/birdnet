@@ -26,6 +26,7 @@ from birdnet.globals import (
 from birdnet.helper import (
   SF_FORMATS,
   RingField,
+  assert_queue_is_empty,
   get_max_n_segments,
   max_value_for_uint_dtype,
 )
@@ -500,7 +501,7 @@ class Producer(bn_logging.LogableProcessBase):
     if is_last_producer:
       self._logger.debug(f"PRODUCER({os.getpid()}) - Last producer finished.")
       self._all_finished.set()
-      assert self._files_queue.qsize() == 0
+      assert_queue_is_empty(self._files_queue)
 
 
 def get_audio_duration_s(audio_path: Path) -> float:

@@ -1,13 +1,13 @@
-from multiprocessing import Queue
-import multiprocessing.synchronize
-from pathlib import Path
-import queue
-from birdnet.logging_utils import get_package_logger, init_package_logger
-
-
 import logging
 import multiprocessing as mp
+import multiprocessing.synchronize
+import queue
 from logging.handlers import MemoryHandler, QueueHandler
+from multiprocessing import Queue
+from pathlib import Path
+
+from birdnet.logging_utils import get_package_logger, init_package_logger
+
 
 def get_session_logger(session_id: str) -> logging.Logger:
   logger_name = f"birdnet.session_{session_id}"
@@ -15,9 +15,11 @@ def get_session_logger(session_id: str) -> logging.Logger:
   logger.parent = get_package_logger()
   return logger
 
+
 def get_session_logging_level(session_id: str) -> int:
   result = get_session_logger(session_id).level
   return result
+
 
 def init_session_logger(session_id: str, logging_level: int) -> None:
   init_package_logger(logging_level)
@@ -25,11 +27,13 @@ def init_session_logger(session_id: str, logging_level: int) -> None:
   root.setLevel(logging_level)
   root.propagate = False
 
+
 def get_logger_from_session(session_id: str, name: str) -> logging.Logger:
   session_logger = get_session_logger(session_id)
   logger = logging.getLogger(f"{session_logger.name}.{name}")
   logger.parent = session_logger
   return logger
+
 
 def remove_session_queue_handler(session_id: str, handler: QueueHandler) -> None:
   root = get_session_logger(session_id)
@@ -37,11 +41,15 @@ def remove_session_queue_handler(session_id: str, handler: QueueHandler) -> None
   assert handler in root.handlers
   root.removeHandler(handler)
 
-def add_session_queue_handler(session_id: str, logging_queue: queue.Queue) -> QueueHandler:
+
+def add_session_queue_handler(
+  session_id: str, logging_queue: queue.Queue
+) -> QueueHandler:
   root = get_session_logger(session_id)
   h = QueueHandler(logging_queue)  # Just the one handler needed
   root.addHandler(h)
   return h
+
 
 def session_queue_handler_exists(session_id: str, logging_queue: Queue) -> bool:
   root = get_session_logger(session_id)
@@ -69,16 +77,22 @@ class LogableProcessBase:
   def _init_logging(self) -> None:
     if mp.get_start_method() in ("spawn", "forkserver"):
       init_session_logger(self.__session_id, self.__logging_level)
-      self.__local_queue_handler = add_session_queue_handler(self.__session_id, self.__logging_queue)
+      self.__local_queue_handler = add_session_queue_handler(
+        self.__session_id, self.__logging_queue
+      )
     else:
       assert mp.get_start_method() == "fork"
       assert session_queue_handler_exists(self.__session_id, self.__logging_queue)
     self.__logger = get_logger_from_session(self.__session_id, self.__name)
-    self.__logger.debug(f"Initialized logging for session {self.__session_id} -> {self.__name}.")
+    self.__logger.debug(
+      f"Initialized logging for session {self.__session_id} -> {self.__name}."
+    )
 
   def _uninit_logging(self) -> None:
     assert self.__logger is not None
-    self.__logger.debug(f"Uninitializing logging for session {self.__session_id} -> {self.__name}.")
+    self.__logger.debug(
+      f"Uninitializing logging for session {self.__session_id} -> {self.__name}."
+    )
     if mp.get_start_method() in ("spawn", "forkserver"):
       assert self.__local_queue_handler is not None
       remove_session_queue_handler(self.__session_id, self.__local_queue_handler)
@@ -111,7 +125,7 @@ class QueueFileWriter:
     self._log_file = log_file
     self._cancel_event = cancel_event
     self._logging_stop_event = stop_event
-    self._get_logs_interval = 3
+    self._get_logs_interval_s = 3
     self._processing_finished_event = processing_finished_event
 
   def __call__(self) -> None:
@@ -139,32 +153,35 @@ class QueueFileWriter:
     logger.addHandler(mh)
 
     while True:
-      if self._logging_stop_event.wait(self._get_logs_interval):
-        if self._log_queue.qsize() == 0:
-          logger.debug("Processing finished, log queue is empty, stopping file writer.")
-          # print(time.time(), "finished logging loop")
-          break
-        else:
-          logger.debug(
-            "Processing finished, but log queue is not empty, continuing to write logs."
-          )
-          # print(time.time(), "about to finish logging loop")
+      stop_logging = self._logging_stop_event.wait(self._get_logs_interval_s)
 
       try:
-        # perf_c = time.perf_counter()
-        # print(
-        #   f"Getting logging entries from queue, queue size: {self._log_queue.qsize()}"
-        # )
-        # NOTE: Don't use !empty()
-        current_size = self._log_queue.qsize()
-        for _ in range(current_size):
-          record: logging.LogRecord = self._log_queue.get()
+        get_end_marker = None
+        self._log_queue.put(get_end_marker)
+
+        # NOTE: !empty() not working reliable and qsize() not available on macOS
+        is_empty = True
+        while True:
+          queue_entry = self._log_queue.get(block=True)
+          if is_end_marker := queue_entry is get_end_marker:
+            break
+          is_empty = False
+
+          record: logging.LogRecord = queue_entry
           logger.handle(record)
         mh.flush()
-        # print(
-        #   f"Flushed logging entries from queue in {time.perf_counter() - perf_c}s.
-        # Queue size: {self._log_queue.qsize()}"
-        # )
+
+        if stop_logging:
+          if is_empty:
+            logger.debug(
+              "Processing finished, log queue is empty, stopping file writer."
+            )
+            break
+          else:
+            logger.debug(
+              "Processing finished, but log queue was not empty, "
+              "continued to write logs."
+            )
       except OSError as e:
         # OSError can happen if the file is closed while writing
         if e.args[0] == "handle is closed":
@@ -201,5 +218,3 @@ class QueueFileWriter:
     #   f"Finished writing logs to {self._log_file.absolute()}.
     # Total lines: {len(sorted_lines)}."
     # )
-
-

@@ -3,11 +3,13 @@ from __future__ import annotations
 import ctypes
 import hashlib
 import math
+import multiprocessing as mp
 from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from multiprocessing import shared_memory
 from pathlib import Path
+from queue import Empty
 
 import numpy as np
 from numpy.typing import DTypeLike
@@ -88,6 +90,16 @@ def get_supported_audio_files_recursive(folder: Path) -> Generator[Path, None, N
     for p in folder.rglob("*")
     if p.is_file() and is_supported_audio_file(p)
   )
+
+
+def assert_queue_is_empty(queue: mp.Queue) -> None:
+  # this doesn't work on macOS:
+  # assert self._files_queue.qsize() == 0
+  try:
+    queue.get_nowait()
+    raise AssertionError("Queue is not empty")
+  except Empty:
+    print("war empty -------------")
 
 
 def is_supported_audio_file(file_path: Path) -> bool:
