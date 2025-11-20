@@ -33,6 +33,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install uv build --upgrade
+          python -m uv pip install twine build --upgrade
           python -m uv pip install --system .[tests,litert]
 
       # - name: Run linters
@@ -74,6 +75,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install uv build --upgrade
+          python -m uv pip install twine build --upgrade
           python -m uv pip install --system .[tests]
 
       # - name: Run linters
