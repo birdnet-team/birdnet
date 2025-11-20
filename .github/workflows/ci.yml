@@ -16,7 +16,14 @@ jobs:
 
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os:
+          [
+            ubuntu-slim,
+            ubuntu-24.04,
+            ubuntu-24.04-arm,
+            macos-15,
+            macos-15-intel,
+          ]
         python-version: ["3.12"]
 
     steps:
@@ -58,7 +65,7 @@ jobs:
 
     strategy:
       matrix:
-        os: [windows-latest]
+        os: [windows-2025]
         python-version: ["3.12"]
 
     steps:
@@ -80,8 +87,8 @@ jobs:
 
       # - name: Run linters
       #   run: |
-      #     ruff check src/mel_cepstral_distance
-      #     ruff check src/mel_cepstral_distance_tests
+      #     ruff check src/birdnet
+      #     ruff check src/birdnet_tests
 
       # - name: Type checking
       #   run: mypy
