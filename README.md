@@ -67,6 +67,20 @@ For more detailed benchmarks, please refer to the [BENCHMARKING.md](BENCHMARKING
 | **FP16** | CPU | ❌ | ❌ | ❌ | ❌ |
 | **FP32** | CPU | CPU/GPU | CPU/GPU | CPU | CPU/GPU |
 
+### Plattform support
+
+
+### V2.4
+
+| **Platform** | Windows |  | Linux | | MacOS | |
+|---|---|---|---|---|---|---|
+| Architecture | x86_64 | ARM64 | x86_64 | ARM64 | x86_64 | ARM64 |
+LiterRT | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ |
+TFLite | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+TF | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ |
+
+
+
 ✅ = Supported ❌ = Not supported\
 **ProtoBuf Raven is only available for custom acoustic models.*
 
