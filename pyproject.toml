@@ -120,6 +120,8 @@ dev = ["jupyter", "uv", "ruff", "mypy", "rope", "build", "twine", "scipy-stubs",
 [project.urls]
 Homepage = "https://github.com/birdnet-team/birdnet"
 Issues = "https://github.com/birdnet-team/birdnet/issues"
+Repository = "https://github.com/birdnet-team/birdnet.git"
+Changelog = "https://github.com/birdnet-team/birdnet/blob/master/CHANGELOG.md"
 
 [project.scripts]
 birdnet-benchmark = "birdnet.benchmark_script:run_benchmark"
