@@ -54,6 +54,19 @@ pip install birdnet[litert] --user
 
 For more detailed benchmarks, please refer to the [BENCHMARKING.md](BENCHMARKING.md) file.
 
+## Plattform support and Python versions
+
+### V2.4
+
+| Platform | Architecture | LiteRT            | TFLite                 | TF-CPU                | TF-GPU                |
+|----------|--------------|--------------------|-------------------------|------------------------|------------------------|
+| **Windows** | x86_64      | /                  | 3.11, 3.12, 3.13        | 3.11, 3.12, 3.13       | /                      |
+|          | ARM64        | /                  | /                       | /                      | /                      |
+| **Linux**   | x86_64      | 3.11, 3.12, 3.13   | 3.11, 3.12, 3.13        | 3.11, 3.12, 3.13       | 3.11, 3.12, 3.13       |
+|          | ARM64        | 3.11, 3.12, 3.13   | 3.11, 3.12, 3.13        | 3.11, 3.12, 3.13       | 3.11, 3.12, 3.13       |
+| **MacOS**   | x86_64      | /                  | 3.11, 3.12              | 3.11, 3.12             | /                      |
+|          | ARM64        | 3.11, 3.12, 3.13   | 3.11, 3.12, 3.13        | 3.11, 3.12, 3.13       | /                      |
+
 ## Supported operations, precisions and devices
 
 ### V2.4
@@ -66,20 +79,6 @@ For more detailed benchmarks, please refer to the [BENCHMARKING.md](BENCHMARKING
 | **INT8** | CPU | ❌ | ❌ | ❌ | ❌ |
 | **FP16** | CPU | ❌ | ❌ | ❌ | ❌ |
 | **FP32** | CPU | CPU/GPU | CPU/GPU | CPU | CPU/GPU |
-
-### Plattform support
-
-
-### V2.4
-
-| **Platform** | Windows |  | Linux | | MacOS | |
-|---|---|---|---|---|---|---|
-| Architecture | x86_64 | ARM64 | x86_64 | ARM64 | x86_64 | ARM64 |
-LiterRT | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ |
-TFLite | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-TF | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ |
-
-
 
 ✅ = Supported ❌ = Not supported\
 **ProtoBuf Raven is only available for custom acoustic models.*
