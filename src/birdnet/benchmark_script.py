@@ -19,7 +19,7 @@ from birdnet.argparse_helper import (
 )
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V2_4,
-  LIBRARY_TF,
+  LIBRARY_TFLITE,
   LIBRARY_TYPES,
   MODEL_BACKEND_PB,
   MODEL_BACKEND_TF,
@@ -79,8 +79,8 @@ def run_benchmark_from_args(args: list[str]) -> None:
     type=str,
     choices=VALID_LIBRARY_TYPES,
     metavar="TF-LIBRARY",
-    help=f"use this tensorflow library (default: {LIBRARY_TF})",
-    default=LIBRARY_TF,
+    help=f"use this tensorflow library (default: {LIBRARY_TFLITE})",
+    default=LIBRARY_TFLITE,
   )
 
   parser.add_argument(

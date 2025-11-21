@@ -23,7 +23,7 @@ import numpy as np
 
 from birdnet.globals import (
   LIBRARY_LITERT,
-  LIBRARY_TF,
+  LIBRARY_TFLITE,
   LIBRARY_TYPES,
   MODEL_BACKEND_PB,
   MODEL_BACKEND_TF,
@@ -499,7 +499,7 @@ def load_pb_model(model_path: Path, device: Any) -> Any:
   logging.getLogger("tensorflow").setLevel(logging.ERROR)
   os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
   import tensorflow as tf
-  
+
   # tf.random.set_seed(0)
   # Note: memory growth needs to be set before loading the model and
   # maybe only once in the main process
@@ -540,7 +540,7 @@ def load_tf_model(
   library: LIBRARY_TYPES,
   allocate_tensors: bool = False,
 ):
-  if library == LIBRARY_TF:
+  if library == LIBRARY_TFLITE:
     return load_lib_tf_model(model_path, allocate_tensors=allocate_tensors)
   elif library == LIBRARY_LITERT:
     return load_lib_litert_model(model_path, allocate_tensors=allocate_tensors)

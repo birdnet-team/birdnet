@@ -41,9 +41,9 @@ from birdnet.globals import (
   GEO_MODEL_VERSION_V2_4,
   GEO_MODEL_VERSIONS,
   LIBRARY_LITERT,
-  LIBRARY_TF,
   LIBRARY_TF_DEFAULT,
   LIBRARY_TF_PARAM,
+  LIBRARY_TFLITE,
   LIBRARY_TYPES,
   MODEL_BACKEND_PB,
   MODEL_BACKEND_TF,
@@ -164,7 +164,7 @@ def _validate_library(library: Any) -> LIBRARY_TYPES:  # noqa: ANN401
       f"Unsupported TensorFlow library: {library}. "
       f"Supported libraries are: {', '.join(VALID_LIBRARY_TYPES)}."
     )
-  if library == LIBRARY_TF:
+  if library == LIBRARY_TFLITE:
     assert tf_installed()  # default
   elif library == LIBRARY_LITERT:
     if not litert_installed():

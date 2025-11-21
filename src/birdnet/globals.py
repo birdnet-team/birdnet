@@ -2,17 +2,17 @@ from typing import Literal
 
 import numpy as np
 
-LIBRARY_TF = "tflite"  # default
-LIBRARY_LITERT = "litert"
+LIBRARY_TFLITE = "tflite"  # default: TFLite Interpreter
+LIBRARY_LITERT = "litert"  # LiteRT Interpreter
 LIBRARY_TYPES = Literal["tflite", "litert"]
 VALID_LIBRARY_TYPES = [
-  LIBRARY_TF,
+  LIBRARY_TFLITE,
   LIBRARY_LITERT,
 ]
 
 # name of the parameter to specify the library when loading a TF model
 LIBRARY_TF_PARAM = "library"
-LIBRARY_TF_DEFAULT = LIBRARY_TF
+LIBRARY_TF_DEFAULT = LIBRARY_TFLITE
 
 # name of the parameter to specify whether a custom PB model is a Raven model
 CUSTOM_PB_IS_RAVEN_PARAM = "is_raven"
