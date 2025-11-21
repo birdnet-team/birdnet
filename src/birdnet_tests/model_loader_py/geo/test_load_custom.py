@@ -30,7 +30,7 @@ def test_load_pb_with_custom_library_raises_error() -> None:
 
 
 def test_load_custom_geo_model_v2_4_pb_fp32() -> None:
-  GeoTFDownloaderV2_4.get_model_path_and_labels("en_us")
+  GeoPBDownloaderV2_4.get_model_path_and_labels("en_us")
   model = load_custom(
     "geo",
     "2.4",
@@ -72,10 +72,8 @@ def test_load_custom_geo_model_v2_4_litert_fp32() -> None:
   assert isinstance(model, GeoModelV2_4)
 
 
-def test_types_are_correct() -> None:
+def test_pb_types_are_correct() -> None:
   GeoPBDownloaderV2_4.get_model_path_and_labels("en_us")
-  GeoTFDownloaderV2_4.get_model_path_and_labels("en_us")
-
   model_type, version, backend, precision = "geo", "2.4", "pb", "fp32"
   assert (
     type(
@@ -90,6 +88,10 @@ def test_types_are_correct() -> None:
     )
     is GeoModelV2_4
   )
+
+
+def test_tf_types_are_correct() -> None:
+  GeoTFDownloaderV2_4.get_model_path_and_labels("en_us")
   model_type, version, backend, precision = "geo", "2.4", "tf", "fp32"
   assert (
     type(
@@ -106,9 +108,8 @@ def test_types_are_correct() -> None:
   )
 
 
-def test_types_with_precisions_are_correct() -> None:
+def test_pb_type_with_precisions_is_correct() -> None:
   GeoPBDownloaderV2_4.get_model_path_and_labels("en_us")
-  GeoTFDownloaderV2_4.get_model_path_and_labels("en_us")
 
   assert (
     type(
@@ -124,6 +125,10 @@ def test_types_with_precisions_are_correct() -> None:
     )
     is GeoModelV2_4
   )
+
+
+def test_tf_type_with_precisions_is_correct() -> None:
+  GeoTFDownloaderV2_4.get_model_path_and_labels("en_us")
   assert (
     type(
       load_custom(

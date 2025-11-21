@@ -44,14 +44,6 @@ jobs:
           python -m uv pip install twine build --upgrade
           python -m uv pip install --system .[tests]
 
-      # - name: Run linters
-      #   run: |
-      #     ruff check src/birdnet
-      #     ruff check src/birdnet_tests
-
-      # - name: Type checking
-      #   run: mypy
-
       - name: Download models
         run: |
           pytest -m "load_model" -n auto

@@ -26,6 +26,7 @@ def get_app_data_path() -> Path:
     app_data_path = path
   elif os.name == "posix":
     if os.uname().sysname == "Darwin":  # Mac OS X
+      # e.g., /Users/runner/Library/Application Support
       app_data_path = os.path.expanduser("~/Library/Application Support")
     else:  # Linux
       app_data_path = os.path.expanduser("~/.local/share")
