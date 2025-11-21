@@ -65,6 +65,7 @@ class ProcessingConfig:
   batch_size: int
   prefetch_ratio: int
   overlap_duration_s: float
+  speed: float
   half_precision: bool
   max_audio_duration_min: float | None
   device: str | list[str]
@@ -175,6 +176,14 @@ class ProcessingConfig:
     if not max_audio_duration_min > 0:
       raise ValueError("max_audio_duration_min must be > 0")
     return max_audio_duration_min
+
+  @classmethod
+  def validate_speed(cls, speed: Any) -> float:  # noqa: ANN401
+    if not isinstance(speed, float | int):
+      raise TypeError("speed must be a number")
+    if not 0.01 <= speed <= 100.0:
+      raise ValueError("speed must be in the range [0.01, 100.0]")
+    return float(speed)
 
 
 @dataclass(frozen=True)

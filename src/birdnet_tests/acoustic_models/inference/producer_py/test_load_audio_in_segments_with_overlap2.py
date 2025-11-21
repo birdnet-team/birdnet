@@ -1,9 +1,11 @@
+from math import ceil
+
 import numpy as np
 import numpy.testing
 import pytest
 
 from birdnet.acoustic_models.inference.producer import (
-  load_audio_in_segments_with_overlap,
+  load_audio_in_segments_with_overlap2,
 )
 from birdnet_tests.test_files import AUDIO_FORMATS_DIR, TEST_FILE_LONG
 
@@ -11,8 +13,8 @@ from birdnet_tests.test_files import AUDIO_FORMATS_DIR, TEST_FILE_LONG
 def format_can_be_read(filename: str) -> bool:
   inp = AUDIO_FORMATS_DIR / filename
   res = list(
-    load_audio_in_segments_with_overlap(
-      inp, segment_duration_s=3, overlap_duration_s=0, target_sample_rate=48000
+    load_audio_in_segments_with_overlap2(
+      inp, segment_duration_s=3, overlap_duration_s=0, target_sample_rate=48000, speed=1
     )
   )
   result = len(res) == 40
@@ -87,13 +89,16 @@ def test_wma_can_not_be_read() -> None:
     format_can_be_read("soundscape.wma")
 
 
-def get_segments(seg: float = 3, overlap: float = 0, sr: int = 48_000) -> list:
+def get_segments(
+  seg: float = 3, overlap: float = 0, sr: int = 48_000, speed: float = 1.0
+) -> list:
   return list(
-    load_audio_in_segments_with_overlap(
+    load_audio_in_segments_with_overlap2(
       TEST_FILE_LONG,
       segment_duration_s=seg,
       overlap_duration_s=overlap,
       target_sample_rate=sr,
+      speed=speed,
     )
   )
 
@@ -225,3 +230,62 @@ def test_overlap_2_5() -> None:
 
 
 # endregion
+
+
+def test_double_speed() -> None:
+  result = get_segments(speed=2)
+
+  assert len(result) == 20
+  for i in range(len(result)):
+    assert result[i].shape == (3 * 48000,)
+
+
+def test_half_speed() -> None:
+  result = get_segments(speed=1 / 2)
+
+  assert len(result) == 80
+  for i in range(len(result)):
+    assert result[i].shape == (3 * 48000,)
+
+
+def test_one_third_speed() -> None:
+  result = get_segments(speed=1 / 3)
+
+  assert len(result) == 40 * 3
+  for i in range(len(result)):
+    assert result[i].shape == (3 * 48000,)
+
+
+def _test_speed_generic(speed: float) -> None:
+  result = get_segments(speed=speed)
+  n_full_segments, half_segment = divmod(40, speed)
+  assert len(result) == n_full_segments + ceil(half_segment)
+  for i in range(int(n_full_segments)):
+    assert result[i].shape == (3 * 48000,)
+
+  if half_segment > 0:
+    assert result[-1].shape < (3 * 48000,)
+
+
+def test_triple_speed() -> None:
+  _test_speed_generic(speed=3)
+
+
+def test_float_1_dec_speed() -> None:
+  _test_speed_generic(speed=0.9)
+
+
+def test_float_2_dec_speed() -> None:
+  _test_speed_generic(speed=0.19)
+
+
+def test_float_3_dec_speed() -> None:
+  _test_speed_generic(speed=0.119)
+
+
+def xtest_float_4_dec_speed() -> None:
+  _test_speed_generic(speed=0.1119)
+
+
+def xtest_float_5_dec_speed() -> None:
+  _test_speed_generic(speed=0.11119)

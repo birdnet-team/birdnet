@@ -137,6 +137,7 @@ class Producer(bn_logging.LogableProcessBase):
     prod_stats_queue: Queue | None,
     segment_duration_s: float,
     overlap_duration_s: float,
+    speed: float,
     target_sample_rate: int,
     cancel_event: Event,
     all_finished: Event,
@@ -154,6 +155,7 @@ class Producer(bn_logging.LogableProcessBase):
     self._segment_duration_s = segment_duration_s
     self._overlap_duration_s = overlap_duration_s
     self._target_sample_rate = target_sample_rate
+    self._speed = speed
     self._batch_size = batch_size
     self._n_slots = n_slots
     self._sem_free_slots = sem_free_slots
@@ -245,11 +247,12 @@ class Producer(bn_logging.LogableProcessBase):
         )
         return
       self._max_segment_idx_ptr.value = file_max_segment_index
-    segments = load_audio_in_segments_with_overlap(
+    segments = load_audio_in_segments_with_overlap2(
       path,
       segment_duration_s=self._segment_duration_s,
       overlap_duration_s=self._overlap_duration_s,
       target_sample_rate=self._target_sample_rate,
+      speed=self._speed,
     )
 
     # fill last segment with silence up to segmentsize if it is smaller than 3s
@@ -526,10 +529,10 @@ def load_audio_in_segments_with_overlap(
   audio_path: Path,
   /,
   *,
-  segment_duration_s: float = 3,
-  overlap_duration_s: float = 0,
+  segment_duration_s: float,
+  overlap_duration_s: float,
   # read_duration_s: Optional[float] = None,
-  target_sample_rate: int = 48000,
+  target_sample_rate: int,
 ) -> Generator[npt.NDArray[np.float32], None, None]:
   assert audio_path.is_file()
   assert audio_path.suffix.upper() in SF_FORMATS
@@ -538,13 +541,13 @@ def load_audio_in_segments_with_overlap(
 
   sample_rate = sf_info.samplerate
 
-  timestamps = get_segments_with_overlap_all(
+  timestamps_seconds = get_segments_with_overlap_all(
     float(sf_info.duration),
     float(segment_duration_s),
     float(overlap_duration_s),
   )
 
-  for start, end in timestamps:
+  for start, end in timestamps_seconds:
     start_samples = round(start * sample_rate)
     end_samples = round(end * sample_rate)
     audio, _ = sf.read(
@@ -556,4 +559,163 @@ def load_audio_in_segments_with_overlap(
       assert n_channels > 1
       audio = np.mean(audio, axis=1, dtype=np.float32)
     audio = resample_array(audio, sample_rate, target_sample_rate)
+    yield audio
+
+
+def load_audio_in_segments_with_overlap2(
+  audio_path: Path,
+  /,
+  *,
+  segment_duration_s: float,
+  overlap_duration_s: float,
+  target_sample_rate: int,
+  speed: float = 1.0,
+) -> Generator[npt.NDArray[np.float32], None, None]:
+  """Load audio in overlapping segments with optional speed change.
+
+  speed:
+    Speed factor for audio playback. Values < 1.0 slow down the audio,
+    values > 1.0 speed it up. Minimum allowed value is 0.01.
+
+  segment_duration_s, overlap_duration_s:
+    Refer to the *speed-adjusted* playback domain. For example, with
+    segment_duration_s=3 and target_sample_rate=48000, each yielded
+    segment will have 3 * 48000 samples, independent of the speed
+    setting. Changing speed only changes how many segments are produced.
+  """
+  if speed < 0.01:
+    raise ValueError(f"speed must be >= 0.01, got {speed!r}")
+
+  assert audio_path.is_file()
+  assert audio_path.suffix.upper() in SF_FORMATS
+
+  sf_info = sf.info(audio_path)
+
+  sample_rate = sf_info.samplerate
+  n_frames = sf_info.frames
+  original_duration_s = float(sf_info.duration)
+
+  # Effective input sample rate after applying speed factor:
+  # treating the original audio as if it had sample_rate * speed.
+  effective_sample_rate = int(round(sample_rate * speed))
+  if effective_sample_rate < 1:
+    raise ValueError(
+      f"effective_sample_rate must be >= 1, got {effective_sample_rate} "
+      f"(sample_rate={sample_rate}, speed={speed})"
+    )
+
+  # Playback duration after speed adjustment: slower -> länger, schneller -> kürzer.
+  playback_duration_s = original_duration_s / speed
+
+  # Segmente in der *Playback*-Zeitachse (also nach Geschwindigkeitsanpassung).
+  timestamps_playback_seconds = get_segments_with_overlap_all(
+    float(playback_duration_s),
+    float(segment_duration_s),
+    float(overlap_duration_s),
+  )
+
+  for start_play_s, end_play_s in timestamps_playback_seconds:
+    # Zurückrechnen von Playback-Zeit in Original-Zeit:
+    start_orig_s = start_play_s * speed
+    end_orig_s = end_play_s * speed
+
+    start_samples = int(round(start_orig_s * sample_rate))
+    end_samples = int(round(end_orig_s * sample_rate))
+
+    # Clamp auf die tatsächliche Länge der Datei
+    assert start_samples < n_frames
+    assert end_samples <= n_frames
+
+    audio, _ = sf.read(
+      audio_path, start=start_samples, stop=end_samples, dtype="float32"
+    )
+
+    if audio.ndim == 2:
+      n_channels = audio.shape[1]
+      assert n_channels > 1
+      audio = np.mean(audio, axis=1, dtype=np.float32)
+
+    # Speed-Anpassung über effektive Sample-Rate:
+    # N_out = N_in * target_sr / (sample_rate * speed)
+    # -> Dauer_out = segment_duration_s (unabhängig von speed)
+    audio = resample_array(audio, effective_sample_rate, target_sample_rate)
+
+    yield audio
+
+
+def load_audio_in_segments_with_overlap_sample_based(
+  audio_path: Path,
+  /,
+  *,
+  segment_duration_s: float,
+  overlap_duration_s: float,
+  target_sample_rate: int,
+  speed: float = 1.0,
+) -> Generator[npt.NDArray[np.float32], None, None]:
+  """Load audio in overlapping segments with optional speed change.
+
+  speed:
+    Speed factor for audio playback. Values < 1.0 slow down the audio,
+    values > 1.0 speed it up. Minimum allowed value is 0.01.
+
+  segment_duration_s, overlap_duration_s:
+    Refer to the *speed-adjusted* playback domain. For example, with
+    segment_duration_s=3 and target_sample_rate=48000, each yielded
+    segment will have 3 * 48000 samples, independent of the speed
+    setting. Changing speed only changes how many segments are produced.
+  """
+  if speed < 0.01:
+    raise ValueError(f"speed must be >= 0.01, got {speed!r}")
+
+  assert audio_path.is_file()
+  assert audio_path.suffix.upper() in SF_FORMATS
+
+  sf_info = sf.info(audio_path)
+
+  sample_rate = sf_info.samplerate
+  n_frames = sf_info.frames
+  original_duration_samples = n_frames
+
+  # Effective input sample rate after applying speed factor:
+  # treating the original audio as if it had sample_rate * speed.
+  effective_sample_rate = int(round(sample_rate * speed))
+  if effective_sample_rate < 1:
+    raise ValueError(
+      f"effective_sample_rate must be >= 1, got {effective_sample_rate} "
+      f"(sample_rate={sample_rate}, speed={speed})"
+    )
+
+  # Playback duration after speed adjustment: slower -> länger, schneller -> kürzer.
+  playback_duration_samples = int(round(original_duration_samples / speed))
+
+  segment_duration_samples = int(round(segment_duration_s * target_sample_rate))
+  overlap_duration_samples = int(round(overlap_duration_s * target_sample_rate))
+  playback_segment_duration_samples = int(round(segment_duration_samples / speed))
+  playback_overlap_duration_samples = int(round(overlap_duration_samples / speed))
+
+  timestamps_playback_samples = get_segments_with_overlap_all(
+    original_duration_samples,
+    playback_segment_duration_samples,
+    playback_overlap_duration_samples,
+  )
+
+  for start_samples, end_samples in timestamps_playback_samples:
+    # Clamp auf die tatsächliche Länge der Datei
+    assert start_samples < n_frames
+    assert end_samples <= n_frames
+
+    audio, _ = sf.read(
+      audio_path, start=int(start_samples), stop=int(end_samples), dtype="float32"
+    )
+
+    if audio.ndim == 2:
+      n_channels = audio.shape[1]
+      assert n_channels > 1
+      audio = np.mean(audio, axis=1, dtype=np.float32)
+
+    # Speed-Anpassung über effektive Sample-Rate:
+    # N_out = N_in * target_sr / (sample_rate * speed)
+    # -> Dauer_out = segment_duration_s (unabhängig von speed)
+    audio = resample_array(audio, effective_sample_rate, target_sample_rate)
+
     yield audio

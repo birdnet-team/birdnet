@@ -161,6 +161,7 @@ class ProcessManager:
           sem_filled_slots=self._res.ring_buffer_resources.sem_filled_slots,
           segment_duration_s=self._cfg.model_conf.segment_size_s,
           overlap_duration_s=self._cfg.processing_conf.overlap_duration_s,
+          speed=self._cfg.processing_conf.speed,
           target_sample_rate=self._cfg.model_conf.sample_rate,
           use_bandpass=use_bandpass,
           bandpass_fmax=self._cfg.filtering_conf.bandpass_fmax,
