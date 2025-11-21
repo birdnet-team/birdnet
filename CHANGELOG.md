@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Removed `litert` install option, now litert is always installed if possible
 - Improved prediction speed, esp. for half-precision models (+10 seg/s)
 - Lowered dependencies
 - Update `ai-edge-litert` to version 2.0.3 on `repro`
@@ -27,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added `repro` option to be able to get reproducible results
 - Added support for Python 3.13
+- Added CI on GitHub Actions for testing on multiple OS and Python versions
 
 ### Removed
 
