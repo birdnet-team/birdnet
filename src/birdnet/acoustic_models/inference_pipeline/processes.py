@@ -124,7 +124,6 @@ class ProcessManager:
         input_files_queue=self._res.analyzer_resources.input_files_queue,
         finished=self._res.analyzer_resources.finished,
         start_signal=self._res.analyzer_resources.start_signal,
-        state=self._res.analyzer_resources.state,
       ),
       name="FileAnalyzer",
       daemon=True,

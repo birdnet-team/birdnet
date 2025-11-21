@@ -24,13 +24,11 @@ class FilesAnalyzer:
     cancel_event: Event,
     end_event: Event,
     finished: Event,
-    state: mp.RawValue,
     start_signal: Event,
   ) -> None:
     # super().__init__(session_id, __name__, logging_queue, logging_level)
     self._logger = bn_logging.get_logger_from_session(session_id, __name__)
     # self._files = files
-    self._state = state
     self._input_files_queue = input_files_queue
     self.segment_duration_s = segment_duration_s
     self.overlap_duration_s = overlap_duration_s

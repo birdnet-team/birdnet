@@ -25,7 +25,6 @@ from birdnet.base import get_session_id_hash
 from birdnet.globals import (
   MODEL_TYPE_ACOUSTIC,
   PKG_NAME,
-  STATE_DEFAULT,
 )
 from birdnet.helper import (
   RingField,
@@ -290,7 +289,6 @@ class FilesAnalyzerResources:
   max_segment_idx_ptr: mp.RawValue
   max_segment_idx_init_value: int
   finished: multiprocessing.synchronize.Event
-  state: mp.RawValue
   # each resource needs own start signal to allow resetting it individually
   start_signal: multiprocessing.synchronize.Event
   segments_dtype: np.dtype
@@ -349,7 +347,6 @@ class FilesAnalyzerResources:
       segments_dtype=segments_dtype,
       max_segment_idx_init_value=max_segment_ptr_value,
       finished=mp.Event(),
-      state=mp.RawValue(ctypes.c_uint8, STATE_DEFAULT),
       start_signal=mp.Event(),
     )
 
