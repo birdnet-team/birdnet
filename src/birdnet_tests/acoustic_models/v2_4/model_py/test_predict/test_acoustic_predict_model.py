@@ -110,6 +110,7 @@ def test_tf_fp32_twice_two_sessions() -> None:
 
 @pytest.mark.litert
 def test_litert_fp32_twice_two_sessions() -> None:
+  ensure_litert_or_skip()
   model = load("acoustic", "2.4", "tf", precision="fp32", library="litert")
   with model.predict_session(n_workers=1, top_k=None) as session:
     res1 = session.run(TEST_FILE_SHORT)

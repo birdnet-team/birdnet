@@ -59,6 +59,7 @@ def test_load_custom_geo_model_v2_4_tf_fp32() -> None:
 
 @pytest.mark.litert
 def test_load_custom_geo_model_v2_4_litert_fp32() -> None:
+  ensure_litert_or_skip()
   GeoTFDownloaderV2_4.get_model_path_and_labels("en_us")
   model = load_custom(
     "geo",
