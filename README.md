@@ -54,18 +54,16 @@ pip install birdnet[litert] --user
 
 For more detailed benchmarks, please refer to the [BENCHMARKING.md](BENCHMARKING.md) file.
 
-## Plattform support and Python versions
+## Platform support and Python versions
 
-### V2.4
-
-| Platform | Architecture | LiteRT            | TFLite                 | TF-CPU                | TF-GPU                |
-|----------|--------------|--------------------|-------------------------|------------------------|------------------------|
-| **Windows** | x86_64      | /                  | 3.11, 3.12, 3.13        | 3.11, 3.12, 3.13       | /                      |
-|          | ARM64        | /                  | /                       | /                      | /                      |
-| **Linux**   | x86_64      | 3.11, 3.12, 3.13   | 3.11, 3.12, 3.13        | 3.11, 3.12, 3.13       | 3.11, 3.12, 3.13       |
-|          | ARM64        | 3.11, 3.12, 3.13   | 3.11, 3.12, 3.13        | 3.11, 3.12, 3.13       | 3.11, 3.12, 3.13       |
-| **MacOS**   | x86_64      | /                  | 3.11, 3.12              | 3.11, 3.12             | /                      |
-|          | ARM64        | 3.11, 3.12, 3.13   | 3.11, 3.12, 3.13        | 3.11, 3.12, 3.13       | /                      |
+| Platform | Architecture | ProtoBuf-CPU | ProtoBuf-GPU | TFLite | LiteRT |
+| ----------- | ------------ | ---------------- | ---------------- | ---------------- | ---------------- |
+| **Windows** | x86_64 | 3.11, 3.12, 3.13 | / | 3.11, 3.12, 3.13 | / |
+| | ARM64 | / | / | / | / |
+| **Linux** | x86_64 | 3.11, 3.12, 3.13 | 3.11, 3.12, 3.13 | 3.11, 3.12, 3.13 | 3.11, 3.12, 3.13 |
+| | ARM64 | 3.11, 3.12, 3.13 | 3.11, 3.12, 3.13 | 3.11, 3.12, 3.13 | 3.11, 3.12, 3.13 |
+| **MacOS** | x86_64 | 3.11, 3.12 | / | 3.11, 3.12 | / |
+| | ARM64 | 3.11, 3.12, 3.13 | / | 3.11, 3.12, 3.13 | 3.11, 3.12, 3.13 |
 
 ## Supported operations, precisions and devices
 
@@ -73,7 +71,7 @@ For more detailed benchmarks, please refer to the [BENCHMARKING.md](BENCHMARKING
 
 | **Model** | Acoustic | Acoustic | Acoustic | Geo | Geo |
 |---|---|---|---|---|---|
-| **Backend** | TensorFlow/<br>LiteRT | ProtoBuf | ProtoBuf<br>Raven* | TensorFlow/<br>LiteRT | ProtoBuf |
+| **Backend** | TFLite/<br>LiteRT | ProtoBuf | ProtoBuf<br>Raven* | TFLite/<br>LiteRT | ProtoBuf |
 | `predict(..)` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `encode(..)` | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **INT8** | CPU | ❌ | ❌ | ❌ | ❌ |

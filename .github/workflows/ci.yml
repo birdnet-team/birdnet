@@ -60,7 +60,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install uv build --upgrade
+          python -m pip install uv --upgrade
           python -m uv pip install twine build --upgrade
           python -m uv pip install --system .[tests]
 
@@ -129,7 +129,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install uv build --upgrade
+          python -m pip install uv --upgrade
+          python -m uv pip install twine build --upgrade
           python -m uv pip install --system .[tests,repro]
 
       - name: Download models
