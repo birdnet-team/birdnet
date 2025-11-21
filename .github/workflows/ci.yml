@@ -92,14 +92,8 @@ jobs:
     strategy:
       matrix:
         os:
-          [
-            ubuntu-slim,
-            ubuntu-24.04,
-            ubuntu-24.04-arm,
-            macos-15,
-            macos-15-intel,
-            windows-2025,
-          ]
+          # repro without Intel macOS because TF >=2.17 is not supported there
+          [ubuntu-slim, ubuntu-24.04, ubuntu-24.04-arm, macos-15, windows-2025]
         python-version: ["3.12"]
 
     steps:
