@@ -15,7 +15,7 @@ def test_litert() -> None:
 
 
 def test_tf() -> None:
-  model = load("geo", "2.4", "tf", precision="fp32", library="tf")
+  model = load("geo", "2.4", "tf", precision="fp32", library="tflite")
   result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=False)
 
   assert result.species_probs.shape == (6522,)
@@ -51,7 +51,7 @@ def test_litert_half() -> None:
 
 
 def test_tf_half() -> None:
-  model = load("geo", "2.4", "tf", precision="fp32", library="tf")
+  model = load("geo", "2.4", "tf", precision="fp32", library="tflite")
   result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=True)
 
   assert result.species_probs.shape == (6522,)

@@ -26,7 +26,7 @@ def test_v2_4_pb() -> None:
 
 @pytest.mark.load_model
 def test_v2_4_tf_fp32() -> None:
-  model = load("geo", "2.4", "tf", precision="fp32", library="tf")
+  model = load("geo", "2.4", "tf", precision="fp32", library="tflite")
   assert isinstance(model, GeoModelV2_4)
 
 
@@ -42,8 +42,8 @@ def test_pb_type_is_correct() -> None:
   assert type(load("geo", "2.4", "pb")) is GeoModelV2_4
 
 
-def test_tf_type_is_correct() -> None:
-  assert type(load("geo", "2.4", "tf")) is GeoModelV2_4
+def test_tf_tflite_type_is_correct() -> None:
+  assert type(load("geo", "2.4", "tf", library="tflite")) is GeoModelV2_4
 
 
 @pytest.mark.litert

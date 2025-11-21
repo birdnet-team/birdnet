@@ -2,9 +2,9 @@ from typing import Literal
 
 import numpy as np
 
-LIBRARY_TF = "tf"  # default
+LIBRARY_TF = "tflite"  # default
 LIBRARY_LITERT = "litert"
-LIBRARY_TYPES = Literal["tf", "litert"]
+LIBRARY_TYPES = Literal["tflite", "litert"]
 VALID_LIBRARY_TYPES = [
   LIBRARY_TF,
   LIBRARY_LITERT,

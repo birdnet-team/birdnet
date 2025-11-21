@@ -28,7 +28,7 @@ def test_litert_fork() -> None:
 def test_tf_fork() -> None:
   use_fork_or_skip()
 
-  model = load("acoustic", "2.4", "tf", precision="fp32", library="tf")
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
   result = model.predict(TEST_FILE_SHORT, n_workers=1, top_k=None)
 
   assert result.species_probs.shape == TEST_FILE_SHORT_SCORE_SHAPE
@@ -67,7 +67,7 @@ def test_litert_forkserver() -> None:
 def test_tf_forkserver() -> None:
   use_forkserver_or_skip()
 
-  model = load("acoustic", "2.4", "tf", precision="fp32", library="tf")
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
   result = model.predict(TEST_FILE_SHORT, n_workers=1, top_k=None)
 
   assert result.species_probs.shape == TEST_FILE_SHORT_SCORE_SHAPE
@@ -107,7 +107,7 @@ def test_litert_spawn() -> None:
 def test_tf_spawn() -> None:
   use_spawn_or_skip()
 
-  model = load("acoustic", "2.4", "tf", precision="fp32", library="tf")
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
   result = model.predict(TEST_FILE_SHORT, n_workers=1, top_k=None)
 
   assert result.species_probs.shape == TEST_FILE_SHORT_SCORE_SHAPE

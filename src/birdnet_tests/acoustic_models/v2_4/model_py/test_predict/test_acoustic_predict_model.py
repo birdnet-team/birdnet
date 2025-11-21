@@ -37,28 +37,28 @@ def test_pb_gpu_fp32() -> None:
 
 
 def test_tf_fp32() -> None:
-  model = load("acoustic", "2.4", "tf", precision="fp32", library="tf")
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
   with model.predict_session(n_workers=1, top_k=None) as session:
     res = session.run(TEST_FILE_SHORT)
   assert res.species_probs.shape == TEST_FILE_SHORT_SCORE_SHAPE
 
 
 def test_tf_fp16() -> None:
-  model = load("acoustic", "2.4", "tf", precision="fp16", library="tf")
+  model = load("acoustic", "2.4", "tf", precision="fp16", library="tflite")
   with model.predict_session(n_workers=1, top_k=None) as session:
     res = session.run(TEST_FILE_SHORT)
   assert res.species_probs.shape == TEST_FILE_SHORT_SCORE_SHAPE
 
 
 def test_tf_int8() -> None:
-  model = load("acoustic", "2.4", "tf", precision="int8", library="tf")
+  model = load("acoustic", "2.4", "tf", precision="int8", library="tflite")
   with model.predict_session(n_workers=1, top_k=None) as session:
     res = session.run(TEST_FILE_SHORT)
   assert res.species_probs.shape == TEST_FILE_SHORT_SCORE_SHAPE
 
 
 def test_tf_int8_all_species_no_threshold_should_not_mask_anything() -> None:
-  model = load("acoustic", "2.4", "tf", precision="int8", library="tf")
+  model = load("acoustic", "2.4", "tf", precision="int8", library="tflite")
   with model.predict_session(
     n_workers=1,
     top_k=None,
@@ -100,7 +100,7 @@ def test_litert_int8() -> None:
 
 
 def test_tf_fp32_twice_two_sessions() -> None:
-  model = load("acoustic", "2.4", "tf", precision="fp32", library="tf")
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
   with model.predict_session(n_workers=1, top_k=None) as session:
     res1 = session.run(TEST_FILE_SHORT)
   with model.predict_session(n_workers=1, top_k=None) as session:
@@ -122,7 +122,7 @@ def test_litert_fp32_twice_two_sessions() -> None:
 def run_session(
   x: multiprocessing.synchronize.Barrier, queue: multiprocessing.Queue
 ) -> None:
-  model = load("acoustic", "2.4", "tf", precision="fp32", library="tf")
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
   x.wait()
   with model.predict_session(n_workers=1, top_k=None) as session:
     result = session.run(TEST_FILE_SHORT)
@@ -194,7 +194,7 @@ def test_tf_fp32_twice_two_sessions_parallel_processes_spawn() -> None:
 
 
 def run_session_thread(barrier: threading.Barrier, queue: queue.Queue) -> None:
-  model = load("acoustic", "2.4", "tf", precision="fp32", library="tf")
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
   barrier.wait()
   with model.predict_session(n_workers=1, top_k=None) as session:
     result = session.run(TEST_FILE_SHORT)
@@ -222,7 +222,7 @@ def test_tf_fp32_twice_two_sessions_parallel_threads() -> None:
 
 
 def test_tf_fp32_twice_same_session() -> None:
-  model = load("acoustic", "2.4", "tf", precision="fp32", library="tf")
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
   with model.predict_session(n_workers=1, top_k=None) as session:
     res1 = session.run(TEST_FILE_SHORT)
     res2 = session.run(TEST_FILE_SHORT)

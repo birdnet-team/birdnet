@@ -27,7 +27,7 @@ def test_v2_4_pb() -> None:
 
 @pytest.mark.load_model
 def test_v2_4_tf_fp32() -> None:
-  model = load("acoustic", "2.4", "tf", precision="fp32", library="tf")
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
   assert isinstance(model, AcousticModelV2_4)
 
 
@@ -41,7 +41,7 @@ def test_v2_4_litert_fp32() -> None:
 
 @pytest.mark.load_model
 def test_v2_4_tf_fp16() -> None:
-  model = load("acoustic", "2.4", "tf", precision="fp16", library="tf")
+  model = load("acoustic", "2.4", "tf", precision="fp16", library="tflite")
   assert isinstance(model, AcousticModelV2_4)
 
 
@@ -55,7 +55,7 @@ def test_v2_4_litert_fp16() -> None:
 
 @pytest.mark.load_model
 def test_v2_4_tf_int8() -> None:
-  model = load("acoustic", "2.4", "tf", precision="int8", library="tf")
+  model = load("acoustic", "2.4", "tf", precision="int8", library="tflite")
   assert isinstance(model, AcousticModelV2_4)
 
 

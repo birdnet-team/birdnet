@@ -57,7 +57,7 @@ def test_v2_4_tf_fp32() -> None:
     "tf",
     get_model_path("acoustic", "2.4", "tf", "fp32"),
     get_lang_dir("acoustic", "2.4", "tf") / "en_us.txt",
-    library="tf",
+    library="tflite",
     precision="fp32",
     check_validity=True,
   )
@@ -90,7 +90,7 @@ def test_v2_4_tf_fp16() -> None:
     "tf",
     get_model_path("acoustic", "2.4", "tf", "fp16"),
     get_lang_dir("acoustic", "2.4", "tf") / "en_us.txt",
-    library="tf",
+    library="tflite",
     precision="fp16",
     check_validity=True,
   )
@@ -123,7 +123,7 @@ def test_v2_4_tf_int8() -> None:
     "tf",
     get_model_path("acoustic", "2.4", "tf", "int8"),
     get_lang_dir("acoustic", "2.4", "tf") / "en_us.txt",
-    library="tf",
+    library="tflite",
     precision="int8",
     check_validity=True,
   )
@@ -276,7 +276,7 @@ def test_custom_from_analyzer_v2_4_tf_fp32() -> None:
     "tf",
     TEST_FILES_DIR / "custom_models/tf/CustomClassifier.tflite",
     TEST_FILES_DIR / "custom_models/tf/CustomClassifier_Labels.txt",
-    library="tf",
+    library="tflite",
     check_validity=True,
     precision="fp32",
   )

@@ -524,7 +524,7 @@ def load_pb_model(model_path: Path, device: Any) -> Any:
 @overload
 def load_tf_model(
   model_path: Path,
-  library: Literal["tf"],
+  library: Literal["tflite"],
   allocate_tensors: bool = False,
 ) -> TFInterpreter: ...
 @overload

@@ -53,7 +53,7 @@ def predict_test_cases(
 
 def create_reference_results() -> None:
   TEST_CASES_REF_DIR.mkdir(exist_ok=True, parents=True)
-  model = load("acoustic", "2.4", "tf", precision="fp32", library="tf")
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
   for case_nr, result in predict_test_cases(model):
     case_file = TEST_CASES_REF_DIR / f"{case_nr}.npz"
     result.save(case_file)
@@ -117,7 +117,7 @@ def test_pb_gpu_is_close() -> None:
 
 
 def test_tf32_is_same() -> None:
-  model = load("acoustic", "2.4", "tf", precision="fp32", library="tf")
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
   for case_nr, result in predict_test_cases(model):
     ref_case_file = TEST_CASES_REF_DIR / f"{case_nr}.npz"
     ref_result = EncodingResult.load(ref_case_file)

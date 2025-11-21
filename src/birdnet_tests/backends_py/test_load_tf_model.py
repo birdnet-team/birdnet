@@ -19,7 +19,7 @@ def test_load_tf_and_litert_after_each_other_is_not_possible() -> None:
   model_path = get_model_path("acoustic", "2.4", "tf", "fp32")
 
   # Load TF model
-  model_tf = load_tf_model(model_path, library="tf", allocate_tensors=False)
+  model_tf = load_tf_model(model_path, library="tflite", allocate_tensors=False)
   assert model_tf is not None
 
   # Loading Litert model after TF fails
@@ -45,7 +45,7 @@ def test_load_litert_and_tf_after_each_other_is_possible() -> None:
   if platform.system() == "Darwin":
     # Loading Litert model after TF fails
     with pytest.raises(ImportError):
-      load_tf_model(model_path, library="tf", allocate_tensors=False)
+      load_tf_model(model_path, library="tflite", allocate_tensors=False)
   else:
-    model_tf = load_tf_model(model_path, library="tf", allocate_tensors=False)
+    model_tf = load_tf_model(model_path, library="tflite", allocate_tensors=False)
     assert model_tf is not None

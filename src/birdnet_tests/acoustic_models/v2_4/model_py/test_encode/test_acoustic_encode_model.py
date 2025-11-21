@@ -6,21 +6,21 @@ from birdnet_tests.test_files import TEST_FILE_SHORT, TEST_FILE_SHORT_EMB_SHAPE
 
 
 def test_v2_4_tf_fp32() -> None:
-  model = load("acoustic", "2.4", "tf", precision="fp32", library="tf")
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
   with model.encode_session(n_workers=1) as session:
     res = session.run(TEST_FILE_SHORT)
   assert res.embeddings.shape == TEST_FILE_SHORT_EMB_SHAPE
 
 
 def test_v2_4_tf_fp16() -> None:
-  model = load("acoustic", "2.4", "tf", precision="fp16", library="tf")
+  model = load("acoustic", "2.4", "tf", precision="fp16", library="tflite")
   with model.encode_session(n_workers=1) as session:
     res = session.run(TEST_FILE_SHORT)
   assert res.embeddings.shape == TEST_FILE_SHORT_EMB_SHAPE
 
 
 def test_v2_4_tf_int8() -> None:
-  model = load("acoustic", "2.4", "tf", precision="int8", library="tf")
+  model = load("acoustic", "2.4", "tf", precision="int8", library="tflite")
   with model.encode_session(n_workers=1) as session:
     res = session.run(TEST_FILE_SHORT)
   assert res.embeddings.shape == TEST_FILE_SHORT_EMB_SHAPE

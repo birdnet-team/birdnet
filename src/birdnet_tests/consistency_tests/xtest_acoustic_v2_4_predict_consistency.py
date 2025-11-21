@@ -70,7 +70,7 @@ def create_reference_results() -> None:
   if TEST_CASES_REF_DIR.is_dir():
     rmtree(TEST_CASES_REF_DIR)
   TEST_CASES_REF_DIR.mkdir(exist_ok=False, parents=True)
-  model = load("acoustic", "2.4", "tf", precision="fp32", library="tf")
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
   for case_nr, result in predict_test_cases(model, device="CPU", n_workers=4):
     case_file = TEST_CASES_REF_DIR / f"{case_nr}.npz"
     result.save(case_file)
@@ -215,7 +215,7 @@ def test_pb_gpu_is_close() -> None:
 
 
 def test_tf32_is_same() -> None:
-  model = load("acoustic", "2.4", "tf", precision="fp32", library="tf")
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
   test_cases_inference_with_model(model, "CPU", atol=0, mean_atol=0)
 
 

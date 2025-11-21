@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Removed `litert` install option, now litert is always installed if possible
+- Rename `tf` library to `tflite` to better reflect the usage of TFLite/LiteRT
 - Improved prediction speed, esp. for half-precision models (+10 seg/s)
 - Lowered dependencies
 - Update `ai-edge-litert` to version 2.0.3 on `repro`

@@ -51,7 +51,7 @@ def test_load_custom_geo_model_v2_4_tf_fp32() -> None:
     "tf",
     get_model_path("geo", "2.4", "tf", "fp32"),
     get_lang_dir("geo", "2.4", "tf") / "en_us.txt",
-    library="tf",
+    library="tflite",
     check_validity=True,
   )
   assert isinstance(model, GeoModelV2_4)

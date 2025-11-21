@@ -12,7 +12,7 @@ def test_custom_from_analyzer_v2_4_tf_fp32() -> None:
     "tf",
     TEST_FILES_DIR / "custom_models/tf/CustomClassifier.tflite",
     TEST_FILES_DIR / "custom_models/tf/CustomClassifier_Labels.txt",
-    library="tf",
+    library="tflite",
     check_validity=False,
   )
 

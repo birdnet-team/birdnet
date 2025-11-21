@@ -45,21 +45,21 @@ def test_pb_gpu_fp32() -> None:
 
 @pytest.mark.repro
 def test_tf_fp32() -> None:
-  model = load("acoustic", "2.4", "tf", precision="fp32", library="tf")
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
   mean = predict_test_case(model, n_workers=4, device="CPU")
   numpy.testing.assert_equal(mean, 0.00013913159)
 
 
 @pytest.mark.repro
 def test_tf_fp16() -> None:
-  model = load("acoustic", "2.4", "tf", precision="fp16", library="tf")
+  model = load("acoustic", "2.4", "tf", precision="fp16", library="tflite")
   mean = predict_test_case(model, n_workers=4, device="CPU")
   numpy.testing.assert_equal(mean, 0.00013931823)
 
 
 @pytest.mark.repro
 def test_tf_int8() -> None:
-  model = load("acoustic", "2.4", "tf", precision="int8", library="tf")
+  model = load("acoustic", "2.4", "tf", precision="int8", library="tflite")
   mean = predict_test_case(model, n_workers=4, device="CPU")
   numpy.testing.assert_equal(mean, 0.0001324143)
 
