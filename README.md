@@ -13,20 +13,6 @@ The library is geared towards providing a robust workflow for ecological data an
 
 The package is also available as an R package at: [birdnetR](https://github.com/birdnet-team/birdnetR).
 
-## Installation
-
-```sh
-# For CPU users
-pip install birdnet --user
-
-# For GPU users (NVIDIA GPU driver and CUDA need to be installed in advance)
-pip install birdnet[and-cuda] --user
-
-# For edge devices (e.g., Raspberry Pi)
-# Note: Does NOT work on Windows, Intel-based Macs and not on Python 3.13 yet
-pip install birdnet[litert] --user
-```
-
 ## Features
 
 * 🐦 Extract **classification scores and embeddings** for 6,522 species from audio recordings
@@ -46,24 +32,44 @@ pip install birdnet[litert] --user
 
 ## Speed benchmarks
 
-| Device             | Specs       | Disk | OS      | Recordings/s     | → 1 h of recording |
-|--------------------|-------------|------|---------|---------------|---|
+| Device             | Specs       | Disk | OS      | Recordings/s | → 1 h of recording |
+|--------------------|-------------|------|---------|--------------|---|
 | Intel i7 8th Gen   | 4 cores     | NVMe | Windows | 50 s         | 72 s
 | Ryzen 7 3800X      | 8 cores     | NVMe | Linux   | 7 min        | 8.5 s
 | Nvidia Titan RTX   | 24 GB VRAM  | NVMe | Linux   | 41 min       | 1.5 s
 
 For more detailed benchmarks, please refer to the [BENCHMARKING.md](BENCHMARKING.md) file.
 
-## Platform support and Python versions
+## Installation
+
+### Platform support and Python versions
 
 | Platform | Architecture | ProtoBuf-CPU | ProtoBuf-GPU | TFLite | LiteRT |
 | ----------- | ------------ | ---------------- | ---------------- | ---------------- | ---------------- |
+| **Linux** | x86_64 | 3.11, 3.12, 3.13 | 3.11, 3.12, 3.13 | 3.11, 3.12, 3.13 | 3.11, 3.12 |
+| | ARM64 | 3.11, 3.12, 3.13 | / | 3.11, 3.12, 3.13 | 3.11, 3.12 |
+| **MacOS** | x86_64 | 3.11, 3.12 | / | 3.11, 3.12 | / |
+| | ARM64 | 3.11, 3.12, 3.13 | / | 3.11, 3.12, 3.13 | 3.11, 3.12 |
 | **Windows** | x86_64 | 3.11, 3.12, 3.13 | / | 3.11, 3.12, 3.13 | / |
 | | ARM64 | / | / | / | / |
-| **Linux** | x86_64 | 3.11, 3.12, 3.13 | 3.11, 3.12, 3.13 | 3.11, 3.12, 3.13 | 3.11, 3.12, 3.13 |
-| | ARM64 | 3.11, 3.12, 3.13 | 3.11, 3.12, 3.13 | 3.11, 3.12, 3.13 | 3.11, 3.12, 3.13 |
-| **MacOS** | x86_64 | 3.11, 3.12 | / | 3.11, 3.12 | / |
-| | ARM64 | 3.11, 3.12, 3.13 | / | 3.11, 3.12, 3.13 | 3.11, 3.12, 3.13 |
+
+For details see the official [TensorFlow](https://www.tensorflow.org/install/pip#package_location) documentation.
+
+### Instructions
+
+```sh
+# For CPU users
+pip install birdnet --user
+
+# For GPU users (NVIDIA GPU driver and CUDA need to be installed in advance)
+pip install birdnet[and-cuda] --user
+```
+
+If you encounter issues with audio file reading, please ensure that `libsndfile` is installed on your system.
+
+- **Ubuntu/Debian**: `sudo apt-get install libsndfile1`
+- **macOS** (using Homebrew): `brew install libsndfile`
+- **Windows**: Download and install the precompiled binaries from the [official website](https://github.com/libsndfile/libsndfile/releases/), extract them and add the folder to path.
 
 ## Supported operations, precisions and devices
 
@@ -159,7 +165,7 @@ The audio models support all formats compatible with the SoundFile library (see 
 This project provides two model formats: Protobuf/Raven and TFLite. Both models are designed to have identical precision up to 2 decimal places, with differences only appearing from the third decimal place onward.
 
 - **TFLite Model**: This model is limited to CPU execution only.
-- **Protobuf Model**: This model can be executed on both GPU and CPU.
+- **ProtoBuf Model**: This model can be executed on both GPU and CPU.
 
 Ensure your environment is configured to utilize the appropriate model and available hardware optimally.
 
