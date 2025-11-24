@@ -929,9 +929,9 @@ def read_data_in_mono(
 
 
 def read_file_in_mono(
-  audio_path: Path,
   start_samples: int,
   end_samples: int,
+  audio_path: Path,
 ) -> npt.NDArray[np.float32]:
   assert audio_path.is_file()
   assert audio_path.suffix.upper() in SF_FORMATS

@@ -9,6 +9,8 @@ from birdnet.acoustic_models.inference.scores.prediction_result import (
 )
 from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
 from birdnet.helper import get_float_dtype
+from birdnet.model_loader import load
+from birdnet_tests.test_files import TEST_FILE_SHORT
 
 
 def create_mock_tensor(
@@ -28,6 +30,7 @@ def create_prediction_result(
   top_k: int,
   segment_duration_s: float,
   overlap_duration_s: float,
+  speed: float = 1.0,
   rand_duration: bool = False,
 ) -> PredictionResult:
   np.random.seed(0)
@@ -61,6 +64,7 @@ def create_prediction_result(
     file_durations=file_durations,
     segment_duration_s=segment_duration_s,
     overlap_duration_s=overlap_duration_s,
+    speed=speed,
   )
 
 
@@ -133,9 +137,58 @@ def test_sorting_by_confidence() -> None:
   )
 
 
+def test_time_calculations_no_overlap() -> None:
+  result = create_prediction_result(
+    n_files=1, n_segments=2, top_k=1, segment_duration_s=3, overlap_duration_s=0
+  )
+
+  structured = result.to_structured_array()
+
+  assert structured[0]["start_time"] == 0.0
+  assert structured[0]["end_time"] == 3.0
+  assert structured[1]["start_time"] == 3.0
+  assert structured[1]["end_time"] == 6.0
+
+
 def test_time_calculations_with_overlap() -> None:
   result = create_prediction_result(
     n_files=1, n_segments=2, top_k=1, segment_duration_s=3, overlap_duration_s=0.5
+  )
+
+  structured = result.to_structured_array()
+
+  assert structured[0]["start_time"] == 0.0
+  assert structured[0]["end_time"] == 3.0
+  assert structured[1]["start_time"] == 2.5
+  assert structured[1]["end_time"] == 5.5
+
+
+def xtest_time_calculations_no_overlap_but_speedup() -> None:
+  result = create_prediction_result(
+    n_files=1,
+    n_segments=2,
+    top_k=1,
+    segment_duration_s=3,
+    overlap_duration_s=0,
+    speed=0.5,
+  )
+
+  structured = result.to_structured_array()
+
+  assert structured[0]["start_time"] == 0.0
+  assert structured[0]["end_time"] == 3.0
+  assert structured[1]["start_time"] == 3.0
+  assert structured[1]["end_time"] == 6.0
+
+
+def xtest_time_calculations_with_overlap_and_speed() -> None:
+  result = create_prediction_result(
+    n_files=1,
+    n_segments=2,
+    top_k=1,
+    segment_duration_s=3,
+    overlap_duration_s=0.5,
+    speed=0.5,
   )
 
   structured = result.to_structured_array()
@@ -277,3 +330,15 @@ def test_masking_behavior() -> None:
   assert structured[0]["file_path"] == str(Path("/test/file_0.wav").absolute())
   assert structured[1]["file_path"] == str(Path("/test/file_0.wav").absolute())
   assert structured[2]["file_path"] == str(Path("/test/file_1.wav").absolute())
+
+
+def test_full_pipeline() -> None:
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
+  with model.predict_session(n_workers=1, top_k=None, speed=0.5) as session:
+    res = session.run(TEST_FILE_SHORT)
+
+  structured = res.to_structured_array()
+  df = res.to_dataframe()
+  print(df)
+
+  assert len(structured) == 8  # 2 files * 2 segments * 2 top_k

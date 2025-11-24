@@ -44,6 +44,7 @@ class EncodingSession(AcousticSessionBase):
     batch_size: int,
     prefetch_ratio: int,
     overlap_duration_s: float,
+    speed: float,
     bandpass_fmin: int,
     bandpass_fmax: int,
     half_precision: bool,
@@ -109,6 +110,7 @@ class EncodingSession(AcousticSessionBase):
           max_audio_duration_min=max_audio_duration_min,
           device=device,
           max_n_files=max_n_files,
+          speed=speed,
         ),
         filtering_conf=FilteringConfig(
           bandpass_fmin=bandpass_fmin,
@@ -156,6 +158,7 @@ class ScoreSession(AcousticSessionBase):
     batch_size: int = 1,
     prefetch_ratio: int = 1,
     overlap_duration_s: float,
+    speed: float,
     bandpass_fmin: int,
     bandpass_fmax: int,
     apply_sigmoid: bool,
@@ -185,6 +188,8 @@ class ScoreSession(AcousticSessionBase):
     overlap_duration_s = ProcessingConfig.validate_overlap_duration(
       overlap_duration_s, model_segment_size_s
     )
+
+    speed = ProcessingConfig.validate_speed(speed)
 
     bandpass_fmin, bandpass_fmax = FilteringConfig.validate_bandpass_frequencies(
       bandpass_fmin, bandpass_fmax, model_sig_fmin, model_sig_fmax
@@ -241,6 +246,7 @@ class ScoreSession(AcousticSessionBase):
           max_audio_duration_min=max_audio_duration_min,
           device=device,
           max_n_files=max_n_files,
+          speed=speed,
         ),
         filtering_conf=FilteringConfig(
           bandpass_fmin=bandpass_fmin,
