@@ -87,23 +87,66 @@ def get_segments_with_overlap_all(
     yield start, end
 
 
+def get_segments_with_overlap_all_int(
+  total_duration: int,
+  segment_duration: int,
+  overlap_duration: int,
+) -> Generator[tuple[int, int], None, None]:
+  assert total_duration > 0
+  assert segment_duration > 0
+  assert 0 <= overlap_duration < segment_duration
+
+  step_duration = segment_duration - overlap_duration
+  for start in count(0, step=step_duration):
+    if start >= total_duration:
+      break
+    end = min(start + segment_duration, total_duration)
+    yield start, end
+
+
+def calculate_target_sample_count(
+  n_samples: int, sample_rate: int, target_sample_rate: int
+) -> int:
+  assert sample_rate > 0
+  assert target_sample_rate > 0
+  x, y = divmod(n_samples, sample_rate)
+  if y != 0:
+    raise ValueError("original_sample_count must be a multiple of sample_rate")
+  target_sample_count = x * target_sample_rate
+  return target_sample_count
+
+
 def resample_array(
-  x: npt.NDArray, sample_rate: int, target_sample_rate: int
+  array: npt.NDArray, sample_rate: int, target_sample_rate: int
 ) -> npt.NDArray:
-  assert len(x.shape) == 1
+  assert len(array.shape) == 1
   assert sample_rate > 0
   assert target_sample_rate > 0
 
   if sample_rate == target_sample_rate:
-    return x
+    return array
 
-  target_sample_count = round(len(x) / sample_rate * target_sample_rate)
+  dur_seconds = len(array) / sample_rate
+  target_sample_count = round(dur_seconds * target_sample_rate)
 
   from scipy.signal import resample
 
-  x_resampled: npt.NDArray = resample(x, target_sample_count)
-  assert x_resampled.dtype == x.dtype
-  return x_resampled
+  array_resampled: npt.NDArray = resample(array, target_sample_count)
+  assert array_resampled.dtype == array.dtype
+  return array_resampled
+
+
+def resample_array2(array: npt.NDArray, target_n_samples: int) -> npt.NDArray:
+  assert len(array.shape) == 1
+
+  if len(array) == target_n_samples:
+    return array
+
+  from scipy.signal import resample
+
+  array_resampled: npt.NDArray = resample(array, target_n_samples)
+  assert array_resampled.dtype == array.dtype
+  return array_resampled
 
 
 class Producer(bn_logging.LogableProcessBase):
@@ -616,6 +659,7 @@ def load_audio_in_segments_with_overlap2(
 
   for start_play_s, end_play_s in timestamps_playback_seconds:
     # Zurückrechnen von Playback-Zeit in Original-Zeit:
+    seg_duration = end_play_s - start_play_s
     start_orig_s = start_play_s * speed
     end_orig_s = end_play_s * speed
 
@@ -674,38 +718,44 @@ def load_audio_in_segments_with_overlap_sample_based(
 
   sample_rate = sf_info.samplerate
   n_frames = sf_info.frames
-  original_duration_samples = n_frames
 
-  # Effective input sample rate after applying speed factor:
-  # treating the original audio as if it had sample_rate * speed.
-  effective_sample_rate = int(round(sample_rate * speed))
-  if effective_sample_rate < 1:
-    raise ValueError(
-      f"effective_sample_rate must be >= 1, got {effective_sample_rate} "
-      f"(sample_rate={sample_rate}, speed={speed})"
+  n_samples_orig = n_frames
+  n_samples_orig_seg = segment_duration_s * sample_rate
+  n_samples_orig_overlap = overlap_duration_s * sample_rate
+  n_samples_orig_scaled = round(n_samples_orig / speed)
+
+  # Playback duration after speed adjustment: slower -> longer, faster -> shorter.
+  n_samples_scaled = round(n_samples_orig * speed)
+  n_samples_scaled_seg = round(n_samples_orig_seg * speed)
+  n_samples_scaled_overlap = round(n_samples_orig_overlap * speed)
+
+  timestamps_orig_samples = list(
+    get_segments_with_overlap_all_int(
+      n_samples_orig_scaled,
+      n_samples_orig_seg,
+      n_samples_orig_overlap,
     )
-
-  # Playback duration after speed adjustment: slower -> länger, schneller -> kürzer.
-  playback_duration_samples = int(round(original_duration_samples / speed))
-
-  segment_duration_samples = int(round(segment_duration_s * target_sample_rate))
-  overlap_duration_samples = int(round(overlap_duration_s * target_sample_rate))
-  playback_segment_duration_samples = int(round(segment_duration_samples / speed))
-  playback_overlap_duration_samples = int(round(overlap_duration_samples / speed))
-
-  timestamps_playback_samples = get_segments_with_overlap_all(
-    original_duration_samples,
-    playback_segment_duration_samples,
-    playback_overlap_duration_samples,
   )
 
-  for start_samples, end_samples in timestamps_playback_samples:
-    # Clamp auf die tatsächliche Länge der Datei
-    assert start_samples < n_frames
-    assert end_samples <= n_frames
+  timestamps_scaled_samples = list(
+    get_segments_with_overlap_all_int(
+      n_samples_orig,
+      n_samples_scaled_seg,
+      n_samples_scaled_overlap,
+    )
+  )
+
+  for (start_samples_orig, end_samples_orig), (
+    start_samples_scaled,
+    end_samples_scaled,
+  ) in zip(timestamps_orig_samples, timestamps_scaled_samples, strict=True):
+    assert start_samples_orig < n_samples_orig_scaled
+    assert end_samples_orig <= n_samples_orig_scaled
+    assert start_samples_scaled < n_samples_orig
+    assert end_samples_scaled <= n_samples_orig
 
     audio, _ = sf.read(
-      audio_path, start=int(start_samples), stop=int(end_samples), dtype="float32"
+      audio_path, start=start_samples_scaled, stop=end_samples_scaled, dtype="float32"
     )
 
     if audio.ndim == 2:
@@ -713,9 +763,9 @@ def load_audio_in_segments_with_overlap_sample_based(
       assert n_channels > 1
       audio = np.mean(audio, axis=1, dtype=np.float32)
 
-    # Speed-Anpassung über effektive Sample-Rate:
-    # N_out = N_in * target_sr / (sample_rate * speed)
-    # -> Dauer_out = segment_duration_s (unabhängig von speed)
-    audio = resample_array(audio, effective_sample_rate, target_sample_rate)
+    target_n_samples = end_samples_orig - start_samples_orig
+
+    audio = resample_array2(audio, target_n_samples)
+    audio = resample_array(audio, sample_rate, target_sample_rate)
 
     yield audio

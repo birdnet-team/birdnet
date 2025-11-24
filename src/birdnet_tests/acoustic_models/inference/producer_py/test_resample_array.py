@@ -1,0 +1,49 @@
+import numpy as np
+import numpy.testing as npt
+
+from birdnet.acoustic_models.inference.producer import resample_array
+
+
+def test_same_sr__changes_nothing() -> None:
+  result = resample_array(
+    array=np.array([0.0, 0.5, -0.5, 1.0], dtype=np.float32),
+    sample_rate=48000,
+    target_sample_rate=48000,
+  )
+  npt.assert_equal(result, np.array([0.0, 0.5, -0.5, 1.0], dtype=np.float32))
+
+
+def test_doubletime__doubles_frame_count() -> None:
+  result = resample_array(
+    array=np.array([0.0, 0.5, -0.5, 1.0], dtype=np.float32),
+    sample_rate=48000,
+    target_sample_rate=48000 * 2,
+  )
+  npt.assert_equal(
+    result,
+    np.array(
+      [0.0, 0.25, 0.5, -0.103553385, -0.5, 0.25, 1.0, 0.6035534],
+      dtype=np.float32,
+    ),
+  )
+
+
+def test_halftime__halfes_frame_count() -> None:
+  result = resample_array(
+    array=np.array([0.0, 0.5, -0.5, 1.0], dtype=np.float32),
+    sample_rate=48000,
+    target_sample_rate=48000 // 2,
+  )
+  npt.assert_equal(result, np.array([0.5, 0], dtype=np.float32))
+
+
+def test_non_integer_ratio() -> None:
+  sr = 48000
+  speed = 1.25
+  effective_sample_rate = int(round(sr * speed))
+  target_sr = 48000
+  result = resample_array(
+    array=np.array([0.0, 0.5, -0.5, 1.0], dtype=np.float32),
+    sample_rate=effective_sample_rate,
+    target_sample_rate=target_sr,
+  )
