@@ -1,6 +1,6 @@
 # birdnet
 
-[![CI](https://github.com/birdnet-team/birdnet/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/birdnet-team/birdnet/actions/workflows/ci.yml)
+<!-- [![CI](https://github.com/birdnet-team/birdnet/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/birdnet-team/birdnet/actions/workflows/ci.yml)  -->
 [![PyPI](https://img.shields.io/pypi/v/birdnet.svg)](https://pypi.python.org/pypi/birdnet)
 ![PyPI](https://img.shields.io/pypi/pyversions/birdnet.svg)
 [![MIT](https://img.shields.io/github/license/birdnet-team/birdnet.svg)](https://github.com/birdnet-team/birdnet/blob/main/LICENSE.md)
