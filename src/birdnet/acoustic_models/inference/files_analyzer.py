@@ -7,7 +7,11 @@ from queue import Empty
 
 import birdnet.acoustic_models.inference_pipeline.logging as bn_logging
 from birdnet.acoustic_models.inference.producer import get_audio_duration_s
-from birdnet.helper import RingField, get_max_n_segments, max_value_for_uint_dtype
+from birdnet.helper import (
+  RingField,
+  get_max_n_segments_speed,
+  max_value_for_uint_dtype,
+)
 
 
 class FilesAnalyzer:
@@ -16,6 +20,7 @@ class FilesAnalyzer:
     session_id: str,
     segment_duration_s: float,
     overlap_duration_s: float,
+    speed: float,
     rf_segment_indices: RingField,
     max_segment_idx_ptr: mp.RawValue,
     input_files_queue: Queue,
@@ -30,8 +35,9 @@ class FilesAnalyzer:
     self._logger = bn_logging.get_logger_from_session(session_id, __name__)
     # self._files = files
     self._input_files_queue = input_files_queue
-    self.segment_duration_s = segment_duration_s
-    self.overlap_duration_s = overlap_duration_s
+    self._segment_duration_s = segment_duration_s
+    self._overlap_duration_s = overlap_duration_s
+    self._speed = speed
     self._rf_segment_indices = rf_segment_indices
     self._max_segment_idx_ptr = max_segment_idx_ptr
     self._tot_n_segments = tot_n_segments
@@ -101,8 +107,11 @@ class FilesAnalyzer:
       audio_duration_s = get_audio_duration_s(path)
       durations.append(audio_duration_s)
 
-      file_n_segments = get_max_n_segments(
-        audio_duration_s, self.segment_duration_s, self.overlap_duration_s
+      file_n_segments = get_max_n_segments_speed(
+        audio_duration_s,
+        self._segment_duration_s,
+        self._overlap_duration_s,
+        self._speed,
       )
       file_max_segment_index = file_n_segments - 1
       n_segments += file_n_segments

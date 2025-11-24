@@ -20,6 +20,7 @@ class EncodingResult(PredictionResultBase):
     file_durations: np.ndarray,
     segment_duration_s: int | float,
     overlap_duration_s: int | float,
+    speed: int | float,
   ) -> None:
     assert file_durations.dtype in (np.float16, np.float32, np.float64)
     assert tensor._emb.dtype in (np.float16, np.float32)
@@ -34,6 +35,7 @@ class EncodingResult(PredictionResultBase):
     self._overlap_duration_s = np.array(
       [overlap_duration_s], dtype=get_float_dtype(overlap_duration_s)
     )
+    self._speed = np.array([speed], dtype=get_float_dtype(speed))
 
     self._embeddings = tensor._emb
     self._embeddings_masked = tensor._emb_masked
@@ -47,6 +49,7 @@ class EncodingResult(PredictionResultBase):
       + self._files.nbytes
       + self._segment_duration_s.nbytes
       + self._overlap_duration_s.nbytes
+      + self._speed.nbytes
       + self._file_durations.nbytes
     ) / 1024**2
 
@@ -57,6 +60,10 @@ class EncodingResult(PredictionResultBase):
   @property
   def overlap_duration_s(self) -> float:
     return float(self._overlap_duration_s[0])
+
+  @property
+  def speed(self) -> float:
+    return float(self._speed[0])
 
   @property
   def file_durations(self) -> np.ndarray:
@@ -100,6 +107,7 @@ class EncodingResult(PredictionResultBase):
       files=self._files,
       segment_duration_s=self._segment_duration_s,
       overlap_duration_s=self._overlap_duration_s,
+      speed=self._speed,
       file_durations=self._file_durations,
     )
 
@@ -114,5 +122,6 @@ class EncodingResult(PredictionResultBase):
     result._files = data["files"]
     result._segment_duration_s = data["segment_duration_s"]
     result._overlap_duration_s = data["overlap_duration_s"]
+    result._speed = data["speed"]
     result._file_durations = data["file_durations"]
     return result

@@ -4,7 +4,8 @@ import ctypes
 import multiprocessing.synchronize
 import os
 import time
-from collections.abc import Generator
+from collections.abc import Callable, Generator
+from functools import partial
 from itertools import count
 from multiprocessing import shared_memory
 from multiprocessing.queues import Queue
@@ -28,7 +29,7 @@ from birdnet.helper import (
   SF_FORMATS,
   RingField,
   assert_queue_is_empty,
-  get_max_n_segments,
+  get_max_n_segments_speed,
   max_value_for_uint_dtype,
 )
 from birdnet.utils import (
@@ -92,6 +93,9 @@ def get_segments_with_overlap_all_int(
   segment_duration: int,
   overlap_duration: int,
 ) -> Generator[tuple[int, int], None, None]:
+  assert isinstance(total_duration, int)
+  assert isinstance(segment_duration, int)
+  assert isinstance(overlap_duration, int)
   assert total_duration > 0
   assert segment_duration > 0
   assert 0 <= overlap_duration < segment_duration
@@ -116,7 +120,7 @@ def calculate_target_sample_count(
   return target_sample_count
 
 
-def resample_array(
+def resample_array_by_sr(
   array: npt.NDArray, sample_rate: int, target_sample_rate: int
 ) -> npt.NDArray:
   assert len(array.shape) == 1
@@ -136,7 +140,9 @@ def resample_array(
   return array_resampled
 
 
-def resample_array2(array: npt.NDArray, target_n_samples: int) -> npt.NDArray:
+def resample_array_by_stretching(
+  array: npt.NDArray, target_n_samples: int
+) -> npt.NDArray:
   assert len(array.shape) == 1
 
   if len(array) == target_n_samples:
@@ -278,8 +284,8 @@ class Producer(bn_logging.LogableProcessBase):
     self, path: Path
   ) -> Generator[tuple[int, npt.NDArray[np.float32]], None, None]:
     audio_duration_s = get_audio_duration_s(path)
-    file_n_segments = get_max_n_segments(
-      audio_duration_s, self._segment_duration_s, self._overlap_duration_s
+    file_n_segments = get_max_n_segments_speed(
+      audio_duration_s, self._segment_duration_s, self._overlap_duration_s, self._speed
     )
     file_max_segment_index = file_n_segments - 1
 
@@ -290,12 +296,13 @@ class Producer(bn_logging.LogableProcessBase):
         )
         return
       self._max_segment_idx_ptr.value = file_max_segment_index
-    segments = load_audio_in_segments_with_overlap2(
+
+    segments = get_file_segments_with_overlap(
       path,
       segment_duration_s=self._segment_duration_s,
       overlap_duration_s=self._overlap_duration_s,
-      target_sample_rate=self._target_sample_rate,
       speed=self._speed,
+      target_sample_rate=self._target_sample_rate,
     )
 
     # fill last segment with silence up to segmentsize if it is smaller than 3s
@@ -568,7 +575,18 @@ def get_audio_duration_s(audio_path: Path) -> float:
   return result
 
 
-def load_audio_in_segments_with_overlap(
+def get_audio_n_samples(audio_path: Path) -> int:
+  """
+  Returns the number of samples in the audio file.
+  """
+  assert audio_path.is_file()
+  assert audio_path.suffix.upper() in SF_FORMATS
+  sf_info = sf.info(audio_path)
+  result = int(sf_info.frames)
+  return result
+
+
+def xload_audio_in_segments_with_overlap(
   audio_path: Path,
   /,
   *,
@@ -601,11 +619,11 @@ def load_audio_in_segments_with_overlap(
       n_channels = audio.shape[1]
       assert n_channels > 1
       audio = np.mean(audio, axis=1, dtype=np.float32)
-    audio = resample_array(audio, sample_rate, target_sample_rate)
+    audio = resample_array_by_sr(audio, sample_rate, target_sample_rate)
     yield audio
 
 
-def load_audio_in_segments_with_overlap2(
+def xload_audio_in_segments_with_overlap2(
   audio_path: Path,
   /,
   *,
@@ -682,12 +700,12 @@ def load_audio_in_segments_with_overlap2(
     # Speed-Anpassung über effektive Sample-Rate:
     # N_out = N_in * target_sr / (sample_rate * speed)
     # -> Dauer_out = segment_duration_s (unabhängig von speed)
-    audio = resample_array(audio, effective_sample_rate, target_sample_rate)
+    audio = resample_array_by_sr(audio, effective_sample_rate, target_sample_rate)
 
     yield audio
 
 
-def load_audio_in_segments_with_overlap_sample_based(
+def xload_audio_in_segments_with_overlap_sample_based(
   audio_path: Path,
   /,
   *,
@@ -696,18 +714,6 @@ def load_audio_in_segments_with_overlap_sample_based(
   target_sample_rate: int,
   speed: float = 1.0,
 ) -> Generator[npt.NDArray[np.float32], None, None]:
-  """Load audio in overlapping segments with optional speed change.
-
-  speed:
-    Speed factor for audio playback. Values < 1.0 slow down the audio,
-    values > 1.0 speed it up. Minimum allowed value is 0.01.
-
-  segment_duration_s, overlap_duration_s:
-    Refer to the *speed-adjusted* playback domain. For example, with
-    segment_duration_s=3 and target_sample_rate=48000, each yielded
-    segment will have 3 * 48000 samples, independent of the speed
-    setting. Changing speed only changes how many segments are produced.
-  """
   if speed < 0.01:
     raise ValueError(f"speed must be >= 0.01, got {speed!r}")
 
@@ -716,12 +722,10 @@ def load_audio_in_segments_with_overlap_sample_based(
 
   sf_info = sf.info(audio_path)
 
-  sample_rate = sf_info.samplerate
-  n_frames = sf_info.frames
-
-  n_samples_orig = n_frames
-  n_samples_orig_seg = segment_duration_s * sample_rate
-  n_samples_orig_overlap = overlap_duration_s * sample_rate
+  orig_sr = sf_info.samplerate
+  n_samples_orig = sf_info.frames
+  n_samples_orig_seg = segment_duration_s * orig_sr
+  n_samples_orig_overlap = overlap_duration_s * orig_sr
   n_samples_orig_scaled = round(n_samples_orig / speed)
 
   # Playback duration after speed adjustment: slower -> longer, faster -> shorter.
@@ -765,7 +769,187 @@ def load_audio_in_segments_with_overlap_sample_based(
 
     target_n_samples = end_samples_orig - start_samples_orig
 
-    audio = resample_array2(audio, target_n_samples)
-    audio = resample_array(audio, sample_rate, target_sample_rate)
+    audio = resample_array_by_stretching(audio, target_n_samples)
+    audio = resample_array_by_sr(audio, orig_sr, target_sample_rate)
 
     yield audio
+
+
+def get_file_segments_with_overlap(
+  audio_path: Path,
+  segment_duration_s: float,
+  overlap_duration_s: float,
+  speed: float,
+  target_sample_rate: int,
+) -> Generator[npt.NDArray[np.float32], None, None]:
+  """Load audio in overlapping segments with optional speed change.
+
+  speed:
+    Speed factor for audio playback. Values < 1.0 slow down the audio,
+    values > 1.0 speed it up.
+
+  segment_duration_s, overlap_duration_s:
+    Refer to the *speed-adjusted* playback domain. For example, with
+    segment_duration_s=3 and target_sample_rate=48000, each yielded
+    segment will have 3 * 48000 samples, independent of the speed
+    setting. Changing speed only changes how many segments are produced.
+  """
+
+  assert audio_path.is_file()
+  assert audio_path.suffix.upper() in SF_FORMATS
+
+  audio_n_samples = get_audio_n_samples(audio_path)
+  audio_info = sf.info(audio_path)
+  audio_sr = int(audio_info.samplerate)
+  read_method = partial(read_file_in_mono, audio_path=audio_path)
+
+  segments = get_segments_with_overlap(
+    audio_n_samples,
+    audio_sr,
+    read_method,
+    segment_duration_s=segment_duration_s,
+    overlap_duration_s=overlap_duration_s,
+    speed=speed,
+    target_sample_rate=target_sample_rate,
+  )
+
+  yield from segments
+
+
+def get_segments_with_overlap(
+  audio_n_samples: int,
+  audio_sr: int,
+  audio_read_fn: Callable[[int, int], npt.NDArray[np.float32]],
+  segment_duration_s: float,
+  overlap_duration_s: float,
+  speed: float,
+  target_sample_rate: int,
+) -> Generator[npt.NDArray[np.float32], None, None]:
+  n_samples_orig_seg = round(segment_duration_s * audio_sr)
+  n_samples_orig_overlap = round(overlap_duration_s * audio_sr)
+
+  if not 1 / round(segment_duration_s * audio_sr) <= speed:
+    raise ValueError(
+      f"for sample rate {audio_sr} and segment duration of {segment_duration_s} "
+      f"parameter speed must be >= {1 / round(segment_duration_s * audio_sr)}"
+    )
+
+  if not speed <= audio_n_samples:
+    raise ValueError(
+      f"for audio with {audio_n_samples} samples parameter speed must be <= "
+      f"{audio_n_samples}"
+    )
+
+  for (
+    start_samples_scaled,
+    end_samples_scaled,
+    target_n_samples,
+  ) in get_segments_with_overlap_samples(
+    audio_n_samples,
+    segment_samples=n_samples_orig_seg,
+    overlap_samples=n_samples_orig_overlap,
+    speed=speed,
+  ):
+    audio = audio_read_fn(start_samples_scaled, end_samples_scaled)
+    assert audio.dtype == np.float32
+
+    audio = resample_array_by_stretching(audio, target_n_samples)
+    audio = resample_array_by_sr(audio, audio_sr, target_sample_rate)
+    yield audio
+
+
+def get_segments_with_overlap_samples(
+  n_samples: int,
+  segment_samples: int,
+  overlap_samples: int,
+  speed: float = 1.0,
+) -> Generator[tuple[int, int, int], None, None]:
+  """
+  returns tuples of (start_samples_scaled, end_samples_scaled, target_n_samples)
+  samples lie in range [0, n_samples]
+  target_n_samples is the number of samples after speed adjustment
+  """
+  assert 1 / segment_samples <= speed <= n_samples
+  # assert speed >= 0.01
+
+  n_samples_orig = n_samples
+  n_samples_orig_seg = segment_samples
+  n_samples_orig_overlap = overlap_samples
+  n_samples_orig_scaled = round(n_samples_orig / speed)
+
+  # Playback duration after speed adjustment: slower -> longer, faster -> shorter.
+  # n_samples_scaled = round(n_samples_orig * speed)
+  n_samples_scaled_seg = round(segment_samples * speed)
+  n_samples_scaled_overlap = round(overlap_samples * speed)
+
+  timestamps_orig_samples = get_segments_with_overlap_all_int(
+    n_samples_orig_scaled,
+    n_samples_orig_seg,
+    n_samples_orig_overlap,
+  )
+
+  timestamps_scaled_samples = get_segments_with_overlap_all_int(
+    n_samples_orig,
+    n_samples_scaled_seg,
+    n_samples_scaled_overlap,
+  )
+
+  for (start_samples_orig, end_samples_orig), (
+    start_samples_scaled,
+    end_samples_scaled,
+  ) in zip(timestamps_orig_samples, timestamps_scaled_samples, strict=True):
+    assert start_samples_orig < n_samples_orig_scaled
+    assert end_samples_orig <= n_samples_orig_scaled
+    assert start_samples_scaled < n_samples_orig
+    assert end_samples_scaled <= n_samples_orig
+
+    target_n_samples = end_samples_orig - start_samples_orig
+
+    yield start_samples_scaled, end_samples_scaled, target_n_samples
+
+
+def read_data_in_mono(
+  audio_data: npt.NDArray,
+) -> npt.NDArray[np.float32]:
+  if (
+    not isinstance(audio_data, np.ndarray)
+    and audio_data.dtype != np.float32
+    and audio_data.ndim not in (1, 2)
+  ):
+    raise AssertionError("Invalid audio data provided.")
+
+  if audio_data.ndim == 2:
+    n_channels = audio_data.shape[1]
+    assert n_channels > 1
+    result: npt.NDArray[np.float32] = np.mean(audio_data, axis=1, dtype=np.float32)
+    return result
+  else:
+    assert audio_data.ndim == 1
+    return audio_data
+
+
+def read_file_in_mono(
+  audio_path: Path,
+  start_samples: int,
+  end_samples: int,
+) -> npt.NDArray[np.float32]:
+  assert audio_path.is_file()
+  assert audio_path.suffix.upper() in SF_FORMATS
+
+  audio, _ = sf.read(audio_path, start=start_samples, stop=end_samples, dtype="float32")  # type: ignore
+
+  if (
+    not isinstance(audio, np.ndarray)
+    and audio.dtype != np.float32
+    and audio.ndim not in (1, 2)
+  ):
+    raise Exception("Invalid audio data read from file using soundfile.")
+
+  if audio.ndim == 2:
+    n_channels = audio.shape[1]
+    if not n_channels > 1:
+      raise Exception("Invalid audio data read from file using soundfile.")
+    audio: npt.NDArray[np.float32] = np.mean(audio, axis=1, dtype=np.float32)
+  else:
+    assert audio.ndim == 1
+  return audio

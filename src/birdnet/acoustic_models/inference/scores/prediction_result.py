@@ -32,6 +32,7 @@ class PredictionResult(PredictionResultBase):
     file_durations: np.ndarray,
     segment_duration_s: int | float,
     overlap_duration_s: int | float,
+    speed: int | float,
   ) -> None:
     assert file_durations.dtype in (np.float16, np.float32, np.float64)
     assert tensor._species_ids.dtype in (np.uint8, np.uint16, np.uint32, np.uint64)
@@ -48,6 +49,7 @@ class PredictionResult(PredictionResultBase):
     self._overlap_duration_s = np.array(
       [overlap_duration_s], dtype=get_float_dtype(overlap_duration_s)
     )
+    self._speed = np.array([speed], dtype=get_float_dtype(speed))
 
     max_len = max(map(len, species_list))
     self._species_list = np.array(list(species_list), dtype=f"<U{max_len}")
@@ -65,6 +67,7 @@ class PredictionResult(PredictionResultBase):
       + self._files.nbytes
       + self._segment_duration_s.nbytes
       + self._overlap_duration_s.nbytes
+      + self._speed.nbytes
       + self._species_list.nbytes
       + self._file_durations.nbytes
     ) / 1024**2
@@ -76,6 +79,10 @@ class PredictionResult(PredictionResultBase):
   @property
   def overlap_duration_s(self) -> float:
     return float(self._overlap_duration_s[0])
+
+  @property
+  def speed(self) -> float:
+    return float(self._speed[0])
 
   @property
   def file_durations(self) -> np.ndarray:
@@ -132,6 +139,7 @@ class PredictionResult(PredictionResultBase):
       files=self._files,
       segment_duration_s=self._segment_duration_s,
       overlap_duration_s=self._overlap_duration_s,
+      speed=self._speed,
       species_list=self._species_list,
       file_durations=self._file_durations,
     )
@@ -148,6 +156,7 @@ class PredictionResult(PredictionResultBase):
     result._files = data["files"]
     result._segment_duration_s = data["segment_duration_s"]
     result._overlap_duration_s = data["overlap_duration_s"]
+    result._speed = data["speed"]
     result._species_list = data["species_list"]
     result._file_durations = data["file_durations"]
     return result
@@ -197,7 +206,7 @@ class PredictionResult(PredictionResultBase):
     )
     del sort_indices
 
-    hop_duration = self._segment_duration_s - self._overlap_duration_s
+    hop_duration = (self._segment_duration_s - self._overlap_duration_s) / self._speed
     start_times = chunk_idx_flat.astype(self._file_durations.dtype) * hop_duration
     del hop_duration
     del chunk_idx_flat
@@ -252,6 +261,7 @@ class PredictionResult(PredictionResultBase):
     metadata: dict[bytes | str, bytes | str] | None = {
       "segment_duration_s": str(self._segment_duration_s),
       "overlap_duration_s": str(self._overlap_duration_s),
+      "speed": str(self._speed),
       "n_files": str(self.n_files),
       "n_species": str(self.n_species),
     }

@@ -110,6 +110,7 @@ class EmbeddingsStrategy(
       files=files,
       segment_duration_s=config.model_conf.segment_size_s,
       overlap_duration_s=config.processing_conf.overlap_duration_s,
+      speed=config.processing_conf.speed,
       file_durations=resources.analyzer_resources.file_durations,
     )
 

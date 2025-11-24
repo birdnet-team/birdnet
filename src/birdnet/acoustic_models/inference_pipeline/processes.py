@@ -114,6 +114,7 @@ class ProcessManager:
         session_id=self._session_id,
         segment_duration_s=self._cfg.model_conf.segment_size_s,
         overlap_duration_s=self._cfg.processing_conf.overlap_duration_s,
+        speed=self._cfg.processing_conf.speed,
         max_segment_idx_ptr=self._res.analyzer_resources.max_segment_idx_ptr,
         rf_segment_indices=self._res.ring_buffer_resources.rf_segment_indices,
         analyzing_result=self._res.analyzer_resources.analyzer_queue,

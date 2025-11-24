@@ -5,7 +5,7 @@ import numpy.testing
 import pytest
 
 from birdnet.acoustic_models.inference.producer import (
-  load_audio_in_segments_with_overlap2,
+  xload_audio_in_segments_with_overlap2,
 )
 from birdnet_tests.test_files import AUDIO_FORMATS_DIR, TEST_FILE_LONG
 
@@ -13,7 +13,7 @@ from birdnet_tests.test_files import AUDIO_FORMATS_DIR, TEST_FILE_LONG
 def format_can_be_read(filename: str) -> bool:
   inp = AUDIO_FORMATS_DIR / filename
   res = list(
-    load_audio_in_segments_with_overlap2(
+    xload_audio_in_segments_with_overlap2(
       inp, segment_duration_s=3, overlap_duration_s=0, target_sample_rate=48000, speed=1
     )
   )
@@ -93,7 +93,7 @@ def get_segments(
   seg: float = 3, overlap: float = 0, sr: int = 48_000, speed: float = 1.0
 ) -> list:
   return list(
-    load_audio_in_segments_with_overlap2(
+    xload_audio_in_segments_with_overlap2(
       TEST_FILE_LONG,
       segment_duration_s=seg,
       overlap_duration_s=overlap,
