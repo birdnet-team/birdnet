@@ -5,7 +5,7 @@ import numpy.testing
 import pytest
 
 from birdnet.acoustic_models.inference.producer import (
-  xload_audio_in_segments_with_overlap2,
+  get_file_segments_with_overlap,
 )
 from birdnet_tests.test_files import AUDIO_FORMATS_DIR, TEST_FILE_LONG
 
@@ -13,7 +13,7 @@ from birdnet_tests.test_files import AUDIO_FORMATS_DIR, TEST_FILE_LONG
 def format_can_be_read(filename: str) -> bool:
   inp = AUDIO_FORMATS_DIR / filename
   res = list(
-    xload_audio_in_segments_with_overlap2(
+    get_file_segments_with_overlap(
       inp, segment_duration_s=3, overlap_duration_s=0, target_sample_rate=48000, speed=1
     )
   )
@@ -93,7 +93,7 @@ def get_segments(
   seg: float = 3, overlap: float = 0, sr: int = 48_000, speed: float = 1.0
 ) -> list:
   return list(
-    xload_audio_in_segments_with_overlap2(
+    get_file_segments_with_overlap(
       TEST_FILE_LONG,
       segment_duration_s=seg,
       overlap_duration_s=overlap,
@@ -256,7 +256,7 @@ def test_one_third_speed() -> None:
     assert result[i].shape == (3 * 48000,)
 
 
-def _test_speed_generic(speed: float) -> None:
+def generic_speed_test(speed: float) -> None:
   result = get_segments(speed=speed)
   n_full_segments, half_segment = divmod(40, speed)
   assert len(result) == n_full_segments + ceil(half_segment)
@@ -268,24 +268,24 @@ def _test_speed_generic(speed: float) -> None:
 
 
 def test_triple_speed() -> None:
-  _test_speed_generic(speed=3)
+  generic_speed_test(speed=3)
 
 
 def test_float_1_dec_speed() -> None:
-  _test_speed_generic(speed=0.9)
+  generic_speed_test(speed=0.9)
 
 
 def test_float_2_dec_speed() -> None:
-  _test_speed_generic(speed=0.19)
+  generic_speed_test(speed=0.19)
 
 
 def test_float_3_dec_speed() -> None:
-  _test_speed_generic(speed=0.119)
+  generic_speed_test(speed=0.119)
 
 
-def xtest_float_4_dec_speed() -> None:
-  _test_speed_generic(speed=0.1119)
+def test_float_4_dec_speed() -> None:
+  generic_speed_test(speed=0.1119)
 
 
-def xtest_float_5_dec_speed() -> None:
-  _test_speed_generic(speed=0.11119)
+def test_float_5_dec_speed() -> None:
+  generic_speed_test(speed=0.11119)

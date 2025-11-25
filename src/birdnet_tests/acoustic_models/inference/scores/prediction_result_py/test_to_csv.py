@@ -1,4 +1,3 @@
-import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -31,7 +30,6 @@ def test_full_pipeline(tmp_path: Path) -> None:
     top_k=2, speed=0.5, overlap_duration_s=0.5, default_confidence_threshold=-np.inf
   ) as session:
     res = session.run(TEST_FILE_LONG)
-  # check that csv is same in tempfile
   tmp_file_path = tmp_path.with_suffix(".csv")
   res.to_csv(tmp_file_path, encoding="utf-8")
   remove_path(tmp_file_path)
