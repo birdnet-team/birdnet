@@ -334,10 +334,9 @@ def test_masking_behavior() -> None:
 
 def test_full_pipeline() -> None:
   model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
-  with model.predict_session(n_workers=1, top_k=None, speed=0.5) as session:
+  with model.predict_session(
+    n_workers=1, top_k=1, speed=0.5, default_confidence_threshold=-np.inf
+  ) as session:
     res = session.run(TEST_FILE_LONG)
   structured = res.to_structured_array()
-  df = res.to_dataframe()
-  print(df)
-
-  assert len(structured) == 8  # 2 files * 2 segments * 2 top_k
+  assert len(structured) == 80

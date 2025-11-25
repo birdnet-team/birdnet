@@ -1,6 +1,6 @@
 import birdnet
 
-model = birdnet.load("acoustic", "2.4", "tf")
+model = birdnet.load("acoustic", "2.4", "pb")
 
 predictions = model.predict(
   "example/soundscape.wav",
