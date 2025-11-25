@@ -29,7 +29,7 @@ from birdnet.globals import (
 from birdnet.helper import (
   RingField,
   get_float_dtype,
-  get_max_n_segments_speed,
+  get_n_segments_speed,
   uint_ctype_from_dtype,
   uint_dtype_for,
 )
@@ -318,7 +318,7 @@ class FilesAnalyzerResources:
     reserve_n_segments = 0
 
     if conf.processing_conf.max_audio_duration_min is not None:
-      reserve_n_segments = get_max_n_segments_speed(
+      reserve_n_segments = get_n_segments_speed(
         conf.processing_conf.max_audio_duration_min * 60,
         conf.model_conf.segment_size_s,
         conf.processing_conf.overlap_duration_s,

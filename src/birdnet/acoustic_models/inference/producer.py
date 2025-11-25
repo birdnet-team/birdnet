@@ -29,7 +29,8 @@ from birdnet.helper import (
   SF_FORMATS,
   RingField,
   assert_queue_is_empty,
-  get_max_n_segments_speed,
+  duration_as_samples,
+  get_n_segments_speed,
   max_value_for_uint_dtype,
 )
 from birdnet.utils import (
@@ -284,7 +285,7 @@ class Producer(bn_logging.LogableProcessBase):
     self, path: Path
   ) -> Generator[tuple[int, npt.NDArray[np.float32]], None, None]:
     audio_duration_s = get_audio_duration_s(path)
-    file_n_segments = get_max_n_segments_speed(
+    file_n_segments = get_n_segments_speed(
       audio_duration_s, self._segment_duration_s, self._overlap_duration_s, self._speed
     )
     file_max_segment_index = file_n_segments - 1
@@ -825,8 +826,8 @@ def get_segments_with_overlap(
   speed: float,
   target_sample_rate: int,
 ) -> Generator[npt.NDArray[np.float32], None, None]:
-  n_samples_orig_seg = round(segment_duration_s * audio_sr)
-  n_samples_orig_overlap = round(overlap_duration_s * audio_sr)
+  n_samples_orig_seg = duration_as_samples(segment_duration_s, audio_sr)
+  n_samples_orig_overlap = duration_as_samples(overlap_duration_s, audio_sr)
 
   if not 1 / round(segment_duration_s * audio_sr) <= speed:
     raise ValueError(

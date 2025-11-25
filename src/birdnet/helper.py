@@ -227,13 +227,17 @@ def xget_max_n_segments(
   return n_segments
 
 
-def get_max_n_segments_speed(
-  max_duration_s: float, segment_size_s: float, overlap_duration_s: float, speed: float
+def get_n_segments_speed(
+  duration_s: float, segment_size_s: float, overlap_duration_s: float, speed: float
 ) -> int:
-  effective_segment_duration_s = (segment_size_s - overlap_duration_s) / speed
+  effective_segment_duration_s = (segment_size_s - overlap_duration_s) * speed
   assert effective_segment_duration_s > 0
-  n_segments = math.ceil(max_duration_s / effective_segment_duration_s)
+  n_segments = math.ceil(duration_s / effective_segment_duration_s)
   return n_segments
+
+
+def duration_as_samples(duration_s: float, sample_rate: int) -> int:
+  return round(duration_s * sample_rate)
 
 
 def uint_ctype_from_dtype(

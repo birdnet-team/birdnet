@@ -9,7 +9,7 @@ import birdnet.acoustic_models.inference_pipeline.logging as bn_logging
 from birdnet.acoustic_models.inference.producer import get_audio_duration_s
 from birdnet.helper import (
   RingField,
-  get_max_n_segments_speed,
+  get_n_segments_speed,
   max_value_for_uint_dtype,
 )
 
@@ -107,7 +107,7 @@ class FilesAnalyzer:
       audio_duration_s = get_audio_duration_s(path)
       durations.append(audio_duration_s)
 
-      file_n_segments = get_max_n_segments_speed(
+      file_n_segments = get_n_segments_speed(
         audio_duration_s,
         self._segment_duration_s,
         self._overlap_duration_s,

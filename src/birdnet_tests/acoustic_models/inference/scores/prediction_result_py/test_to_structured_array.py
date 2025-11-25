@@ -10,7 +10,7 @@ from birdnet.acoustic_models.inference.scores.prediction_result import (
 from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
 from birdnet.helper import get_float_dtype
 from birdnet.model_loader import load
-from birdnet_tests.test_files import TEST_FILE_SHORT
+from birdnet_tests.test_files import TEST_FILE_LONG
 
 
 def create_mock_tensor(
@@ -335,8 +335,7 @@ def test_masking_behavior() -> None:
 def test_full_pipeline() -> None:
   model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
   with model.predict_session(n_workers=1, top_k=None, speed=0.5) as session:
-    res = session.run(TEST_FILE_SHORT)
-
+    res = session.run(TEST_FILE_LONG)
   structured = res.to_structured_array()
   df = res.to_dataframe()
   print(df)
