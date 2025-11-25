@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.7] - 2025-11-25
+
 ## Added
 
 - Added parameter `speed` to control playback speed of audio during inference
@@ -185,7 +187,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release
 
-[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v0.2.6...HEAD
+[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v0.2.7...HEAD
+[0.2.7]: https://github.com/birdnet-team/birdnet/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/birdnet-team/birdnet/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/birdnet-team/birdnet/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/birdnet-team/birdnet/compare/v0.2.3...v0.2.4
