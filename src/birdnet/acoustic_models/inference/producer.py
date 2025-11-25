@@ -28,6 +28,7 @@ from birdnet.globals import (
 from birdnet.helper import (
   SF_FORMATS,
   RingField,
+  apply_speed_to_samples,
   assert_queue_is_empty,
   duration_as_samples,
   get_n_segments_speed,
@@ -876,12 +877,13 @@ def get_segments_with_overlap_samples(
   n_samples_orig = n_samples
   n_samples_orig_seg = segment_samples
   n_samples_orig_overlap = overlap_samples
-  n_samples_orig_scaled = round(n_samples_orig / speed)
+  # n_samples_orig_scaled = round(n_samples_orig / speed)
+  n_samples_orig_scaled = apply_speed_to_samples(n_samples_orig, 1 / speed)
 
   # Playback duration after speed adjustment: slower -> longer, faster -> shorter.
   # n_samples_scaled = round(n_samples_orig * speed)
-  n_samples_scaled_seg = round(segment_samples * speed)
-  n_samples_scaled_overlap = round(overlap_samples * speed)
+  n_samples_scaled_seg = apply_speed_to_samples(segment_samples, speed)
+  n_samples_scaled_overlap = apply_speed_to_samples(overlap_samples, speed)
 
   timestamps_orig_samples = get_segments_with_overlap_all_int(
     n_samples_orig_scaled,

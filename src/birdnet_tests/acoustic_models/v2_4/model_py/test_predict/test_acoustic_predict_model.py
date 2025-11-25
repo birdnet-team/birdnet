@@ -26,6 +26,15 @@ def test_pb_cpu_fp32() -> None:
   assert res.species_probs.shape == TEST_FILE_SHORT_SCORE_SHAPE
 
 
+def test_pb_cpu_fp32_speed_factor() -> None:
+  model = load("acoustic", "2.4", "pb", precision="fp32")
+  with model.predict_session(
+    n_workers=1, top_k=None, device="CPU", speed=0.5
+  ) as session:
+    res = session.run(TEST_FILE_SHORT)
+  assert res.species_probs.shape == (1, 5, 6522)
+
+
 @pytest.mark.gpu
 def test_pb_gpu_fp32() -> None:
   ensure_gpu_or_skip()

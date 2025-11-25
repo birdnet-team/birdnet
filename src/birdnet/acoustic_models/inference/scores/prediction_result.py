@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
 from birdnet.base import PredictionResultBase
-from birdnet.helper import get_float_dtype
+from birdnet.helper import apply_speed_to_duration, get_float_dtype, get_hop_duration_s
 
 if TYPE_CHECKING:
   import pandas as pd
@@ -39,7 +39,6 @@ class PredictionResult(PredictionResultBase):
     assert tensor._species_probs.dtype in (np.float16, np.float32)
     assert tensor._species_masked.dtype == bool
 
-    # Direkte String-Konvertierung ohne Zwischenlisten
     all_files = [str(file.absolute()) for file in files]
     max_len = max(map(len, all_files))
     self._files = np.asarray(all_files, dtype=f"<U{max_len}")
@@ -206,14 +205,18 @@ class PredictionResult(PredictionResultBase):
     )
     del sort_indices
 
-    hop_duration = (self._segment_duration_s - self._overlap_duration_s) / self._speed
-    start_times = chunk_idx_flat.astype(self._file_durations.dtype) * hop_duration
-    del hop_duration
+    hop_duration_s = get_hop_duration_s(
+      self._segment_duration_s[0], self._overlap_duration_s[0], self._speed[0]
+    )
+    start_times = chunk_idx_flat.astype(self._file_durations.dtype) * hop_duration_s
+    del hop_duration_s
     del chunk_idx_flat
 
     structured_array[VAR_START_TIME] = start_times
     structured_array[VAR_END_TIME] = np.minimum(
-      start_times + self._segment_duration_s, self._file_durations[file_idx_flat]
+      start_times
+      + apply_speed_to_duration(self._segment_duration_s[0], self._speed[0]),
+      self._file_durations[file_idx_flat],
     )
     del start_times
     structured_array[VAR_FILE_PATH] = self._files[file_idx_flat]
