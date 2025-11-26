@@ -15,6 +15,7 @@ from birdnet.argparse_helper import (
   parse_non_empty_or_whitespace,
   parse_non_negative_integer,
   parse_path,
+  parse_positive_float,
   parse_positive_integer,
 )
 from birdnet.globals import (
@@ -173,6 +174,14 @@ def run_benchmark_from_args(args: list[str]) -> None:
   )
 
   parser.add_argument(
+    "--speed",
+    type=parse_positive_float,
+    metavar="SPEED",
+    help="speed factor for audio processing (default: 1.0)",
+    default=1.0,
+  )
+
+  parser.add_argument(
     "--show-stats",
     type=str,
     choices=["no", "minimal", "progress", "benchmark"],
@@ -212,6 +221,7 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
     n_workers=ns.workers,
     batch_size=ns.batch_size,
     overlap_duration_s=ns.overlap,
+    speed=ns.speed,
     default_confidence_threshold=ns.confidence,
     custom_confidence_thresholds=None,
     apply_sigmoid=True,
