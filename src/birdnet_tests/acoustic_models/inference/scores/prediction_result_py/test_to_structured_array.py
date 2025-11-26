@@ -8,7 +8,10 @@ from birdnet.acoustic_models.inference.scores.prediction_result import (
   assert_species_masked_pattern,
 )
 from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
-from birdnet.helper import apply_speed_to_duration, get_float_dtype
+from birdnet.helper import (
+  get_float_dtype,
+  get_n_segments_speed,
+)
 from birdnet.model_loader import load
 from birdnet_tests.test_files import TEST_FILE_LONG
 
@@ -26,14 +29,17 @@ def create_mock_tensor(
 
 def create_prediction_result(
   n_files: int,
-  n_segments: int,
+  duration_s: float,
   top_k: int,
   segment_duration_s: float,
   overlap_duration_s: float,
   speed: float = 1.0,
-  rand_duration: bool = False,
 ) -> PredictionResult:
+  assert 0 <= overlap_duration_s < segment_duration_s
   np.random.seed(0)
+  n_segments = get_n_segments_speed(
+    duration_s, segment_duration_s, overlap_duration_s, speed
+  )
   species_ids = np.random.randint(
     0, 10, size=(n_files, n_segments, top_k), dtype=np.uint8
   )
@@ -44,19 +50,11 @@ def create_prediction_result(
 
   files = OrderedSet([Path(f"/test/file_{i}.wav") for i in range(n_files)])
   species_list = OrderedSet([f"species_{i}" for i in range(15)])
-  if rand_duration:
-    # rand value [0.5, 2.5] * n_segments
-    start = apply_speed_to_duration((n_segments - 1) * 3 + 0.5, speed)
-    end = apply_speed_to_duration(n_segments * 3, speed)
-    file_durations = np.random.choice(np.arange(start, end, 0.5), size=n_files)
-    file_durations = file_durations.astype(get_float_dtype(max(file_durations)))
-  else:
-    max_dur = apply_speed_to_duration(n_segments * segment_duration_s, speed)
-    file_durations = np.full(
-      n_files,
-      max_dur,
-      dtype=get_float_dtype(max_dur),
-    )
+  file_durations = np.full(
+    n_files,
+    duration_s,
+    dtype=get_float_dtype(duration_s),
+  )
   return PredictionResult(
     tensor=tensor,
     files=files,
@@ -70,7 +68,7 @@ def create_prediction_result(
 
 def test_empty_predictions() -> None:
   result = create_prediction_result(
-    n_files=5, n_segments=3, top_k=2, segment_duration_s=3.0, overlap_duration_s=0.0
+    n_files=5, duration_s=9, top_k=2, segment_duration_s=3.0, overlap_duration_s=0.0
   )
   result.species_masked[:] = True
 
@@ -88,7 +86,7 @@ def test_empty_predictions() -> None:
 
 def test_single_prediction() -> None:
   result = create_prediction_result(
-    n_files=1, n_segments=1, top_k=1, segment_duration_s=3.0, overlap_duration_s=0.0
+    n_files=1, duration_s=3, top_k=1, segment_duration_s=3.0, overlap_duration_s=0.0
   )
 
   structured = result.to_structured_array()
@@ -103,7 +101,7 @@ def test_single_prediction() -> None:
 
 def test_two_segments() -> None:
   result = create_prediction_result(
-    n_files=1, n_segments=2, top_k=1, segment_duration_s=3.0, overlap_duration_s=0.0
+    n_files=1, duration_s=6, top_k=1, segment_duration_s=3.0, overlap_duration_s=0.0
   )
 
   structured = result.to_structured_array()
@@ -124,7 +122,7 @@ def test_two_segments() -> None:
 
 def test_sorting_by_confidence() -> None:
   result = create_prediction_result(
-    n_files=1, n_segments=1, top_k=3, segment_duration_s=3.0, overlap_duration_s=0.0
+    n_files=1, duration_s=3, top_k=3, segment_duration_s=3.0, overlap_duration_s=0.0
   )
 
   structured = result.to_structured_array()
@@ -139,34 +137,40 @@ def test_sorting_by_confidence() -> None:
 
 def test_time_calculations_no_overlap() -> None:
   result = create_prediction_result(
-    n_files=1, n_segments=2, top_k=1, segment_duration_s=3, overlap_duration_s=0
+    n_files=1, duration_s=6, top_k=1, segment_duration_s=3, overlap_duration_s=0
   )
 
   structured = result.to_structured_array()
 
+  assert len(structured) == 2
   assert structured[0]["start_time"] == 0.0
   assert structured[0]["end_time"] == 3.0
   assert structured[1]["start_time"] == 3.0
   assert structured[1]["end_time"] == 6.0
+  assert structured[1]["end_time"] == result.file_durations[0]
 
 
 def test_time_calculations_with_overlap() -> None:
   result = create_prediction_result(
-    n_files=1, n_segments=2, top_k=1, segment_duration_s=3, overlap_duration_s=0.5
+    n_files=1, duration_s=6, top_k=1, segment_duration_s=3, overlap_duration_s=0.5
   )
 
   structured = result.to_structured_array()
 
+  assert len(structured) == 3
   assert structured[0]["start_time"] == 0.0
   assert structured[0]["end_time"] == 3.0
   assert structured[1]["start_time"] == 2.5
   assert structured[1]["end_time"] == 5.5
+  assert structured[2]["start_time"] == 5.0
+  assert structured[2]["end_time"] == 6.0
+  assert structured[2]["end_time"] == result.file_durations[0]
 
 
 def test_time_calculations_speedup_halftime_no_overlap() -> None:
   result = create_prediction_result(
     n_files=1,
-    n_segments=4,
+    duration_s=6,
     top_k=1,
     segment_duration_s=3,
     overlap_duration_s=0,
@@ -175,6 +179,7 @@ def test_time_calculations_speedup_halftime_no_overlap() -> None:
 
   structured = result.to_structured_array()
 
+  assert len(structured) == 4
   assert structured[0]["start_time"] == 0.0
   assert structured[0]["end_time"] == 1.5
   assert structured[1]["start_time"] == 1.5
@@ -183,18 +188,17 @@ def test_time_calculations_speedup_halftime_no_overlap() -> None:
   assert structured[2]["end_time"] == 4.5
   assert structured[3]["start_time"] == 4.5
   assert structured[3]["end_time"] == 6.0
-  assert len(structured) == 4
+  assert structured[3]["end_time"] == result.file_durations[0]
 
 
 def test_random_time_calculations_speedup_halftime_no_overlap() -> None:
   result = create_prediction_result(
     n_files=1,
-    n_segments=4,
+    duration_s=5.75,
     top_k=1,
     segment_duration_s=3,
     overlap_duration_s=0,
     speed=0.5,
-    rand_duration=True,
   )
 
   structured = result.to_structured_array()
@@ -207,13 +211,14 @@ def test_random_time_calculations_speedup_halftime_no_overlap() -> None:
   assert structured[2]["end_time"] == 4.5
   assert structured[3]["start_time"] == 4.5
   assert structured[3]["end_time"] == 5.75
+  assert structured[3]["end_time"] == result.file_durations[0]
   assert len(structured) == 4
 
 
 def test_time_calculations_speedup_doubletime_no_overlap() -> None:
   result = create_prediction_result(
     n_files=1,
-    n_segments=4,
+    duration_s=24,
     top_k=1,
     segment_duration_s=3,
     overlap_duration_s=0,
@@ -230,22 +235,23 @@ def test_time_calculations_speedup_doubletime_no_overlap() -> None:
   assert structured[2]["end_time"] == 18.0
   assert structured[3]["start_time"] == 18.0
   assert structured[3]["end_time"] == 24.0
+  assert structured[3]["end_time"] == result.file_durations[0]
   assert len(structured) == 4
 
 
 def test_random_time_calculations_speedup_doubletime_no_overlap() -> None:
   result = create_prediction_result(
     n_files=1,
-    n_segments=4,
+    duration_s=20,
     top_k=1,
     segment_duration_s=3,
     overlap_duration_s=0,
     speed=2.0,
-    rand_duration=True,
   )
 
   structured = result.to_structured_array()
 
+  assert len(structured) == 4
   assert structured[0]["start_time"] == 0.0
   assert structured[0]["end_time"] == 6.0
   assert structured[1]["start_time"] == 6.0
@@ -254,13 +260,13 @@ def test_random_time_calculations_speedup_doubletime_no_overlap() -> None:
   assert structured[2]["end_time"] == 18.0
   assert structured[3]["start_time"] == 18.0
   assert structured[3]["end_time"] == 20.0
-  assert len(structured) == 4
+  assert structured[3]["end_time"] == result.file_durations[0]
 
 
-def xtest_time_calculations_with_overlap_and_speed() -> None:
+def test_time_calculations_with_overlap_and_speed() -> None:
   result = create_prediction_result(
     n_files=1,
-    n_segments=2,
+    duration_s=3,
     top_k=1,
     segment_duration_s=3,
     overlap_duration_s=0.5,
@@ -269,36 +275,40 @@ def xtest_time_calculations_with_overlap_and_speed() -> None:
 
   structured = result.to_structured_array()
 
+  assert len(structured) == 3
   assert structured[0]["start_time"] == 0.0
-  assert structured[0]["end_time"] == 3.0
-  assert structured[1]["start_time"] == 2.5
-  assert structured[1]["end_time"] == 5.5
+  assert structured[0]["end_time"] == 1.5
+  assert structured[1]["start_time"] == 1.25  # (3-0.5) * 0.5
+  assert structured[1]["end_time"] == 2.75
+  assert structured[2]["start_time"] == 2.5
+  assert structured[2]["end_time"] == 3.0
+  assert structured[2]["end_time"] == result.file_durations[0]
 
 
 def test_end_time_clipping_one_segment() -> None:
   result = create_prediction_result(
     n_files=1,
-    n_segments=1,
+    duration_s=2.75674,
     top_k=1,
     segment_duration_s=3,
     overlap_duration_s=0,
-    rand_duration=True,
   )
 
   structured = result.to_structured_array()
 
+  assert len(structured) == 1
   assert structured[0]["start_time"] == 0.0
   assert structured[0]["end_time"] < 3.0
+  assert structured[0]["end_time"] == result.file_durations[0]
 
 
 def test_end_time_clipping_two_segments() -> None:
   result = create_prediction_result(
     n_files=1,
-    n_segments=2,
+    duration_s=5.7567,
     top_k=1,
     segment_duration_s=3,
     overlap_duration_s=0,
-    rand_duration=True,
   )
 
   structured = result.to_structured_array()
@@ -308,6 +318,7 @@ def test_end_time_clipping_two_segments() -> None:
   assert structured[0]["end_time"] == 3.0
   assert structured[1]["start_time"] == 3.0
   assert structured[1]["end_time"] < 6.0
+  assert structured[1]["end_time"] == result.file_durations[0]
 
 
 def _test_end_time_clipping_multiple_segments(
@@ -316,11 +327,10 @@ def _test_end_time_clipping_multiple_segments(
   n_segments = round(max_duration / 3)
   result = create_prediction_result(
     n_files=1,
-    n_segments=n_segments,
+    duration_s=max_duration,
     top_k=1,
     segment_duration_s=3,
     overlap_duration_s=0,
-    rand_duration=True,
   )
 
   structured = result.to_structured_array()
@@ -328,7 +338,8 @@ def _test_end_time_clipping_multiple_segments(
   assert len(structured) == n_segments
   for i in range(n_segments):
     assert structured[i]["start_time"] == 3 * i, (
-      f"Start time mismatch at index {i}, expected {3 * i}, got {structured[i]['start_time']}"
+      f"Start time mismatch at index {i}, expected {3 * i}, "
+      f"got {structured[i]['start_time']}"
     )
   for i in range(n_segments - 1):
     assert structured[i]["end_time"] == 3 * (i + 1)
@@ -347,14 +358,14 @@ def test_end_time_clipping_multiple_segments_float32() -> None:
 
 
 def xtest_end_time_clipping_multiple_segments_float64() -> None:
-  # takes to long to test
+  # takes too long
   result = _test_end_time_clipping_multiple_segments(2**25)
   assert result.file_durations.dtype == np.float64
 
 
 def test_multiple_files() -> None:
   result = create_prediction_result(
-    n_files=5, n_segments=1, top_k=1, segment_duration_s=3, overlap_duration_s=0
+    n_files=5, duration_s=3, top_k=1, segment_duration_s=3, overlap_duration_s=0
   )
 
   structured = result.to_structured_array()
@@ -369,7 +380,7 @@ def test_multiple_files() -> None:
 
 def test_dtype_structure() -> None:
   result = create_prediction_result(
-    n_files=1, n_segments=1, top_k=1, segment_duration_s=3.0, overlap_duration_s=0.0
+    n_files=1, duration_s=3, top_k=1, segment_duration_s=3.0, overlap_duration_s=0.0
   )
 
   structured = result.to_structured_array()
@@ -391,7 +402,7 @@ def test_dtype_structure() -> None:
 
 def test_masking_behavior() -> None:
   result = create_prediction_result(
-    n_files=2, n_segments=1, top_k=3, segment_duration_s=3.0, overlap_duration_s=0.0
+    n_files=2, duration_s=3, top_k=3, segment_duration_s=3.0, overlap_duration_s=0.0
   )
 
   result.species_masked[:] = True
