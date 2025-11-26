@@ -7,8 +7,7 @@ import time
 from collections.abc import Callable, Generator
 from functools import partial
 from itertools import count
-from multiprocessing import shared_memory
-from multiprocessing.queues import Queue
+from multiprocessing import Queue, shared_memory
 from multiprocessing.sharedctypes import Synchronized
 from multiprocessing.synchronize import Event, Semaphore
 from pathlib import Path
@@ -115,7 +114,7 @@ class Producer(bn_logging.LogableProcessBase):
   def __init__(
     self,
     session_id: str,
-    input_queue: Queue[tuple[int, Path | tuple[np.ndarray, int]] | None],
+    input_queue: Queue,
     batch_size: int,
     n_slots: int,
     rf_file_indices: RingField,

@@ -27,7 +27,7 @@ def assert_prediction_result_is_equal(
 
   np.testing.assert_array_equal(a.segment_duration_s, b.segment_duration_s)
   np.testing.assert_array_equal(a.overlap_duration_s, b.overlap_duration_s)
-  np.testing.assert_array_equal(a.files, b.files)
+  np.testing.assert_array_equal(a.inputs, b.inputs)
   np.testing.assert_array_equal(a.species_list, b.species_list)
   np.testing.assert_array_equal(a.input_durations, b.input_durations)
 
@@ -58,7 +58,7 @@ def assert_prediction_result_is_close(
 
   np.testing.assert_array_equal(a.segment_duration_s, b.segment_duration_s)
   np.testing.assert_array_equal(a.overlap_duration_s, b.overlap_duration_s)
-  np.testing.assert_array_equal(a.files, b.files)
+  np.testing.assert_array_equal(a.inputs, b.inputs)
   np.testing.assert_array_equal(a.species_list, b.species_list)
   np.testing.assert_array_equal(a.input_durations, b.input_durations)
 

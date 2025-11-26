@@ -1,7 +1,7 @@
 import ctypes
 import multiprocessing as mp
 import os
-from multiprocessing.queues import Queue
+from multiprocessing import Queue
 from multiprocessing.synchronize import Event
 from pathlib import Path
 from queue import Empty
@@ -26,8 +26,8 @@ class FilesAnalyzer:
     speed: float,
     rf_segment_indices: RingField,
     max_segment_idx_ptr: mp.RawValue,  # type: ignore
-    input_queue: Queue[list[Path] | list[tuple[np.ndarray, int]]],
-    analyzing_result: Queue[list[float]],
+    input_queue: Queue,
+    analyzing_result: Queue,
     tot_n_segments: ctypes.c_uint64,
     cancel_event: Event,
     end_event: Event,

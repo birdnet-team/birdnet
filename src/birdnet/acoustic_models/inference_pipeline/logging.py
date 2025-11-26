@@ -2,7 +2,7 @@ import logging
 import multiprocessing as mp
 import multiprocessing.synchronize
 from logging.handlers import MemoryHandler, QueueHandler
-from multiprocessing.queues import Queue
+from multiprocessing import Queue
 from pathlib import Path
 
 from birdnet.logging_utils import get_package_logger, init_package_logger

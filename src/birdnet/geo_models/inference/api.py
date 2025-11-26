@@ -72,7 +72,7 @@ class ScoreSession(GeoSessionBase):
     longitude = RunConfig.validate_longitude(longitude)
     week = RunConfig.validate_week(week)
 
-    return self.run(
+    return self._run(
       RunConfig(
         latitude=latitude,
         longitude=longitude,

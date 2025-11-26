@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Generator
-from multiprocessing.queues import Queue
+from multiprocessing import Queue
 from pathlib import Path
 from typing import Any, Generic, TypeVar
 

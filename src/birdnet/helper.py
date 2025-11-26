@@ -6,8 +6,7 @@ import math
 from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
-from multiprocessing import shared_memory
-from multiprocessing.queues import Queue
+from multiprocessing import Queue, shared_memory
 from pathlib import Path
 from queue import Empty
 

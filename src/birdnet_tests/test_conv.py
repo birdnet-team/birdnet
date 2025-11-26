@@ -40,7 +40,7 @@ def test_soundscape() -> None:
   array = result.to_structured_array()
   assert array.shape == (36,)
   assert array.dtype.names == (
-    "file_path",
+    "input",
     "start_time",
     "end_time",
     "species_name",

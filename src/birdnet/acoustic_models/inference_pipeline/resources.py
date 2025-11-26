@@ -202,7 +202,7 @@ class ProducerResources:
   )
   all_finished: multiprocessing.synchronize.Event
   ring_access_lock: multiprocessing.synchronize.Lock
-  input_queue: Queue[tuple[int, Path | tuple[np.ndarray, int]] | None]
+  input_queue: Queue
   start_signals: list[multiprocessing.synchronize.Event]
 
   def reset(self) -> None:
@@ -285,8 +285,8 @@ class WorkerResources:
 
 @dataclass(frozen=True)
 class FilesAnalyzerResources:
-  analyzer_queue: Queue[list[float]]
-  input_queue: Queue[list[Path] | list[tuple[np.ndarray, int]]]
+  analyzer_queue: Queue
+  input_queue: Queue
   tot_n_segments_ptr: mp.RawValue  # type: ignore
   max_segment_idx_ptr: mp.RawValue  # type: ignore
   max_segment_idx_init_value: int

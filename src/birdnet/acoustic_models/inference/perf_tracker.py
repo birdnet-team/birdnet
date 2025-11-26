@@ -9,8 +9,7 @@ import threading as th
 import time
 from collections import Counter, deque
 from dataclasses import dataclass
-from multiprocessing import shared_memory
-from multiprocessing.queues import Queue
+from multiprocessing import Queue, shared_memory
 from multiprocessing.synchronize import Event, Semaphore
 
 import numpy as np

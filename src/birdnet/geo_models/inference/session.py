@@ -47,7 +47,7 @@ class GeoSessionBase(SessionBase, ABC):
     self._is_initialized = True
     return self
 
-  def run(self, run_config: RunConfig) -> PredictionResult:
+  def _run(self, run_config: RunConfig) -> PredictionResult:
     assert self._is_initialized
     assert self._backend is not None
 

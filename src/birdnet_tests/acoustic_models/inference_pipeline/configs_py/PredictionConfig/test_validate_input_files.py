@@ -27,12 +27,14 @@ def test_component_test() -> None:
       file_f = folder2 / "f.wav"
       file_f.touch()
       result = PredictionConfig.validate_input_files([folder, file_c, file_f, file_f])
-      assert result == {
-        file_a.absolute(),
-        file_c.absolute(),
-        file_e.absolute(),
-        file_f.absolute(),
-      }
+      assert result == sorted(
+        [
+          file_f.absolute(),
+          file_c.absolute(),
+          file_a.absolute(),
+          file_e.absolute(),
+        ]
+      )
 
 
 def test_one_supported_file() -> None:
@@ -41,7 +43,7 @@ def test_one_supported_file() -> None:
     file_a = folder / "a.wav"
     file_a.touch()
     result = PredictionConfig.validate_input_files(folder)
-    assert result == {file_a.absolute()}
+    assert result == [file_a.absolute()]
 
 
 def test_one_supported_file_as_str() -> None:
@@ -50,7 +52,7 @@ def test_one_supported_file_as_str() -> None:
     file_a = folder / "a.wav"
     file_a.touch()
     result = PredictionConfig.validate_input_files(str(folder.absolute()))
-    assert result == {file_a.absolute()}
+    assert result == [file_a.absolute()]
 
 
 def test_one_supported_file_in_subfolder() -> None:
@@ -61,7 +63,7 @@ def test_one_supported_file_in_subfolder() -> None:
     file_a = subfolder / "a.wav"
     file_a.touch()
     result = PredictionConfig.validate_input_files(folder)
-    assert result == {file_a.absolute()}
+    assert result == [file_a.absolute()]
 
 
 def test_one_supported_file_in_subsubfolder() -> None:
@@ -72,7 +74,7 @@ def test_one_supported_file_in_subsubfolder() -> None:
     file_a = subfolder / "a.wav"
     file_a.touch()
     result = PredictionConfig.validate_input_files(folder)
-    assert result == {file_a.absolute()}
+    assert result == [file_a.absolute()]
 
 
 def test_two_supported_files() -> None:
@@ -83,7 +85,7 @@ def test_two_supported_files() -> None:
     file_a.touch()
     file_b.touch()
     result = PredictionConfig.validate_input_files(folder)
-    assert result == {file_a.absolute(), file_b.absolute()}
+    assert result == [file_a.absolute(), file_b.absolute()]
 
 
 def test_empty_folder_raise_error() -> None:
@@ -95,7 +97,7 @@ def test_empty_folder_raise_error() -> None:
   ):
     folder = Path(tmpdir)
     result = PredictionConfig.validate_input_files(folder)
-    assert result == {}
+    assert result == []
 
 
 def test_no_supported_file_found_in_dir_raise_error() -> None:

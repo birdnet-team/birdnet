@@ -1,4 +1,4 @@
-file_path,start_time,end_time,species_name,confidence
+input,start_time,end_time,species_name,confidence
 "path/to/soundscape.wav","00:00:00.00","00:00:01.50","Camptostoma imberbe_Northern Beardless-Tyrannulet",0.228714
 "path/to/soundscape.wav","00:00:00.00","00:00:01.50","Luscinia megarhynchos_Common Nightingale",0.043995
 "path/to/soundscape.wav","00:00:01.25","00:00:02.75","Cyclarhis gujanensis_Rufous-browed Peppershrike",0.023572

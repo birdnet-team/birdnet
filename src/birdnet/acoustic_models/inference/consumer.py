@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from multiprocessing.queues import Queue
+from multiprocessing import Queue
 from multiprocessing.synchronize import Event
 from queue import Empty
 

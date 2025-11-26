@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import multiprocessing.synchronize
-from multiprocessing.queues import Queue
+from multiprocessing import Queue
 from multiprocessing.synchronize import Event, Semaphore
 
 import numpy as np

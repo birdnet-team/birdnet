@@ -5,8 +5,7 @@ import multiprocessing.synchronize
 import os
 import time
 from abc import abstractmethod
-from multiprocessing import shared_memory
-from multiprocessing.queues import Queue
+from multiprocessing import Queue, shared_memory
 from multiprocessing.synchronize import Event, Semaphore
 
 import numpy as np
