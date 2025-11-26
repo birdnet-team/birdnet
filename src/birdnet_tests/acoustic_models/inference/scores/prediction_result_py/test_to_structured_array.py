@@ -8,7 +8,7 @@ from birdnet.acoustic_models.inference.scores.prediction_result import (
   assert_species_masked_pattern,
 )
 from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
-from birdnet.helper import get_float_dtype
+from birdnet.helper import apply_speed_to_duration, get_float_dtype
 from birdnet.model_loader import load
 from birdnet_tests.test_files import TEST_FILE_LONG
 
@@ -46,12 +46,12 @@ def create_prediction_result(
   species_list = OrderedSet([f"species_{i}" for i in range(15)])
   if rand_duration:
     # rand value [0.5, 2.5] * n_segments
-    file_durations = np.random.choice(
-      np.arange(((n_segments - 1) * 3) + 0.5, (n_segments * 3), 0.5), size=n_files
-    )
+    start = apply_speed_to_duration((n_segments - 1) * 3 + 0.5, speed)
+    end = apply_speed_to_duration(n_segments * 3, speed)
+    file_durations = np.random.choice(np.arange(start, end, 0.5), size=n_files)
     file_durations = file_durations.astype(get_float_dtype(max(file_durations)))
   else:
-    max_dur = n_segments * segment_duration_s
+    max_dur = apply_speed_to_duration(n_segments * segment_duration_s, speed)
     file_durations = np.full(
       n_files,
       max_dur,
@@ -163,10 +163,10 @@ def test_time_calculations_with_overlap() -> None:
   assert structured[1]["end_time"] == 5.5
 
 
-def xtest_time_calculations_no_overlap_but_speedup() -> None:
+def test_time_calculations_speedup_halftime_no_overlap() -> None:
   result = create_prediction_result(
     n_files=1,
-    n_segments=2,
+    n_segments=4,
     top_k=1,
     segment_duration_s=3,
     overlap_duration_s=0,
@@ -176,9 +176,85 @@ def xtest_time_calculations_no_overlap_but_speedup() -> None:
   structured = result.to_structured_array()
 
   assert structured[0]["start_time"] == 0.0
-  assert structured[0]["end_time"] == 3.0
-  assert structured[1]["start_time"] == 3.0
-  assert structured[1]["end_time"] == 6.0
+  assert structured[0]["end_time"] == 1.5
+  assert structured[1]["start_time"] == 1.5
+  assert structured[1]["end_time"] == 3.0
+  assert structured[2]["start_time"] == 3.0
+  assert structured[2]["end_time"] == 4.5
+  assert structured[3]["start_time"] == 4.5
+  assert structured[3]["end_time"] == 6.0
+  assert len(structured) == 4
+
+
+def test_random_time_calculations_speedup_halftime_no_overlap() -> None:
+  result = create_prediction_result(
+    n_files=1,
+    n_segments=4,
+    top_k=1,
+    segment_duration_s=3,
+    overlap_duration_s=0,
+    speed=0.5,
+    rand_duration=True,
+  )
+
+  structured = result.to_structured_array()
+
+  assert structured[0]["start_time"] == 0.0
+  assert structured[0]["end_time"] == 1.5
+  assert structured[1]["start_time"] == 1.5
+  assert structured[1]["end_time"] == 3.0
+  assert structured[2]["start_time"] == 3.0
+  assert structured[2]["end_time"] == 4.5
+  assert structured[3]["start_time"] == 4.5
+  assert structured[3]["end_time"] == 5.75
+  assert len(structured) == 4
+
+
+def test_time_calculations_speedup_doubletime_no_overlap() -> None:
+  result = create_prediction_result(
+    n_files=1,
+    n_segments=4,
+    top_k=1,
+    segment_duration_s=3,
+    overlap_duration_s=0,
+    speed=2.0,
+  )
+
+  structured = result.to_structured_array()
+
+  assert structured[0]["start_time"] == 0.0
+  assert structured[0]["end_time"] == 6.0
+  assert structured[1]["start_time"] == 6.0
+  assert structured[1]["end_time"] == 12.0
+  assert structured[2]["start_time"] == 12.0
+  assert structured[2]["end_time"] == 18.0
+  assert structured[3]["start_time"] == 18.0
+  assert structured[3]["end_time"] == 24.0
+  assert len(structured) == 4
+
+
+def test_random_time_calculations_speedup_doubletime_no_overlap() -> None:
+  result = create_prediction_result(
+    n_files=1,
+    n_segments=4,
+    top_k=1,
+    segment_duration_s=3,
+    overlap_duration_s=0,
+    speed=2.0,
+    rand_duration=True,
+  )
+
+  structured = result.to_structured_array()
+
+  assert structured[0]["start_time"] == 0.0
+  assert structured[0]["end_time"] == 6.0
+  assert structured[1]["start_time"] == 6.0
+  assert structured[1]["end_time"] == 12.0
+  assert structured[2]["start_time"] == 12.0
+  assert structured[2]["end_time"] == 18.0
+  assert structured[3]["start_time"] == 18.0
+  assert structured[3]["end_time"] == 20.0
+  assert len(structured) == 4
 
 
 def xtest_time_calculations_with_overlap_and_speed() -> None:
