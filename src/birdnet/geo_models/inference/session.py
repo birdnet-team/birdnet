@@ -16,7 +16,7 @@ from birdnet.geo_models.inference.configs import (
   ScoresConfig,
 )
 from birdnet.geo_models.inference.prediction_result import PredictionResult
-from birdnet.helper import uint_dtype_for
+from birdnet.helper import get_uint_dtype
 
 
 class GeoSessionBase(SessionBase, ABC):
@@ -47,7 +47,7 @@ class GeoSessionBase(SessionBase, ABC):
     self._is_initialized = True
     return self
 
-  def _run(self, run_config: RunConfig) -> PredictionResult:
+  def run(self, run_config: RunConfig) -> PredictionResult:
     assert self._is_initialized
     assert self._backend is not None
 
@@ -66,7 +66,7 @@ class GeoSessionBase(SessionBase, ABC):
     n_species = self._conf.model_conf.n_species
     species_ids = np.arange(
       n_species,
-      dtype=uint_dtype_for(
+      dtype=get_uint_dtype(
         max(0, n_species - 1),
       ),
     )

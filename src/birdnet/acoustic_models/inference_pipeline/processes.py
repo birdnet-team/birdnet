@@ -5,7 +5,7 @@ import threading
 from multiprocessing import Process
 from pathlib import Path
 
-from ordered_set import OrderedSet
+import numpy as np
 
 import birdnet.acoustic_models.inference_pipeline.logging
 from birdnet.acoustic_models.inference.consumer import Consumer
@@ -121,7 +121,7 @@ class ProcessManager:
         tot_n_segments=self._res.analyzer_resources.tot_n_segments_ptr,
         cancel_event=self._res.processing_resources.cancel_event,
         end_event=self._res.processing_resources.end_event,
-        input_files_queue=self._res.analyzer_resources.input_files_queue,
+        input_queue=self._res.analyzer_resources.input_queue,
         finished=self._res.analyzer_resources.finished,
         start_signal=self._res.analyzer_resources.start_signal,
       ),
@@ -144,7 +144,7 @@ class ProcessManager:
       Process(
         target=Producer(
           session_id=self._session_id,
-          files_queue=self._res.producer_resources.files_queue,
+          input_queue=self._res.producer_resources.input_queue,
           batch_size=self._cfg.processing_conf.batch_size,
           all_finished=self._res.producer_resources.all_finished,
           n_slots=self._cfg.processing_conf.n_slots,
@@ -216,19 +216,23 @@ class ProcessManager:
     self._worker_processes = worker_processes
     return worker_processes
 
-  def start_processing(self, file_paths: OrderedSet[Path]) -> None:
+  def start_processing(
+    self, input_data: list[Path] | list[tuple[np.ndarray, int]]
+  ) -> None:
     res = self._res
     # start file analyzer
     res.analyzer_resources.start_signal.set()
-    res.analyzer_resources.input_files_queue.put(file_paths)
+    res.analyzer_resources.input_queue.put(input_data, block=False)
 
     # start producers
     for i in range(res.producer_resources.n_producers):
       res.producer_resources.start_signals[i].set()
-    for file_idx, file_path in enumerate(file_paths):
-      res.producer_resources.files_queue.put((file_idx, file_path), block=False)
+
+    # set input data for producers
+    for input_idx, inp_data in enumerate(input_data):
+      res.producer_resources.input_queue.put((input_idx, inp_data), block=False)
     for _ in range(res.producer_resources.n_producers):
-      res.producer_resources.files_queue.put(None, block=False)
+      res.producer_resources.input_queue.put(None, block=False)
 
     # start workers
     for i in range(self._cfg.processing_conf.workers):

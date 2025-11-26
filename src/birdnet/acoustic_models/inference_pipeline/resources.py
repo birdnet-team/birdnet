@@ -30,8 +30,8 @@ from birdnet.helper import (
   RingField,
   get_float_dtype,
   get_n_segments_speed,
+  get_uint_dtype,
   uint_ctype_from_dtype,
-  uint_dtype_for,
 )
 from birdnet.local_data import get_benchmark_dir
 from birdnet.logging_utils import get_package_logging_level
@@ -126,7 +126,7 @@ class RingBufferResources:
 
     rf_file_indices = RingField(
       f"bn_file_idx_{sid_hash}",
-      dtype=uint_dtype_for(max(0, max_n_files - 1)),
+      dtype=get_uint_dtype(max(0, max_n_files - 1)),
       shape=(n_slots, batch_size),
     )
 
@@ -148,7 +148,7 @@ class RingBufferResources:
 
     rf_batch_sizes = RingField(
       f"bn_bs_{sid_hash}",
-      dtype=uint_dtype_for(batch_size),
+      dtype=get_uint_dtype(batch_size),
       shape=(n_slots,),
     )
 
@@ -202,11 +202,11 @@ class ProducerResources:
   )
   all_finished: multiprocessing.synchronize.Event
   ring_access_lock: multiprocessing.synchronize.Lock
-  files_queue: Queue
+  input_queue: Queue[tuple[int, Path | tuple[np.ndarray, int]] | None]
   start_signals: list[multiprocessing.synchronize.Event]
 
   def reset(self) -> None:
-    self.n_finished_pointer.value = 0
+    self.n_finished_pointer.value = 0  # type: ignore
     self.all_finished.clear()
     for start_signal in self.start_signals:
       start_signal.clear()
@@ -215,13 +215,15 @@ class ProducerResources:
   def create(cls, conf: PredictionConfig) -> ProducerResources:
     n_producers = conf.processing_conf.feeders
     n_finished_pointer = mp.Value(
-      uint_ctype_from_dtype(uint_dtype_for(n_producers)), 0, lock=True
-    )
+      uint_ctype_from_dtype(get_uint_dtype(n_producers)),  # type: ignore
+      0,
+      lock=True,
+    )  # type: ignore
 
     return ProducerResources(
       n_producers=n_producers,
       n_finished_pointer=n_finished_pointer,
-      files_queue=Queue(),
+      input_queue=Queue(),
       ring_access_lock=mp.Lock(),
       all_finished=mp.Event(),
       start_signals=[mp.Event() for _ in range(n_producers)],
@@ -283,10 +285,10 @@ class WorkerResources:
 
 @dataclass(frozen=True)
 class FilesAnalyzerResources:
-  analyzer_queue: Queue
-  input_files_queue: Queue
-  tot_n_segments_ptr: mp.RawValue
-  max_segment_idx_ptr: mp.RawValue
+  analyzer_queue: Queue[list[float]]
+  input_queue: Queue[list[Path] | list[tuple[np.ndarray, int]]]
+  tot_n_segments_ptr: mp.RawValue  # type: ignore
+  max_segment_idx_ptr: mp.RawValue  # type: ignore
   max_segment_idx_init_value: int
   finished: multiprocessing.synchronize.Event
   # each resource needs own start signal to allow resetting it individually
@@ -296,7 +298,7 @@ class FilesAnalyzerResources:
   _file_durations: np.ndarray | None = None
 
   @property
-  def file_durations(self) -> np.ndarray | None:
+  def input_durations(self) -> np.ndarray | None:
     return self._file_durations
 
   def collect_file_durations(self) -> np.ndarray:
@@ -328,7 +330,7 @@ class FilesAnalyzerResources:
     if reserve_n_segments > 0:
       max_segment_index = reserve_n_segments - 1
       assert max_segment_index >= 0
-      segments_dtype = uint_dtype_for(max_segment_index)
+      segments_dtype = get_uint_dtype(max_segment_index)
       max_segment_ptr_value = max_segment_index
     else:
       segments_dtype = np.dtype(np.uint32)
@@ -342,7 +344,7 @@ class FilesAnalyzerResources:
 
     return FilesAnalyzerResources(
       analyzer_queue=Queue(),
-      input_files_queue=Queue(),
+      input_queue=Queue(),
       tot_n_segments_ptr=mp.RawValue(ctypes.c_uint64, 0),
       max_segment_idx_ptr=max_segment_idx_ptr,
       segments_dtype=segments_dtype,

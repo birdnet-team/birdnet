@@ -107,40 +107,6 @@ def is_supported_audio_file(file_path: Path) -> bool:
   return file_path.suffix.upper() in SF_FORMATS
 
 
-def uint_dtype_for_files(n_files: int) -> np.dtype:
-  return uint_dtype_for(n_files - 1)
-
-
-def uint_dtype_for(max_value: int) -> np.dtype:
-  """
-  Return the narrowest unsigned-integer NumPy dtype that can represent
-  *max_value* (inclusive).
-
-  Examples
-  --------
-  >>> uint_dtype_for(100)
-  dtype('uint8')
-  >>> uint_dtype_for(42_000)
-  dtype('uint16')
-  >>> uint_dtype_for(3_000_000_000)
-  dtype('uint64')
-
-  Info
-  ----
-  2**8 = 256
-  2**16 = 65,536
-  2**32 = 4,294,967,296
-  2**64 = 18,446,744,073,709,551,616
-  """
-  assert max_value >= 0, "max_value must be non-negative."
-
-  for dt in (np.uint8, np.uint16, np.uint32, np.uint64):
-    if max_value <= np.iinfo(dt).max:
-      return np.dtype(dt)
-
-  raise AssertionError("Value exceeds uint64 range.")
-
-
 def validate_species_list(species_list: Path) -> OrderedSet[str]:
   loaded_species_list: OrderedSet[str]
   try:
@@ -267,6 +233,40 @@ def uint_ctype_from_dtype(
   dtype = np.dtype(dtype).type  # z. B. <class 'numpy.uint16'>
   code = _UINT_DTYPE_TO_CTYPE[dtype]
   return code
+
+
+def uint_dtype_for_files(n_files: int) -> np.dtype:
+  return get_uint_dtype(n_files - 1)
+
+
+def get_uint_dtype(max_value: int) -> np.dtype:
+  """
+  Return the narrowest unsigned-integer NumPy dtype that can represent
+  *max_value* (inclusive).
+
+  Examples
+  --------
+  >>> uint_dtype_for(100)
+  dtype('uint8')
+  >>> uint_dtype_for(42_000)
+  dtype('uint16')
+  >>> uint_dtype_for(3_000_000_000)
+  dtype('uint64')
+
+  Info
+  ----
+  2**8 = 256
+  2**16 = 65,536
+  2**32 = 4,294,967,296
+  2**64 = 18,446,744,073,709,551,616
+  """
+  assert max_value >= 0, "max_value must be non-negative."
+
+  for dt in (np.uint8, np.uint16, np.uint32, np.uint64):
+    if max_value <= np.iinfo(dt).max:
+      return np.dtype(dt)
+
+  raise AssertionError("Value exceeds uint64 range.")
 
 
 def get_float_dtype(max_value: float) -> DTypeLike:

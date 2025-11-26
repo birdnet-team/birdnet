@@ -9,7 +9,7 @@ from numpy.typing import DTypeLike
 
 from birdnet.acoustic_models.inference.worker import WorkerBase
 from birdnet.backends import BackendLoader
-from birdnet.helper import RingField, uint_dtype_for
+from birdnet.helper import RingField, get_uint_dtype
 from birdnet.utils import flat_sigmoid_logaddexp_fast
 
 
@@ -104,7 +104,7 @@ class ScoresWorker(WorkerBase):
   ) -> tuple[np.ndarray, ...]:
     if self._species_dtype is None:
       n_species = infer_result.shape[1]
-      self._species_dtype = uint_dtype_for(n_species - 1)
+      self._species_dtype = get_uint_dtype(n_species - 1)
 
     if self._apply_sigmoid:
       assert self._sigmoid_sensitivity is not None

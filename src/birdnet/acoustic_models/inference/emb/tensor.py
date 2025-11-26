@@ -13,12 +13,12 @@ class EmbeddingsTensor(TensorBase):
   def __init__(
     self,
     session_id: str,
-    n_files: int,
+    n_inputs: int,
     emb_dim: int,
     half_precision: bool,
     files_dtype: DTypeLike,
     segment_indices_dtype: DTypeLike,
-    max_segment_index: mp.RawValue,
+    max_segment_index: mp.RawValue,  # type: ignore
   ) -> None:
     self._session_id = session_id
     self._logger = get_logger_from_session(session_id, __name__)
@@ -30,7 +30,7 @@ class EmbeddingsTensor(TensorBase):
     initial_n_segments = max_segment_index.value + 1
 
     emb_dtype = np.float16 if half_precision else np.float32
-    self._emb = np.empty((n_files, initial_n_segments, emb_dim), dtype=emb_dtype)
+    self._emb = np.empty((n_inputs, initial_n_segments, emb_dim), dtype=emb_dtype)
     self._emb_masked = np.full(self._emb.shape, True, dtype=bool)
 
     self._logger.debug(f"Resulting array allocated: {self.memory_usage_mb:.2f} MB")

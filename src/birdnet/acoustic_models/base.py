@@ -3,7 +3,7 @@ from pathlib import Path
 
 from ordered_set import OrderedSet
 
-from birdnet.base import ModelBase, PredictionResultBase
+from birdnet.base import ModelBase, ResultBase
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
 
 
@@ -22,5 +22,5 @@ class AcousticModelBase(ModelBase, ABC):
 
   @classmethod
   @abstractmethod
-  def encode(cls, *args, **kwargs) -> PredictionResultBase:  # noqa: ANN002, ANN003
+  def encode(cls, *args, **kwargs) -> ResultBase:  # noqa: ANN002, ANN003
     ...

@@ -39,20 +39,20 @@ def bandpass_signal(
   if fmin > new_fmin and fmax == new_fmax:
     low = fmin / nyquist
     b, a = butter(nth_order, low, btype="high")
-    audio_signal = lfilter(b, a, audio_signal)
+    audio_signal = lfilter(b, a, audio_signal)  # type: ignore
 
   # Lowpass
   elif fmin == new_fmin and fmax < new_fmax:
     high = fmax / nyquist
     b, a = butter(nth_order, high, btype="low")
-    audio_signal = lfilter(b, a, audio_signal)
+    audio_signal = lfilter(b, a, audio_signal)  # type: ignore
 
   # Bandpass
   elif fmin > new_fmin and fmax < new_fmax:
     low = fmin / nyquist
     high = fmax / nyquist
     b, a = butter(nth_order, [low, high], btype="band")
-    audio_signal = lfilter(b, a, audio_signal)
+    audio_signal = lfilter(b, a, audio_signal)  # type: ignore
 
   sig_f32 = audio_signal.astype(np.float32)
   return sig_f32

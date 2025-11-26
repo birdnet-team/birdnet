@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, TypeVar
 
+import numpy as np
+import numpy.typing as npt
 import psutil
 from ordered_set import OrderedSet
 
@@ -13,7 +15,7 @@ from birdnet.acoustic_models.inference.tensor import TensorBase
 from birdnet.backends import (
   VersionedBackendProtocol,
 )
-from birdnet.base import PredictionResultBase
+from birdnet.base import ResultBase
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSIONS,
 )
@@ -24,7 +26,7 @@ from birdnet.helper import (
   validate_species_list,
 )
 
-ResultType = TypeVar("ResultType", bound="PredictionResultBase")
+ResultType = TypeVar("ResultType", bound="ResultBase")
 ConfigType = TypeVar("ConfigType", bound="SpecificConfigBase")
 TensorType = TypeVar("TensorType", bound="TensorBase")
 
@@ -330,20 +332,117 @@ class PredictionConfig:
   output_conf: OutputConfig
 
   @classmethod
+  def validate_input_audio(
+    cls,
+    input_audios: Any | Iterable[Any],  # noqa: ANN401
+  ) -> list[tuple[npt.NDArray, int]]:
+    parsed_audio_arrays: list[tuple[npt.NDArray, int]] = []
+
+    if isinstance(input_audios, tuple):
+      input_audios = (input_audios,)
+
+    if not isinstance(input_audios, Iterable):
+      raise ValueError(f"Unsupported input type: {type(input_audios)}")
+
+    for inp_data in input_audios:
+      if not isinstance(inp_data, tuple):
+        raise ValueError(f"Unsupported input type: {type(input_audios)}")
+
+      if len(inp_data) != 2:
+        raise ValueError(
+          "Input audio tuple must have exactly two elements: "
+          "(audio_array, sample_rate)."
+        )
+
+      audio_array, sample_rate = inp_data
+
+      if not isinstance(audio_array, np.ndarray):
+        raise ValueError(
+          f"First element of input audio tuple must be a numpy ndarray, "
+          f"got {type(audio_array)}."
+        )
+
+      if not isinstance(sample_rate, int):
+        raise ValueError(
+          f"Second element of input audio tuple must be an integer sample rate, "
+          f"got {type(sample_rate)}."
+        )
+
+      if not sample_rate > 0:
+        raise ValueError(f"Sample rate must be a positive integer, got {sample_rate}.")
+
+      if not np.issubdtype(audio_array.dtype, np.integer) and not np.issubdtype(
+        audio_array.dtype, np.floating
+      ):
+        raise ValueError(
+          f"Audio array must have an integer or floating-point dtype, "
+          f"got {audio_array.dtype}."
+        )
+
+      parsed_audio_arrays.append((audio_array, sample_rate))
+    return parsed_audio_arrays
+
+  @classmethod
   def validate_input_files(
     cls,
     input_files: Any | Iterable[Any],  # noqa: ANN401
-  ) -> set[Path]:
+  ) -> list[Path]:
     parsed_audio_paths: set[Path] = set()
 
     if isinstance(input_files, Path | str):
       # progress further as Iterable
       input_files = (Path(input_files),)
 
-    if isinstance(input_files, Iterable):
-      for inp_audio in input_files:
-        if isinstance(inp_audio, Path | str):
-          inp_path = Path(inp_audio)
+    if not isinstance(input_files, Iterable):
+      raise ValueError(f"Unsupported input type: {type(input_files)}")
+
+    for inp_audio in input_files:
+      if not isinstance(inp_audio, Path | str):
+        raise ValueError(f"Unsupported input type: {type(inp_audio)}")
+
+      inp_path = Path(inp_audio)
+
+      if not inp_path.exists():
+        raise ValueError(f"Input path '{inp_path}' was not found.")
+
+      if inp_path.is_file():
+        if not is_supported_audio_file(inp_path):
+          raise ValueError(
+            f"Input file '{inp_path}' is not a supported audio format! "
+            f"Supported formats: {sorted(SF_FORMATS)}."
+          )
+        parsed_audio_paths.add(inp_path.absolute())
+      else:
+        assert inp_path.is_dir()
+        parsed_audio_paths.update(get_supported_audio_files_recursive(inp_path))
+
+    for p in parsed_audio_paths:
+      assert p.is_absolute()
+
+    if len(parsed_audio_paths) == 0:
+      raise ValueError("No valid audio files were found in the provided input paths.")
+
+    result = sorted(parsed_audio_paths)
+    return result
+
+  @classmethod
+  def validate_input_data(
+    cls,
+    input_data: Any | Iterable[Any],  # noqa: ANN401
+  ) -> list[Path | tuple[npt.NDArray, int]]:
+    parsed_audio_paths: set[Path] = set()
+    parsed_audio_arrays: list[tuple[npt.NDArray, int]] = []
+
+    if isinstance(input_data, Path | str):
+      # progress further as Iterable
+      input_data = (Path(input_data),)
+    elif isinstance(input_data, tuple):
+      input_data = (input_data,)
+
+    if isinstance(input_data, Iterable):
+      for inp_data in input_data:
+        if isinstance(inp_data, Path | str):
+          inp_path = Path(inp_data)
           if inp_path.is_file():
             if is_supported_audio_file(inp_path):
               parsed_audio_paths.add(inp_path.absolute())
@@ -353,17 +452,44 @@ class PredictionConfig:
               )
           elif inp_path.is_dir():
             parsed_audio_paths.update(get_supported_audio_files_recursive(inp_path))
+          elif isinstance(inp_data, tuple):
+            if len(inp_data) != 2:
+              raise ValueError(
+                "Input audio tuple must have exactly two elements: (audio_array, sample_rate)."
+              )
+            audio_array, sample_rate = inp_data
+            if not isinstance(audio_array, np.ndarray):
+              raise ValueError(
+                f"First element of input audio tuple must be a numpy ndarray, got {type(audio_array)}."
+              )
+            if not isinstance(sample_rate, int):
+              raise ValueError(
+                f"Second element of input audio tuple must be an integer sample rate, got {type(sample_rate)}."
+              )
+            if not sample_rate > 0:
+              raise ValueError(
+                f"Sample rate must be a positive integer, got {sample_rate}."
+              )
+            if not np.issubdtype(audio_array.dtype, np.integer) or not np.issubdtype(
+              audio_array.dtype, np.floating
+            ):
+              raise ValueError(
+                f"Audio array must have an integer or floating-point dtype, got {audio_array.dtype}."
+              )
+            parsed_audio_arrays.append((audio_array, sample_rate))
           else:
             raise ValueError(f"Input path '{inp_path}' was not found.")
         else:
-          raise ValueError(f"Unsupported input type: {type(inp_audio)}")
+          raise ValueError(f"Unsupported input type: {type(inp_data)}")
     else:
-      raise ValueError(f"Unsupported input type: {type(input_files)}")
+      raise ValueError(f"Unsupported input type: {type(input_data)}")
 
     for p in parsed_audio_paths:
       assert p.is_absolute()
 
-    if len(parsed_audio_paths) == 0:
-      raise ValueError("No valid audio files were found in the provided input paths.")
+    result = parsed_audio_arrays + sorted(parsed_audio_paths)
 
-    return parsed_audio_paths
+    if len(result) == 0:
+      raise ValueError("Empty input data.")
+
+    return result

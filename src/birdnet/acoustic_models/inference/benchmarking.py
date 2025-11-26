@@ -19,6 +19,7 @@ from birdnet.globals import (
   ACOUSTIC_MODEL_VERSIONS,
   MODEL_PRECISIONS,
   MODEL_TYPES,
+  NA,
 )
 from birdnet.local_data import get_package_version
 
@@ -53,7 +54,7 @@ class MinimalBenchmarkMetaBase:
   @property
   def file_duration_sum(self) -> str:
     if self.file_count == 0:
-      return "N/A"
+      return NA
     dur_sum = float(np.sum(self._file_durations, dtype=np.float64))
     assert not np.isinf(dur_sum)
     return str(timedelta(seconds=dur_sum))
@@ -61,19 +62,19 @@ class MinimalBenchmarkMetaBase:
   @property
   def file_duration_average(self) -> str:
     if self.file_count == 0:
-      return "N/A"
+      return NA
     return str(timedelta(seconds=float(self._file_durations.mean())))
 
   @property
   def file_duration_minimum(self) -> str:
     if self.file_count == 0:
-      return "N/A"
+      return NA
     return str(timedelta(seconds=float(self._file_durations.min())))
 
   @property
   def file_duration_maximum(self) -> str:
     if self.file_count == 0:
-      return "N/A"
+      return NA
     return str(timedelta(seconds=float(self._file_durations.max())))
 
   file_formats: str
@@ -125,7 +126,7 @@ class MinimalBenchmarkMetaBase:
   @property
   def speed_total_audio_per_second(self) -> str:
     if self.file_segments_total == 0:
-      return "N/A"
+      return NA
     result_s = (
       self.file_segments_total * self.model_segment_duration_seconds
     ) / self._time_wall_time_s
@@ -143,7 +144,7 @@ class FullBenchmarkMetaBase(MinimalBenchmarkMetaBase):
   @property
   def time_rampup_first_line(self) -> str:
     if self._time_rampup_first_line_s is None:
-      return "N/A"
+      return NA
     return str(timedelta(seconds=self._time_rampup_first_line_s))
 
   # Hardware
@@ -252,7 +253,7 @@ class FullBenchmarkMetaBase(MinimalBenchmarkMetaBase):
   @property
   def speed_worker_total_audio_per_second(self) -> str:
     if self.file_segments_total == 0:
-      return "N/A"
+      return NA
     result_s = (
       self.file_segments_total * self.model_segment_duration_seconds
     ) / self._worker_avg_wall_time_s

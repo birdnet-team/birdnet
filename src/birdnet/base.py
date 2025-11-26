@@ -10,7 +10,7 @@ from ordered_set import OrderedSet
 from birdnet.helper import get_hash
 
 
-class PredictionResultBase(ABC):
+class ResultBase(ABC):
   @abstractmethod
   def save(self, *args, **kwargs) -> None: ...  # noqa: ANN002, ANN003
 
@@ -34,7 +34,7 @@ class SessionBase(ABC):
   def __exit__(self, *args): ...
 
   @abstractmethod
-  def run(self, *args, **kwargs) -> PredictionResultBase: ...
+  def run(self, *args, **kwargs) -> ResultBase: ...
 
 
 def get_session_id() -> str:
@@ -109,7 +109,7 @@ class ModelBase(ABC):
 
   @classmethod
   @abstractmethod
-  def predict(cls, *args, **kwargs) -> PredictionResultBase:  # noqa: ANN002, ANN003
+  def predict(cls, *args, **kwargs) -> ResultBase:  # noqa: ANN002, ANN003
     ...
 
   @classmethod

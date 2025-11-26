@@ -7,20 +7,20 @@ from numpy.typing import DTypeLike
 
 from birdnet.acoustic_models.inference.tensor import TensorBase
 from birdnet.acoustic_models.inference_pipeline.logging import get_logger_from_session
-from birdnet.helper import uint_dtype_for
+from birdnet.helper import get_uint_dtype
 
 
 class ScoresTensor(TensorBase):
   def __init__(
     self,
     session_id: str,
-    n_files: int,
+    n_inputs: int,
     top_k: int,
     n_species: int,
     half_precision: bool,
     files_dtype: DTypeLike,
     segment_indices_dtype: DTypeLike,
-    max_segment_index: mp.RawValue,  # TODO: watch max_n_segments instead
+    max_segment_index: mp.RawValue,  # TODO: watch max_n_segments instead # type: ignore
   ) -> None:
     self._session_id = session_id
     self._logger = get_logger_from_session(session_id, __name__)
@@ -33,8 +33,8 @@ class ScoresTensor(TensorBase):
     initial_n_segments = max_segment_index.value + 1
 
     self._species_ids = np.empty(
-      (n_files, initial_n_segments, self._top_k),
-      dtype=uint_dtype_for(
+      (n_inputs, initial_n_segments, self._top_k),
+      dtype=get_uint_dtype(
         max(0, n_species - 1),
       ),
     )
@@ -42,11 +42,11 @@ class ScoresTensor(TensorBase):
     _species_probs_type = np.float16 if half_precision else np.float32
 
     self._species_probs = np.empty(
-      (n_files, initial_n_segments, self._top_k), dtype=_species_probs_type
+      (n_inputs, initial_n_segments, self._top_k), dtype=_species_probs_type
     )
 
     self._species_masked = np.full(
-      (n_files, initial_n_segments, self._top_k), True, dtype=bool
+      (n_inputs, initial_n_segments, self._top_k), True, dtype=bool
     )
     self._logger.debug(f"Resulting array allocated: {self.memory_usage_mb:.2f} MB")
 

@@ -5,6 +5,7 @@ import threading
 
 import numpy
 import pytest
+import soundfile as sf
 
 from birdnet.model_loader import load
 from birdnet_tests.helper import (
@@ -16,7 +17,11 @@ from birdnet_tests.helper import (
   use_forkserver_or_skip,
   use_spawn_or_skip,
 )
-from birdnet_tests.test_files import TEST_FILE_SHORT, TEST_FILE_SHORT_SCORE_SHAPE
+from birdnet_tests.test_files import (
+  TEST_FILE_LONG,
+  TEST_FILE_SHORT,
+  TEST_FILE_SHORT_SCORE_SHAPE,
+)
 
 
 def test_pb_cpu_fp32() -> None:
@@ -50,6 +55,31 @@ def test_tf_fp32() -> None:
   with model.predict_session(n_workers=1, top_k=None) as session:
     res = session.run(TEST_FILE_SHORT)
   assert res.species_probs.shape == TEST_FILE_SHORT_SCORE_SHAPE
+
+
+def test_tf_fp32_np_array() -> None:
+  sf_read = sf.read(TEST_FILE_SHORT)
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
+  with model.predict_session(n_workers=1, top_k=None) as session:
+    res = session.run_arrays(sf_read)
+  assert res.species_probs.shape == TEST_FILE_SHORT_SCORE_SHAPE
+
+
+def test_tf_fp32_two_np_arrays() -> None:
+  sf_read = sf.read(TEST_FILE_SHORT)
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
+  with model.predict_session(n_workers=1, top_k=None) as session:
+    res = session.run_arrays([sf_read, sf_read])
+  assert res.species_probs.shape == (2, 3, 6522)
+
+
+def xtest_tf_fp32_large_np_array() -> None:
+  sf_data, sr = sf.read(TEST_FILE_LONG, dtype="float32")
+  data_6h = numpy.tile(sf_data, 30 * 6)
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
+  with model.predict_session(top_k=None) as session:
+    res = session.run_arrays((data_6h, sr))
+  assert res.species_probs.shape == (1, 40 * 30 * 6, 6522)
 
 
 def test_tf_fp16() -> None:

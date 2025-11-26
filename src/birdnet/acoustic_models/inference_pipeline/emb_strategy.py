@@ -4,14 +4,15 @@ import os
 from pathlib import Path
 
 import psutil
-from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.emb.benchmarking import (
   FullBenchmarkEmbMeta,
   MinimalBenchmarkEmbMeta,
 )
 from birdnet.acoustic_models.inference.emb.encoding_result import (
-  EncodingResult,
+  DataEncodingResult,
+  EncodingResultBase,
+  FileEncodingResult,
 )
 from birdnet.acoustic_models.inference.emb.tensor import EmbeddingsTensor
 from birdnet.acoustic_models.inference.emb.worker import EmbeddingsWorker
@@ -29,12 +30,13 @@ from birdnet.acoustic_models.inference_pipeline.strategy import (
 from birdnet.backends import TF_BACKEND_LIB_ARG
 from birdnet.globals import (
   MODEL_TYPE_ACOUSTIC,
+  NA,
 )
 from birdnet.helper import get_file_formats
 
 
 class EmbeddingsStrategy(
-  PredictionStrategy[EncodingResult, EmbeddingsConfig, EmbeddingsTensor]
+  PredictionStrategy[EncodingResultBase, EmbeddingsConfig, EmbeddingsTensor]
 ):
   def validate_config(
     self, config: PredictionConfig, specific_config: EmbeddingsConfig
@@ -47,11 +49,11 @@ class EmbeddingsStrategy(
     config: PredictionConfig,
     specific_config: EmbeddingsConfig,
     resources: PipelineResources,
-    n_files: int,
+    n_inputs: int,
   ) -> EmbeddingsTensor:
     return EmbeddingsTensor(
       session_id,
-      n_files,
+      n_inputs,
       emb_dim=specific_config.emb_dim,
       half_precision=config.processing_conf.half_precision,
       segment_indices_dtype=resources.ring_buffer_resources.rf_segment_indices.dtype,
@@ -96,22 +98,38 @@ class EmbeddingsStrategy(
       for i in range(config.processing_conf.workers)
     ]
 
-  def create_result(
+  def create_files_result(
     self,
     tensor: EmbeddingsTensor,
     config: PredictionConfig,
     resources: PipelineResources,
-    files: OrderedSet[Path],
-  ) -> EncodingResult:
-    assert resources.analyzer_resources.file_durations is not None
+    files: list[Path],
+  ) -> EncodingResultBase:
+    assert resources.analyzer_resources.input_durations is not None
 
-    return EncodingResult(
+    return FileEncodingResult(
       tensor=tensor,
       files=files,
       segment_duration_s=config.model_conf.segment_size_s,
       overlap_duration_s=config.processing_conf.overlap_duration_s,
       speed=config.processing_conf.speed,
-      file_durations=resources.analyzer_resources.file_durations,
+      file_durations=resources.analyzer_resources.input_durations,
+    )
+
+  def create_array_result(
+    self,
+    tensor: EmbeddingsTensor,
+    config: PredictionConfig,
+    resources: PipelineResources,
+  ) -> EncodingResultBase:
+    assert resources.analyzer_resources.input_durations is not None
+
+    return DataEncodingResult(
+      tensor=tensor,
+      segment_duration_s=config.model_conf.segment_size_s,
+      overlap_duration_s=config.processing_conf.overlap_duration_s,
+      speed=config.processing_conf.speed,
+      input_durations=resources.analyzer_resources.input_durations,
     )
 
   def create_minimal_benchmark_meta(
@@ -119,18 +137,18 @@ class EmbeddingsStrategy(
     config: PredictionConfig,
     specific_config: EmbeddingsConfig,
     resources: PipelineResources,
-    pred_result: EncodingResult,
+    pred_result: EncodingResultBase,
   ) -> MinimalBenchmarkEmbMeta:
     assert resources.stats_resources.end_timepoint is not None
     assert resources.stats_resources.stop is not None
     wall_time_s = resources.stats_resources.stop - resources.stats_resources.start
-    assert resources.analyzer_resources.file_durations is not None
+    assert resources.analyzer_resources.input_durations is not None
 
     return MinimalBenchmarkEmbMeta(
       _start_timepoint=resources.stats_resources.start_timepoint,
       _end_timepoint=resources.stats_resources.end_timepoint,
       _time_wall_time_s=wall_time_s,
-      _file_durations=resources.analyzer_resources.file_durations,
+      _file_durations=resources.analyzer_resources.input_durations,
       mem_result_total_memory_usage_MiB=pred_result.memory_size_mb,
       mem_shm_size_file_indices_MiB=resources.ring_buffer_resources.rf_file_indices.nbytes
       / 1024**2,
@@ -143,7 +161,7 @@ class EmbeddingsStrategy(
       mem_shm_size_flags_MiB=resources.ring_buffer_resources.rf_flags.nbytes / 1024**2,
       file_segments_total=resources.analyzer_resources.tot_n_segments_ptr.value,
       model_segment_duration_seconds=config.model_conf.segment_size_s,
-      file_formats=get_file_formats({Path(x) for x in pred_result.files}),
+      file_formats=get_file_formats({Path(x) for x in pred_result.inputs}),
     )
 
   def create_full_benchmark_meta(
@@ -151,7 +169,7 @@ class EmbeddingsStrategy(
     config: PredictionConfig,
     specific_config: EmbeddingsConfig,
     resources: PipelineResources,
-    pred_result: EncodingResult,
+    pred_result: EncodingResultBase,
   ) -> FullBenchmarkEmbMeta:
     perf_result = resources.stats_resources.tracking_result
     assert perf_result is not None
@@ -159,7 +177,7 @@ class EmbeddingsStrategy(
     assert resources.stats_resources.end_timepoint is not None
     assert resources.stats_resources.stop is not None
     wall_time_s = resources.stats_resources.stop - resources.stats_resources.start
-    assert resources.analyzer_resources.file_durations is not None
+    assert resources.analyzer_resources.input_durations is not None
 
     device_str = (
       ", ".join(config.processing_conf.device)
@@ -181,7 +199,7 @@ class EmbeddingsStrategy(
       model_species=len(config.model_conf.species_list),
       model_precision=config.model_conf.backend_type.precision(),
       model_emb_dim=specific_config.emb_dim,
-      _file_durations=resources.analyzer_resources.file_durations,
+      _file_durations=resources.analyzer_resources.input_durations,
       file_segments_maximum=resources.analyzer_resources.max_segment_idx_ptr.value + 1,
       file_segments_total=resources.analyzer_resources.tot_n_segments_ptr.value,
       model_segment_duration_seconds=config.model_conf.segment_size_s,
@@ -222,9 +240,9 @@ class EmbeddingsStrategy(
       model_sig_fmin=config.model_conf.sig_fmin,
       model_sig_fmax=config.model_conf.sig_fmax,
       worker_wait_time_average_milliseconds=perf_result.avg_wait_time_ms,
-      file_formats=get_file_formats({Path(x) for x in pred_result.files}),
+      file_formats=get_file_formats({Path(x) for x in pred_result.inputs}),
       param_inference_library=config.model_conf.backend_kwargs.get(
-        TF_BACKEND_LIB_ARG, "N/A"
+        TF_BACKEND_LIB_ARG, NA
       ),
     )
 
@@ -232,6 +250,6 @@ class EmbeddingsStrategy(
     return "emb"
 
   def save_results_extra(
-    self, result: EncodingResult, benchmark_run_out_dir: Path, prepend: str
+    self, result: EncodingResultBase, benchmark_run_out_dir: Path, prepend: str
   ) -> list[Path]:
     return []

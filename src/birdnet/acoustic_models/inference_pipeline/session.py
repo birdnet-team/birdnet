@@ -6,9 +6,9 @@ from abc import ABC
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
-from typing import ContextManager, Generic, Self
+from typing import ContextManager, Generic, Self, cast
 
-from ordered_set import OrderedSet
+import numpy as np
 
 from birdnet.acoustic_models.inference_pipeline.configs import (
   ConfigType,
@@ -76,27 +76,26 @@ class AcousticSessionBase(
     assert self._resource_manager.resources is not None
     return self._resource_manager.resources
 
-  def run(self, paths: set[Path]) -> ResultType:
+  def _run(self, inputs: list[Path] | list[tuple[np.ndarray, int]]) -> ResultType:
     assert self._is_initialized
     assert self._process_manager is not None
     assert self._logger is not None
 
-    self._logger.info(f"Got {len(paths)} audio files for analysis.")
-
-    file_paths = OrderedSet(sorted(paths))
+    is_file_input = any(isinstance(inp, Path) for inp in inputs)
+    self._logger.info(f"Got {len(inputs)} inputs for analysis.")
 
     result_tensor = self._strategy.create_tensor(
       self._session_id,
       self._conf,
       self._specific_config,
       self._resources,
-      len(file_paths),
+      len(inputs),
     )
 
     if not self._resources.processing_resources.is_first_run:
       self._resources.reset()
 
-    self._process_manager.start_processing(file_paths)
+    self._process_manager.start_processing(inputs)
     self._process_manager.run_consumer(result_tensor)
     self._resources.processing_resources.processing_finished_event.set()
     self._resources.stats_resources.save_end_time()
@@ -110,9 +109,16 @@ class AcousticSessionBase(
         f"{self._resources.logging_resources.session_log_file.absolute()}"
       )
 
-    result = self._strategy.create_result(
-      result_tensor, self._conf, self._resources, file_paths
-    )
+    if is_file_input:
+      assert all(isinstance(inp, Path) for inp in inputs)
+      inputs = cast(list[Path], inputs)
+      result = self._strategy.create_files_result(
+        result_tensor, self._conf, self._resources, inputs
+      )
+    else:
+      result = self._strategy.create_array_result(
+        result_tensor, self._conf, self._resources
+      )
 
     _handle_statistics(
       self._session_id,

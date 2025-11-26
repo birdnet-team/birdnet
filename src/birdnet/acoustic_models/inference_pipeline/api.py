@@ -4,10 +4,17 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, Collection, Literal
 
+import numpy.typing as npt
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.emb.encoding_result import EncodingResult
-from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
+from birdnet.acoustic_models.inference.emb.encoding_result import (
+  DataEncodingResult,
+  FileEncodingResult,
+)
+from birdnet.acoustic_models.inference.scores.prediction_result import (
+  DataPredictionResult,
+  FilePredictionResult,
+)
 from birdnet.acoustic_models.inference_pipeline.configs import (
   EmbeddingsConfig,
   FilteringConfig,
@@ -126,16 +133,22 @@ class EncodingSession(AcousticSessionBase):
       ),
     )
 
-  def run(self, paths: Path | str | Iterable[Path | str]) -> EncodingResult:
-    paths = PredictionConfig.validate_input_files(paths)
+  def run(self, inputs: Path | str | Iterable[Path | str]) -> FileEncodingResult:
+    inputs = PredictionConfig.validate_input_files(inputs)
 
-    if len(paths) > self._conf.processing_conf.max_n_files:
+    if len(inputs) > self._conf.processing_conf.max_n_files:
       raise RuntimeError(
-        f"Number of input files ({len(paths)}) exceeds the maximum "
+        f"Number of input files ({len(inputs)}) exceeds the maximum "
         f"allowed ({self._conf.processing_conf.max_n_files})."
       )
 
-    return super().run(paths)
+    return super()._run(inputs)
+
+  def run_arrays(
+    self, inputs: tuple[npt.NDArray, int] | Iterable[tuple[npt.NDArray, int]]
+  ) -> DataEncodingResult:
+    data = PredictionConfig.validate_input_audio(inputs)
+    return super()._run(data)
 
 
 class ScoreSession(AcousticSessionBase):
@@ -267,13 +280,19 @@ class ScoreSession(AcousticSessionBase):
       ),
     )
 
-  def run(self, paths: Path | str | Iterable[Path | str]) -> PredictionResult:
-    paths = PredictionConfig.validate_input_files(paths)
+  def run(self, inputs: Path | str | Iterable[Path | str]) -> FilePredictionResult:
+    inputs = PredictionConfig.validate_input_files(inputs)
 
-    if len(paths) > self._conf.processing_conf.max_n_files:
+    if len(inputs) > self._conf.processing_conf.max_n_files:
       raise RuntimeError(
-        f"Number of input files ({len(paths)}) exceeds the maximum "
+        f"Number of input files ({len(inputs)}) exceeds the maximum "
         f"allowed ({self._conf.processing_conf.max_n_files})."
       )
 
-    return super().run(paths)
+    return super()._run(inputs)
+
+  def run_arrays(
+    self, inputs: tuple[npt.NDArray, int] | Iterable[tuple[npt.NDArray, int]]
+  ) -> DataPredictionResult:
+    data = PredictionConfig.validate_input_audio(inputs)
+    return super()._run(data)

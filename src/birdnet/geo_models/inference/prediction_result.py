@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Literal, Self
 import numpy as np
 from ordered_set import OrderedSet
 
-from birdnet.base import PredictionResultBase
+from birdnet.base import ResultBase
 
 VAR_SPECIES_NAME = "species_name"
 VAR_CONFIDENCE = "confidence"
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
   import pyarrow as pa
 
 
-class PredictionResult(PredictionResultBase):
+class PredictionResult(ResultBase):
   def __init__(
     self,
     species_masked: np.ndarray,

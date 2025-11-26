@@ -13,19 +13,23 @@ import numpy as np
 import psutil
 import pytest
 
-from birdnet.acoustic_models.inference.scores.prediction_result import PredictionResult
+from birdnet.acoustic_models.inference.scores.prediction_result import (
+  PredictionResultBase,
+)
 from birdnet.backends import litert_installed
 
 
-def assert_prediction_result_is_equal(a: PredictionResult, b: PredictionResult) -> None:
-  assert isinstance(a, PredictionResult)
-  assert isinstance(b, PredictionResult)
+def assert_prediction_result_is_equal(
+  a: PredictionResultBase, b: PredictionResultBase
+) -> None:
+  assert isinstance(a, PredictionResultBase)
+  assert isinstance(b, PredictionResultBase)
 
   np.testing.assert_array_equal(a.segment_duration_s, b.segment_duration_s)
   np.testing.assert_array_equal(a.overlap_duration_s, b.overlap_duration_s)
   np.testing.assert_array_equal(a.files, b.files)
   np.testing.assert_array_equal(a.species_list, b.species_list)
-  np.testing.assert_array_equal(a.file_durations, b.file_durations)
+  np.testing.assert_array_equal(a.input_durations, b.input_durations)
 
   # Sort species probabilities by species IDs before comparison
   sort_idx_a = np.argsort(a.species_ids, axis=-1)
@@ -47,16 +51,16 @@ def assert_prediction_result_is_equal(a: PredictionResult, b: PredictionResult) 
 
 
 def assert_prediction_result_is_close(
-  a: PredictionResult, b: PredictionResult, max_abs_diff: float
+  a: PredictionResultBase, b: PredictionResultBase, max_abs_diff: float
 ) -> None:
-  assert isinstance(a, PredictionResult)
-  assert isinstance(b, PredictionResult)
+  assert isinstance(a, PredictionResultBase)
+  assert isinstance(b, PredictionResultBase)
 
   np.testing.assert_array_equal(a.segment_duration_s, b.segment_duration_s)
   np.testing.assert_array_equal(a.overlap_duration_s, b.overlap_duration_s)
   np.testing.assert_array_equal(a.files, b.files)
   np.testing.assert_array_equal(a.species_list, b.species_list)
-  np.testing.assert_array_equal(a.file_durations, b.file_durations)
+  np.testing.assert_array_equal(a.input_durations, b.input_durations)
 
   # Sort species probabilities by species IDs before comparison
   sort_idx_a = np.argsort(a.species_ids, axis=-1)

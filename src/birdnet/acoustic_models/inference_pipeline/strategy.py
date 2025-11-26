@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Generic
 
-from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.benchmarking import (
   FullBenchmarkMetaBase,
@@ -35,7 +34,7 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
     config: PredictionConfig,
     specific_config: ConfigType,
     resources: PipelineResources,
-    n_files: int,
+    n_inputs: int,
   ) -> TensorType: ...
 
   @abstractmethod
@@ -48,12 +47,20 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
   ) -> list[WorkerBase]: ...
 
   @abstractmethod
-  def create_result(
+  def create_files_result(
     self,
     tensor: TensorType,
     config: PredictionConfig,
     resources: PipelineResources,
-    files: OrderedSet[Path],
+    files: list[Path],
+  ) -> ResultType: ...
+
+  @abstractmethod
+  def create_array_result(
+    self,
+    tensor: TensorType,
+    config: PredictionConfig,
+    resources: PipelineResources,
   ) -> ResultType: ...
 
   @abstractmethod

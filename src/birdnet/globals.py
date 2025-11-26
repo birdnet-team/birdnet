@@ -1,6 +1,9 @@
 from typing import Literal
 
 import numpy as np
+import numpy.typing as npt
+
+NA = "N/A"
 
 LIBRARY_TFLITE = "tflite"  # default: TFLite Interpreter
 LIBRARY_LITERT = "litert"  # LiteRT Interpreter
@@ -128,3 +131,8 @@ READABLE_FLAG = np.uint8(2)
 
 # flag for "busy", i.e., currently being processed
 READING_FLAG = np.uint8(3)
+
+IntArray = npt.NDArray[np.integer]
+FloatArray = npt.NDArray[np.floating]
+
+Float32Array = npt.NDArray[np.float32]
