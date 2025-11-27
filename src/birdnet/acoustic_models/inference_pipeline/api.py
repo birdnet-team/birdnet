@@ -11,6 +11,7 @@ from birdnet.acoustic_models.inference.emb.encoding_result import (
   DataEncodingResult,
   FileEncodingResult,
 )
+from birdnet.acoustic_models.inference.perf_tracker import ProgressStats
 from birdnet.acoustic_models.inference.scores.prediction_result import (
   DataPredictionResult,
   FilePredictionResult,
@@ -57,7 +58,7 @@ class EncodingSession(AcousticSessionBase):
     half_precision: bool,
     max_audio_duration_min: float | None,
     show_stats: None | Literal["minimal", "progress", "benchmark"],
-    progress_callback: Callable[[dict], None] | None,
+    progress_callback: Callable[[ProgressStats], None] | None,
     device: str | list[str],
     max_n_files: int,  # Limit to avoid excessive memory usage
   ) -> None:
@@ -184,7 +185,7 @@ class ScoreSession(AcousticSessionBase):
     half_precision: bool = True,
     max_audio_duration_min: float | None,
     show_stats: Literal["minimal", "progress", "benchmark"] | None,
-    progress_callback: Callable[[dict], None] | None,
+    progress_callback: Callable[[ProgressStats], None] | None,
     device: str | list[str],
     max_n_files: int,
   ) -> None:

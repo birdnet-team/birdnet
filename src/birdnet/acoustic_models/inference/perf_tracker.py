@@ -361,7 +361,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
     # avg_segments_per_s.append(raw_segments_per_s_old)
     assert self._ring_flags is not None
-
+    stats = ProgressStats()
     output_msg_fields = [
       # f"inference speed: {self._summed_raw_pred_duration /
       # self._total_segments_processed * 1000:.0f} ms/segment",
@@ -383,6 +383,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       f"F-FLUSH: {self._prd_4_flush_dur_tracker.avg_val_last * 1000:.2f} ms",
     ]
     if received_at_least_one_prediction:
+      stats.worker_speed_xrt = wkr_speed_xrt
+      stats.worker_speed_seg_per_s = wkr_speed_segments_per_s
       output_msg_fields += [
         f"W-SPEED: {wkr_speed_xrt:.0f} xRT [{wkr_speed_segments_per_s:.0f} seg/s]",
         f"W-WAIT: {self._wkr_1_wait_dur_for_filled_slot_tracker.avg_val * 1000:.2f} ms",
@@ -404,6 +406,9 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       progress = (
         self._wkr_total_segments_processed / self._tot_n_segments_ptr.value * 100
       )
+      stats.progress = progress
+      stats.progress_current = self._wkr_total_segments_processed
+      stats.progress_total = self._tot_n_segments_ptr.value
       output_msg_fields.append(f"PROG: {progress:.1f} %")
 
       est_remaining_time_s = (
@@ -415,6 +420,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       est_remaining_time = str(
         datetime.timedelta(seconds=math.ceil(est_remaining_time_s))
       )
+      stats.est_remaining_time_s = est_remaining_time_s
       output_msg_fields.append(f"ETA: {est_remaining_time}")
     else:
       output_msg_fields.append("PROG: analyzing...")
@@ -423,7 +429,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
     # add to callback queue
     if self._callback_queue is not None:
-      self._callback_queue.put_nowait(output_msg)
+      self._callback_queue.put_nowait(stats)
 
     # self._logger.info(output_msg)
     print(output_msg, file=sys.stdout)
@@ -610,12 +616,22 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._log("Print thread joined.")
 
 
+@dataclass
+class ProgressStats:
+  worker_speed_xrt: float | None = None
+  worker_speed_seg_per_s: float | None = None
+  progress: float | None = None
+  est_remaining_time_s: float | None = None
+  progress_current: int | None = 0
+  progress_total: int | None = None
+
+
 class ProgressDispatcher:
   def __init__(
     self,
     session_id: str,
     callback_queue: Queue,
-    callback_fn: Callable[[dict], None],
+    callback_fn: Callable[[ProgressStats], None],
     cancel_event: Event,
     end_event: Event,
     start_signal: Event,

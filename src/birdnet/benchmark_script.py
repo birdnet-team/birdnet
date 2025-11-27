@@ -8,6 +8,7 @@ import psutil
 
 import birdnet
 import birdnet.model_loader
+from birdnet.acoustic_models.inference.perf_tracker import ProgressStats
 from birdnet.acoustic_models.v2_4.model import AcousticModelV2_4
 from birdnet.argparse_helper import (
   ConvertToSetAction,
@@ -238,5 +239,6 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
   )
 
 
-def my_callback(info: dict) -> None:
-  print("Progress update:", info)
+def my_callback(info: ProgressStats) -> None:
+  pass
+  # print("Progress update:", info)

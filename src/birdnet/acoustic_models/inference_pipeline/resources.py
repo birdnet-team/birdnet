@@ -16,7 +16,7 @@ from typing import Self, cast, final
 
 import numpy as np
 
-from birdnet.acoustic_models.inference.perf_tracker import PerformanceTrackingResult
+from birdnet.acoustic_models.inference.perf_tracker import PerformanceTrackingResult, ProgressStats
 from birdnet.acoustic_models.inference_pipeline.configs import PredictionConfig
 from birdnet.acoustic_models.inference_pipeline.logging import add_session_queue_handler
 from birdnet.backends import BackendLoader
@@ -412,7 +412,7 @@ class StatisticsResources:
   perf_res_start_signal: multiprocessing.synchronize.Event | None
 
   use_callback: bool
-  callback_fn: Callable[[dict], None] | None
+  callback_fn: Callable[[ProgressStats], None] | None
   callback_queue: Queue | None
   callback_start_signal: multiprocessing.synchronize.Event | None
 

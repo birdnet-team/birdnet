@@ -8,6 +8,7 @@ from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.base import AcousticModelBase
 from birdnet.acoustic_models.inference.emb.encoding_result import EncodingResultBase
+from birdnet.acoustic_models.inference.perf_tracker import ProgressStats
 from birdnet.acoustic_models.inference.scores.prediction_result import (
   PredictionResultBase,
 )
@@ -167,7 +168,7 @@ class AcousticModelV2_4(AcousticModelBase):
     half_precision: bool = False,
     max_audio_duration_min: float | None = None,
     show_stats: None | Literal["minimal", "progress", "benchmark"] = None,
-    progress_callback: Callable[[dict], None] | None = None,
+    progress_callback: Callable[[ProgressStats], None] | None = None,
     device: str | list[str] = "CPU",
     max_n_files: int = 65_536,  # Limit to avoid excessive memory usage
   ) -> EncodingSession:
@@ -220,7 +221,7 @@ class AcousticModelV2_4(AcousticModelBase):
     half_precision: bool = False,
     max_audio_duration_min: float | None = None,
     show_stats: Literal["minimal", "progress", "benchmark"] | None = None,
-    progress_callback: Callable[[dict], None] | None = None,
+    progress_callback: Callable[[ProgressStats], None] | None = None,
     device: str | list[str] = "CPU",
     max_n_files: int = 65_536,  # Limit to avoid excessive memory usage
   ) -> ScoreSession:
@@ -273,7 +274,7 @@ class AcousticModelV2_4(AcousticModelBase):
     half_precision: bool = False,
     max_audio_duration_min: float | None = None,
     show_stats: None | Literal["minimal", "progress", "benchmark"] = None,
-    progress_callback: Callable[[dict], None] | None = None,
+    progress_callback: Callable[[ProgressStats], None] | None = None,
     device: str | list[str] = "CPU",
     max_n_files: int = 65_536,  # Limit to avoid excessive memory usage
   ) -> EncodingResultBase:
@@ -321,7 +322,7 @@ class AcousticModelV2_4(AcousticModelBase):
     max_audio_duration_min: float | None = None,
     device: str | list[str] = "CPU",
     show_stats: Literal["minimal", "progress", "benchmark"] | None = None,
-    progress_callback: Callable[[dict], None] | None = None,
+    progress_callback: Callable[[ProgressStats], None] | None = None,
   ) -> PredictionResultBase:
     input_files = PredictionConfig.validate_input_files(inp)
     max_n_files = len(input_files)
