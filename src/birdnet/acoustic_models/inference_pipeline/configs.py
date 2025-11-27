@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import multiprocessing
-from collections.abc import Collection, Iterable
+from collections.abc import Callable, Collection, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, TypeVar
@@ -12,13 +12,9 @@ import psutil
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.tensor import TensorBase
-from birdnet.backends import (
-  VersionedBackendProtocol,
-)
+from birdnet.backends import VersionedBackendProtocol
 from birdnet.base import ResultBase
-from birdnet.globals import (
-  ACOUSTIC_MODEL_VERSIONS,
-)
+from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
 from birdnet.helper import (
   SF_FORMATS,
   get_supported_audio_files_recursive,
@@ -219,6 +215,7 @@ class FilteringConfig:
 @dataclass(frozen=True)
 class OutputConfig:
   show_stats: None | Literal["minimal", "progress", "benchmark"]
+  progress_callback: Callable[[dict], None] | None
 
   @classmethod
   def validate_show_stats(

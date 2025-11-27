@@ -5,6 +5,7 @@ import multiprocessing as mp
 import multiprocessing.synchronize
 import tempfile
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from logging.handlers import QueueHandler
@@ -16,16 +17,11 @@ from typing import Self, cast, final
 import numpy as np
 
 from birdnet.acoustic_models.inference.perf_tracker import PerformanceTrackingResult
-from birdnet.acoustic_models.inference_pipeline.configs import (
-  PredictionConfig,
-)
+from birdnet.acoustic_models.inference_pipeline.configs import PredictionConfig
 from birdnet.acoustic_models.inference_pipeline.logging import add_session_queue_handler
 from birdnet.backends import BackendLoader
 from birdnet.base import get_session_id_hash
-from birdnet.globals import (
-  MODEL_TYPE_ACOUSTIC,
-  PKG_NAME,
-)
+from birdnet.globals import MODEL_TYPE_ACOUSTIC, PKG_NAME
 from birdnet.helper import (
   RingField,
   get_float_dtype,
@@ -415,6 +411,11 @@ class StatisticsResources:
   perf_res_queue: Queue | None
   perf_res_start_signal: multiprocessing.synchronize.Event | None
 
+  use_callback: bool
+  callback_fn: Callable[[dict], None] | None
+  callback_queue: Queue | None
+  callback_start_signal: multiprocessing.synchronize.Event | None
+
   benchmarking: bool
   benchmark_dir: Path | None
   benchmark_session_dir: Path | None
@@ -450,6 +451,7 @@ class StatisticsResources:
 
     track_performance = conf.output_conf.show_stats in ("progress", "benchmark")
     benchmarking = conf.output_conf.show_stats == "benchmark"
+    use_callback = track_performance and conf.output_conf.progress_callback is not None
 
     perf_res_queue = None
     perf_res_start_signal = None
@@ -463,6 +465,15 @@ class StatisticsResources:
       wkr_stats_queue = Queue()
       prd_stats_queue = Queue()
       sem_active_workers = mp.Semaphore(0)
+
+    callback_start_signal = None
+    callback_queue = None
+    callback_fn = None
+
+    if use_callback:
+      callback_start_signal = mp.Event()
+      callback_queue = Queue()
+      callback_fn = conf.output_conf.progress_callback
 
     benchmark_dir = None
     benchmark_session_dir = None
@@ -491,6 +502,10 @@ class StatisticsResources:
       benchmark_session_dir=benchmark_session_dir,
       perf_res_start_signal=perf_res_start_signal,
       benchmark_dir_name=benchmark_dir_name,
+      use_callback=use_callback,
+      callback_queue=callback_queue,
+      callback_start_signal=callback_start_signal,
+      callback_fn=callback_fn,
     )
 
   def reset(self) -> None:

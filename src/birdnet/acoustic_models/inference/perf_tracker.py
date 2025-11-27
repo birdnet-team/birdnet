@@ -8,9 +8,11 @@ import sys
 import threading as th
 import time
 from collections import Counter, deque
+from collections.abc import Callable
 from dataclasses import dataclass
 from multiprocessing import Queue, shared_memory
 from multiprocessing.synchronize import Event, Semaphore
+from queue import Empty
 
 import numpy as np
 import psutil
@@ -110,6 +112,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     session_id: str,
     pred_dur_queue: Queue,
     prod_stats_queue: Queue,
+    callback_queue: Queue | None,
     processing_finished_event: Event,
     update_interval: float,
     print_interval: float,
@@ -144,6 +147,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._prd_stats_queue = prod_stats_queue
     self._perf_res = perf_res
     self._wkr_stats_queue = pred_dur_queue
+    self._callback_queue = callback_queue
 
     self._sem_active_workers = sem_active_workers
     self._update_every = update_interval
@@ -416,6 +420,11 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       output_msg_fields.append("PROG: analyzing...")
 
     output_msg = "; ".join(output_msg_fields)
+
+    # add to callback queue
+    if self._callback_queue is not None:
+      self._callback_queue.put_nowait(output_msg)
+
     # self._logger.info(output_msg)
     print(output_msg, file=sys.stdout)
 
@@ -599,3 +608,85 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._log("Joining print thread...")
     print_thread.join()
     self._log("Print thread joined.")
+
+
+class ProgressDispatcher:
+  def __init__(
+    self,
+    session_id: str,
+    callback_queue: Queue,
+    callback_fn: Callable[[dict], None],
+    cancel_event: Event,
+    end_event: Event,
+    start_signal: Event,
+    processing_finished_event: Event,
+    check_interval: float = 1.0,
+  ) -> None:
+    self._session_id = session_id
+    self._callback_queue = callback_queue
+    self._cancel_event = cancel_event
+    self._end_event = end_event
+    self._start_signal = start_signal
+    self._callback_fn = callback_fn
+    self._processing_finished_event = processing_finished_event
+    self._check_interval = check_interval
+    self._logger = bn_logging.get_logger_from_session(session_id, __name__)
+
+  def _log(self, message: str) -> None:
+    self._logger.debug(f"PROGRESS_DISPATCHER({os.getpid()}) - {message}")
+
+  def _check_cancel_event(self) -> bool:
+    if self._cancel_event.is_set():
+      self._log("Received cancel event.")
+      return True
+    return False
+
+  def _check_end_event(self) -> bool:
+    if self._end_event.is_set():
+      self._log("Received end event.")
+      return True
+    return False
+
+  def __call__(self) -> None:
+    self.run_main_loop()
+
+  def run_main_loop(self) -> None:
+    while True:
+      self._log("Waiting for input files batch...")
+      while not self._start_signal.wait(timeout=self._check_interval):
+        if self._check_cancel_event():
+          # self._uninit_logging()
+          return
+        if self._check_end_event():
+          return
+
+      self._start_signal.clear()
+      self._log("Received start signal. Starting processing.")
+      self.run_main()
+
+  def run_main(self) -> None:
+    latest = None
+
+    while True:
+      finished = self._processing_finished_event.is_set()
+      if finished:
+        self._log("Processing finished event is set. Exiting loop.")
+        return
+
+      while True:
+        try:
+          latest = self._callback_queue.get(block=True, timeout=1.0)
+          break
+        except Empty:
+          # it has started, so ending is not possible, only canceling
+          if self._check_cancel_event():
+            return
+
+          finished = self._processing_finished_event.is_set()
+          if finished:
+            self._log("Processing finished event is set. Exiting loop.")
+            return
+
+      assert latest is not None
+      self._log("Received stats. Call callback function.")
+      self._callback_fn(latest)

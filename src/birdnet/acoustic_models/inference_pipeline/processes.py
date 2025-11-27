@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import threading
+from collections.abc import Callable
 from multiprocessing import Process
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from birdnet.acoustic_models.inference.consumer import Consumer
 from birdnet.acoustic_models.inference.files_analyzer import FilesAnalyzer
 from birdnet.acoustic_models.inference.perf_tracker import (
   PerformanceTracker,
+  ProgressDispatcher,
 )
 from birdnet.acoustic_models.inference.producer import Producer
 from birdnet.acoustic_models.inference.tensor import TensorBase
@@ -21,12 +23,8 @@ from birdnet.acoustic_models.inference_pipeline.configs import (
   ResultType,
   TensorType,
 )
-from birdnet.acoustic_models.inference_pipeline.resources import (
-  PipelineResources,
-)
-from birdnet.acoustic_models.inference_pipeline.strategy import (
-  PredictionStrategy,
-)
+from birdnet.acoustic_models.inference_pipeline.resources import PipelineResources
+from birdnet.acoustic_models.inference_pipeline.strategy import PredictionStrategy
 
 
 class ProcessManager:
@@ -68,6 +66,28 @@ class ProcessManager:
     self._logging_thread = logging_listener
     return logging_listener
 
+  def start_progress_dispatcher(self) -> threading.Thread:
+    assert self._res.stats_resources.callback_queue is not None
+    assert self._res.stats_resources.callback_start_signal is not None
+    assert self._res.stats_resources.callback_fn is not None
+
+    progress_dispatcher = threading.Thread(
+      target=ProgressDispatcher(
+        session_id=self._session_id,
+        callback_fn=self._res.stats_resources.callback_fn,
+        check_interval=0.5,
+        start_signal=self._res.stats_resources.callback_start_signal,
+        end_event=self._res.processing_resources.end_event,
+        callback_queue=self._res.stats_resources.callback_queue,
+        cancel_event=self._res.processing_resources.cancel_event,
+        processing_finished_event=self._res.processing_resources.processing_finished_event,
+      ),
+      name="ProgressDispatcher",
+      daemon=True,
+    )
+    progress_dispatcher.start()
+    return progress_dispatcher
+
   def start_performance_tracker(self) -> Process:
     assert self._res.stats_resources.track_performance
     assert self._res.stats_resources.sem_active_workers is not None
@@ -98,6 +118,7 @@ class ProcessManager:
         sem_active_workers=self._res.stats_resources.sem_active_workers,
         end_event=self._res.processing_resources.end_event,
         start_signal=self._res.stats_resources.perf_res_start_signal,
+        callback_queue=self._res.stats_resources.callback_queue,
       ),
       name="PerformanceTracker",
       daemon=True,
@@ -243,6 +264,11 @@ class ProcessManager:
       assert res.stats_resources.perf_res_start_signal is not None
       res.stats_resources.perf_res_start_signal.set()
 
+    # start progress dispatcher
+    if res.stats_resources.use_callback:
+      assert res.stats_resources.callback_start_signal is not None
+      res.stats_resources.callback_start_signal.set()
+
   def run_consumer(self, result_tensor: TensorBase) -> None:
     consumer = Consumer(
       session_id=self._session_id,
@@ -260,6 +286,9 @@ class ProcessManager:
 
     if self._res.stats_resources.track_performance:
       self.start_performance_tracker()
+
+    if self._res.stats_resources.use_callback:
+      self.start_progress_dispatcher()
 
   def join_main_processes(self) -> None:
     logger = birdnet.acoustic_models.inference_pipeline.logging.get_logger_from_session(

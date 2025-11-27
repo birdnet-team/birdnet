@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Collection, Iterable
 from pathlib import Path
-from typing import Any, Collection, Literal
+from typing import Any, Literal
 
 import numpy.typing as npt
 from ordered_set import OrderedSet
@@ -57,6 +57,7 @@ class EncodingSession(AcousticSessionBase):
     half_precision: bool,
     max_audio_duration_min: float | None,
     show_stats: None | Literal["minimal", "progress", "benchmark"],
+    progress_callback: Callable[[dict], None] | None,
     device: str | list[str],
     max_n_files: int,  # Limit to avoid excessive memory usage
   ) -> None:
@@ -125,6 +126,7 @@ class EncodingSession(AcousticSessionBase):
         ),
         output_conf=OutputConfig(
           show_stats=show_stats,
+          progress_callback=progress_callback,
         ),
       ),
       strategy=EmbeddingsStrategy(),
@@ -182,6 +184,7 @@ class ScoreSession(AcousticSessionBase):
     half_precision: bool = True,
     max_audio_duration_min: float | None,
     show_stats: Literal["minimal", "progress", "benchmark"] | None,
+    progress_callback: Callable[[dict], None] | None,
     device: str | list[str],
     max_n_files: int,
   ) -> None:
@@ -217,6 +220,12 @@ class ScoreSession(AcousticSessionBase):
 
     if show_stats is not None:
       show_stats = OutputConfig.validate_show_stats(show_stats)
+
+    if progress_callback is not None and show_stats not in ("progress", "benchmark"):
+      raise ValueError(
+        "Progress callback can only be used when 'show_stats' is set to "
+        "'progress' or 'benchmark'."
+      )
 
     if custom_confidence_thresholds is not None:
       custom_confidence_thresholds = ScoresConfig.validate_custom_confidence_thresholds(
@@ -267,6 +276,7 @@ class ScoreSession(AcousticSessionBase):
         ),
         output_conf=OutputConfig(
           show_stats=show_stats,
+          progress_callback=progress_callback,
         ),
       ),
       strategy=ScoresStrategy(),

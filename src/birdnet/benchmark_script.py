@@ -232,6 +232,11 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
     show_stats=ns.show_stats,
     device=ns.devices if len(ns.devices) > 1 else ns.devices[0],
     prefetch_ratio=ns.prefetch_ratio,
+    progress_callback=my_callback,
     bandpass_fmin=AcousticModelV2_4.get_sig_fmin(),
     bandpass_fmax=AcousticModelV2_4.get_sig_fmax(),
   )
+
+
+def my_callback(info: dict) -> None:
+  print("Progress update:", info)

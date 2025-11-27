@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 from abc import ABC
+from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -22,9 +23,7 @@ from birdnet.acoustic_models.inference_pipeline.resources import (
   PipelineResources,
   ResourceManager,
 )
-from birdnet.acoustic_models.inference_pipeline.strategy import (
-  PredictionStrategy,
-)
+from birdnet.acoustic_models.inference_pipeline.strategy import PredictionStrategy
 from birdnet.base import SessionBase, get_session_id_hash
 from birdnet.globals import WRITABLE_FLAG
 from birdnet.helper import create_shm_ring

@@ -1,30 +1,20 @@
 from __future__ import annotations
 
-from collections.abc import Collection, Iterable
+from collections.abc import Callable, Collection, Iterable
 from pathlib import Path
 from typing import Any, Literal, final
 
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.base import (
-  AcousticModelBase,
-)
+from birdnet.acoustic_models.base import AcousticModelBase
 from birdnet.acoustic_models.inference.emb.encoding_result import EncodingResultBase
 from birdnet.acoustic_models.inference.scores.prediction_result import (
   PredictionResultBase,
 )
 from birdnet.acoustic_models.inference_pipeline.api import EncodingSession, ScoreSession
-from birdnet.acoustic_models.inference_pipeline.configs import (
-  PredictionConfig,
-)
-from birdnet.backends import (
-  BackendLoader,
-  VersionedAcousticBackendProtocol,
-)
-from birdnet.globals import (
-  ACOUSTIC_MODEL_VERSION_V2_4,
-  ACOUSTIC_MODEL_VERSIONS,
-)
+from birdnet.acoustic_models.inference_pipeline.configs import PredictionConfig
+from birdnet.backends import BackendLoader, VersionedAcousticBackendProtocol
+from birdnet.globals import ACOUSTIC_MODEL_VERSION_V2_4, ACOUSTIC_MODEL_VERSIONS
 from birdnet.helper import validate_species_list
 
 
@@ -177,6 +167,7 @@ class AcousticModelV2_4(AcousticModelBase):
     half_precision: bool = False,
     max_audio_duration_min: float | None = None,
     show_stats: None | Literal["minimal", "progress", "benchmark"] = None,
+    progress_callback: Callable[[dict], None] | None = None,
     device: str | list[str] = "CPU",
     max_n_files: int = 65_536,  # Limit to avoid excessive memory usage
   ) -> EncodingSession:
@@ -203,6 +194,7 @@ class AcousticModelV2_4(AcousticModelBase):
       half_precision=half_precision,
       max_audio_duration_min=max_audio_duration_min,
       show_stats=show_stats,
+      progress_callback=progress_callback,
       device=device,
       max_n_files=max_n_files,
     )
@@ -228,6 +220,7 @@ class AcousticModelV2_4(AcousticModelBase):
     half_precision: bool = False,
     max_audio_duration_min: float | None = None,
     show_stats: Literal["minimal", "progress", "benchmark"] | None = None,
+    progress_callback: Callable[[dict], None] | None = None,
     device: str | list[str] = "CPU",
     max_n_files: int = 65_536,  # Limit to avoid excessive memory usage
   ) -> ScoreSession:
@@ -259,6 +252,7 @@ class AcousticModelV2_4(AcousticModelBase):
       half_precision=half_precision,
       max_audio_duration_min=max_audio_duration_min,
       show_stats=show_stats,
+      progress_callback=progress_callback,
       device=device,
       max_n_files=max_n_files,
     )
@@ -279,6 +273,7 @@ class AcousticModelV2_4(AcousticModelBase):
     half_precision: bool = False,
     max_audio_duration_min: float | None = None,
     show_stats: None | Literal["minimal", "progress", "benchmark"] = None,
+    progress_callback: Callable[[dict], None] | None = None,
     device: str | list[str] = "CPU",
     max_n_files: int = 65_536,  # Limit to avoid excessive memory usage
   ) -> EncodingResultBase:
@@ -299,6 +294,7 @@ class AcousticModelV2_4(AcousticModelBase):
       show_stats=show_stats,
       max_n_files=max_n_files,
       device=device,
+      progress_callback=progress_callback,
     ) as session:
       return session.run(input_files)
 
@@ -325,6 +321,7 @@ class AcousticModelV2_4(AcousticModelBase):
     max_audio_duration_min: float | None = None,
     device: str | list[str] = "CPU",
     show_stats: Literal["minimal", "progress", "benchmark"] | None = None,
+    progress_callback: Callable[[dict], None] | None = None,
   ) -> PredictionResultBase:
     input_files = PredictionConfig.validate_input_files(inp)
     max_n_files = len(input_files)
@@ -347,6 +344,7 @@ class AcousticModelV2_4(AcousticModelBase):
       half_precision=half_precision,
       max_audio_duration_min=max_audio_duration_min,
       show_stats=show_stats,
+      progress_callback=progress_callback,
       max_n_files=max_n_files,
       device=device,
     ) as session:
