@@ -63,7 +63,7 @@ class ScoresConfig:
 class RunConfig:
   latitude: float
   longitude: float
-  week: int | None
+  week: int
 
   @classmethod
   def validate_latitude(cls, latitude: Any) -> float:  # noqa: ANN401
