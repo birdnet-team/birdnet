@@ -107,7 +107,7 @@ predictions.to_csv("example/scores.csv")
 
 The resulting predictions look like this (excerpt, scores may vary):
 
-|file|start_time|end_time|species_name|confidence|
+|input|start_time|end_time|species_name|confidence|
 |---|---|---|---|---|
 |/home/.../example/soundscape.wav|00:00:00.00|00:00:03.00|Poecile atricapillus_Black-capped Chickadee|0.814|
 |/home/.../example/soundscape.wav|00:00:03.00|00:00:06.00|Poecile atricapillus_Black-capped Chickadee|0.3084|
