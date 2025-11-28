@@ -18,14 +18,14 @@ from birdnet_tests.test_files import (
 )
 
 
-def test_pb_cpu_fp32() -> None:
+def test_cpu() -> None:
   model = load_perch(cpu=True)
   with model.predict_session(n_workers=1, top_k=None, device="CPU") as session:
     res = session.run(TEST_FILE_SHORT)
   assert res.species_probs.shape == (1, 2, 14795)
 
 
-def test_pb_cpu_fp32_speed_factor() -> None:
+def test_cpu_speed_factor() -> None:
   model = load_perch(cpu=True)
   with model.predict_session(
     n_workers=1, top_k=None, device="CPU", speed=0.5
@@ -35,7 +35,7 @@ def test_pb_cpu_fp32_speed_factor() -> None:
 
 
 @pytest.mark.gpu
-def test_pb_gpu_fp32() -> None:
+def test_gpu() -> None:
   ensure_gpu_or_skip()
 
   model = load_perch(cpu=False)

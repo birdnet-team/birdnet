@@ -7,15 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added support for Perch model v2
+
 ## [0.2.8] - 2025-11-26
 
-## Added
+### Added
 
 - Added option to predict and encode raw audio numpy arrays
 
 ## [0.2.7] - 2025-11-25
 
-## Added
+### Added
 
 - Added parameter `speed` to control playback speed of audio during inference
 
