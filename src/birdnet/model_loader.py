@@ -53,7 +53,6 @@ from birdnet.globals import (
   MODEL_BACKEND_PB,
   MODEL_BACKEND_TF,
   MODEL_BACKENDS,
-  MODEL_FAMILIES,
   MODEL_LANGUAGE_EN_US,
   MODEL_LANGUAGES,
   MODEL_PRECISION_FP16,
@@ -67,21 +66,11 @@ from birdnet.globals import (
   VALID_GEO_MODEL_VERSIONS,
   VALID_LIBRARY_TYPES,
   VALID_MODEL_BACKENDS,
-  VALID_MODEL_FAMILIES,
   VALID_MODEL_LANGUAGES,
   VALID_MODEL_PRECISIONS,
   VALID_MODEL_TYPES,
 )
 from birdnet.helper import check_protobuf_model_files_exist
-
-
-def _validate_model_family(model_family: Any) -> MODEL_FAMILIES:  # noqa: ANN401
-  if model_family not in VALID_MODEL_FAMILIES:
-    raise ValueError(
-      f"Unknown model family: {model_family}. "
-      f"Supported types are: {', '.join(VALID_MODEL_FAMILIES)}."
-    )
-  return cast(MODEL_FAMILIES, model_family)
 
 
 def _validate_model_type(model_type: Any) -> MODEL_TYPES:  # noqa: ANN401
@@ -218,8 +207,8 @@ def _validate_kwargs_allowed(
   return model_kwargs
 
 
-def load_perch(cuda: bool) -> AcousticModelPerchV2:
-  model_path, species_list = AcousticPBDownloaderPerchV2.get_model_path_and_labels(cuda)
+def load_perch(cpu: bool = True) -> AcousticModelPerchV2:
+  model_path, species_list = AcousticPBDownloaderPerchV2.get_model_path_and_labels(cpu)
 
   backend_type: type[VersionedAcousticBackendProtocol]
   backend_type = AcousticPBBackendFP32PerchV2

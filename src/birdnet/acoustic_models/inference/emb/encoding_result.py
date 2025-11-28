@@ -37,7 +37,7 @@ class EncodingResultBase(ResultBase):
 
     self._embeddings = tensor._emb
     self._embeddings_masked = tensor._emb_masked
-    self._file_durations = input_durations
+    self._input_durations = input_durations
 
   @property
   def memory_size_mb(self) -> float:
@@ -48,7 +48,7 @@ class EncodingResultBase(ResultBase):
       + self._segment_duration_s.nbytes
       + self._overlap_duration_s.nbytes
       + self._speed.nbytes
-      + self._file_durations.nbytes
+      + self._input_durations.nbytes
     ) / 1024**2
 
   @property
@@ -64,8 +64,8 @@ class EncodingResultBase(ResultBase):
     return float(self._speed[0])
 
   @property
-  def file_durations(self) -> np.ndarray:
-    return self._file_durations
+  def input_durations(self) -> np.ndarray:
+    return self._input_durations
 
   @property
   def embeddings(self) -> np.ndarray:
@@ -106,7 +106,7 @@ class EncodingResultBase(ResultBase):
       segment_duration_s=self._segment_duration_s,
       overlap_duration_s=self._overlap_duration_s,
       speed=self._speed,
-      file_durations=self._file_durations,
+      input_durations=self._input_durations,
     )
 
   @classmethod
@@ -121,7 +121,7 @@ class EncodingResultBase(ResultBase):
     result._segment_duration_s = data["segment_duration_s"]
     result._overlap_duration_s = data["overlap_duration_s"]
     result._speed = data["speed"]
-    result._file_durations = data["file_durations"]
+    result._input_durations = data["input_durations"]
     return result
 
 

@@ -15,7 +15,7 @@ from birdnet.acoustic_models.inference.scores.prediction_result import (
 from birdnet.acoustic_models.inference_pipeline.api import EncodingSession, ScoreSession
 from birdnet.acoustic_models.inference_pipeline.configs import PredictionConfig
 from birdnet.backends import BackendLoader, VersionedAcousticBackendProtocol
-from birdnet.globals import ACOUSTIC_MODEL_VERSION_V2_4, ACOUSTIC_MODEL_VERSIONS
+from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
 from birdnet.helper import validate_species_list
 
 
@@ -179,8 +179,8 @@ class AcousticModelPerchV2(AcousticModelBase):
     speed: float = 1.0,
     bandpass_fmin: int = 0,
     bandpass_fmax: int = 15_000,
-    apply_sigmoid: bool = True,
-    sigmoid_sensitivity: float | None = 1.0,
+    apply_sigmoid: bool = False,
+    sigmoid_sensitivity: float | None = None,
     default_confidence_threshold: float | None = 0.1,
     custom_confidence_thresholds: dict[str, float] | None = None,
     custom_species_list: str | Path | Collection[str] | None = None,
@@ -279,8 +279,8 @@ class AcousticModelPerchV2(AcousticModelBase):
     bandpass_fmin: int = 0,
     bandpass_fmax: int = 15_000,
     speed: float = 1.0,
-    apply_sigmoid: bool = True,
-    sigmoid_sensitivity: float | None = 1.0,
+    apply_sigmoid: bool = False,
+    sigmoid_sensitivity: float | None = None,
     default_confidence_threshold: float | None = 0.1,
     custom_confidence_thresholds: dict[str, float] | None = None,
     custom_species_list: str | Path | Collection[str] | None = None,

@@ -74,8 +74,8 @@ def assert_encoding_results_are_close(
   # )
 
   numpy.testing.assert_equal(
-    result.file_durations,
-    ref_result.file_durations,
+    result.input_durations,
+    ref_result.input_durations,
     err_msg=f"File durations do not match for test case '{case_nr}'",
   )
 

@@ -13,10 +13,25 @@ import numpy as np
 import psutil
 import pytest
 
+from birdnet.acoustic_models.inference.emb.encoding_result import EncodingResultBase
 from birdnet.acoustic_models.inference.scores.prediction_result import (
   PredictionResultBase,
 )
 from birdnet.backends import litert_installed
+
+
+def assert_encoding_result_is_equal(
+  a: EncodingResultBase, b: EncodingResultBase
+) -> None:
+  assert isinstance(a, EncodingResultBase)
+  assert isinstance(b, EncodingResultBase)
+
+  np.testing.assert_array_equal(a.segment_duration_s, b.segment_duration_s)
+  np.testing.assert_array_equal(a.overlap_duration_s, b.overlap_duration_s)
+  np.testing.assert_array_equal(a.inputs, b.inputs)
+  np.testing.assert_array_equal(a.input_durations, b.input_durations)
+  np.testing.assert_array_equal(a.embeddings, b.embeddings)
+  np.testing.assert_array_equal(a.embeddings_masked, b.embeddings_masked)
 
 
 def assert_prediction_result_is_equal(
@@ -48,6 +63,28 @@ def assert_prediction_result_is_equal(
   sorted_masks_a = np.take_along_axis(a.species_masked, sort_idx_a, axis=-1)
   sorted_masks_b = np.take_along_axis(b.species_masked, sort_idx_b, axis=-1)
   np.testing.assert_array_equal(sorted_masks_a, sorted_masks_b)
+
+
+def assert_encoding_result_is_close(
+  a: EncodingResultBase, b: EncodingResultBase, max_abs_diff: float
+) -> None:
+  assert isinstance(a, EncodingResultBase)
+  assert isinstance(b, EncodingResultBase)
+
+  np.testing.assert_array_equal(a.segment_duration_s, b.segment_duration_s)
+  np.testing.assert_array_equal(a.overlap_duration_s, b.overlap_duration_s)
+  np.testing.assert_array_equal(a.inputs, b.inputs)
+  np.testing.assert_array_equal(a.input_durations, b.input_durations)
+
+  np.testing.assert_array_equal(a.embeddings.shape, b.embeddings.shape)
+  max_abs = get_max_absolute_tolerance(
+    a.embeddings,
+    b.embeddings,
+  )
+
+  assert max_abs <= max_abs_diff, (
+    f"Max absolute difference {max_abs} exceeds threshold {max_abs_diff}"
+  )
 
 
 def assert_prediction_result_is_close(

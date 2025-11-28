@@ -1,28 +1,19 @@
 from __future__ import annotations
 
-import shutil
-import tempfile
-import zipfile
 from pathlib import Path
-from typing import Literal
 
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.v2_4.model import (
-  AcousticDownloaderBaseV2_4,
-)
 from birdnet.backends import (
   PBBackend,
   VersionedAcousticBackendProtocol,
 )
 from birdnet.globals import (
-  MODEL_BACKEND_PB,
   MODEL_PRECISION_FP32,
   MODEL_PRECISIONS,
 )
 from birdnet.helper import check_protobuf_model_files_exist
-from birdnet.local_data import get_lang_dir, get_model_path
-from birdnet.utils import download_file_tqdm, get_species_from_file
+from birdnet.utils import get_species_from_file
 
 
 class AcousticPBDownloaderPerchV2:
@@ -31,17 +22,17 @@ class AcousticPBDownloaderPerchV2:
   LABELS_HEADER = "inat2024_fsd50k"
 
   @classmethod
-  def _get_paths(cls, cuda: bool) -> tuple[Path, Path]:
+  def _get_paths(cls, cpu: bool) -> tuple[Path, Path]:
     import kagglehub
 
-    model_handle = cls.MODEL_HANDLE_CUDA if cuda else cls.MODEL_HANDLE_CPU
+    model_handle = cls.MODEL_HANDLE_CPU if cpu else cls.MODEL_HANDLE_CUDA
     model_path = Path(kagglehub.model_download(model_handle))
     labels_path = model_path / "assets" / "labels.csv"
     return model_path, labels_path
 
   @classmethod
-  def _check_acoustic_model_available(cls, cuda: bool) -> bool:
-    model_path, model_path = cls._get_paths(cuda)
+  def _check_acoustic_model_available(cls, cpu: bool) -> bool:
+    model_path, model_path = cls._get_paths(cpu)
 
     model_is_downloaded = True
     model_is_downloaded &= model_path.is_dir()
@@ -51,10 +42,10 @@ class AcousticPBDownloaderPerchV2:
     return model_is_downloaded
 
   @classmethod
-  def get_model_path_and_labels(cls, cuda: bool) -> tuple[Path, OrderedSet[str]]:
-    cls._check_acoustic_model_available(cuda)
+  def get_model_path_and_labels(cls, cpu: bool) -> tuple[Path, OrderedSet[str]]:
+    cls._check_acoustic_model_available(cpu)
 
-    model_dir, labels_path = cls._get_paths(cuda)
+    model_dir, labels_path = cls._get_paths(cpu)
     labels = get_species_from_file(labels_path, encoding="utf8")
     labels.remove(cls.LABELS_HEADER)
     assert len(labels) == 14795

@@ -66,35 +66,38 @@ VALID_MODEL_PRECISIONS = [
   MODEL_PRECISION_FP32,
 ]
 MODEL_LANGUAGE_EN_US = "en_us"
-MODEL_LANGUAGES = Literal[
-  "af",
-  "ar",
-  "cs",
-  "da",
-  "de",
-  "en_uk",
-  "en_us",
-  "es",
-  "fi",
-  "fr",
-  "hu",
-  "it",
-  "ja",
-  "ko",
-  "nl",
-  "no",
-  "pl",
-  "pt",
-  "ro",
-  "ru",
-  "sk",
-  "sl",
-  "sv",
-  "th",
-  "tr",
-  "uk",
-  "zh",
-]
+MODEL_LANGUAGES = (
+  Literal[
+    "af",
+    "ar",
+    "cs",
+    "da",
+    "de",
+    "en_uk",
+    "en_us",
+    "es",
+    "fi",
+    "fr",
+    "hu",
+    "it",
+    "ja",
+    "ko",
+    "nl",
+    "no",
+    "pl",
+    "pt",
+    "ro",
+    "ru",
+    "sk",
+    "sl",
+    "sv",
+    "th",
+    "tr",
+    "uk",
+    "zh",
+  ]
+  | Literal["latin"]
+)
 VALID_MODEL_LANGUAGES = [
   "af",
   "ar",
@@ -123,7 +126,7 @@ VALID_MODEL_LANGUAGES = [
   "tr",
   "uk",
   "zh",
-]
+] + ["latin"]
 
 PKG_NAME = "birdnet"
 

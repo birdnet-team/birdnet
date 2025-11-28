@@ -15,7 +15,7 @@ from birdnet.globals import (
   MODEL_PRECISIONS,
 )
 
-def load_perch(cuda: bool) -> AcousticModelPerchV2: ...
+def load_perch(cpu: bool) -> AcousticModelPerchV2: ...
 @overload
 def load(
   model_type: Literal["acoustic"],
