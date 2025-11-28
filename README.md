@@ -9,7 +9,8 @@ A Python library for identifying bird species by their sounds.
 
 The library is geared towards providing a robust workflow for ecological data analysis in bioacoustic projects. While it covers essential functionalities, it doesn’t include all the features found in BirdNET-Analyzer, which is available [here](https://github.com/birdnet-team/BirdNET-Analyzer). Some features might only be available in the BirdNET Analyzer and not in this package.
 
-**Please note** that the project is under active development, so you might encounter changes that could affect your current workflow. We recommend checking for updates regularly.
+> [!NOTE]
+> This project is under active development, so you might encounter changes that could affect your current workflow. We recommend checking for updates regularly.
 
 The package is also available as an R package at: [birdnetR](https://github.com/birdnet-team/birdnetR).
 
