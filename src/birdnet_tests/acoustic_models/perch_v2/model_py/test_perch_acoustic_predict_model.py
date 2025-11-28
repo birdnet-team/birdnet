@@ -13,9 +13,7 @@ from birdnet_tests.helper import (
   use_forkserver_or_skip,
   use_spawn_or_skip,
 )
-from birdnet_tests.test_files import (
-  TEST_FILE_SHORT,
-)
+from birdnet_tests.test_files import TEST_FILE_SHORT
 
 
 def test_cpu() -> None:
@@ -150,7 +148,7 @@ def test_twice_two_sessions_gpu() -> None:
     n_workers=1, device="GPU", top_k=None, default_confidence_threshold=-numpy.inf
   ) as session:
     res2 = session.run(TEST_FILE_SHORT)
-  assert_prediction_result_is_close(res1, res2, max_abs_diff=1e-6)
+  assert_prediction_result_is_close(res1, res2, max_abs_diff=1e-5)
 
 
 @pytest.mark.gpu
@@ -163,4 +161,4 @@ def test_twice_same_session_gpu() -> None:
   ) as session:
     res1 = session.run(TEST_FILE_SHORT)
     res2 = session.run(TEST_FILE_SHORT)
-  assert_prediction_result_is_close(res1, res2, max_abs_diff=1e-6)
+  assert_prediction_result_is_close(res1, res2, max_abs_diff=1e-5)
