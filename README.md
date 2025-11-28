@@ -159,7 +159,6 @@ The audio models support all formats compatible with the SoundFile library (see 
 - Supported: AIFC, AIFF, AU, AVR, CAF, FLAC, HTK, IRCAM, MAT4, MAT5, MP3, MPC2K, NIST, OGG, OPUS, PAF, PVF, RAW, RF64, SD2, SDS, SVX, VOC, W64, WAV, WAVEX, WVE, XI
 - Not supportet at the moment: AAC, M4A, WMA
 
-
 ## Model formats and execution details
 
 This project provides two model formats: Protobuf/Raven and TFLite. Both models are designed to have identical precision up to 2 decimal places, with differences only appearing from the third decimal place onward.
