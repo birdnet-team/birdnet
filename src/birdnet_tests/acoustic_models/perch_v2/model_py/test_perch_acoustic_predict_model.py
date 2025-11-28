@@ -13,7 +13,7 @@ from birdnet_tests.helper import (
   use_forkserver_or_skip,
   use_spawn_or_skip,
 )
-from birdnet_tests.test_files import TEST_FILE_SHORT
+from birdnet_tests.test_files import TEST_FILE_LONG, TEST_FILE_SHORT
 
 
 def test_cpu() -> None:
@@ -40,6 +40,24 @@ def test_gpu() -> None:
   with model.predict_session(n_workers=1, top_k=None, device="GPU") as session:
     res = session.run(TEST_FILE_SHORT)
   assert res.species_probs.shape == (1, 2, 14795)
+
+
+@pytest.mark.gpu
+def xtest_gpu_too_large_batch_size_raises_error() -> None:
+  ensure_gpu_or_skip()
+
+  import soundfile as sf
+
+  sf_data, sr = sf.read(TEST_FILE_LONG, dtype="float32")
+  data_6h = numpy.tile(sf_data, 30 * 6)
+
+  model = load_perch_v2("GPU")
+
+  with pytest.raises(RuntimeError):
+    with model.predict_session(
+      n_workers=1, top_k=None, device="GPU", batch_size=2000
+    ) as session:
+      session.run_arrays((data_6h, sr))
 
 
 def run_session_process(
