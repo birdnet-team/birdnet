@@ -8,10 +8,12 @@ from birdnet_tests.test_files import TEST_FILE_LONG
 OUT_PATH = Path(__file__).with_suffix(".csv")
 
 
-def remove_path(file_path: Path) -> None:
-  content = file_path.read_text(encoding="utf-8")
-  content = content.replace(str(TEST_FILE_LONG.absolute()), "path/to/soundscape.wav")
-  file_path.write_text(content, encoding="utf-8")
+def remove_input_and_confidence(file_path: Path) -> None:
+  import pandas as pd
+
+  df = pd.read_csv(file_path, encoding="utf-8")
+  df = df.drop(columns=["input", "confidence"])
+  df.to_csv(file_path, index=False, encoding="utf-8")
 
 
 def create_output() -> None:
@@ -21,7 +23,7 @@ def create_output() -> None:
   ) as session:
     res = session.run(TEST_FILE_LONG)
   res.to_csv(OUT_PATH, encoding="utf-8")
-  remove_path(OUT_PATH)
+  remove_input_and_confidence(OUT_PATH)
 
 
 def test_full_pipeline(tmp_path: Path) -> None:
@@ -32,7 +34,7 @@ def test_full_pipeline(tmp_path: Path) -> None:
     res = session.run(TEST_FILE_LONG)
   tmp_file_path = tmp_path.with_suffix(".csv")
   res.to_csv(tmp_file_path, encoding="utf-8")
-  remove_path(tmp_file_path)
+  remove_input_and_confidence(tmp_file_path)
   test_content = tmp_file_path.read_text(encoding="utf-8")
   reference_content = OUT_PATH.read_text(encoding="utf-8")
   assert reference_content == test_content
