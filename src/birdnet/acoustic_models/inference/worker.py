@@ -19,7 +19,7 @@ from birdnet.globals import (
   WRITABLE_FLAG,
   WRITING_FLAG,
 )
-from birdnet.helper import RingField
+from birdnet.shm import RingField
 
 
 class WorkerBase(bn_logging.LogableProcessBase):
@@ -108,21 +108,21 @@ class WorkerBase(bn_logging.LogableProcessBase):
       self._load_ring_buffers()
 
   def _load_model(self) -> None:
-    self._log_debug("Loading model...")
+    self._log("Loading model...")
     try:
       self._backend = self._backend_loader.load_backend(
         self._device_name, half_precision=self._half_precision
       )
     except ValueError as e:
-      self._log_debug(f"Failed to load model: {e}")
+      self._log(f"Failed to load model: {e}")
       raise e
-    self._log_debug("Model loaded.")
+    self._log("Model loaded.")
 
   @abstractmethod
   def _infer(self, batch: np.ndarray) -> np.ndarray: ...
 
   def _load_ring_buffers(self) -> None:
-    self._log_debug("Attaching ring buffers...")
+    self._log("Attaching ring buffers...")
     # attach to existing shared memory buffers
     # NOTE: these handlers must be created that GC does not
     # delete the shared memory access
@@ -139,7 +139,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
       self._rf_batch_sizes.attach_and_get_array()
     )
     self._shm_ring_flags, self._ring_flags = self._rf_flags.attach_and_get_array()
-    self._log_debug("Attached ring buffers.")
+    self._log("Attached ring buffers.")
 
   def _uninit(self) -> None:
     self._uninit_logging()
@@ -148,18 +148,18 @@ class WorkerBase(bn_logging.LogableProcessBase):
   def _pid(self) -> int:
     return os.getpid()
 
-  def _log_debug(self, msg: str) -> None:
-    self._logger.debug(f"WORKER({self._pid}) - {msg}")
+  def _log(self, msg: str) -> None:
+    self._logger.debug(f"W_{self._pid}: {msg}")
 
   def _check_cancel_event(self) -> bool:
     if self._cancel_event.is_set():
-      self._log_debug(f"WORKER({os.getpid()}) - Received cancel event.")
+      self._log("Received cancel event.")
       return True
     return False
 
   def _check_end_event(self) -> bool:
     if self._end_event.is_set():
-      self._logger.debug(f"WORKER({os.getpid()}) - Received end event.")
+      self._log("Received end event.")
       return True
     return False
 
@@ -176,26 +176,30 @@ class WorkerBase(bn_logging.LogableProcessBase):
 
     if self._lazy_init:
       self._init_logging()
-      self._load_ring_buffers()
 
     try:
+      if self._lazy_init:
+        self._load_ring_buffers()
+
       self._load_model()
-    except ValueError:
+
+      duration_init = time.perf_counter() - start
+      self._log(f"Initialized in {duration_init:.4f} seconds.")
+
+      self.run_main_loop()
+
+      self._log("Finished.")
+    except Exception as e:
+      self._logger.exception(
+        "Worker encountered an exception.", exc_info=e, stack_info=True
+      )
       self._cancel_event.set()
-      self._uninit_logging()
-      return
 
-    duration_init = time.perf_counter() - start
-    self._log_debug(f"WORKER{self._pid} initialized in {duration_init:.4f} seconds.")
-
-    self.run_main_loop()
-
-    self._log_debug("Finished.")
     self._uninit_logging()
 
   def run_main_loop(self) -> None:
     while True:
-      self._logger.info(f"WORKER({self._pid}) waiting for start signal...")
+      self._log("Waiting for start signal...")
       while not self._start_signal.wait(timeout=1.0):
         if self._check_cancel_event():
           # self._uninit_logging()
@@ -204,9 +208,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
           return
 
       self._start_signal.clear()
-      self._logger.debug(
-        f"WORKER({self._pid}) - Received start signal. Starting processing."
-      )
+      self._log("Received start signal. Starting processing.")
 
       self.run_main()
 
@@ -227,12 +229,12 @@ class WorkerBase(bn_logging.LogableProcessBase):
           return
 
         if self._all_producers_finished.is_set():
-          self._log_debug("Producer is done. Exiting worker.")
+          self._log("Producer is done. Exiting worker.")
           self._out_q.put(None)
           return
       dur_wait_for_filled_slot = time.perf_counter() - perf_c
 
-      self._log_debug(
+      self._log(
         f"Acquired FILL; Free slots remaining: {self._sem_free}; "
         f"Filled slots: {self._sem_filled}"
       )
@@ -265,7 +267,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
 
       if claimed_slot is None:
         if self._all_producers_finished.is_set():
-          self._log_debug("Producer is done. Exiting worker.")
+          self._log("Producer is done. Exiting worker.")
           self._out_q.put(None)
           break
         # if n_done >= 1:
@@ -281,7 +283,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
 
       assert claimed_flag == READABLE_FLAG
 
-      self._log_debug(
+      self._log(
         f"Acquired READ_FLAG for slot {claimed_slot}. "
         f"Searched {dur_search_for_filled_slot:.4f} seconds for batch."
       )
@@ -297,7 +299,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
         claimed_slot, :n
       ].copy()  # copy needed
       dur_get_job = time.perf_counter() - perf_c
-      self._log_debug(
+      self._log(
         f"Received job for slot {claimed_slot} with {n} segments: {segment_indices}"
       )
 
@@ -305,19 +307,16 @@ class WorkerBase(bn_logging.LogableProcessBase):
       try:
         raw_infer_result = self._infer(audio_samples)
       except Exception as e:
-        self._log_debug(f"Error during inference: {e}")
+        self._log(f"Error during inference: {e}")
         self._cancel_event.set()
-        self._log_debug(
-          f"Exiting worker {self._pid} due to error during inference2. "
-          f"Set cancel event."
-        )
+        self._log("Exiting due to error during inference. Set cancel event.")
         return
       dur_inference = time.perf_counter() - perf_c
 
       self._ring_flags[claimed_slot] = WRITABLE_FLAG
       self._sem_free.release()
 
-      self._log_debug(
+      self._log(
         f"Released FREE. Free slots remaining: {self._sem_free}; "
         f"Filled slots: {self._sem_filled}"
       )
@@ -339,7 +338,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
       dur_add_to_queue = time.perf_counter() - perf_c
 
       self._prediction_count += n
-      self._log_debug(
+      self._log(
         f"Prediction made ({dur_inference:.4} s). "
         f"Total predictions: {self._prediction_count}. Chunks: {segment_indices}"
         f"Duration half precision: {dur_half_precision:.4f} s. "

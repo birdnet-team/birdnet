@@ -29,13 +29,13 @@ from birdnet.globals import (
 )
 from birdnet.helper import (
   SF_FORMATS,
-  RingField,
   apply_speed_to_samples,
   assert_queue_is_empty,
   duration_as_samples,
   get_n_segments_speed,
   max_value_for_uint_dtype,
 )
+from birdnet.shm import RingField
 from birdnet.utils import (
   bandpass_signal,
   fillup_with_silence,
@@ -225,15 +225,6 @@ class Producer(bn_logging.LogableProcessBase):
       self._rf_batch_sizes.attach_and_get_array()
     )
     self._shm_ring_flags, self._ring_flags = self._rf_flags.attach_and_get_array()
-
-  def _init(self) -> None:
-    self._init_logging()
-    self._load_ring_buffers()
-    self._logger.debug(f"PRODUCER({os.getpid()}) - Initialized.")
-
-  def _uninit(self) -> None:
-    self._logger.debug(f"PRODUCER({os.getpid()}) - Uninitializing...")
-    self._uninit_logging()
 
   def get_segments_from_input(
     self, inp_data: Path | tuple[np.ndarray, int]
@@ -431,8 +422,8 @@ class Producer(bn_logging.LogableProcessBase):
       self._ring_flags[claimed_slot] = READABLE_FLAG
       self._sem_filled_slots.release()
 
-      self._logger.debug(
-        f"PRODUCER({os.getpid()}) - Producer released FILL. "
+      self._log(
+        "Producer released FILL. "
         f"Free slots remaining: {self._sem_free_slots}; "
         f"Filled slots: {self._sem_filled_slots}"
       )
@@ -453,8 +444,8 @@ class Producer(bn_logging.LogableProcessBase):
           )
         )
 
-    self._logger.debug(
-      f"PRODUCER({os.getpid()}) - Finished processing files. "
+    self._log(
+      "Finished processing files. "
       f"Total time: {time.perf_counter() - start_time:.2f} seconds."
     )
 
@@ -510,12 +501,22 @@ class Producer(bn_logging.LogableProcessBase):
     )
 
   def _log(self, message: str) -> None:
-    self._logger.debug(f"PRODUCER({os.getpid()}) - {message}")
+    self._logger.debug(f"P_{os.getpid()}: {message}")
 
   def __call__(self) -> None:
-    self._init()
-    self._run_main_loop()
-    self._uninit()
+    self._init_logging()
+
+    try:
+      self._load_ring_buffers()
+
+      self._run_main_loop()
+    except Exception as e:
+      self._logger.exception(
+        "Producer encountered an exception.", exc_info=e, stack_info=True
+      )
+      self._cancel_event.set()
+
+    self._uninit_logging()
 
   def _run_main_loop(self) -> None:
     while True:

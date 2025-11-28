@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from multiprocessing import Queue
 from multiprocessing.synchronize import Event
 from queue import Empty
@@ -25,9 +24,18 @@ class Consumer:
     self._logger = get_logger_from_session(session_id, __name__)
 
   def _log(self, message: str) -> None:
-    self._logger.debug(f"CONSUMER - {message}")
+    self._logger.debug(f"C: {message}")
 
   def __call__(self) -> None:
+    try:
+      self._run_main_loop()
+    except Exception as e:
+      self._logger.exception(
+        "Consumer encountered an exception.", exc_info=e, stack_info=True
+      )
+      self._cancel_event.set()
+
+  def _run_main_loop(self) -> None:
     finished_workers = 0
     n_received_predictions = 0
     while finished_workers < self._n_workers:
@@ -61,8 +69,8 @@ class Consumer:
 
       block = received_block
       n_received_predictions += 1
-      self._logger.debug(
-        f"CONSUMER - Received block with {len(block)} values from worker. "
+      self._log(
+        f"Received block with {len(block)} values from worker. "
         f"Total received: {n_received_predictions}"
       )
       self._tensor.write_block(*block)

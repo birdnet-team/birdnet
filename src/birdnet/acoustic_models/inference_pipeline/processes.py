@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import threading
-from collections.abc import Callable
 from multiprocessing import Process
 from pathlib import Path
 
@@ -25,6 +24,7 @@ from birdnet.acoustic_models.inference_pipeline.configs import (
 )
 from birdnet.acoustic_models.inference_pipeline.resources import PipelineResources
 from birdnet.acoustic_models.inference_pipeline.strategy import PredictionStrategy
+from birdnet.base import get_session_id_hash
 
 
 class ProcessManager:
@@ -37,6 +37,12 @@ class ProcessManager:
     resources: PipelineResources,
   ) -> None:
     self._session_id = session_id
+    self._session_hash = get_session_id_hash(session_id)
+    self._logger = (
+      birdnet.acoustic_models.inference_pipeline.logging.get_logger_from_session(
+        session_id, __name__
+      )
+    )
     self._cfg = config
     self._strategy = strategy
     self._specific_cfg = specific_config
@@ -47,7 +53,7 @@ class ProcessManager:
     self._producer_processes: list[Process] | None = None
     self._worker_processes: list[Process] | None = None
 
-  def start_logging(self) -> threading.Thread:
+  def start_logging_thread(self) -> threading.Thread:
     logging_listener = threading.Thread(
       target=birdnet.acoustic_models.inference_pipeline.logging.QueueFileWriter(
         session_id=self._session_id,
@@ -58,7 +64,7 @@ class ProcessManager:
         stop_event=self._res.logging_resources.stop_logging_event,
         processing_finished_event=self._res.processing_resources.processing_finished_event,
       ),
-      name="QueueFileWriter",
+      name=f"{self._session_hash}-QueueFileWriter",
       daemon=True,
     )
     logging_listener.start()
@@ -66,7 +72,7 @@ class ProcessManager:
     self._logging_thread = logging_listener
     return logging_listener
 
-  def start_progress_dispatcher(self) -> threading.Thread:
+  def start_progress_dispatcher_thread(self) -> threading.Thread:
     assert self._res.stats_resources.callback_queue is not None
     assert self._res.stats_resources.callback_start_signal is not None
     assert self._res.stats_resources.callback_fn is not None
@@ -82,13 +88,13 @@ class ProcessManager:
         cancel_event=self._res.processing_resources.cancel_event,
         processing_finished_event=self._res.processing_resources.processing_finished_event,
       ),
-      name="ProgressDispatcher",
+      name=f"{self._session_hash}-ProgressDispatcher",
       daemon=True,
     )
     progress_dispatcher.start()
     return progress_dispatcher
 
-  def start_performance_tracker(self) -> Process:
+  def start_performance_tracker_process(self) -> Process:
     assert self._res.stats_resources.track_performance
     assert self._res.stats_resources.sem_active_workers is not None
     assert self._res.stats_resources.perf_res_queue is not None
@@ -120,7 +126,7 @@ class ProcessManager:
         start_signal=self._res.stats_resources.perf_res_start_signal,
         callback_queue=self._res.stats_resources.callback_queue,
       ),
-      name="PerformanceTracker",
+      name=f"{self._session_hash}-PerformanceTracker",
       daemon=True,
     )
     perf_tracker_proc.start()
@@ -129,7 +135,7 @@ class ProcessManager:
     self._perf_tracker_process = perf_tracker_proc
     return perf_tracker_proc
 
-  def start_file_analyzer(self) -> threading.Thread:
+  def start_file_analyzer_thread(self) -> threading.Thread:
     file_analyzer_proc = threading.Thread(
       target=FilesAnalyzer(
         session_id=self._session_id,
@@ -146,7 +152,7 @@ class ProcessManager:
         finished=self._res.analyzer_resources.finished,
         start_signal=self._res.analyzer_resources.start_signal,
       ),
-      name="FileAnalyzer",
+      name=f"{self._session_hash}-FileAnalyzer",
       daemon=True,
     )
     file_analyzer_proc.start()
@@ -155,7 +161,7 @@ class ProcessManager:
     self._analyzer_thread = file_analyzer_proc
     return file_analyzer_proc
 
-  def start_producers(self) -> list[Process]:
+  def start_producer_processes(self) -> list[Process]:
     use_bandpass = not (
       self._cfg.model_conf.sig_fmin == self._cfg.filtering_conf.bandpass_fmin
       and self._cfg.model_conf.sig_fmax == self._cfg.filtering_conf.bandpass_fmax
@@ -196,7 +202,7 @@ class ProcessManager:
           end_event=self._res.processing_resources.end_event,
           start_signal=self._res.producer_resources.start_signals[i],
         ),
-        name=f"Producer-{i}",
+        name=f"{self._session_hash}-Producer-{i}",
         daemon=True,
       )
       for i in range(self._res.producer_resources.n_producers)
@@ -209,7 +215,7 @@ class ProcessManager:
     self._producer_processes = producer_processes
     return producer_processes
 
-  def start_workers(self) -> list[Process]:
+  def start_worker_processes(self) -> list[Process]:
     try:
       self._res.worker_resources.backend_loader.load_backend_in_main_process_if_possible(
         self._res.worker_resources.devices, self._cfg.processing_conf.half_precision
@@ -220,7 +226,7 @@ class ProcessManager:
     worker_processes = [
       Process(
         target=w,
-        name=f"Worker-{i}",
+        name=f"{self._session_hash}-Worker-{i}",
         daemon=True,
       )
       for i, w in enumerate(
@@ -242,29 +248,35 @@ class ProcessManager:
   ) -> None:
     res = self._res
     # start file analyzer
+    self._logger.debug("[START_SIG] Starting file analyzer...")
     res.analyzer_resources.start_signal.set()
-    res.analyzer_resources.input_queue.put(input_data, block=False)
+    res.analyzer_resources.input_queue.put(input_data, block=True)
 
     # start producers
+    self._logger.debug("[START_SIG] Starting producers...")
     for i in range(res.producer_resources.n_producers):
       res.producer_resources.start_signals[i].set()
 
     # set input data for producers
+    self._logger.debug("Feeding input data to producers...")
     for input_idx, inp_data in enumerate(input_data):
-      res.producer_resources.input_queue.put((input_idx, inp_data), block=False)
+      res.producer_resources.input_queue.put((input_idx, inp_data), block=True)
     for _ in range(res.producer_resources.n_producers):
-      res.producer_resources.input_queue.put(None, block=False)
+      res.producer_resources.input_queue.put(None, block=True)
 
     # start workers
+    self._logger.debug("[START_SIG] Starting workers...")
     for i in range(self._cfg.processing_conf.workers):
       res.worker_resources.start_signals[i].set()
 
     # start performance tracker
+    self._logger.debug("[START_SIG] Starting performance tracker...")
     if res.stats_resources.track_performance:
       assert res.stats_resources.perf_res_start_signal is not None
       res.stats_resources.perf_res_start_signal.set()
 
     # start progress dispatcher
+    self._logger.debug("[START_SIG] Starting progress dispatcher...")
     if res.stats_resources.use_callback:
       assert res.stats_resources.callback_start_signal is not None
       res.stats_resources.callback_start_signal.set()
@@ -280,15 +292,15 @@ class ProcessManager:
     consumer()
 
   def start_main_processes(self) -> None:
-    self.start_file_analyzer()
-    self.start_producers()
-    self.start_workers()
+    self.start_file_analyzer_thread()
+    self.start_producer_processes()
+    self.start_worker_processes()
 
     if self._res.stats_resources.track_performance:
-      self.start_performance_tracker()
+      self.start_performance_tracker_process()
 
     if self._res.stats_resources.use_callback:
-      self.start_progress_dispatcher()
+      self.start_progress_dispatcher_thread()
 
   def join_main_processes(self) -> None:
     logger = birdnet.acoustic_models.inference_pipeline.logging.get_logger_from_session(

@@ -173,7 +173,9 @@ def memory_monitor() -> Generator[Callable, None, None]:
       except (psutil.NoSuchProcess, psutil.AccessDenied):
         break
 
-  monitor_thread = threading.Thread(target=monitor_worker, daemon=True)
+  monitor_thread = threading.Thread(
+    target=monitor_worker, daemon=True, name="MemoryMonitorThread"
+  )
   monitor_thread.start()
 
   def get_memory_delta() -> float:

@@ -1,10 +1,12 @@
 import logging
 import multiprocessing as mp
 import multiprocessing.synchronize
+import threading
 from logging.handlers import MemoryHandler, QueueHandler
 from multiprocessing import Queue
 from pathlib import Path
 
+from birdnet.base import get_session_id_hash
 from birdnet.logging_utils import get_package_logger, init_package_logger
 
 
@@ -70,6 +72,7 @@ class LogableProcessBase:
     self.__local_queue_handler: QueueHandler | None = None
     self.__name = name
     self.__session_id = session_id
+    self._session_hash = get_session_id_hash(session_id)
 
   def _init_logging(self) -> None:
     if mp.get_start_method() in ("spawn", "forkserver"):
@@ -82,13 +85,13 @@ class LogableProcessBase:
       assert session_queue_handler_exists(self.__session_id, self.__logging_queue)
     self.__logger = get_logger_from_session(self.__session_id, self.__name)
     self.__logger.debug(
-      f"Initialized logging for session {self.__session_id} -> {self.__name}."
+      f"Initialized logging for session {self._session_hash} -> {self.__name}."
     )
 
   def _uninit_logging(self) -> None:
     assert self.__logger is not None
     self.__logger.debug(
-      f"Uninitializing logging for session {self.__session_id} -> {self.__name}."
+      f"Uninitializing logging for session {self._session_hash} -> {self.__name}."
     )
     if mp.get_start_method() in ("spawn", "forkserver"):
       assert self.__local_queue_handler is not None
@@ -113,7 +116,7 @@ class QueueFileWriter:
     logging_level: int,
     log_file: Path,
     cancel_event: multiprocessing.synchronize.Event,
-    stop_event: multiprocessing.synchronize.Event,
+    stop_event: threading.Event,
     processing_finished_event: multiprocessing.synchronize.Event,
   ) -> None:
     self._session_id = session_id
@@ -130,8 +133,9 @@ class QueueFileWriter:
 
   def __call__(self) -> None:
     f = logging.Formatter(
-      "%(asctime)s %(processName)-10s %(levelname)-8s %(message)s"
+      "%(asctime)s %(processName)-10s %(message)s",
       # "%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s"
+      "%H:%M:%S",
     )
 
     h = logging.FileHandler(self._log_file, mode="w", encoding="utf-8")

@@ -1,5 +1,7 @@
 import logging
 
+from birdnet.logging_utils import get_package_logger
+
 
 def pytest_configure() -> None:
   loggers = {"tensorflow", "absl", "urllib3"}
@@ -21,3 +23,12 @@ def pytest_configure() -> None:
   console = logging.StreamHandler()
   console.setLevel(logging.DEBUG)
   main_logger.addHandler(console)
+
+  logging.basicConfig(
+    level=logging.WARNING,
+    format="%(asctime)s (%(levelname)s): %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+  )
+
+  root = get_package_logger()
+  root.setLevel(logging.DEBUG)

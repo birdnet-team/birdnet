@@ -112,6 +112,7 @@ tests = [
   "pytest >= 8.4.2",
   "pytest-cov >= 7.0.0",
   "pytest-xdist >= 3.8.0",
+  "pytest-timeout >= 2.4.0",
   "mypy >= 1.18.2",
   "ruff >= 0.14.4"
 ]
@@ -142,6 +143,7 @@ namespaces = true
 [tool.pytest.ini_options]
 log_cli = true
 log_level = "DEBUG"
+timeout = 300
 testpaths = ["src/birdnet_tests"]
 norecursedirs = ["src/birdnet_v1_tests"]
 markers = [

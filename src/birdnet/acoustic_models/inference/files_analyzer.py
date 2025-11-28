@@ -1,8 +1,9 @@
 import ctypes
 import multiprocessing as mp
+import multiprocessing.synchronize
 import os
-from multiprocessing import Queue
-from multiprocessing.synchronize import Event
+import queue
+import threading
 from pathlib import Path
 from queue import Empty
 
@@ -11,10 +12,10 @@ import numpy as np
 import birdnet.acoustic_models.inference_pipeline.logging as bn_logging
 from birdnet.acoustic_models.inference.producer import get_audio_duration_s
 from birdnet.helper import (
-  RingField,
   get_n_segments_speed,
   max_value_for_uint_dtype,
 )
+from birdnet.shm import RingField
 
 
 class FilesAnalyzer:
@@ -26,13 +27,13 @@ class FilesAnalyzer:
     speed: float,
     rf_segment_indices: RingField,
     max_segment_idx_ptr: mp.RawValue,  # type: ignore
-    input_queue: Queue,
-    analyzing_result: Queue,
+    input_queue: queue.Queue,
+    analyzing_result: queue.Queue,
     tot_n_segments: ctypes.c_uint64,
-    cancel_event: Event,
-    end_event: Event,
-    finished: Event,
-    start_signal: Event,
+    cancel_event: multiprocessing.synchronize.Event,
+    end_event: multiprocessing.synchronize.Event,
+    finished: threading.Event,
+    start_signal: threading.Event,
   ) -> None:
     self._logger = bn_logging.get_logger_from_session(session_id, __name__)
     self._input_queue = input_queue
@@ -64,10 +65,16 @@ class FilesAnalyzer:
     return False
 
   def _log(self, message: str) -> None:
-    self._logger.debug(f"FILES_ANALYZER({os.getpid()}) - {message}")
+    self._logger.debug(f"FA_{os.getpid()}: {message}")
 
   def __call__(self) -> None:
-    self.run_main_loop()
+    try:
+      self.run_main_loop()
+    except Exception as e:
+      self._logger.exception(
+        "FilesAnalyzer encountered an exception.", exc_info=e, stack_info=True
+      )
+      self._cancel_event.set()
 
   def run_main_loop(self) -> None:
     while True:

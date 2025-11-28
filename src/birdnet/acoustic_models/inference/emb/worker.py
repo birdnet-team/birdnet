@@ -7,7 +7,7 @@ import numpy as np
 
 from birdnet.acoustic_models.inference.worker import WorkerBase
 from birdnet.backends import BackendLoader
-from birdnet.helper import RingField
+from birdnet.shm import RingField
 
 
 class EmbeddingsWorker(WorkerBase):

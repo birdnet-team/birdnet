@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import shutil
 from abc import ABC
-from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -26,7 +25,7 @@ from birdnet.acoustic_models.inference_pipeline.resources import (
 from birdnet.acoustic_models.inference_pipeline.strategy import PredictionStrategy
 from birdnet.base import SessionBase, get_session_id_hash
 from birdnet.globals import WRITABLE_FLAG
-from birdnet.helper import create_shm_ring
+from birdnet.shm import create_shm_ring
 
 
 class AcousticSessionBase(
@@ -57,7 +56,7 @@ class AcousticSessionBase(
     self._process_manager = ProcessManager(
       self._session_id, self._conf, self._strategy, self._specific_config, res
     )
-    self._process_manager.start_logging()
+    self._process_manager.start_logging_thread()
 
     self._shm_context = shared_memory_context(self._session_id, res)
     self._shm_context.__enter__()
@@ -145,6 +144,7 @@ class AcousticSessionBase(
 
     assert self._resources is not None
     self._resources.processing_resources.end_event.set()
+    print(f"Ended session {self._session_id}...")
 
   def __exit__(self, *args) -> None:
     assert self._is_initialized
@@ -153,7 +153,7 @@ class AcousticSessionBase(
     assert self._process_manager is not None
     assert self._shm_context is not None
 
-    self._resources.processing_resources.end_event.set()
+    self.end()
     self._process_manager.join_main_processes()
 
     self._shm_context.__exit__(*args)

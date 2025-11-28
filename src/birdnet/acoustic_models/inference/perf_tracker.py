@@ -5,7 +5,7 @@ import datetime
 import math
 import os
 import sys
-import threading as th
+import threading
 import time
 from collections import Counter, deque
 from collections.abc import Callable
@@ -19,7 +19,7 @@ import psutil
 
 import birdnet.acoustic_models.inference_pipeline.logging as bn_logging
 from birdnet.globals import READABLE_FLAG, READING_FLAG, WRITABLE_FLAG
-from birdnet.helper import RingField
+from birdnet.shm import RingField
 
 
 @dataclass
@@ -191,7 +191,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._start = start
 
   def _log(self, message: str) -> None:
-    self._logger.debug(f"PERF_TRACKER({os.getpid()}) - {message}")
+    self._logger.debug(f"PT_{os.getpid()}: {message}")
 
   def _get_worker_stats(self) -> bool:
     # get entries until the marker, entries added in the meanwhile are ignored
@@ -455,9 +455,15 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
   def __call__(self) -> None:
     self._init_logging()
-    self._shm_ring_flags, self._ring_flags = self._rf_flags.attach_and_get_array()
 
-    self.run_main_loop()
+    try:
+      self._shm_ring_flags, self._ring_flags = self._rf_flags.attach_and_get_array()
+      self.run_main_loop()
+    except Exception as e:
+      self._logger.exception(
+        "PerformanceTracker encountered an exception.", exc_info=e, stack_info=True
+      )
+      self._cancel_event.set()
 
     self._uninit_logging()
 
@@ -505,9 +511,9 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._prd_4_flush_dur_tracker.reset()
 
   def run_main(self) -> None:
-    print_thread = th.Thread(
+    print_thread = threading.Thread(
       target=self.print_stats_continuously,
-      name="PerformanceTracker.PrintThread",
+      name=f"{self._session_hash}-PerformanceTracker.PrintThread",
       daemon=True,
     )
     print_thread.start()
@@ -634,7 +640,7 @@ class ProgressDispatcher:
     callback_fn: Callable[[ProgressStats], None],
     cancel_event: Event,
     end_event: Event,
-    start_signal: Event,
+    start_signal: threading.Event,
     processing_finished_event: Event,
     check_interval: float = 1.0,
   ) -> None:
@@ -649,7 +655,7 @@ class ProgressDispatcher:
     self._logger = bn_logging.get_logger_from_session(session_id, __name__)
 
   def _log(self, message: str) -> None:
-    self._logger.debug(f"PROGRESS_DISPATCHER({os.getpid()}) - {message}")
+    self._logger.debug(f"PD_{os.getpid()}: {message}")
 
   def _check_cancel_event(self) -> bool:
     if self._cancel_event.is_set():
@@ -664,7 +670,13 @@ class ProgressDispatcher:
     return False
 
   def __call__(self) -> None:
-    self.run_main_loop()
+    try:
+      self.run_main_loop()
+    except Exception as e:
+      self._logger.exception(
+        "ProgressDispatcher encountered an exception.", exc_info=e, stack_info=True
+      )
+      self._cancel_event.set()
 
   def run_main_loop(self) -> None:
     while True:

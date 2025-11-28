@@ -3,7 +3,9 @@ from __future__ import annotations
 import ctypes
 import multiprocessing as mp
 import multiprocessing.synchronize
+import queue
 import tempfile
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -16,14 +18,16 @@ from typing import Self, cast, final
 
 import numpy as np
 
-from birdnet.acoustic_models.inference.perf_tracker import PerformanceTrackingResult, ProgressStats
+from birdnet.acoustic_models.inference.perf_tracker import (
+  PerformanceTrackingResult,
+  ProgressStats,
+)
 from birdnet.acoustic_models.inference_pipeline.configs import PredictionConfig
 from birdnet.acoustic_models.inference_pipeline.logging import add_session_queue_handler
 from birdnet.backends import BackendLoader
 from birdnet.base import get_session_id_hash
 from birdnet.globals import MODEL_TYPE_ACOUSTIC, PKG_NAME
 from birdnet.helper import (
-  RingField,
   get_float_dtype,
   get_n_segments_speed,
   get_uint_dtype,
@@ -31,6 +35,7 @@ from birdnet.helper import (
 )
 from birdnet.local_data import get_benchmark_dir
 from birdnet.logging_utils import get_package_logging_level
+from birdnet.shm import RingField
 
 
 @dataclass(frozen=True)
@@ -281,14 +286,14 @@ class WorkerResources:
 
 @dataclass(frozen=True)
 class FilesAnalyzerResources:
-  analyzer_queue: Queue
-  input_queue: Queue
+  input_queue: queue.Queue
+  analyzer_queue: queue.Queue
   tot_n_segments_ptr: mp.RawValue  # type: ignore
   max_segment_idx_ptr: mp.RawValue  # type: ignore
   max_segment_idx_init_value: int
-  finished: multiprocessing.synchronize.Event
+  finished: threading.Event
   # each resource needs own start signal to allow resetting it individually
-  start_signal: multiprocessing.synchronize.Event
+  start_signal: threading.Event
   segments_dtype: np.dtype
 
   _file_durations: np.ndarray | None = None
@@ -339,14 +344,14 @@ class FilesAnalyzerResources:
     )
 
     return FilesAnalyzerResources(
-      analyzer_queue=Queue(),
-      input_queue=Queue(),
+      analyzer_queue=queue.Queue(),
+      input_queue=queue.Queue(),
       tot_n_segments_ptr=mp.RawValue(ctypes.c_uint64, 0),
       max_segment_idx_ptr=max_segment_idx_ptr,
       segments_dtype=segments_dtype,
       max_segment_idx_init_value=max_segment_ptr_value,
-      finished=mp.Event(),
-      start_signal=mp.Event(),
+      finished=threading.Event(),
+      start_signal=threading.Event(),
     )
 
 
@@ -414,7 +419,7 @@ class StatisticsResources:
   use_callback: bool
   callback_fn: Callable[[ProgressStats], None] | None
   callback_queue: Queue | None
-  callback_start_signal: multiprocessing.synchronize.Event | None
+  callback_start_signal: threading.Event | None
 
   benchmarking: bool
   benchmark_dir: Path | None
@@ -471,7 +476,7 @@ class StatisticsResources:
     callback_fn = None
 
     if use_callback:
-      callback_start_signal = mp.Event()
+      callback_start_signal = threading.Event()
       callback_queue = Queue()
       callback_fn = conf.output_conf.progress_callback
 
@@ -532,7 +537,7 @@ class LoggingResources:
   logging_level: int
   logging_queue: Queue
   queue_handler: QueueHandler
-  stop_logging_event: multiprocessing.synchronize.Event
+  stop_logging_event: threading.Event
 
   def reset(self) -> None:
     pass
@@ -569,5 +574,5 @@ class LoggingResources:
       logging_level=get_package_logging_level(),
       logging_queue=logging_queue,
       queue_handler=queue_handler,
-      stop_logging_event=mp.Event(),
+      stop_logging_event=threading.Event(),
     )
