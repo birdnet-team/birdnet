@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added support for Perch model v2
 
+### Bugfix
+
+- Removed support for LiteRT on macOS ARM64 due to incompatibility issues
+
 ## [0.2.9] - 2025-11-27
 
 ### Added
