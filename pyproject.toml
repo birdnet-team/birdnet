@@ -41,6 +41,7 @@ dependencies = [
   "pandas >= 1.4.0", # 2022/02/22
   "psutil >= 5.9.0", # 2021/12/29
   "pyarrow >= 7.0.0", # 2022/02/03
+  "kagglehub >= 0.3.13", # 2025/08/26; needed for downloading PERCH models
   "tensorflow >= 2.8.0 ; sys_platform != 'darwin' or platform_machine != 'x86_64'", # 2022/02/02
   "tensorflow >= 2.8.0, <2.17 ; sys_platform == 'darwin' and platform_machine == 'x86_64'",
   "ai-edge-litert >= 2.0.2 ; python_version < '3.13' and (sys_platform == 'linux' or (sys_platform == 'darwin' and platform_machine == 'arm64'))", # 2025/09/17
