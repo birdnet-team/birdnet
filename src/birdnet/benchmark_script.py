@@ -191,52 +191,96 @@ def run_benchmark_from_args(args: list[str]) -> None:
     default="benchmark",
   )
 
+  parser.add_argument(
+    "--use-perch",
+    action="store_true",
+    help="use the Perch v2 model for benchmarking instead of the Acoustic v2.4 model "
+    "[only available with the Protobuf backend]",
+    default=False,
+  )
+
   ns: Namespace = parser.parse_args(args)
   run_benchmark_from_ns(ns)
 
 
 def run_benchmark_from_ns(ns: Namespace) -> None:
-  model: AcousticModelV2_4
-  if ns.backend == MODEL_BACKEND_TF:
-    model = birdnet.model_loader.load(
-      MODEL_TYPE_ACOUSTIC,
-      ACOUSTIC_MODEL_VERSION_V2_4,
-      MODEL_BACKEND_TF,
-      precision=cast(MODEL_PRECISIONS, ns.precision),
-      library=cast(LIBRARY_TYPES, ns.tf_library),
-    )
-  elif ns.backend == MODEL_BACKEND_PB:
-    model = birdnet.model_loader.load(
-      MODEL_TYPE_ACOUSTIC,
-      ACOUSTIC_MODEL_VERSION_V2_4,
-      MODEL_BACKEND_PB,
-      precision=MODEL_PRECISION_FP32,
+  if ns.use_perch:
+    from birdnet.model_loader import load_perch_v2
+
+    if ns.backend != MODEL_BACKEND_PB:
+      raise ValueError(
+        "The Perch v2 model is only available with the Protobuf backend."
+      )
+    if ns.precision != MODEL_PRECISION_FP32:
+      raise ValueError("The Perch v2 model only supports 'fp32' precision.")
+
+    first_device = ns.devices[0] if len(ns.devices) > 0 else "CPU"
+    perch_model = load_perch_v2(device=first_device)
+
+    perch_model.predict(
+      ns.inputs,
+      top_k=ns.top_k,
+      n_feeders=ns.feeders,
+      n_workers=ns.workers,
+      batch_size=ns.batch_size,
+      overlap_duration_s=ns.overlap,
+      speed=ns.speed,
+      default_confidence_threshold=ns.confidence,
+      custom_confidence_thresholds=None,
+      apply_sigmoid=True,
+      sigmoid_sensitivity=1.0,
+      custom_species_list=None,
+      half_precision=ns.half_precision,
+      max_audio_duration_min=None,
+      show_stats=ns.show_stats,
+      device=ns.devices if len(ns.devices) > 1 else ns.devices[0],
+      prefetch_ratio=ns.prefetch_ratio,
+      progress_callback=None,  # my_callback,
+      bandpass_fmin=AcousticModelV2_4.get_sig_fmin(),
+      bandpass_fmax=AcousticModelV2_4.get_sig_fmax(),
     )
   else:
-    raise AssertionError()
+    model: AcousticModelV2_4
+    if ns.backend == MODEL_BACKEND_TF:
+      model = birdnet.model_loader.load(
+        MODEL_TYPE_ACOUSTIC,
+        ACOUSTIC_MODEL_VERSION_V2_4,
+        MODEL_BACKEND_TF,
+        precision=cast(MODEL_PRECISIONS, ns.precision),
+        library=cast(LIBRARY_TYPES, ns.tf_library),
+      )
+    elif ns.backend == MODEL_BACKEND_PB:
+      model = birdnet.model_loader.load(
+        MODEL_TYPE_ACOUSTIC,
+        ACOUSTIC_MODEL_VERSION_V2_4,
+        MODEL_BACKEND_PB,
+        precision=MODEL_PRECISION_FP32,
+      )
+    else:
+      raise AssertionError()
 
-  model.predict(
-    ns.inputs,
-    top_k=ns.top_k,
-    n_feeders=ns.feeders,
-    n_workers=ns.workers,
-    batch_size=ns.batch_size,
-    overlap_duration_s=ns.overlap,
-    speed=ns.speed,
-    default_confidence_threshold=ns.confidence,
-    custom_confidence_thresholds=None,
-    apply_sigmoid=True,
-    sigmoid_sensitivity=1.0,
-    custom_species_list=None,
-    half_precision=ns.half_precision,
-    max_audio_duration_min=None,
-    show_stats=ns.show_stats,
-    device=ns.devices if len(ns.devices) > 1 else ns.devices[0],
-    prefetch_ratio=ns.prefetch_ratio,
-    progress_callback=my_callback,
-    bandpass_fmin=AcousticModelV2_4.get_sig_fmin(),
-    bandpass_fmax=AcousticModelV2_4.get_sig_fmax(),
-  )
+    model.predict(
+      ns.inputs,
+      top_k=ns.top_k,
+      n_feeders=ns.feeders,
+      n_workers=ns.workers,
+      batch_size=ns.batch_size,
+      overlap_duration_s=ns.overlap,
+      speed=ns.speed,
+      default_confidence_threshold=ns.confidence,
+      custom_confidence_thresholds=None,
+      apply_sigmoid=True,
+      sigmoid_sensitivity=1.0,
+      custom_species_list=None,
+      half_precision=ns.half_precision,
+      max_audio_duration_min=None,
+      show_stats=ns.show_stats,
+      device=ns.devices if len(ns.devices) > 1 else ns.devices[0],
+      prefetch_ratio=ns.prefetch_ratio,
+      progress_callback=None,  # my_callback,
+      bandpass_fmin=AcousticModelV2_4.get_sig_fmin(),
+      bandpass_fmax=AcousticModelV2_4.get_sig_fmax(),
+    )
 
 
 def my_callback(info: ProgressStats) -> None:

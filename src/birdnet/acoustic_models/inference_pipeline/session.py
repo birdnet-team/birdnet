@@ -144,7 +144,6 @@ class AcousticSessionBase(
 
     assert self._resources is not None
     self._resources.processing_resources.end_event.set()
-    print(f"Ended session {self._session_id}...")
 
   def __exit__(self, *args) -> None:
     assert self._is_initialized

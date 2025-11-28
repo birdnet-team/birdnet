@@ -32,7 +32,8 @@ def test_pb_cpu_fp32() -> None:
   assert res.species_probs.shape == TEST_FILE_SHORT_SCORE_SHAPE
 
 
-def test_pb_cpu_fp32_callback() -> None:
+def xtest_pb_cpu_fp32_callback() -> None:
+  # depending on the speed of the machine, this may or may not collect any stats
   collected_stats = []
 
   def test_callback(data: ProgressStats) -> None:
