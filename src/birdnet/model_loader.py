@@ -1,6 +1,6 @@
 from os import PathLike
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from birdnet.acoustic_models.base import AcousticModelBase
 from birdnet.acoustic_models.perch_v2.model import AcousticModelPerchV2
@@ -207,8 +207,17 @@ def _validate_kwargs_allowed(
   return model_kwargs
 
 
-def load_perch(cpu: bool = True) -> AcousticModelPerchV2:
-  model_path, species_list = AcousticPBDownloaderPerchV2.get_model_path_and_labels(cpu)
+def _validate_device(device: Any) -> Literal["CPU", "GPU"]:  # noqa: ANN401
+  if device not in ("CPU", "GPU"):
+    raise ValueError(f"Unknown device: {device}. Supported devices are: CPU, GPU.")
+  return cast(Literal["CPU", "GPU"], device)
+
+
+def load_perch_v2(device: str) -> AcousticModelPerchV2:
+  device = _validate_device(device)
+  model_path, species_list = AcousticPBDownloaderPerchV2.get_model_path_and_labels(
+    device
+  )
 
   backend_type: type[VersionedAcousticBackendProtocol]
   backend_type = AcousticPBBackendFP32PerchV2

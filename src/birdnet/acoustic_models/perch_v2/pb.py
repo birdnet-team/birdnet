@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from ordered_set import OrderedSet
 
@@ -22,17 +23,18 @@ class AcousticPBDownloaderPerchV2:
   LABELS_HEADER = "inat2024_fsd50k"
 
   @classmethod
-  def _get_paths(cls, cpu: bool) -> tuple[Path, Path]:
+  def _get_paths(cls, device: Literal["CPU", "GPU"]) -> tuple[Path, Path]:
     import kagglehub
 
-    model_handle = cls.MODEL_HANDLE_CPU if cpu else cls.MODEL_HANDLE_CUDA
+    assert device in ("CPU", "GPU")
+    model_handle = cls.MODEL_HANDLE_CPU if device == "CPU" else cls.MODEL_HANDLE_CUDA
     model_path = Path(kagglehub.model_download(model_handle))
     labels_path = model_path / "assets" / "labels.csv"
     return model_path, labels_path
 
   @classmethod
-  def _check_acoustic_model_available(cls, cpu: bool) -> bool:
-    model_path, model_path = cls._get_paths(cpu)
+  def _check_acoustic_model_available(cls, device: Literal["CPU", "GPU"]) -> bool:
+    model_path, model_path = cls._get_paths(device)
 
     model_is_downloaded = True
     model_is_downloaded &= model_path.is_dir()
@@ -42,10 +44,12 @@ class AcousticPBDownloaderPerchV2:
     return model_is_downloaded
 
   @classmethod
-  def get_model_path_and_labels(cls, cpu: bool) -> tuple[Path, OrderedSet[str]]:
-    cls._check_acoustic_model_available(cpu)
+  def get_model_path_and_labels(
+    cls, device: Literal["CPU", "GPU"]
+  ) -> tuple[Path, OrderedSet[str]]:
+    cls._check_acoustic_model_available(device)
 
-    model_dir, labels_path = cls._get_paths(cpu)
+    model_dir, labels_path = cls._get_paths(device)
     labels = get_species_from_file(labels_path, encoding="utf8")
     labels.remove(cls.LABELS_HEADER)
     assert len(labels) == 14795

@@ -87,6 +87,17 @@ If you encounter issues with audio file reading, please ensure that `libsndfile`
 ✅ = Supported ❌ = Not supported\
 **ProtoBuf Raven is only available for custom acoustic models.*
 
+### Perch V2
+
+| **Model** | Acoustic | Geo
+|---|---|---|
+| **Backend** | ProtoBuf | ❌
+| `predict(..)` | ✅ | ❌
+| `encode(..)` | ✅ | ❌
+| **INT8** | ❌ | ❌
+| **FP16** | ❌ | ❌
+| **FP32** | CPU/GPU | ❌
+
 ## Example usage
 
 ### Identify species within an audio file

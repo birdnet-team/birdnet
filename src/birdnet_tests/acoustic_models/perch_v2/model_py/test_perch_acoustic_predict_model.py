@@ -4,7 +4,7 @@ import multiprocessing.synchronize
 import numpy
 import pytest
 
-from birdnet.model_loader import load_perch
+from birdnet.model_loader import load_perch_v2
 from birdnet_tests.helper import (
   assert_prediction_result_is_close,
   assert_prediction_result_is_equal,
@@ -19,14 +19,14 @@ from birdnet_tests.test_files import (
 
 
 def test_cpu() -> None:
-  model = load_perch(cpu=True)
+  model = load_perch_v2("CPU")
   with model.predict_session(n_workers=1, top_k=None, device="CPU") as session:
     res = session.run(TEST_FILE_SHORT)
   assert res.species_probs.shape == (1, 2, 14795)
 
 
 def test_cpu_speed_factor() -> None:
-  model = load_perch(cpu=True)
+  model = load_perch_v2("CPU")
   with model.predict_session(
     n_workers=1, top_k=None, device="CPU", speed=0.5
   ) as session:
@@ -38,7 +38,7 @@ def test_cpu_speed_factor() -> None:
 def test_gpu() -> None:
   ensure_gpu_or_skip()
 
-  model = load_perch(cpu=False)
+  model = load_perch_v2("GPU")
   with model.predict_session(n_workers=1, top_k=None, device="GPU") as session:
     res = session.run(TEST_FILE_SHORT)
   assert res.species_probs.shape == (1, 2, 14795)
@@ -47,7 +47,7 @@ def test_gpu() -> None:
 def run_session_process(
   x: multiprocessing.synchronize.Barrier, q: multiprocessing.Queue
 ) -> None:
-  model = load_perch(cpu=True)
+  model = load_perch_v2("CPU")
   x.wait()
   with model.predict_session(n_workers=1, top_k=None) as session:
     result = session.run(TEST_FILE_SHORT)
@@ -121,7 +121,7 @@ def test_twice_two_sessions_parallel_processes_spawn() -> None:
 
 
 def test_twice_same_session() -> None:
-  model = load_perch(cpu=True)
+  model = load_perch_v2("CPU")
   with model.predict_session(n_workers=1, top_k=None) as session:
     res1 = session.run(TEST_FILE_SHORT)
     res2 = session.run(TEST_FILE_SHORT)
@@ -129,7 +129,7 @@ def test_twice_same_session() -> None:
 
 
 def test_twice_two_sessions() -> None:
-  model = load_perch(cpu=True)
+  model = load_perch_v2("CPU")
   with model.predict_session(n_workers=1, top_k=None) as session:
     res1 = session.run(TEST_FILE_SHORT)
   with model.predict_session(n_workers=1, top_k=None) as session:
@@ -141,7 +141,7 @@ def test_twice_two_sessions() -> None:
 def test_twice_two_sessions_gpu() -> None:
   ensure_gpu_or_skip()
 
-  model = load_perch(cpu=False)
+  model = load_perch_v2("GPU")
   with model.predict_session(
     n_workers=1, device="GPU", top_k=None, default_confidence_threshold=-numpy.inf
   ) as session:
@@ -157,7 +157,7 @@ def test_twice_two_sessions_gpu() -> None:
 def test_twice_same_session_gpu() -> None:
   ensure_gpu_or_skip()
 
-  model = load_perch(cpu=False)
+  model = load_perch_v2("GPU")
   with model.predict_session(
     n_workers=1, device="GPU", top_k=None, default_confidence_threshold=-numpy.inf
   ) as session:

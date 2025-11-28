@@ -3,7 +3,7 @@ import multiprocessing.synchronize
 
 import pytest
 
-from birdnet.model_loader import load_perch
+from birdnet.model_loader import load_perch_v2
 from birdnet_tests.helper import (
   assert_encoding_result_is_close,
   assert_encoding_result_is_equal,
@@ -18,14 +18,14 @@ from birdnet_tests.test_files import (
 
 
 def test_pb_cpu_fp32() -> None:
-  model = load_perch(cpu=True)
+  model = load_perch_v2("CPU")
   with model.encode_session(n_workers=1, device="CPU") as session:
     res = session.run(TEST_FILE_SHORT)
   assert res.embeddings.shape == (1, 2, 1536)
 
 
 def test_pb_cpu_fp32_speed_factor() -> None:
-  model = load_perch(cpu=True)
+  model = load_perch_v2("CPU")
   with model.encode_session(n_workers=1, device="CPU", speed=0.5) as session:
     res = session.run(TEST_FILE_SHORT)
   assert res.embeddings.shape == (1, 3, 1536)
@@ -35,7 +35,7 @@ def test_pb_cpu_fp32_speed_factor() -> None:
 def test_pb_gpu_fp32() -> None:
   ensure_gpu_or_skip()
 
-  model = load_perch(cpu=False)
+  model = load_perch_v2("GPU")
   with model.encode_session(n_workers=1, device="GPU") as session:
     res = session.run(TEST_FILE_SHORT)
   assert res.embeddings.shape == (1, 2, 1536)
@@ -44,7 +44,7 @@ def test_pb_gpu_fp32() -> None:
 def run_session_process(
   x: multiprocessing.synchronize.Barrier, q: multiprocessing.Queue
 ) -> None:
-  model = load_perch(cpu=True)
+  model = load_perch_v2("CPU")
   x.wait()
   with model.encode_session(n_workers=1) as session:
     result = session.run(TEST_FILE_SHORT)
@@ -118,7 +118,7 @@ def test_twice_two_sessions_parallel_processes_spawn() -> None:
 
 
 def test_twice_same_session() -> None:
-  model = load_perch(cpu=True)
+  model = load_perch_v2("CPU")
   with model.encode_session(n_workers=1) as session:
     res1 = session.run(TEST_FILE_SHORT)
     res2 = session.run(TEST_FILE_SHORT)
@@ -126,7 +126,7 @@ def test_twice_same_session() -> None:
 
 
 def test_twice_two_sessions() -> None:
-  model = load_perch(cpu=True)
+  model = load_perch_v2("CPU")
   with model.encode_session(n_workers=1) as session:
     res1 = session.run(TEST_FILE_SHORT)
   with model.encode_session(n_workers=1) as session:
@@ -138,7 +138,7 @@ def test_twice_two_sessions() -> None:
 def test_twice_two_sessions_gpu() -> None:
   ensure_gpu_or_skip()
 
-  model = load_perch(cpu=False)
+  model = load_perch_v2("GPU")
   with model.encode_session(n_workers=1, device="GPU") as session:
     res1 = session.run(TEST_FILE_SHORT)
   with model.encode_session(n_workers=1, device="GPU") as session:
@@ -150,7 +150,7 @@ def test_twice_two_sessions_gpu() -> None:
 def test_twice_same_session_gpu() -> None:
   ensure_gpu_or_skip()
 
-  model = load_perch(cpu=False)
+  model = load_perch_v2("GPU")
   with model.encode_session(n_workers=1, device="GPU") as session:
     res1 = session.run(TEST_FILE_SHORT)
     res2 = session.run(TEST_FILE_SHORT)
