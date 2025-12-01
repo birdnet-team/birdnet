@@ -15,12 +15,17 @@ def create_test_dataset(
   minutes_per_file: int = 10,
   sr: int = 48_000,
   dtype: str = ".wav",
+  overwrite: bool = False,
 ) -> tuple[Path, float]:
   target_dir = (
     output_dir / f"{n_files}x{minutes_per_file}min_{sr / 1_000:.0f}kHz_{dtype[1:]}"
   )
   if target_dir.is_dir():
-    shutil.rmtree(target_dir)
+    if overwrite:
+      shutil.rmtree(target_dir)
+    else:
+      size_mb = sum(f.stat().st_size for f in target_dir.iterdir()) / (1024**2)
+      return target_dir, size_mb
   target_dir.mkdir(parents=True, exist_ok=True)
 
   data, samplerate = sf.read(input_file)
