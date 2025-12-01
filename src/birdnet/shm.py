@@ -4,7 +4,7 @@ from multiprocessing import shared_memory
 
 import numpy as np
 
-from birdnet.acoustic_models.inference_pipeline.logging import get_logger_from_session
+from birdnet.acoustic_models.inference_pipeline.logs import get_logger_from_session
 
 
 @dataclass(slots=True, frozen=True)

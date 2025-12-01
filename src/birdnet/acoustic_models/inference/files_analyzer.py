@@ -9,7 +9,7 @@ from queue import Empty
 
 import numpy as np
 
-import birdnet.acoustic_models.inference_pipeline.logging as bn_logging
+import birdnet.acoustic_models.inference_pipeline.logs as bn_logging
 from birdnet.acoustic_models.inference.producer import get_audio_duration_s
 from birdnet.helper import (
   get_n_segments_speed,

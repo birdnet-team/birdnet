@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
-import birdnet.acoustic_models.inference_pipeline.logging
+import birdnet.acoustic_models.inference_pipeline.logs
 from birdnet.acoustic_models.inference.consumer import Consumer
 from birdnet.acoustic_models.inference.files_analyzer import FilesAnalyzer
 from birdnet.acoustic_models.inference.perf_tracker import (
@@ -39,7 +39,7 @@ class ProcessManager:
     self._session_id = session_id
     self._session_hash = get_session_id_hash(session_id)
     self._logger = (
-      birdnet.acoustic_models.inference_pipeline.logging.get_logger_from_session(
+      birdnet.acoustic_models.inference_pipeline.logs.get_logger_from_session(
         session_id, __name__
       )
     )
@@ -55,7 +55,7 @@ class ProcessManager:
 
   def start_logging_thread(self) -> threading.Thread:
     logging_listener = threading.Thread(
-      target=birdnet.acoustic_models.inference_pipeline.logging.QueueFileWriter(
+      target=birdnet.acoustic_models.inference_pipeline.logs.QueueFileWriter(
         session_id=self._session_id,
         log_queue=self._res.logging_resources.logging_queue,
         logging_level=self._res.logging_resources.logging_level,
@@ -303,7 +303,7 @@ class ProcessManager:
       self.start_progress_dispatcher_thread()
 
   def join_main_processes(self) -> None:
-    logger = birdnet.acoustic_models.inference_pipeline.logging.get_logger_from_session(
+    logger = birdnet.acoustic_models.inference_pipeline.logs.get_logger_from_session(
       self._session_id, __name__
     )
 

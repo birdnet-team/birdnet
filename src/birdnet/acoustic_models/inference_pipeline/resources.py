@@ -23,7 +23,7 @@ from birdnet.acoustic_models.inference.perf_tracker import (
   ProgressStats,
 )
 from birdnet.acoustic_models.inference_pipeline.configs import PredictionConfig
-from birdnet.acoustic_models.inference_pipeline.logging import add_session_queue_handler
+from birdnet.acoustic_models.inference_pipeline.logs import add_session_queue_handler
 from birdnet.backends import BackendLoader
 from birdnet.base import get_session_id_hash
 from birdnet.globals import MODEL_TYPE_ACOUSTIC, PKG_NAME

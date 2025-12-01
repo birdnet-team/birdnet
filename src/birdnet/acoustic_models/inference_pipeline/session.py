@@ -16,7 +16,7 @@ from birdnet.acoustic_models.inference_pipeline.configs import (
   ResultType,
   TensorType,
 )
-from birdnet.acoustic_models.inference_pipeline.logging import get_logger_from_session
+from birdnet.acoustic_models.inference_pipeline.logs import get_logger_from_session
 from birdnet.acoustic_models.inference_pipeline.processes import ProcessManager
 from birdnet.acoustic_models.inference_pipeline.resources import (
   PipelineResources,
@@ -79,8 +79,11 @@ class AcousticSessionBase(
     assert self._process_manager is not None
     assert self._logger is not None
 
-    is_file_input = any(isinstance(inp, Path) for inp in inputs)
+    if not self._resources.processing_resources.is_first_run:
+      self._resources.reset()
+
     self._logger.info(f"Got {len(inputs)} inputs for analysis.")
+    self._process_manager.start_processing(inputs)
 
     result_tensor = self._strategy.create_tensor(
       self._session_id,
@@ -90,10 +93,6 @@ class AcousticSessionBase(
       len(inputs),
     )
 
-    if not self._resources.processing_resources.is_first_run:
-      self._resources.reset()
-
-    self._process_manager.start_processing(inputs)
     self._process_manager.run_consumer(result_tensor)
     self._resources.processing_resources.processing_finished_event.set()
     self._resources.stats_resources.save_end_time()
@@ -107,7 +106,7 @@ class AcousticSessionBase(
         f"{self._resources.logging_resources.session_log_file.absolute()}"
       )
 
-    if is_file_input:
+    if is_file_input := any(isinstance(inp, Path) for inp in inputs):
       assert all(isinstance(inp, Path) for inp in inputs)
       inputs = cast(list[Path], inputs)
       result = self._strategy.create_files_result(
