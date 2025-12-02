@@ -44,14 +44,14 @@ def create_test_dataset(
 
   total_size_mb = 0
 
-  with NamedTemporaryFile("w", suffix=dtype, delete=True) as f:
-    reference_tmp_file = Path(f.name)
-    sf.write(reference_tmp_file, repeated_data, sr)
-    ref_file_size_mb = reference_tmp_file.stat().st_size / (1024**2)
-    total_size_mb = ref_file_size_mb * n_files
-    del repeated_data
-    for file_nr in tqdm(range(n_files)):
-      target_file = target_dir / f"{file_nr:0{len(str(n_files))}d}{dtype}"
-      shutil.copyfile(reference_tmp_file, target_file)
+  reference_tmp_file = target_dir / "temp_file.wav"
+  sf.write(reference_tmp_file, repeated_data, sr)
+  ref_file_size_mb = reference_tmp_file.stat().st_size / (1024**2)
+  total_size_mb = ref_file_size_mb * n_files
+  del repeated_data
+  for file_nr in tqdm(range(n_files)):
+    target_file = target_dir / f"{file_nr:0{len(str(n_files)) - 1}d}{dtype}"
+    shutil.copyfile(reference_tmp_file, target_file)
+  reference_tmp_file.unlink()
 
   return target_dir, total_size_mb
