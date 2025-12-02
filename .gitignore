@@ -1,4 +1,6 @@
 # Custom
+*.ods*#
+GPU-Consumption.ods
 src/*_debug/
 benchmarks/consistency_reports*
 benchmarks/consistency_evaluation*
