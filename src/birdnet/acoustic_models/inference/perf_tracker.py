@@ -137,7 +137,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
     update_interval = 1.0
     print_interval = 2.0
-    n_last_batches = 20
+    n_last_batches = 10
     n_last_updated_s = 5.0
     n_last_updated = math.ceil(n_last_updated_s / update_interval)
 
