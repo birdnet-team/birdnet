@@ -100,10 +100,10 @@ class ValueTracker:
     return self._values
 
   @property
-  def avg_val_last(self) -> float:
+  def median_val_last(self) -> float:
     if len(self._values) == 0:
       return np.nan
-    return np.mean(self._values)  # type: ignore
+    return np.median(self._values)  # type: ignore
 
 
 class PerformanceTracker(bn_logging.LogableProcessBase):
@@ -167,6 +167,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._wkr_1_wait_dur_for_filled_slot_tracker = ValueTracker(n_last_batches)
     self._wkr_2_search_dur_for_filled_slot_tracker = ValueTracker(n_last_batches)
     self._wkr_3_get_job_dur_tracker = ValueTracker(n_last_batches)
+    self._wkr_4_copy_to_device_tracker = ValueTracker(n_last_batches)
     self._wkr_4_inference_dur_tracker = ValueTracker(n_last_batches)
     self._wkr_5_add_to_queue_dur_tracker = ValueTracker(n_last_batches)
     self._wkr_busy_tracker = ValueTracker(n_last_updated)
@@ -209,13 +210,14 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       is_empty = False
       n_received += 1
 
-      stats: tuple[int, float, float, float, float, float, float, int] = queue_entry
+      stats: tuple[int, float, float, float, float, float, float, float, int] = queue_entry
       (
         worker_pid,
         wall_time,
         dur_wait_for_filled_slot,
         dur_search_for_filled_slot,
         dur_get_job,
+        dur_copy_to_device,
         dur_inference,
         dur_add_to_queue,
         batch_size,
@@ -236,6 +238,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         dur_search_for_filled_slot
       )
       self._wkr_3_get_job_dur_tracker.add_value(dur_get_job)
+      self._wkr_4_copy_to_device_tracker.add_value(dur_copy_to_device)
       self._wkr_4_inference_dur_tracker.add_value(dur_inference)
       self._wkr_5_add_to_queue_dur_tracker.add_value(dur_add_to_queue)
     self._log(
@@ -371,16 +374,16 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       # f"{raw_min_per_s:.2f} min/s",
       f"MEM: {memory_usage_MiB:.0f} M",
       # f"CPU usage: {cpu_usage:.1f} %",
-      f"BUF: {self._ring_flags.shape[0] - self._rng_free_slots_tracker.avg_val_last:.0f}/{self._ring_flags.shape[0]}",
+      f"BUF: {self._ring_flags.shape[0] - self._rng_free_slots_tracker.median_val_last:.0f}/{self._ring_flags.shape[0]}",
       # f"BUF2: {self._rng_preloaded_slots_tracker.avg_val_last:.0f}/
       # {self._ring_flags.shape[0]}",
       # f"S-FILL: {self._sem_filled_tracker.avg_val_last:.0f}",
       # f"free: {avg_free_slots:.0f}/{self._ring_flags.shape[0]}",
       f"F-SPEED: {prd_speed_xrt:.0f} xRT [{prd_speed_segments_per_s:.0f} seg/s]",
-      f"F-WAIT: {self._prd_1_batch_loading_dur_tracker.avg_val_last * 1000:.2f} ms",
-      f"F-BATCH: {self._prd_2_wait_dur_free_slot_tracker.avg_val_last * 1000:.2f} ms",
-      f"F-SEARCH: {self._prd_3_free_slot_search_dur_tracker.avg_val_last * 1000:.2f} ms",
-      f"F-FLUSH: {self._prd_4_flush_dur_tracker.avg_val_last * 1000:.2f} ms",
+      f"F-WAIT: {self._prd_1_batch_loading_dur_tracker.median_val_last * 1000:.2f} ms",
+      f"F-BATCH: {self._prd_2_wait_dur_free_slot_tracker.median_val_last * 1000:.2f} ms",
+      f"F-SEARCH: {self._prd_3_free_slot_search_dur_tracker.median_val_last * 1000:.2f} ms",
+      f"F-FLUSH: {self._prd_4_flush_dur_tracker.median_val_last * 1000:.2f} ms",
     ]
     if received_at_least_one_prediction:
       stats.worker_speed_xrt = wkr_speed_xrt
@@ -388,11 +391,12 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       output_msg_fields += [
         f"W-SPEED: {wkr_speed_xrt:.0f} xRT [{wkr_speed_segments_per_s:.0f} seg/s]",
         f"W-WAIT: {self._wkr_1_wait_dur_for_filled_slot_tracker.avg_val * 1000:.2f} ms",
-        f"W-SEARCH: {self._wkr_2_search_dur_for_filled_slot_tracker.avg_val_last * 1000:.2f} ms",
-        f"W-JOB: {self._wkr_3_get_job_dur_tracker.avg_val_last * 1000:.2f} ms",
-        f"W-INFER: {self._wkr_4_inference_dur_tracker.avg_val_last * 1000:.2f} ms",
-        f"W-ADD: {self._wkr_5_add_to_queue_dur_tracker.avg_val_last * 1000:.2f} ms",
-        f"BUSY: {self._wkr_busy_tracker.avg_val_last:.0f}/{self._n_workers}",
+        f"W-SEARCH: {self._wkr_2_search_dur_for_filled_slot_tracker.median_val_last * 1000:.2f} ms",
+        f"W-JOB: {self._wkr_3_get_job_dur_tracker.median_val_last * 1000:.2f} ms",
+        f"W-COPY: {self._wkr_4_copy_to_device_tracker.median_val_last * 1000:.2f} ms",
+        f"W-INFER: {self._wkr_4_inference_dur_tracker.median_val_last * 1000:.2f} ms",
+        f"W-ADD: {self._wkr_5_add_to_queue_dur_tracker.median_val_last * 1000:.2f} ms",
+        f"BUSY: {self._wkr_busy_tracker.median_val_last:.0f}/{self._n_workers}",
         # f"prel: {avg_preloaded_slots:.0f}",
         # f"busy: {avg_busy_slots:.0f}",
         # f"fill: {avg_filled_slots:.0f}",

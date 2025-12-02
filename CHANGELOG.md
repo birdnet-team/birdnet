@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Loading multiple GPUs in parallel processes was not possible
+
 ## [0.2.10] - 2025-11-28
 
 ### Added

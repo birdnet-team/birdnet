@@ -7,12 +7,13 @@ import time
 from abc import abstractmethod
 from multiprocessing import Queue, shared_memory
 from multiprocessing.synchronize import Event, Semaphore
+from typing import TYPE_CHECKING
 
 import numpy as np
 from numpy.typing import DTypeLike
 
 import birdnet.acoustic_models.inference_pipeline.logs as bn_logging
-from birdnet.backends import BackendLoader
+from birdnet.backends import BackendLoader, BatchT, VersionedBackendProtocol
 from birdnet.globals import (
   READABLE_FLAG,
   READING_FLAG,
@@ -21,6 +22,8 @@ from birdnet.globals import (
 )
 from birdnet.shm import RingField
 
+if TYPE_CHECKING:
+  from tensorflow import Tensor
 
 class WorkerBase(bn_logging.LogableProcessBase):
   def __init__(
@@ -59,7 +62,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
     self._backend_loader = backend_loader
     self._all_producers_finished = all_producers_finished
     self._wkr_ring_access_lock = wkr_ring_access_lock
-    self._backend = None
+    self._backend: VersionedBackendProtocol | None = None
     self._wkr_stats_queue = wkr_stats_queue
     self._out_q = out_q
     self._sem_free = sem_free
@@ -119,7 +122,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
     self._log("Model loaded.")
 
   @abstractmethod
-  def _infer(self, batch: np.ndarray) -> np.ndarray: ...
+  def _infer(self, batch: BatchT) -> BatchT: ...
 
   def _load_ring_buffers(self) -> None:
     self._log("Attaching ring buffers...")
@@ -232,7 +235,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
           self._log("Producer is done. Exiting worker.")
           self._out_q.put(None)
           return
-      dur_wait_for_filled_slot = time.perf_counter() - perf_c
+      dur1_wait_for_filled_slot = time.perf_counter() - perf_c
 
       self._log(
         f"Acquired FILL; Free slots remaining: {self._sem_free}; "
@@ -263,7 +266,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
               READING_FLAG,
             )
 
-      dur_search_for_filled_slot = time.perf_counter() - perf_c
+      dur2_search_for_filled_slot = time.perf_counter() - perf_c
 
       if claimed_slot is None:
         if self._all_producers_finished.is_set():
@@ -285,7 +288,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
 
       self._log(
         f"Acquired READ_FLAG for slot {claimed_slot}. "
-        f"Searched {dur_search_for_filled_slot:.4f} seconds for batch."
+        f"Searched {dur2_search_for_filled_slot:.4f} seconds for batch."
       )
 
       if self._sem_active_workers is not None:
@@ -298,20 +301,25 @@ class WorkerBase(bn_logging.LogableProcessBase):
       segment_indices = self._ring_segment_indices[
         claimed_slot, :n
       ].copy()  # copy needed
-      dur_get_job = time.perf_counter() - perf_c
+      dur3_get_job = time.perf_counter() - perf_c
       self._log(
         f"Received job for slot {claimed_slot} with {n} segments: {segment_indices}"
       )
 
       perf_c = time.perf_counter()
+      tensor = self._backend.copy_to_device(audio_samples)
+      dur4_copy_to_device = time.perf_counter() - perf_c
+      perf_c = time.perf_counter()
+      
       try:
-        raw_infer_result = self._infer(audio_samples)
+        infer_result_tensor = self._infer(tensor)
       except Exception as e:
+        print(e)
         self._log(f"Error during inference: {e}")
         self._cancel_event.set()
         self._log("Exiting due to error during inference. Set cancel event.")
         return
-      dur_inference = time.perf_counter() - perf_c
+      dur5_inference = time.perf_counter() - perf_c
 
       self._ring_flags[claimed_slot] = WRITABLE_FLAG
       self._sem_free.release()
@@ -323,11 +331,11 @@ class WorkerBase(bn_logging.LogableProcessBase):
 
       perf_c = time.perf_counter()
       if self._half_precision:
-        raw_infer_result = self._backend.half_precision(raw_infer_result)
+        infer_result_tensor = self._backend.half_precision(infer_result_tensor)
       dur_half_precision = time.perf_counter() - perf_c
 
       perf_c = time.perf_counter()
-      infer_result = self._backend.infer_result_to_numpy(raw_infer_result)
+      infer_result = self._backend.copy_from_device(infer_result_tensor)
       dur_to_numpy = time.perf_counter() - perf_c
 
       assert infer_result.flags.aligned
@@ -335,11 +343,11 @@ class WorkerBase(bn_logging.LogableProcessBase):
       perf_c = time.perf_counter()
       block = self._get_block(file_indices, segment_indices, infer_result)
       self._out_q.put(block)
-      dur_add_to_queue = time.perf_counter() - perf_c
+      dur6_add_to_queue = time.perf_counter() - perf_c
 
       self._prediction_count += n
       self._log(
-        f"Prediction made ({dur_inference:.4} s). "
+        f"Prediction made ({dur5_inference:.4} s). "
         f"Total predictions: {self._prediction_count}. Chunks: {segment_indices}"
         f"Duration half precision: {dur_half_precision:.4f} s. "
         f"Duration to numpy: {dur_to_numpy:.4f} s. "
@@ -351,11 +359,12 @@ class WorkerBase(bn_logging.LogableProcessBase):
           (
             self._pid,
             wall_time,
-            dur_wait_for_filled_slot,
-            dur_search_for_filled_slot,
-            dur_get_job,
-            dur_inference,
-            dur_add_to_queue,
+            dur1_wait_for_filled_slot,
+            dur2_search_for_filled_slot,
+            dur3_get_job,
+            dur4_copy_to_device,
+            dur5_inference,
+            dur6_add_to_queue,
             n,
           ),
           block=False,

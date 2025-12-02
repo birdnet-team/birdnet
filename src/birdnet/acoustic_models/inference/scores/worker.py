@@ -3,15 +3,19 @@ from __future__ import annotations
 import multiprocessing.synchronize
 from multiprocessing import Queue
 from multiprocessing.synchronize import Event, Semaphore
+from typing import TYPE_CHECKING
 
 import numpy as np
 from numpy.typing import DTypeLike
 
 from birdnet.acoustic_models.inference.worker import WorkerBase
-from birdnet.backends import BackendLoader
+from birdnet.backends import BackendLoader, BatchT
 from birdnet.helper import get_uint_dtype
 from birdnet.shm import RingField
 from birdnet.utils import flat_sigmoid_logaddexp_fast
+
+if TYPE_CHECKING:
+  from tensorflow import Tensor
 
 
 class ScoresWorker(WorkerBase):
@@ -93,7 +97,7 @@ class ScoresWorker(WorkerBase):
       end_event=end_event,
     )
 
-  def _infer(self, batch: np.ndarray) -> np.ndarray:
+  def _infer(self, batch: BatchT) -> BatchT: 
     assert self._backend is not None
     return self._backend.predict(batch)
 

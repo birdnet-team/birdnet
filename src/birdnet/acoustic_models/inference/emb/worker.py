@@ -6,7 +6,7 @@ from multiprocessing.synchronize import Event, Lock, Semaphore
 import numpy as np
 
 from birdnet.acoustic_models.inference.worker import WorkerBase
-from birdnet.backends import BackendLoader
+from birdnet.backends import BackendLoader, BatchT
 from birdnet.shm import RingField
 
 
@@ -74,6 +74,6 @@ class EmbeddingsWorker(WorkerBase):
   ) -> tuple[np.ndarray, ...]:
     return (file_indices, segment_indices, infer_result)
 
-  def _infer(self, batch: np.ndarray) -> np.ndarray:
+  def _infer(self, batch: BatchT) -> BatchT: 
     assert self._backend is not None
     return self._backend.embed(batch)
