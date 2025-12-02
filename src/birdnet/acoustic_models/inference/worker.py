@@ -25,6 +25,7 @@ from birdnet.shm import RingField
 if TYPE_CHECKING:
   from tensorflow import Tensor
 
+
 class WorkerBase(bn_logging.LogableProcessBase):
   def __init__(
     self,
@@ -249,12 +250,14 @@ class WorkerBase(bn_logging.LogableProcessBase):
       claimed_flag = None
 
       perf_c = time.perf_counter()
+      dur2_search_for_filled_slot = None
       with self._wkr_ring_access_lock:
         for current_slot in range(self._n_slots):
           current_slot_flag = self._ring_flags[current_slot]
 
           # TODO: check if all ring_size slots = DONE
           if current_slot_flag == READABLE_FLAG:
+            dur2_search_for_filled_slot = time.perf_counter() - perf_c
             claimed_slot = current_slot
             claimed_flag = current_slot_flag
             self._ring_flags[claimed_slot] = READING_FLAG
@@ -266,7 +269,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
               READING_FLAG,
             )
 
-      dur2_search_for_filled_slot = time.perf_counter() - perf_c
+      assert dur2_search_for_filled_slot is not None
 
       if claimed_slot is None:
         if self._all_producers_finished.is_set():
@@ -310,7 +313,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
       tensor = self._backend.copy_to_device(audio_samples)
       dur4_copy_to_device = time.perf_counter() - perf_c
       perf_c = time.perf_counter()
-      
+
       try:
         infer_result_tensor = self._infer(tensor)
       except Exception as e:
