@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, get_args
 
 import numpy as np
 import numpy.typing as npt
@@ -64,7 +64,7 @@ VALID_MODEL_PRECISIONS = [
   MODEL_PRECISION_INT8,
   MODEL_PRECISION_FP16,
   MODEL_PRECISION_FP32,
-]
+]  # TODO: use `from typing import get_args`
 MODEL_LANGUAGE_EN_US = "en_us"
 MODEL_LANGUAGES = (
   Literal[
@@ -127,6 +127,7 @@ VALID_MODEL_LANGUAGES = [
   "uk",
   "zh",
 ] + ["latin"]
+
 
 PKG_NAME = "birdnet"
 

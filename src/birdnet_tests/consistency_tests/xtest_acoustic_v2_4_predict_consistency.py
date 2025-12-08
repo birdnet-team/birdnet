@@ -7,8 +7,8 @@ import numpy.testing
 import pytest
 from tqdm import tqdm
 
-from birdnet.acoustic_models.inference.scores.prediction_result import (
-  PredictionResultBase,
+from birdnet.acoustic_models.inference.scores.scores_result import (
+  ScoresResultBase,
 )
 from birdnet.acoustic_models.v2_4.model import AcousticModelV2_4
 from birdnet.model_loader import load
@@ -41,7 +41,7 @@ def predict_test_cases(
   model: AcousticModelV2_4,
   device: str,
   n_workers: int,
-) -> Generator[tuple[int, PredictionResultBase], None, None]:
+) -> Generator[tuple[int, ScoresResultBase], None, None]:
   for case_nr, default in enumerate(tqdm(TEST_CASES)):
     with model.predict_session(
       top_k=None,
@@ -90,7 +90,7 @@ def test_cases_inference_with_model(
   mean_abs_vals = []
   for case_nr, result in predict_test_cases(model, device, n_workers):
     ref_case_file = TEST_CASES_REF_DIR / f"{case_nr}.npz"
-    ref_result = PredictionResultBase.load(ref_case_file)
+    ref_result = ScoresResultBase.load(ref_case_file)
     max_abs, mean_abs_thres = get_prediction_result_tolerances(
       result, ref_result, case_nr, mean_atol_threshold
     )
@@ -105,8 +105,8 @@ def test_cases_inference_with_model(
 
 
 def get_prediction_result_tolerances(
-  result: PredictionResultBase,
-  ref_result: PredictionResultBase,
+  result: ScoresResultBase,
+  ref_result: ScoresResultBase,
   case_nr: int,
   mean_atol_threshold: float = 0.1,
 ) -> tuple[float, float]:

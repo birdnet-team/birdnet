@@ -7,12 +7,12 @@ from typing import Any, Literal
 import numpy.typing as npt
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.emb.encoding_result import (
+from birdnet.acoustic_models.inference.emb.embeddings_result import (
   DataEncodingResult,
   FileEncodingResult,
 )
 from birdnet.acoustic_models.inference.perf_tracker import ProgressStats
-from birdnet.acoustic_models.inference.scores.prediction_result import (
+from birdnet.acoustic_models.inference.scores.scores_result import (
   DataPredictionResult,
   FilePredictionResult,
 )

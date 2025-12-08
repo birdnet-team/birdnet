@@ -9,9 +9,9 @@ from birdnet.acoustic_models.inference.emb.benchmarking import (
   FullBenchmarkEmbMeta,
   MinimalBenchmarkEmbMeta,
 )
-from birdnet.acoustic_models.inference.emb.encoding_result import (
+from birdnet.acoustic_models.inference.emb.embeddings_result import (
   DataEncodingResult,
-  EncodingResultBase,
+  EmbeddingsResultBase,
   FileEncodingResult,
 )
 from birdnet.acoustic_models.inference.emb.tensor import EmbeddingsTensor
@@ -36,7 +36,7 @@ from birdnet.helper import get_file_formats
 
 
 class EmbeddingsStrategy(
-  PredictionStrategy[EncodingResultBase, EmbeddingsConfig, EmbeddingsTensor]
+  PredictionStrategy[EmbeddingsResultBase, EmbeddingsConfig, EmbeddingsTensor]
 ):
   def validate_config(
     self, config: PredictionConfig, specific_config: EmbeddingsConfig
@@ -104,7 +104,7 @@ class EmbeddingsStrategy(
     config: PredictionConfig,
     resources: PipelineResources,
     files: list[Path],
-  ) -> EncodingResultBase:
+  ) -> EmbeddingsResultBase:
     assert resources.analyzer_resources.input_durations is not None
 
     return FileEncodingResult(
@@ -114,6 +114,12 @@ class EmbeddingsStrategy(
       overlap_duration_s=config.processing_conf.overlap_duration_s,
       speed=config.processing_conf.speed,
       file_durations=resources.analyzer_resources.input_durations,
+      model_path=config.model_conf.path,
+      model_fmin=config.model_conf.sig_fmin,
+      model_fmax=config.model_conf.sig_fmax,
+      model_sr=config.model_conf.sample_rate,
+      model_precision=config.model_conf.backend_type.precision(),
+      model_version=config.model_conf.version,
     )
 
   def create_array_result(
@@ -121,7 +127,7 @@ class EmbeddingsStrategy(
     tensor: EmbeddingsTensor,
     config: PredictionConfig,
     resources: PipelineResources,
-  ) -> EncodingResultBase:
+  ) -> EmbeddingsResultBase:
     assert resources.analyzer_resources.input_durations is not None
 
     return DataEncodingResult(
@@ -130,6 +136,12 @@ class EmbeddingsStrategy(
       overlap_duration_s=config.processing_conf.overlap_duration_s,
       speed=config.processing_conf.speed,
       input_durations=resources.analyzer_resources.input_durations,
+      model_path=config.model_conf.path,
+      model_fmin=config.model_conf.sig_fmin,
+      model_fmax=config.model_conf.sig_fmax,
+      model_sr=config.model_conf.sample_rate,
+      model_precision=config.model_conf.backend_type.precision(),
+      model_version=config.model_conf.version,
     )
 
   def create_minimal_benchmark_meta(
@@ -137,7 +149,7 @@ class EmbeddingsStrategy(
     config: PredictionConfig,
     specific_config: EmbeddingsConfig,
     resources: PipelineResources,
-    pred_result: EncodingResultBase,
+    pred_result: EmbeddingsResultBase,
   ) -> MinimalBenchmarkEmbMeta:
     assert resources.stats_resources.end_timepoint is not None
     assert resources.stats_resources.stop is not None
@@ -169,7 +181,7 @@ class EmbeddingsStrategy(
     config: PredictionConfig,
     specific_config: EmbeddingsConfig,
     resources: PipelineResources,
-    pred_result: EncodingResultBase,
+    pred_result: EmbeddingsResultBase,
   ) -> FullBenchmarkEmbMeta:
     perf_result = resources.stats_resources.tracking_result
     assert perf_result is not None
@@ -250,6 +262,6 @@ class EmbeddingsStrategy(
     return "emb"
 
   def save_results_extra(
-    self, result: EncodingResultBase, benchmark_run_out_dir: Path, prepend: str
+    self, result: EmbeddingsResultBase, benchmark_run_out_dir: Path, prepend: str
   ) -> list[Path]:
     return []

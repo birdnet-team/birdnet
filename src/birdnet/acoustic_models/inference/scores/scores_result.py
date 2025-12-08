@@ -27,77 +27,63 @@ VAR_END_TIME = "end_time"
 VAR_SPECIES_NAME = "species_name"
 VAR_CONFIDENCE = "confidence"
 
+NP_SPECIES_IDS_KEY = "species_ids"
+NP_SPECIES_PROBS_KEY = "species_probs"
+NP_SPECIES_MASKED_KEY = "species_masked"
+NP_SPECIES_LIST_KEY = "species_list"
 
-class PredictionResultBase(ResultBase):
+
+class ScoresResultBase(ResultBase):
   def __init__(
     self,
-    tensor: ScoresTensor,
-    species_list: OrderedSet[str],
+    inputs: np.ndarray,
     input_durations: np.ndarray,
+    model_path: Path,
+    model_fmin: int,
+    model_fmax: int,
+    model_sr: int,
+    model_precision: str,
+    model_version: str,
+    species_list: OrderedSet[str],
     segment_duration_s: int | float,
     overlap_duration_s: int | float,
     speed: int | float,
-    inputs: np.ndarray,
+    tensor: ScoresTensor,
   ) -> None:
-    assert input_durations.dtype in (np.float16, np.float32, np.float64)
+    super().__init__(
+      inputs=inputs,
+      input_durations=input_durations,
+      segment_duration_s=segment_duration_s,
+      overlap_duration_s=overlap_duration_s,
+      speed=speed,
+      model_path=model_path,
+      model_fmin=model_fmin,
+      model_fmax=model_fmax,
+      model_sr=model_sr,
+      model_precision=model_precision,
+      model_version=model_version,
+    )
     assert tensor._species_ids.dtype in (np.uint8, np.uint16, np.uint32, np.uint64)
     assert tensor._species_probs.dtype in (np.float16, np.float32)
     assert tensor._species_masked.dtype == bool
-
-    self._inputs = inputs
-
-    self._segment_duration_s = np.array(
-      [segment_duration_s], dtype=get_float_dtype(segment_duration_s)
-    )
-    self._overlap_duration_s = np.array(
-      [overlap_duration_s], dtype=get_float_dtype(overlap_duration_s)
-    )
-    self._speed = np.array([speed], dtype=get_float_dtype(speed))
 
     max_len = max(map(len, species_list))
     self._species_list = np.array(list(species_list), dtype=f"<U{max_len}")
     self._species_probs = tensor._species_probs
     self._species_ids = tensor._species_ids
     self._species_masked = tensor._species_masked
-    self._input_durations = input_durations
 
   @property
   def memory_size_mb(self) -> float:
-    return (
-      self._species_ids.nbytes
-      + self._species_probs.nbytes
-      + self._species_masked.nbytes
-      + self._inputs.nbytes
-      + self._segment_duration_s.nbytes
-      + self._overlap_duration_s.nbytes
-      + self._speed.nbytes
-      + self._species_list.nbytes
-      + self._input_durations.nbytes
-    ) / 1024**2
-
-  @property
-  def segment_duration_s(self) -> float:
-    return float(self._segment_duration_s[0])
-
-  @property
-  def overlap_duration_s(self) -> float:
-    return float(self._overlap_duration_s[0])
-
-  @property
-  def speed(self) -> float:
-    return float(self._speed[0])
-
-  @property
-  def inputs(self) -> np.ndarray:
-    return self._inputs
-
-  @property
-  def n_inputs(self) -> int:
-    return self._inputs.shape[0]
-
-  @property
-  def input_durations(self) -> np.ndarray:
-    return self._input_durations
+    return super().memory_size_mb + (
+      (
+        self._species_ids.nbytes
+        + self._species_probs.nbytes
+        + self._species_masked.nbytes
+        + self._species_list.nbytes
+      )
+      / 1024**2
+    )
 
   @property
   def species_list(self) -> np.ndarray:
@@ -127,42 +113,20 @@ class PredictionResultBase(ResultBase):
   def top_k(self) -> int:
     return self._species_ids.shape[2]
 
-  def save(self, npz_out_path: os.PathLike | str, /, *, compress: bool = True) -> None:
-    npz_out_path = Path(npz_out_path)
-    if npz_out_path.suffix != ".npz":
-      raise ValueError("Output path must have a .npz suffix")
-
-    save_method = np.savez_compressed if compress else np.savez
-
-    save_method(
-      npz_out_path,
-      inputs=self._inputs,
-      species_ids=self._species_ids,
-      species_probs=self._species_probs,
-      species_masked=self._species_masked,
-      segment_duration_s=self._segment_duration_s,
-      overlap_duration_s=self._overlap_duration_s,
-      speed=self._speed,
-      species_list=self._species_list,
-      file_durations=self._input_durations,
-    )
+  def _get_extra_save_data(self) -> dict[str, np.ndarray]:
+    return {
+      NP_SPECIES_IDS_KEY: self._species_ids,
+      NP_SPECIES_PROBS_KEY: self._species_probs,
+      NP_SPECIES_MASKED_KEY: self._species_masked,
+      NP_SPECIES_LIST_KEY: self._species_list,
+    }
 
   @classmethod
-  def load(cls, path: os.PathLike | str) -> Self:
-    result = cls.__new__(cls)
-    with np.load(path, allow_pickle=True) as npz:
-      data = {k: npz[k] for k in npz.files}
-
-    result._inputs = data["inputs"]
-    result._species_ids = data["species_ids"]
-    result._species_probs = data["species_probs"]
-    result._species_masked = data["species_masked"]
-    result._segment_duration_s = data["segment_duration_s"]
-    result._overlap_duration_s = data["overlap_duration_s"]
-    result._speed = data["speed"]
-    result._species_list = data["species_list"]
-    result._input_durations = data["file_durations"]
-    return result
+  def _set_extra_load_data(cls, data: dict[str, np.ndarray]) -> None:
+    cls._species_ids = data[NP_SPECIES_IDS_KEY]
+    cls._species_probs = data[NP_SPECIES_PROBS_KEY]
+    cls._species_masked = data[NP_SPECIES_MASKED_KEY]
+    cls._species_list = data[NP_SPECIES_LIST_KEY]
 
   @property
   def _input_dtype(self) -> type:
@@ -266,11 +230,17 @@ class PredictionResultBase(ResultBase):
     ]
 
     metadata: dict[bytes | str, bytes | str] | None = {
-      "segment_duration_s": str(self._segment_duration_s),
-      "overlap_duration_s": str(self._overlap_duration_s),
-      "speed": str(self._speed),
+      "segment_duration_s": str(self._segment_duration_s[0]),
+      "overlap_duration_s": str(self._overlap_duration_s[0]),
+      "speed": str(self._speed[0]),
       "n_inputs": str(self.n_inputs),
       "n_species": str(self.n_species),
+      "model_path": str(self._model_path[0]),
+      "model_version": str(self._model_version[0]),
+      "model_fmin": str(self._model_fmin[0]),
+      "model_fmax": str(self._model_fmax[0]),
+      "model_sr": str(self._model_sr[0]),
+      "model_precision": str(self._model_precision[0]),
     }
     schema_with_metadata = pa.schema(fields, metadata=metadata)
     table = pa.table(arrow_arrays, schema=schema_with_metadata)
@@ -383,7 +353,7 @@ class PredictionResultBase(ResultBase):
       print(f"Parquet file: {file_size:.1f} MB (compression: {compression_ratio:.1f}x)")
 
 
-class FilePredictionResult(PredictionResultBase):
+class FilePredictionResult(ScoresResultBase):
   def __init__(
     self,
     tensor: ScoresTensor,
@@ -393,19 +363,31 @@ class FilePredictionResult(PredictionResultBase):
     segment_duration_s: int | float,
     overlap_duration_s: int | float,
     speed: int | float,
+    model_path: Path,
+    model_fmin: int,
+    model_fmax: int,
+    model_sr: int,
+    model_precision: str,
+    model_version: str,
   ) -> None:
     all_files = [str(file.absolute()) for file in files]
     max_len = max(map(len, all_files))
     inputs = np.asarray(all_files, dtype=f"<U{max_len}")
 
     super().__init__(
-      tensor,
-      species_list,
-      file_durations,
-      segment_duration_s,
-      overlap_duration_s,
-      speed,
-      inputs,
+      tensor=tensor,
+      species_list=species_list,
+      input_durations=file_durations,
+      segment_duration_s=segment_duration_s,
+      overlap_duration_s=overlap_duration_s,
+      speed=speed,
+      inputs=inputs,
+      model_path=model_path,
+      model_fmin=model_fmin,
+      model_fmax=model_fmax,
+      model_sr=model_sr,
+      model_precision=model_precision,
+      model_version=model_version,
     )
 
   @property
@@ -418,7 +400,7 @@ class FilePredictionResult(PredictionResultBase):
     return f'"{input_value}"'
 
 
-class DataPredictionResult(PredictionResultBase):
+class DataPredictionResult(ScoresResultBase):
   def __init__(
     self,
     tensor: ScoresTensor,
@@ -427,18 +409,30 @@ class DataPredictionResult(PredictionResultBase):
     segment_duration_s: int | float,
     overlap_duration_s: int | float,
     speed: int | float,
+    model_path: Path,
+    model_fmin: int,
+    model_fmax: int,
+    model_sr: int,
+    model_precision: str,
+    model_version: str,
   ) -> None:
     n_arrays = len(input_durations)
     array_indices = np.arange(n_arrays, dtype=get_uint_dtype(n_arrays - 1))
 
     super().__init__(
-      tensor,
-      species_list,
-      input_durations,
-      segment_duration_s,
-      overlap_duration_s,
-      speed,
-      array_indices,
+      tensor=tensor,
+      species_list=species_list,
+      input_durations=input_durations,
+      segment_duration_s=segment_duration_s,
+      overlap_duration_s=overlap_duration_s,
+      speed=speed,
+      inputs=array_indices,
+      model_path=model_path,
+      model_fmin=model_fmin,
+      model_fmax=model_fmax,
+      model_sr=model_sr,
+      model_precision=model_precision,
+      model_version=model_version,
     )
 
   def _format_input_for_csv(self, input_value: Any) -> str:

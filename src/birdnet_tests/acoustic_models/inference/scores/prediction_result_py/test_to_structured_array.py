@@ -4,9 +4,9 @@ import numpy as np
 import soundfile
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.scores.prediction_result import (
+from birdnet.acoustic_models.inference.scores.scores_result import (
   FilePredictionResult,
-  PredictionResultBase,
+  ScoresResultBase,
 )
 from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
 from birdnet.helper import (
@@ -66,14 +66,15 @@ def create_mock_tensor(
   return tensor
 
 
-def create_prediction_result(
+def create_file_prediction_result(
   n_files: int,
   duration_s: float,
   top_k: int,
   segment_duration_s: float,
   overlap_duration_s: float,
   speed: float = 1.0,
-) -> PredictionResultBase:
+) -> FilePredictionResult:
+  assert n_files > 0
   assert 0 <= overlap_duration_s < segment_duration_s
   np.random.seed(0)
   n_segments = get_n_segments_speed(
@@ -102,11 +103,17 @@ def create_prediction_result(
     segment_duration_s=segment_duration_s,
     overlap_duration_s=overlap_duration_s,
     speed=speed,
+    model_fmax=15_000,
+    model_fmin=0,
+    model_path=Path("/model/path"),
+    model_precision="fp32",
+    model_sr=48_000,
+    model_version="v2.4",
   )
 
 
 def test_empty_predictions() -> None:
-  result = create_prediction_result(
+  result = create_file_prediction_result(
     n_files=5, duration_s=9, top_k=2, segment_duration_s=3.0, overlap_duration_s=0.0
   )
   result.species_masked[:] = True
@@ -124,7 +131,7 @@ def test_empty_predictions() -> None:
 
 
 def test_single_prediction() -> None:
-  result = create_prediction_result(
+  result = create_file_prediction_result(
     n_files=1, duration_s=3, top_k=1, segment_duration_s=3.0, overlap_duration_s=0.0
   )
 
@@ -139,7 +146,7 @@ def test_single_prediction() -> None:
 
 
 def test_two_segments() -> None:
-  result = create_prediction_result(
+  result = create_file_prediction_result(
     n_files=1, duration_s=6, top_k=1, segment_duration_s=3.0, overlap_duration_s=0.0
   )
 
@@ -160,7 +167,7 @@ def test_two_segments() -> None:
 
 
 def test_sorting_by_confidence() -> None:
-  result = create_prediction_result(
+  result = create_file_prediction_result(
     n_files=1, duration_s=3, top_k=3, segment_duration_s=3.0, overlap_duration_s=0.0
   )
 
@@ -175,7 +182,7 @@ def test_sorting_by_confidence() -> None:
 
 
 def test_time_calculations_no_overlap() -> None:
-  result = create_prediction_result(
+  result = create_file_prediction_result(
     n_files=1, duration_s=6, top_k=1, segment_duration_s=3, overlap_duration_s=0
   )
 
@@ -190,7 +197,7 @@ def test_time_calculations_no_overlap() -> None:
 
 
 def test_time_calculations_with_overlap() -> None:
-  result = create_prediction_result(
+  result = create_file_prediction_result(
     n_files=1, duration_s=6, top_k=1, segment_duration_s=3, overlap_duration_s=0.5
   )
 
@@ -207,7 +214,7 @@ def test_time_calculations_with_overlap() -> None:
 
 
 def test_time_calculations_speedup_halftime_no_overlap() -> None:
-  result = create_prediction_result(
+  result = create_file_prediction_result(
     n_files=1,
     duration_s=6,
     top_k=1,
@@ -231,7 +238,7 @@ def test_time_calculations_speedup_halftime_no_overlap() -> None:
 
 
 def test_random_time_calculations_speedup_halftime_no_overlap() -> None:
-  result = create_prediction_result(
+  result = create_file_prediction_result(
     n_files=1,
     duration_s=5.75,
     top_k=1,
@@ -255,7 +262,7 @@ def test_random_time_calculations_speedup_halftime_no_overlap() -> None:
 
 
 def test_time_calculations_speedup_doubletime_no_overlap() -> None:
-  result = create_prediction_result(
+  result = create_file_prediction_result(
     n_files=1,
     duration_s=24,
     top_k=1,
@@ -279,7 +286,7 @@ def test_time_calculations_speedup_doubletime_no_overlap() -> None:
 
 
 def test_random_time_calculations_speedup_doubletime_no_overlap() -> None:
-  result = create_prediction_result(
+  result = create_file_prediction_result(
     n_files=1,
     duration_s=20,
     top_k=1,
@@ -303,7 +310,7 @@ def test_random_time_calculations_speedup_doubletime_no_overlap() -> None:
 
 
 def test_time_calculations_with_overlap_and_speed() -> None:
-  result = create_prediction_result(
+  result = create_file_prediction_result(
     n_files=1,
     duration_s=3,
     top_k=1,
@@ -325,7 +332,7 @@ def test_time_calculations_with_overlap_and_speed() -> None:
 
 
 def test_end_time_clipping_one_segment() -> None:
-  result = create_prediction_result(
+  result = create_file_prediction_result(
     n_files=1,
     duration_s=2.75674,
     top_k=1,
@@ -342,7 +349,7 @@ def test_end_time_clipping_one_segment() -> None:
 
 
 def test_end_time_clipping_two_segments() -> None:
-  result = create_prediction_result(
+  result = create_file_prediction_result(
     n_files=1,
     duration_s=5.7567,
     top_k=1,
@@ -362,9 +369,9 @@ def test_end_time_clipping_two_segments() -> None:
 
 def _test_end_time_clipping_multiple_segments(
   max_duration: float,
-) -> PredictionResultBase:
+) -> ScoresResultBase:
   n_segments = round(max_duration / 3)
-  result = create_prediction_result(
+  result = create_file_prediction_result(
     n_files=1,
     duration_s=max_duration,
     top_k=1,
@@ -403,7 +410,7 @@ def xtest_end_time_clipping_multiple_segments_float64() -> None:
 
 
 def test_multiple_files() -> None:
-  result = create_prediction_result(
+  result = create_file_prediction_result(
     n_files=5, duration_s=3, top_k=1, segment_duration_s=3, overlap_duration_s=0
   )
 
@@ -418,7 +425,7 @@ def test_multiple_files() -> None:
 
 
 def test_dtype_structure() -> None:
-  result = create_prediction_result(
+  result = create_file_prediction_result(
     n_files=1, duration_s=3, top_k=1, segment_duration_s=3.0, overlap_duration_s=0.0
   )
 
@@ -440,7 +447,7 @@ def test_dtype_structure() -> None:
 
 
 def test_masking_behavior() -> None:
-  result = create_prediction_result(
+  result = create_file_prediction_result(
     n_files=2, duration_s=3, top_k=3, segment_duration_s=3.0, overlap_duration_s=0.0
   )
 

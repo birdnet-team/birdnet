@@ -11,10 +11,10 @@ from birdnet.acoustic_models.inference.scores.benchmarking import (
   FullBenchmarkMeta,
   MinimalBenchmarkMeta,
 )
-from birdnet.acoustic_models.inference.scores.prediction_result import (
+from birdnet.acoustic_models.inference.scores.scores_result import (
   DataPredictionResult,
   FilePredictionResult,
-  PredictionResultBase,
+  ScoresResultBase,
 )
 from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
 from birdnet.acoustic_models.inference.scores.worker import ScoresWorker
@@ -37,9 +37,7 @@ from birdnet.globals import (
 from birdnet.helper import get_file_formats
 
 
-class ScoresStrategy(
-  PredictionStrategy[PredictionResultBase, ScoresConfig, ScoresTensor]
-):
+class ScoresStrategy(PredictionStrategy[ScoresResultBase, ScoresConfig, ScoresTensor]):
   def validate_config(
     self, config: PredictionConfig, specific_config: ScoresConfig
   ) -> None:
@@ -145,7 +143,7 @@ class ScoresStrategy(
     config: PredictionConfig,
     resources: PipelineResources,
     files: list[Path],
-  ) -> PredictionResultBase:
+  ) -> ScoresResultBase:
     assert resources.analyzer_resources.input_durations is not None
 
     return FilePredictionResult(
@@ -156,6 +154,12 @@ class ScoresStrategy(
       speed=config.processing_conf.speed,
       species_list=config.model_conf.species_list,
       file_durations=resources.analyzer_resources.input_durations,
+      model_path=config.model_conf.path,
+      model_fmin=config.model_conf.sig_fmin,
+      model_fmax=config.model_conf.sig_fmax,
+      model_sr=config.model_conf.sample_rate,
+      model_precision=config.model_conf.backend_type.precision(),
+      model_version=config.model_conf.version,
     )
 
   def create_array_result(
@@ -163,7 +167,7 @@ class ScoresStrategy(
     tensor: ScoresTensor,
     config: PredictionConfig,
     resources: PipelineResources,
-  ) -> PredictionResultBase:
+  ) -> ScoresResultBase:
     assert resources.analyzer_resources.input_durations is not None
 
     return DataPredictionResult(
@@ -173,6 +177,12 @@ class ScoresStrategy(
       speed=config.processing_conf.speed,
       species_list=config.model_conf.species_list,
       input_durations=resources.analyzer_resources.input_durations,
+      model_path=config.model_conf.path,
+      model_fmin=config.model_conf.sig_fmin,
+      model_fmax=config.model_conf.sig_fmax,
+      model_sr=config.model_conf.sample_rate,
+      model_precision=config.model_conf.backend_type.precision(),
+      model_version=config.model_conf.version,
     )
 
   def create_minimal_benchmark_meta(
@@ -180,7 +190,7 @@ class ScoresStrategy(
     config: PredictionConfig,
     specific_config: ScoresConfig,
     resources: PipelineResources,
-    pred_result: PredictionResultBase,
+    pred_result: ScoresResultBase,
   ) -> MinimalBenchmarkMeta:
     assert resources.stats_resources.end_timepoint is not None
     assert resources.stats_resources.stop is not None
@@ -216,7 +226,7 @@ class ScoresStrategy(
     config: PredictionConfig,
     specific_config: ScoresConfig,
     resources: PipelineResources,
-    pred_result: PredictionResultBase,
+    pred_result: ScoresResultBase,
   ) -> FullBenchmarkMeta:
     perf_result = resources.stats_resources.tracking_result
     assert perf_result is not None
@@ -314,7 +324,7 @@ class ScoresStrategy(
     return "scores"
 
   def save_results_extra(
-    self, result: PredictionResultBase, benchmark_run_out_dir: Path, prepend: str
+    self, result: ScoresResultBase, benchmark_run_out_dir: Path, prepend: str
   ) -> list[Path]:
     print("Saving result using CSV format (.csv)...")
     csv_path = benchmark_run_out_dir / f"{prepend}-result.csv"

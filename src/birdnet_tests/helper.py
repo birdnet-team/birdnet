@@ -13,18 +13,18 @@ import numpy as np
 import psutil
 import pytest
 
-from birdnet.acoustic_models.inference.emb.encoding_result import EncodingResultBase
-from birdnet.acoustic_models.inference.scores.prediction_result import (
-  PredictionResultBase,
+from birdnet.acoustic_models.inference.emb.embeddings_result import EmbeddingsResultBase
+from birdnet.acoustic_models.inference.scores.scores_result import (
+  ScoresResultBase,
 )
 from birdnet.backends import litert_installed
 
 
 def assert_encoding_result_is_equal(
-  a: EncodingResultBase, b: EncodingResultBase
+  a: EmbeddingsResultBase, b: EmbeddingsResultBase
 ) -> None:
-  assert isinstance(a, EncodingResultBase)
-  assert isinstance(b, EncodingResultBase)
+  assert isinstance(a, EmbeddingsResultBase)
+  assert isinstance(b, EmbeddingsResultBase)
 
   np.testing.assert_array_equal(a.segment_duration_s, b.segment_duration_s)
   np.testing.assert_array_equal(a.overlap_duration_s, b.overlap_duration_s)
@@ -34,11 +34,9 @@ def assert_encoding_result_is_equal(
   np.testing.assert_array_equal(a.embeddings_masked, b.embeddings_masked)
 
 
-def assert_prediction_result_is_equal(
-  a: PredictionResultBase, b: PredictionResultBase
-) -> None:
-  assert isinstance(a, PredictionResultBase)
-  assert isinstance(b, PredictionResultBase)
+def assert_prediction_result_is_equal(a: ScoresResultBase, b: ScoresResultBase) -> None:
+  assert isinstance(a, ScoresResultBase)
+  assert isinstance(b, ScoresResultBase)
 
   np.testing.assert_array_equal(a.segment_duration_s, b.segment_duration_s)
   np.testing.assert_array_equal(a.overlap_duration_s, b.overlap_duration_s)
@@ -66,10 +64,10 @@ def assert_prediction_result_is_equal(
 
 
 def assert_encoding_result_is_close(
-  a: EncodingResultBase, b: EncodingResultBase, max_abs_diff: float
+  a: EmbeddingsResultBase, b: EmbeddingsResultBase, max_abs_diff: float
 ) -> None:
-  assert isinstance(a, EncodingResultBase)
-  assert isinstance(b, EncodingResultBase)
+  assert isinstance(a, EmbeddingsResultBase)
+  assert isinstance(b, EmbeddingsResultBase)
 
   np.testing.assert_array_equal(a.segment_duration_s, b.segment_duration_s)
   np.testing.assert_array_equal(a.overlap_duration_s, b.overlap_duration_s)
@@ -88,10 +86,10 @@ def assert_encoding_result_is_close(
 
 
 def assert_prediction_result_is_close(
-  a: PredictionResultBase, b: PredictionResultBase, max_abs_diff: float
+  a: ScoresResultBase, b: ScoresResultBase, max_abs_diff: float
 ) -> None:
-  assert isinstance(a, PredictionResultBase)
-  assert isinstance(b, PredictionResultBase)
+  assert isinstance(a, ScoresResultBase)
+  assert isinstance(b, ScoresResultBase)
 
   np.testing.assert_array_equal(a.segment_duration_s, b.segment_duration_s)
   np.testing.assert_array_equal(a.overlap_duration_s, b.overlap_duration_s)

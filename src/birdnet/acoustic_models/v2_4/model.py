@@ -7,10 +7,10 @@ from typing import Any, Literal, final
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.base import AcousticModelBase
-from birdnet.acoustic_models.inference.emb.encoding_result import EncodingResultBase
+from birdnet.acoustic_models.inference.emb.embeddings_result import EmbeddingsResultBase
 from birdnet.acoustic_models.inference.perf_tracker import ProgressStats
-from birdnet.acoustic_models.inference.scores.prediction_result import (
-  PredictionResultBase,
+from birdnet.acoustic_models.inference.scores.scores_result import (
+  ScoresResultBase,
 )
 from birdnet.acoustic_models.inference_pipeline.api import EncodingSession, ScoreSession
 from birdnet.acoustic_models.inference_pipeline.configs import PredictionConfig
@@ -277,7 +277,7 @@ class AcousticModelV2_4(AcousticModelBase):
     progress_callback: Callable[[ProgressStats], None] | None = None,
     device: str | list[str] = "CPU",
     max_n_files: int = 65_536,  # Limit to avoid excessive memory usage
-  ) -> EncodingResultBase:
+  ) -> EmbeddingsResultBase:
     input_files = PredictionConfig.validate_input_files(inp)
     max_n_files = len(input_files)
 
@@ -323,7 +323,7 @@ class AcousticModelV2_4(AcousticModelBase):
     device: str | list[str] = "CPU",
     show_stats: Literal["minimal", "progress", "benchmark"] | None = None,
     progress_callback: Callable[[ProgressStats], None] | None = None,
-  ) -> PredictionResultBase:
+  ) -> ScoresResultBase:
     input_files = PredictionConfig.validate_input_files(inp)
     max_n_files = len(input_files)
 
