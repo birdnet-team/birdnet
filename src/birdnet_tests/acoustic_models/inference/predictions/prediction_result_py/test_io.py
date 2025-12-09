@@ -57,6 +57,7 @@ def test_memory_size_mb() -> None:
     segment_duration_s=3.0,
     overlap_duration_s=1.5,
     speed=1.0,
+    unprocessable_files={0},
   )
 
   expected_size = (

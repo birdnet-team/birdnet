@@ -55,15 +55,18 @@ def assert_species_masked_pattern(species_masked: np.ndarray) -> None:
         )
 
 
-def create_mock_scores_tensor_one_unproc(
-  species_ids: np.ndarray, species_probs: np.ndarray, species_masked: np.ndarray
+def create_mock_scores_tensor(
+  species_ids: np.ndarray,
+  species_probs: np.ndarray,
+  species_masked: np.ndarray,
+  unprocessable_files: set[int] | None = None,
 ) -> AcousticPredictionTensor:
   """Helper to create a mock tensor."""
   tensor = AcousticPredictionTensor.__new__(AcousticPredictionTensor)
   tensor._species_ids = species_ids
   tensor._species_probs = species_probs
   tensor._species_masked = species_masked
-  tensor._unprocessable_inputs = np.array([0], dtype=np.uint8)
+  tensor.set_unprocessable_inputs(unprocessable_files or set())
   return tensor
 
 
@@ -74,6 +77,7 @@ def create_file_prediction_result(
   segment_duration_s: float,
   overlap_duration_s: float,
   speed: float = 1.0,
+  unprocessable_files: set[int] | None = None,
 ) -> AcousticFilePredictionResult:
   assert n_files > 0
   assert 0 <= overlap_duration_s < segment_duration_s
@@ -87,7 +91,9 @@ def create_file_prediction_result(
   species_probs = np.random.random((n_files, n_segments, top_k)).astype(np.float32)
   species_masked = np.full((n_files, n_segments, top_k), False, dtype=bool)
 
-  tensor = create_mock_scores_tensor_one_unproc(species_ids, species_probs, species_masked)
+  tensor = create_mock_scores_tensor(
+    species_ids, species_probs, species_masked, unprocessable_files
+  )
 
   files = [Path(f"/test/file_{i}.wav") for i in range(n_files)]
   species_list = OrderedSet([f"species_{i}" for i in range(15)])
@@ -144,6 +150,38 @@ def test_single_prediction() -> None:
   assert structured[0]["end_time"] == 3.0
   assert str(structured[0]["species_name"]).startswith("species_")
   assert structured[0]["confidence"] >= 0
+
+
+def test_unprocessable_returns_empty() -> None:
+  result = create_file_prediction_result(
+    n_files=1,
+    duration_s=3,
+    top_k=1,
+    segment_duration_s=3.0,
+    overlap_duration_s=0.0,
+    unprocessable_files={0},
+  )
+
+  structured = result.to_structured_array()
+
+  assert len(structured) == 0
+
+
+def test_one_unprocessable_among_multiple_files() -> None:
+  result = create_file_prediction_result(
+    n_files=3,
+    duration_s=3,
+    top_k=1,
+    segment_duration_s=3.0,
+    overlap_duration_s=0.0,
+    unprocessable_files={1},
+  )
+
+  structured = result.to_structured_array()
+
+  assert len(structured) == 2
+  assert structured[0]["input"] == str(Path("/test/file_0.wav").absolute())
+  assert structured[1]["input"] == str(Path("/test/file_2.wav").absolute())
 
 
 def test_two_segments() -> None:
