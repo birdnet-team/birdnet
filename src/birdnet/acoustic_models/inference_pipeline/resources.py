@@ -207,10 +207,10 @@ class ProducerResources:
   unprocessed_inputs_queue: Queue
   start_signals: list[multiprocessing.synchronize.Event]
 
-  _unprocessed_inputs: np.ndarray | None = None
+  _unprocessed_inputs: set[int] | None = None
 
   @property
-  def unprocessed_inputs(self) -> np.ndarray:
+  def unprocessed_inputs(self) -> set[int]:
     assert self._unprocessed_inputs is not None
     return self._unprocessed_inputs
 
@@ -245,10 +245,7 @@ class ProducerResources:
     for _ in range(self.n_producers):
       unprocessed = self.unprocessed_inputs_queue.get(block=True, timeout=None)
       unprocessed_inputs.update(unprocessed)
-    unprocessable_inputs_np = np.array(
-      sorted(unprocessed_inputs), dtype=get_uint_dtype(max(unprocessed_inputs))
-    )
-    object.__setattr__(self, "_unprocessed_inputs", unprocessable_inputs_np)
+    object.__setattr__(self, "_unprocessed_inputs", unprocessed_inputs)
 
 
 @dataclass(frozen=True)
@@ -316,12 +313,19 @@ class FilesAnalyzerResources:
   start_signal: threading.Event
   segments_dtype: np.dtype
 
+  _unprocessed_inputs: set[int] | None = None
+
   _input_durations: np.ndarray | None = None
 
   @property
   def input_durations(self) -> np.ndarray:
     assert self._input_durations is not None
     return self._input_durations
+
+  @property
+  def unprocessed_inputs(self) -> set[int]:
+    assert self._unprocessed_inputs is not None
+    return self._unprocessed_inputs
 
   def collect_input_durations(self) -> None:
     durations: list[float] = self.analyzer_queue.get(block=True, timeout=None)
@@ -331,6 +335,7 @@ class FilesAnalyzerResources:
 
   def reset(self) -> None:
     object.__setattr__(self, "_input_durations", None)
+    object.__setattr__(self, "_unprocessed_inputs", None)
     self.tot_n_segments_ptr.value = 0
     self.max_segment_idx_ptr.value = self.max_segment_idx_init_value
     self.finished.clear()

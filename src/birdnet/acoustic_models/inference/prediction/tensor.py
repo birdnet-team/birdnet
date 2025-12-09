@@ -109,6 +109,6 @@ class AcousticPredictionTensor(AcousticTensorBase):
     self._species_probs[input_indices, segment_indices] = top_k_scores
     self._species_masked[input_indices, segment_indices] = top_k_mask
 
-  def set_unprocessable_inputs(self, unprocessable_inputs: np.ndarray) -> None:
+  def set_unprocessable_inputs(self, unprocessable_inputs: set[int]) -> None:
     super().set_unprocessable_inputs(unprocessable_inputs)
-    self._species_masked[unprocessable_inputs, :, :] = True
+    self._species_masked[self._unprocessable_inputs, :, :] = True

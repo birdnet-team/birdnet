@@ -4,7 +4,6 @@ import queue
 import tempfile
 import threading
 from pathlib import Path
-from unittest.mock import patch
 
 import numpy
 import pytest
@@ -15,7 +14,7 @@ from birdnet.model_loader import load
 from birdnet_tests.helper import (
   assert_prediction_result_is_close,
   assert_prediction_result_is_equal,
-  create_empty_wav,
+  create_zero_len_wav,
   ensure_gpu_or_skip,
   ensure_litert_or_skip,
   use_fork_or_skip,
@@ -23,7 +22,6 @@ from birdnet_tests.helper import (
   use_spawn_or_skip,
 )
 from birdnet_tests.test_files import (
-  AUDIO_FORMATS_DIR,
   TEST_FILE_LONG,
   TEST_FILE_SHORT,
   TEST_FILE_SHORT_SCORE_SHAPE,
@@ -87,26 +85,33 @@ def test_tflite_fp32() -> None:
 def test_tflite_fp32_empty_file_is_skipped() -> None:
   model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
   with model.predict_session(n_workers=1, top_k=None) as session:
-    res = session.run(AUDIO_FORMATS_DIR / "empty.wav")
+    with tempfile.NamedTemporaryFile(
+      suffix=".wav", delete=False, mode="wb"
+    ) as empty_wav1:
+      empty_wav1.write(b"")
+    res = session.run(empty_wav1.name)
+    empty_wav1.close()
   assert res.species_probs.shape == (1, 0, 6522)
   assert numpy.all(res.species_probs[0] == 0)
   assert numpy.all(res.species_ids[0] == 0)
   assert numpy.all(res.species_masked[0])
+  assert res.get_unprocessed_files() == {Path(empty_wav1.name).absolute()}
 
 
-def test_tflite_fp32_empty_wav_is_skipped() -> None:
+def test_tflite_fp32_empty_wav_is_not_unprocessed() -> None:
   model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
   with model.predict_session(n_workers=1, top_k=None) as session:
     with tempfile.NamedTemporaryFile(
       suffix=".wav", delete=False, mode="wb"
     ) as tmp_broken_wav:
-      create_empty_wav(tmp_broken_wav)
+      create_zero_len_wav(tmp_broken_wav)
     res = session.run(tmp_broken_wav.name)
     tmp_broken_wav.close()
   assert res.species_probs.shape == (1, 0, 6522)
   assert numpy.all(res.species_probs[0] == 0)
-  assert numpy.all(res.species_ids[0] == 0)
+  assert numpy.all(res.species_ids[0] == 0)  # TODO
   assert numpy.all(res.species_masked[0])
+  assert res.get_unprocessed_files() == set()
 
 
 def test_tflite_fp32_empty_and_valid_file() -> None:
@@ -114,13 +119,69 @@ def test_tflite_fp32_empty_and_valid_file() -> None:
   with model.predict_session(
     n_workers=1, top_k=None, default_confidence_threshold=-numpy.inf
   ) as session:
-    res = session.run([AUDIO_FORMATS_DIR / "empty.wav", TEST_FILE_SHORT])
+    with tempfile.NamedTemporaryFile(
+      suffix=".wav", delete=False, mode="wb"
+    ) as empty_wav1:
+      empty_wav1.write(b"")
+    res = session.run([empty_wav1.name, TEST_FILE_SHORT])
+    empty_wav1.close()
   assert res.species_probs.shape == (2, 3, 6522)
-  assert numpy.all(res.species_probs[0] == 0)
-  assert numpy.all(res.species_masked[0])
-  assert numpy.all(res.species_probs[1] != 0)
-  assert not numpy.any(res.species_masked[1])
-  assert res.get_unprocessed_files() == [(AUDIO_FORMATS_DIR / "empty.wav").absolute()]
+  unprocessed_idx = res.unprocessable_inputs[0]
+  processed_idx = list(set(range(len(res.inputs))) - {unprocessed_idx})[0]
+  assert numpy.all(res.species_probs[unprocessed_idx] == 0)
+  assert numpy.all(res.species_masked[unprocessed_idx])
+  assert numpy.all(res.species_probs[processed_idx] != 0)
+  assert not numpy.any(res.species_masked[processed_idx])
+  assert res.get_unprocessed_files() == {Path(empty_wav1.name).absolute()}
+
+
+def test_tflite_fp32_empty_files_are_skipped_normal_is_kept() -> None:
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
+  with model.predict_session(
+    n_workers=1, top_k=None, default_confidence_threshold=-numpy.inf
+  ) as session:
+    with tempfile.NamedTemporaryFile(
+      suffix=".wav", delete=False, mode="wb"
+    ) as tmp_broken_wav1:
+      tmp_broken_wav1.write(b"NOT_A_VALID_WAV_FILE")
+    with tempfile.NamedTemporaryFile(
+      suffix=".wav", delete=False, mode="wb"
+    ) as tmp_broken_wav2:
+      tmp_broken_wav2.write(b"NOT_A_VALID_WAV_FILE")
+    res = session.run([tmp_broken_wav1.name, TEST_FILE_SHORT, tmp_broken_wav2.name])
+    tmp_broken_wav1.close()
+    tmp_broken_wav2.close()
+
+  assert res.get_unprocessed_files() == {
+    Path(tmp_broken_wav1.name).absolute(),
+    Path(tmp_broken_wav2.name).absolute(),
+  }
+
+
+def test_tflite_fp32_empty_files_are_skipped_two_feeders() -> None:
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
+  with model.predict_session(
+    n_workers=1,
+    top_k=None,
+    default_confidence_threshold=-numpy.inf,
+    n_feeders=2,
+  ) as session:
+    with tempfile.NamedTemporaryFile(
+      suffix=".wav", delete=False, mode="wb"
+    ) as empty_wav1:
+      empty_wav1.write(b"")
+    with tempfile.NamedTemporaryFile(
+      suffix=".wav", delete=False, mode="wb"
+    ) as empty_wav2:
+      empty_wav2.write(b"")
+    res = session.run([empty_wav1.name, empty_wav2.name])
+    empty_wav1.close()
+    empty_wav2.close()
+
+  assert res.get_unprocessed_files() == {
+    Path(empty_wav1.name).absolute(),
+    Path(empty_wav2.name).absolute(),
+  }
 
 
 def test_tflite_fp32_np_array() -> None:

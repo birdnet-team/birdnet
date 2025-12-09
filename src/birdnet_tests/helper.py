@@ -3,13 +3,11 @@ import ctypes
 import importlib.util
 import multiprocessing as mp
 import os
-import struct
 import subprocess
 import threading
 import time
 from collections.abc import Callable, Generator
 from multiprocessing import get_all_start_methods, set_start_method
-from pathlib import Path
 from typing import IO
 
 import numpy as np
@@ -25,7 +23,7 @@ from birdnet.acoustic_models.inference.prediction.result import (
 from birdnet.backends import litert_installed
 
 
-def create_empty_wav(f: IO[bytes]) -> None:
+def create_zero_len_wav(f: IO[bytes]) -> None:
   # 44-Byte WAV Header
   f.write(
     b"RIFF"

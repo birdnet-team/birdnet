@@ -106,9 +106,9 @@ class AcousticSessionBase(
     self._resources.stats_resources.save_end_time()
 
     # Collect only if no cancellation occurred, otherwise result queues might be empty
+    self._resources.analyzer_resources.collect_input_durations()
     self._resources.producer_resources.collect_unprocessed_inputs()
     self._resources.stats_resources.collect_performance_results()
-    self._resources.analyzer_resources.collect_input_durations()
 
     result_tensor.set_unprocessable_inputs(
       self._resources.producer_resources.unprocessed_inputs

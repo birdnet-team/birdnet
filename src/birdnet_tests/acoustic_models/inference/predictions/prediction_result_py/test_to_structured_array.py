@@ -63,6 +63,7 @@ def create_mock_scores_tensor(
   tensor._species_ids = species_ids
   tensor._species_probs = species_probs
   tensor._species_masked = species_masked
+  tensor._unprocessable_inputs = np.array([], dtype=np.uint8)
   return tensor
 
 

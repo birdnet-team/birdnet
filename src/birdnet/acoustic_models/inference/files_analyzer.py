@@ -13,7 +13,6 @@ import soundfile
 import birdnet.acoustic_models.inference_pipeline.logs as bn_logging
 from birdnet.acoustic_models.inference.producer import (
   get_audio_duration_from_sf,
-  get_audio_duration_s,
   get_sf_info,
 )
 from birdnet.helper import (
@@ -115,7 +114,6 @@ class FilesAnalyzer:
 
     self._log(f"Received {len(input_data)} inputs to analyze.")
 
-    unprocessable_inputs: set[int] = set()
     for input_idx, inp_data in enumerate(input_data):
       if self._check_cancel_event():
         return
@@ -135,7 +133,6 @@ class FilesAnalyzer:
             f"Could not read audio file #{input_idx} '{inp_data.absolute()}': {error}. "
             f"Skipped file.",
           )
-          unprocessable_inputs.add(input_idx)
         except Exception as error:
           self._logger.warning(
             f"FA_{os.getpid()}: "
@@ -144,7 +141,6 @@ class FilesAnalyzer:
             exc_info=error,
             stack_info=True,
           )
-          unprocessable_inputs.add(input_idx)
       else:
         assert isinstance(inp_data, tuple)
         assert len(inp_data) == 2
@@ -187,5 +183,4 @@ class FilesAnalyzer:
     self._analyzing_result.put(durations, block=True)
     self._log("Done putting analyzing result into queue.")
     self._log(f"Total duration of all files: {sum(durations) / 60**2:.2f} h.")
-
     self._finished.set()

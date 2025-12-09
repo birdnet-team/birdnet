@@ -405,9 +405,9 @@ class AcousticFilePredictionResult(AcousticPredictionResultBase):
       model_version=model_version,
     )
 
-  def get_unprocessed_files(self) -> list[Path]:
+  def get_unprocessed_files(self) -> set[Path]:
     inputs = self._inputs[self._unprocessable_inputs]
-    inputs_paths = [Path(input_str) for input_str in inputs]
+    inputs_paths = {Path(input_str) for input_str in inputs}
     return inputs_paths
 
   @property

@@ -84,6 +84,6 @@ class AcousticEncodingTensor(AcousticTensorBase):
     self._emb[file_indices, segment_indices] = emb
     self._emb_masked[file_indices, segment_indices] = False
 
-  def set_unprocessable_inputs(self, unprocessable_inputs: np.ndarray) -> None:
+  def set_unprocessable_inputs(self, unprocessable_inputs: set[int]) -> None:
     super().set_unprocessable_inputs(unprocessable_inputs)
-    self._emb_masked[unprocessable_inputs, :, :] = True
+    self._emb_masked[self._unprocessable_inputs, :, :] = True
