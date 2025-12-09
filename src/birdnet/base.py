@@ -11,15 +11,7 @@ from ordered_set import OrderedSet
 
 from birdnet.helper import get_float_dtype, get_hash, get_uint_dtype
 
-NP_INPUTS_KEY = "inputs"
-NP_INPUT_DURATIONS_KEY = "input_durations"
-NP_SEGMENT_DURATION_S_KEY = "segment_duration_s"
-NP_OVERLAP_DURATION_S_KEY = "overlap_duration_s"
-NP_SPEED_KEY = "speed"
 NP_MODEL_PATH_KEY = "model_path"
-NP_MODEL_FMIN_KEY = "model_fmin"
-NP_MODEL_FMAX_KEY = "model_fmax"
-NP_MODEL_SR_KEY = "model_sr"
 NP_MODEL_PRECISION_KEY = "model_precision"
 NP_MODEL_VERSION_KEY = "model_version"
 
@@ -27,38 +19,15 @@ NP_MODEL_VERSION_KEY = "model_version"
 class ResultBase(ABC):
   def __init__(
     self,
-    inputs: np.ndarray,
-    input_durations: np.ndarray,
-    segment_duration_s: int | float,
-    overlap_duration_s: int | float,
-    speed: int | float,
     model_path: Path,
-    model_fmin: int,
-    model_fmax: int,
-    model_sr: int,
-    model_precision: str,
     model_version: str,
+    model_precision: str,
   ) -> None:
     super().__init__()
 
-    assert input_durations.dtype in (np.float16, np.float32, np.float64)
-
-    self._inputs = inputs
-    self._input_durations = input_durations
-
-    self._segment_duration_s = np.array(
-      [segment_duration_s], dtype=get_float_dtype(segment_duration_s)
-    )
-    self._overlap_duration_s = np.array(
-      [overlap_duration_s], dtype=get_float_dtype(overlap_duration_s)
-    )
-    self._speed = np.array([speed], dtype=get_float_dtype(speed))
     self._model_path = np.array(
       [str(model_path)], dtype=np.dtype("U" + str(len(str(model_path.absolute()))))
     )
-    self._model_fmin = np.array([model_fmin], dtype=get_uint_dtype(model_fmin))
-    self._model_fmax = np.array([model_fmax], dtype=get_uint_dtype(model_fmax))
-    self._model_sr = np.array([model_sr], dtype=get_uint_dtype(model_sr))
     self._model_precision = np.array(
       [model_precision],
       dtype=np.dtype("U" + str(len(model_precision))),
@@ -69,44 +38,8 @@ class ResultBase(ABC):
     )
 
   @property
-  def segment_duration_s(self) -> float:
-    return float(self._segment_duration_s[0])
-
-  @property
-  def overlap_duration_s(self) -> float:
-    return float(self._overlap_duration_s[0])
-
-  @property
-  def speed(self) -> float:
-    return float(self._speed[0])
-
-  @property
-  def inputs(self) -> np.ndarray:
-    return self._inputs
-
-  @property
-  def n_inputs(self) -> int:
-    return self._inputs.shape[0]
-
-  @property
-  def input_durations(self) -> np.ndarray:
-    return self._input_durations
-
-  @property
   def model_path(self) -> Path:
     return Path(self._model_path[0])
-
-  @property
-  def model_fmin(self) -> int:
-    return int(self._model_fmin[0])
-
-  @property
-  def model_fmax(self) -> int:
-    return int(self._model_fmax[0])
-
-  @property
-  def model_sr(self) -> int:
-    return int(self._model_sr[0])
 
   @property
   def model_precision(self) -> str:
@@ -116,8 +49,8 @@ class ResultBase(ABC):
   def model_version(self) -> str:
     return str(self._model_version[0])
 
-  def _get_extra_save_data(self) -> dict[str, np.ndarray]:
-    return {}
+  @abstractmethod
+  def _get_extra_save_data(self) -> dict[str, np.ndarray]: ...
 
   @classmethod
   @abstractmethod
@@ -133,16 +66,8 @@ class ResultBase(ABC):
     extra_data = self._get_extra_save_data()
 
     data = {
-      NP_INPUTS_KEY: self._inputs,
-      NP_INPUT_DURATIONS_KEY: self._input_durations,
-      NP_SEGMENT_DURATION_S_KEY: self._segment_duration_s,
-      NP_OVERLAP_DURATION_S_KEY: self._overlap_duration_s,
-      NP_SPEED_KEY: self._speed,
       NP_MODEL_PATH_KEY: self._model_path,
       NP_MODEL_VERSION_KEY: self._model_version,
-      NP_MODEL_FMIN_KEY: self._model_fmin,
-      NP_MODEL_FMAX_KEY: self._model_fmax,
-      NP_MODEL_SR_KEY: self._model_sr,
       NP_MODEL_PRECISION_KEY: self._model_precision,
     }
 
@@ -157,16 +82,8 @@ class ResultBase(ABC):
     with np.load(path, allow_pickle=True) as npz:
       data = {k: npz[k] for k in npz.files}
 
-    result._inputs = data[NP_INPUTS_KEY]
-    result._input_durations = data[NP_INPUT_DURATIONS_KEY]
-    result._segment_duration_s = data[NP_SEGMENT_DURATION_S_KEY]
-    result._overlap_duration_s = data[NP_OVERLAP_DURATION_S_KEY]
-    result._speed = data[NP_SPEED_KEY]
     result._model_path = data[NP_MODEL_PATH_KEY]
     result._model_version = data[NP_MODEL_VERSION_KEY]
-    result._model_fmin = data[NP_MODEL_FMIN_KEY]
-    result._model_fmax = data[NP_MODEL_FMAX_KEY]
-    result._model_sr = data[NP_MODEL_SR_KEY]
     result._model_precision = data[NP_MODEL_PRECISION_KEY]
 
     result._set_extra_load_data(data)
@@ -176,16 +93,9 @@ class ResultBase(ABC):
   @property
   def memory_size_mb(self) -> float:
     return (
-      self._inputs.nbytes
-      + self._input_durations.nbytes
-      + self._segment_duration_s.nbytes
-      + self._overlap_duration_s.nbytes
-      + self._speed.nbytes
-      + self._model_path.nbytes
-      + self._model_fmin.nbytes
-      + self._model_fmax.nbytes
-      + self._model_sr.nbytes
+      self._model_path.nbytes
       + self._model_precision.nbytes
+      + self._model_version.nbytes
     ) / 1024**2
 
 

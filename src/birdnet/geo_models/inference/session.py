@@ -15,7 +15,7 @@ from birdnet.geo_models.inference.configs import (
   RunConfig,
   ScoresConfig,
 )
-from birdnet.geo_models.inference.prediction_result import PredictionResult
+from birdnet.geo_models.inference.scores_result import ScoresResult
 from birdnet.helper import get_uint_dtype
 
 
@@ -47,7 +47,7 @@ class GeoSessionBase(SessionBase, ABC):
     self._is_initialized = True
     return self
 
-  def _run(self, run_config: RunConfig) -> PredictionResult:
+  def _run(self, run_config: RunConfig) -> ScoresResult:
     assert self._is_initialized
     assert self._backend is not None
 
@@ -72,7 +72,13 @@ class GeoSessionBase(SessionBase, ABC):
     )
 
     invalid_mask = res < self._specific_config.min_confidence
-    prediction = PredictionResult(
+    prediction = ScoresResult(
+      model_path=self._conf.model_conf.path,
+      model_version=self._conf.model_conf.version,
+      model_precision=self._backend.precision(),
+      latitude=run_config.latitude,
+      longitude=run_config.longitude,
+      week=run_config.week,
       species_list=self._conf.model_conf.species_list,
       species_probs=res,
       species_ids=species_ids,

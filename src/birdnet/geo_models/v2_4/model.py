@@ -11,7 +11,7 @@ from birdnet.backends import (
 )
 from birdnet.geo_models.base import GeoModelBase
 from birdnet.geo_models.inference.api import ScoreSession
-from birdnet.geo_models.inference.prediction_result import PredictionResult
+from birdnet.geo_models.inference.scores_result import ScoresResult
 from birdnet.globals import (
   GEO_MODEL_VERSION_V2_4,
   GEO_MODEL_VERSIONS,
@@ -160,7 +160,7 @@ class GeoModelV2_4(GeoModelBase):
     min_confidence: float = 0.03,
     half_precision: bool = False,
     device: str = "CPU",
-  ) -> PredictionResult:
+  ) -> ScoresResult:
     with self.predict_session(
       min_confidence=min_confidence,
       half_precision=half_precision,

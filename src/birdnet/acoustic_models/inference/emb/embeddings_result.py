@@ -7,6 +7,7 @@ from typing import Self
 import numpy as np
 
 from birdnet.acoustic_models.inference.emb.tensor import EmbeddingsTensor
+from birdnet.acoustic_models.inference.result_base import AcousticResultBase
 from birdnet.base import ResultBase
 from birdnet.helper import get_float_dtype, get_uint_dtype
 
@@ -14,7 +15,7 @@ NP_EMB_KEY = "embeddings"
 NP_EMB_MASKED_KEY = "embeddings_masked"
 
 
-class EmbeddingsResultBase(ResultBase):
+class EmbeddingsResultBase(AcousticResultBase):
   def __init__(
     self,
     inputs: np.ndarray,
@@ -72,18 +73,19 @@ class EmbeddingsResultBase(ResultBase):
     return self._embeddings.shape[1]
 
   def _get_extra_save_data(self) -> dict[str, np.ndarray]:
-    return {
+    return super()._get_extra_save_data() | {
       NP_EMB_KEY: self._embeddings,
       NP_EMB_MASKED_KEY: self._embeddings_masked,
     }
 
   @classmethod
   def _set_extra_load_data(cls, data: dict[str, np.ndarray]) -> None:
+    super()._set_extra_load_data(data)
     cls._embeddings = data[NP_EMB_KEY]
     cls._embeddings_masked = data[NP_EMB_MASKED_KEY]
 
 
-class FileEncodingResult(EmbeddingsResultBase):
+class FileEmbeddingsResult(EmbeddingsResultBase):
   def __init__(
     self,
     tensor: EmbeddingsTensor,
@@ -128,7 +130,7 @@ class FileEncodingResult(EmbeddingsResultBase):
     return f'"{input_value}"'
 
 
-class DataEncodingResult(EmbeddingsResultBase):
+class DataEmbeddingsResult(EmbeddingsResultBase):
   def __init__(
     self,
     tensor: EmbeddingsTensor,

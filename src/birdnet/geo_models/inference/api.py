@@ -11,7 +11,7 @@ from birdnet.geo_models.inference.configs import (
   RunConfig,
   ScoresConfig,
 )
-from birdnet.geo_models.inference.prediction_result import PredictionResult
+from birdnet.geo_models.inference.scores_result import ScoresResult
 from birdnet.geo_models.inference.session import GeoSessionBase
 from birdnet.globals import GEO_MODEL_VERSIONS
 
@@ -67,7 +67,7 @@ class ScoreSession(GeoSessionBase):
     /,
     *,
     week: int | None = None,
-  ) -> PredictionResult:
+  ) -> ScoresResult:
     latitude = RunConfig.validate_latitude(latitude)
     longitude = RunConfig.validate_longitude(longitude)
     week = RunConfig.validate_week(week)

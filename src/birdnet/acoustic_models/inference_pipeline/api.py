@@ -8,8 +8,8 @@ import numpy.typing as npt
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.emb.embeddings_result import (
-  DataEncodingResult,
-  FileEncodingResult,
+  DataEmbeddingsResult,
+  FileEmbeddingsResult,
 )
 from birdnet.acoustic_models.inference.perf_tracker import ProgressStats
 from birdnet.acoustic_models.inference.scores.scores_result import (
@@ -136,7 +136,7 @@ class EncodingSession(AcousticSessionBase):
       ),
     )
 
-  def run(self, inputs: Path | str | Iterable[Path | str]) -> FileEncodingResult:
+  def run(self, inputs: Path | str | Iterable[Path | str]) -> FileEmbeddingsResult:
     inputs = PredictionConfig.validate_input_files(inputs)
 
     if len(inputs) > self._conf.processing_conf.max_n_files:
@@ -149,7 +149,7 @@ class EncodingSession(AcousticSessionBase):
 
   def run_arrays(
     self, inputs: tuple[npt.NDArray, int] | Iterable[tuple[npt.NDArray, int]]
-  ) -> DataEncodingResult:
+  ) -> DataEmbeddingsResult:
     data = PredictionConfig.validate_input_audio(inputs)
     return super()._run(data)
 

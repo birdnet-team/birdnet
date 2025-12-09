@@ -22,16 +22,6 @@ def test_save_and_load_is_equal() -> None:
   loaded = type(reference).load(tmp_file.name)
   tmp_file.close()
 
-  assert reference.inputs.shape == loaded.inputs.shape
-  assert reference.input_durations.shape == loaded.input_durations.shape
-
-  assert reference.model_path == loaded.model_path
-  assert reference.model_version == loaded.model_version
-  assert reference.model_precision == loaded.model_precision
-  assert reference.model_sr == loaded.model_sr
-  assert reference.model_fmin == loaded.model_fmin
-  assert reference.model_fmax == loaded.model_fmax
-
   np.testing.assert_array_equal(reference._model_path, loaded._model_path)
   np.testing.assert_array_equal(reference._model_version, loaded._model_version)
   np.testing.assert_array_equal(reference._model_precision, loaded._model_precision)
@@ -54,3 +44,34 @@ def test_save_and_load_is_equal() -> None:
   np.testing.assert_array_equal(reference._species_ids, loaded._species_ids)
   np.testing.assert_array_equal(reference._species_probs, loaded._species_probs)
   np.testing.assert_array_equal(reference._species_masked, loaded._species_masked)
+
+
+def test_memory_size_mb() -> None:
+  res = create_file_prediction_result(
+    n_files=3,
+    duration_s=54,
+    top_k=5,
+    segment_duration_s=3.0,
+    overlap_duration_s=1.5,
+    speed=1.0,
+  )
+
+  expected_size = (
+    res._inputs.nbytes
+    + res._input_durations.nbytes
+    + res._segment_duration_s.nbytes
+    + res._overlap_duration_s.nbytes
+    + res._speed.nbytes
+    + res._model_path.nbytes
+    + res._model_version.nbytes
+    + res._model_precision.nbytes
+    + res._model_fmax.nbytes
+    + res._model_fmin.nbytes
+    + res._model_sr.nbytes
+    + res._species_probs.nbytes
+    + res._species_ids.nbytes
+    + res._species_list.nbytes
+    + res._species_masked.nbytes
+  ) / 1024**2
+
+  assert res.memory_size_mb == expected_size

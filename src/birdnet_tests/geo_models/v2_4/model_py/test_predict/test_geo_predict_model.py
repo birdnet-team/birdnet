@@ -12,6 +12,12 @@ def test_litert() -> None:
   result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=False)
 
   assert result.species_probs.shape == (6522,)
+  assert result.latitude == 20
+  assert result.longitude == 50
+  assert result.week == 1
+  assert result.model_path == model.model_path.absolute()
+  assert result.model_version == "2.4"
+  assert result.model_precision == "fp32"
 
 
 def test_tf() -> None:
@@ -19,6 +25,12 @@ def test_tf() -> None:
   result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=False)
 
   assert result.species_probs.shape == (6522,)
+  assert result.latitude == 20
+  assert result.longitude == 50
+  assert result.week == 1
+  assert result.model_path == model.model_path.absolute()
+  assert result.model_version == "2.4"
+  assert result.model_precision == "fp32"
 
 
 def test_pb_cpu() -> None:
@@ -26,6 +38,12 @@ def test_pb_cpu() -> None:
   result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=False)
 
   assert result.species_probs.shape == (6522,)
+  assert result.latitude == 20
+  assert result.longitude == 50
+  assert result.week == 1
+  assert result.model_path == model.model_path.absolute()
+  assert result.model_version == "2.4"
+  assert result.model_precision == "fp32"
 
 
 @pytest.mark.gpu
@@ -38,6 +56,12 @@ def test_pb_gpu() -> None:
   )
 
   assert result.species_probs.shape == (6522,)
+  assert result.latitude == 20
+  assert result.longitude == 50
+  assert result.week == 1
+  assert result.model_path == model.model_path.absolute()
+  assert result.model_version == "2.4"
+  assert result.model_precision == "fp32"
 
 
 @pytest.mark.litert
@@ -48,6 +72,12 @@ def test_litert_half() -> None:
   result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=True)
 
   assert result.species_probs.shape == (6522,)
+  assert result.latitude == 20
+  assert result.longitude == 50
+  assert result.week == 1
+  assert result.model_path == model.model_path.absolute()
+  assert result.model_version == "2.4"
+  assert result.model_precision == "fp32"
 
 
 def test_tf_half() -> None:
@@ -55,6 +85,12 @@ def test_tf_half() -> None:
   result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=True)
 
   assert result.species_probs.shape == (6522,)
+  assert result.latitude == 20
+  assert result.longitude == 50
+  assert result.week == 1
+  assert result.model_path == model.model_path.absolute()
+  assert result.model_version == "2.4"
+  assert result.model_precision == "fp32"
 
 
 def test_pb_cpu_half() -> None:
@@ -64,6 +100,12 @@ def test_pb_cpu_half() -> None:
   )
 
   assert result.species_probs.shape == (6522,)
+  assert result.latitude == 20
+  assert result.longitude == 50
+  assert result.week == 1
+  assert result.model_path == model.model_path.absolute()
+  assert result.model_version == "2.4"
+  assert result.model_precision == "fp32"
 
 
 @pytest.mark.gpu
@@ -76,3 +118,9 @@ def test_pb_gpu_half() -> None:
   )
 
   assert result.species_probs.shape == (6522,)
+  assert result.latitude == 20
+  assert result.longitude == 50
+  assert result.week == 1
+  assert result.model_path == model.model_path.absolute()
+  assert result.model_version == "2.4"
+  assert result.model_precision == "fp32"

@@ -35,10 +35,11 @@ from birdnet.logging_utils import get_logger_for_package
 
 if TYPE_CHECKING:
   from ai_edge_litert.interpreter import Interpreter as LiteRTInterpreter
-  from tensorflow.lite.python.interpreter import Interpreter as TFInterpreter
   from tensorflow import Tensor
+  from tensorflow.lite.python.interpreter import Interpreter as TFInterpreter
 
 BatchT = TypeVar("BatchT", np.ndarray, "Tensor")
+
 
 class Backend(Generic[BatchT], ABC):
   def __init__(self, model_path: Path, device_name: str, half_precision: bool) -> None:
@@ -79,13 +80,14 @@ class Backend(Generic[BatchT], ABC):
   def name(cls) -> str: ...
 
   @abstractmethod
-  def copy_to_device(self, batch: np.ndarray) -> BatchT:...
+  def copy_to_device(self, batch: np.ndarray) -> BatchT: ...
 
   @abstractmethod
-  def copy_from_device(self, inference_result: BatchT) -> np.ndarray: ... 
+  def copy_from_device(self, inference_result: BatchT) -> np.ndarray: ...
 
   @abstractmethod
-  def half_precision(self, inference_result: BatchT) -> BatchT: ... 
+  def half_precision(self, inference_result: BatchT) -> BatchT: ...
+
 
 @runtime_checkable
 class VersionedBackendProtocol(Generic[BatchT], Protocol):
@@ -119,11 +121,12 @@ class VersionedBackendProtocol(Generic[BatchT], Protocol):
   @classmethod
   def name(cls) -> str: ...
 
-  def copy_to_device(self, batch: np.ndarray) -> BatchT:...
+  def copy_to_device(self, batch: np.ndarray) -> BatchT: ...
 
-  def copy_from_device(self, inference_result: BatchT) -> np.ndarray: ... 
+  def copy_from_device(self, inference_result: BatchT) -> np.ndarray: ...
 
-  def half_precision(self, inference_result: BatchT) -> BatchT: ... 
+  def half_precision(self, inference_result: BatchT) -> BatchT: ...
+
 
 @runtime_checkable
 class VersionedAcousticBackendProtocol(VersionedBackendProtocol, Protocol):
@@ -217,10 +220,10 @@ class TFBackend(Backend, ABC):
     assert res.dtype == np.float32
     return res
 
-  def copy_from_device(self, inference_result: np.ndarray) -> np.ndarray: 
+  def copy_from_device(self, inference_result: np.ndarray) -> np.ndarray:
     assert isinstance(inference_result, np.ndarray)
     return inference_result
-  
+
   def copy_to_device(self, batch: np.ndarray) -> np.ndarray:
     assert isinstance(batch, np.ndarray)
     return batch
@@ -318,24 +321,26 @@ class PBBackend(Backend, ABC):
     if "CPU" in self._device_name:
       self._logical_device_name = set_cpu_device_tf()
     elif "GPU" in self._device_name:
-      self._logical_device_name = set_gpu_device_tf(self._device_name, memory_growth=True)
+      self._logical_device_name = set_gpu_device_tf(
+        self._device_name, memory_growth=True
+      )
     else:
       raise AssertionError()
-  
+
   def copy_to_device(self, batch: np.ndarray) -> Tensor:
     from tensorflow import convert_to_tensor, device, float32
-    
+
     assert self._logical_device_name is not None
     assert batch.dtype == np.float32
-    
+
     with device(self._logical_device_name):  # type: ignore
       tensor = convert_to_tensor(batch, dtype=float32)
     return tensor
-  
+
   @final
   def predict(self, batch: Tensor) -> Tensor:
     from tensorflow import device, float32
-    
+
     assert self._logical_device_name is not None
     assert self._predict_fn is not None
 
@@ -349,7 +354,7 @@ class PBBackend(Backend, ABC):
   @final
   def embed(self, batch: Tensor) -> Tensor:
     from tensorflow import device, float32
-    
+
     assert self.emb_supported()
     emb_pred_key = self.emb_prediction_key()
     assert emb_pred_key is not None
@@ -366,7 +371,7 @@ class PBBackend(Backend, ABC):
     from tensorflow import Tensor
 
     assert isinstance(inference_result, Tensor)
-    inference_result_np = inference_result.numpy() 
+    inference_result_np = inference_result.numpy()
     return inference_result_np
 
   def half_precision(self, inference_result: Tensor) -> Tensor:
@@ -479,6 +484,7 @@ class BackendLoader:
       get_logger_for_package(__name__).error(f"Failed to load model in subprocess: {e}")
       raise ValueError("Failed to load model.") from e
 
+
 def import_tf() -> None:
   disable_tf_logging()
   # import absl.logging
@@ -488,21 +494,21 @@ def import_tf() -> None:
   # tf_verbosity_before = logging.getLogger("tensorflow").level
   # logging.getLogger("tensorflow").setLevel(logging.ERROR)
   # os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-  import tensorflow # noqa: F401
-  
-  # did not help for 
+  import tensorflow  # noqa: F401
+
+  # did not help for
   # WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
   # I0000 00:00:1764672082.602233  623540 gpu_device.cc:2020] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 22495 MB memory:  -> device: 0, name: NVIDIA RTX A5000, pci bus id: 0000:31:00.0, compute capability: 8.6
   # tensorflow.get_logger().setLevel("ERROR")
   # os.environ["XLA_FLAGS"] = "--xla_hlo_profile=false"
   # os.environ["XLA_FLAGS"] = "--xla_gpu_cuda_data_dir=/dev/null"
-  
 
-  #absl.logging.set_verbosity(absl_verbosity_before)
-  #logging.getLogger("tensorflow").setLevel(tf_verbosity_before)
+  # absl.logging.set_verbosity(absl_verbosity_before)
+  # logging.getLogger("tensorflow").setLevel(tf_verbosity_before)
+
 
 def set_cpu_device_tf() -> str:
-  from tensorflow.config import list_logical_devices
+  from tensorflow.config import list_logical_devices  # type: ignore
 
   # disable GPUs for TF when using CPU backend
   # because if GPU is available TF will try to use it by default
@@ -513,14 +519,14 @@ def set_cpu_device_tf() -> str:
   # tf.config.set_visible_devices([], "GPU")
 
   logical_devices = list_logical_devices("CPU")
-  
+
   if len(logical_devices) == 0:
     raise ValueError(
       "No CPU found! "
       "Please check your TensorFlow installation and ensure that a CPU is "
       "available."
     )
-  
+
   if len(logical_devices) > 1:
     raise ValueError(
       f"Multiple CPUs found ({len(logical_devices)}). "
@@ -528,6 +534,7 @@ def set_cpu_device_tf() -> str:
     )
   dev = logical_devices[0]
   return dev.name
+
 
 def set_gpu_device_tf(device: str, memory_growth: bool) -> str:
   device_index = int(device.split(":")[1]) if ":" in device else 0
@@ -537,7 +544,7 @@ def set_gpu_device_tf(device: str, memory_growth: bool) -> str:
   # Note: memory growth needs to be set before loading the model and
   # only once in the main process
   import tensorflow as tf
-  
+
   if memory_growth:
     physical_devices = tf.config.list_physical_devices("GPU")
     assert len(physical_devices) == 1
@@ -545,7 +552,7 @@ def set_gpu_device_tf(device: str, memory_growth: bool) -> str:
     tf.config.experimental.set_memory_growth(physical_device, True)
 
   logical_devices = tf.config.list_logical_devices("GPU")
-  
+
   if len(logical_devices) == 0:
     raise ValueError(
       "No GPU found! "
@@ -553,7 +560,7 @@ def set_gpu_device_tf(device: str, memory_growth: bool) -> str:
       "available. Also ensure that birdnet is installed with GPU support "
       "(pip install birdnet[and-cuda])."
     )
-  
+
   assert len(logical_devices) == 1
   dev = logical_devices[0]
   return dev.name
@@ -565,30 +572,32 @@ def set_gpu_device_tf(device: str, memory_growth: bool) -> str:
   # assert len(all_devices_with_name) != 0
   # self._logical_device = all_devices_with_name[0]
 
+
 def disable_tf_logging() -> None:
   import absl.logging
 
   absl_verbosity_before = absl.logging.get_verbosity()
   absl.logging.set_verbosity(absl.logging.ERROR)
   tf_verbosity_before = logging.getLogger("tensorflow").level
-  
 
   logging.getLogger("tensorflow").setLevel(logging.ERROR)
   os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
- 
+
+
 def load_pb_model(model_path: Path, logical_device_name: str) -> Any:
   import tensorflow as tf
-  
+
   start = time.perf_counter()
   with tf.device(logical_device_name):  # type: ignore
     model = tf.saved_model.load(str(model_path.absolute()))
   end = time.perf_counter()
-  
+
   logger = get_logger_for_package(__name__)
   logger.debug(
     f"Model loaded from {model_path.absolute()} in {end - start:.2f} seconds."
   )
   return model
+
 
 def load_pb_model_legacy(model_path: Path, device: str) -> Any:
   import absl.logging
@@ -603,19 +612,19 @@ def load_pb_model_legacy(model_path: Path, device: str) -> Any:
   # tf.random.set_seed(0)
   start = time.perf_counter()
   # with tf.device(device):  # type: ignore
-  
+
   device_index = int(device.split(":")[1]) if ":" in device else 0
   os.environ["CUDA_VISIBLE_DEVICES"] = str(device_index)
   # tf.config.set_visible_devices("/device:GPU:1", "GPU")
-  
+
   # Note: memory growth needs to be set before loading the model and
   # maybe only once in the main process
   physical_devices = tf.config.list_physical_devices("GPU")
   assert len(physical_devices) == 1
   tf.config.experimental.set_memory_growth(physical_devices[0], True)
-  
+
   with tf.device("GPU:0"):  # type: ignore
-      model = tf.saved_model.load(str(model_path.absolute()))
+    model = tf.saved_model.load(str(model_path.absolute()))
   end = time.perf_counter()
   logger = get_logger_for_package(__name__)
   logger.debug(

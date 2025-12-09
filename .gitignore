@@ -141,3 +141,4 @@ requirements.txt
 venv-3.12/
 consistency_report.csv
 debug.sh
+RT-Faktors.ods

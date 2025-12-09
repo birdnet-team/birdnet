@@ -55,7 +55,7 @@ def assert_species_masked_pattern(species_masked: np.ndarray) -> None:
         )
 
 
-def create_mock_tensor(
+def create_mock_scores_tensor(
   species_ids: np.ndarray, species_probs: np.ndarray, species_masked: np.ndarray
 ) -> ScoresTensor:
   """Helper to create a mock ScoresTensor."""
@@ -86,7 +86,7 @@ def create_file_prediction_result(
   species_probs = np.random.random((n_files, n_segments, top_k)).astype(np.float32)
   species_masked = np.full((n_files, n_segments, top_k), False, dtype=bool)
 
-  tensor = create_mock_tensor(species_ids, species_probs, species_masked)
+  tensor = create_mock_scores_tensor(species_ids, species_probs, species_masked)
 
   files = [Path(f"/test/file_{i}.wav") for i in range(n_files)]
   species_list = OrderedSet([f"species_{i}" for i in range(15)])

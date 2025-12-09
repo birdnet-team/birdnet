@@ -8,6 +8,7 @@ import numpy as np
 from ordered_set import OrderedSet
 from tqdm import tqdm
 
+from birdnet.acoustic_models.inference.result_base import AcousticResultBase
 from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
 from birdnet.base import ResultBase
 from birdnet.helper import (
@@ -33,7 +34,7 @@ NP_SPECIES_MASKED_KEY = "species_masked"
 NP_SPECIES_LIST_KEY = "species_list"
 
 
-class ScoresResultBase(ResultBase):
+class ScoresResultBase(AcousticResultBase):
   def __init__(
     self,
     inputs: np.ndarray,
@@ -114,7 +115,7 @@ class ScoresResultBase(ResultBase):
     return self._species_ids.shape[2]
 
   def _get_extra_save_data(self) -> dict[str, np.ndarray]:
-    return {
+    return super()._get_extra_save_data() | {
       NP_SPECIES_IDS_KEY: self._species_ids,
       NP_SPECIES_PROBS_KEY: self._species_probs,
       NP_SPECIES_MASKED_KEY: self._species_masked,
@@ -123,6 +124,7 @@ class ScoresResultBase(ResultBase):
 
   @classmethod
   def _set_extra_load_data(cls, data: dict[str, np.ndarray]) -> None:
+    super()._set_extra_load_data(data)
     cls._species_ids = data[NP_SPECIES_IDS_KEY]
     cls._species_probs = data[NP_SPECIES_PROBS_KEY]
     cls._species_masked = data[NP_SPECIES_MASKED_KEY]

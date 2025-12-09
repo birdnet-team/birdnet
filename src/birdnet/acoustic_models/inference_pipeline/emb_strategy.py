@@ -10,9 +10,9 @@ from birdnet.acoustic_models.inference.emb.benchmarking import (
   MinimalBenchmarkEmbMeta,
 )
 from birdnet.acoustic_models.inference.emb.embeddings_result import (
-  DataEncodingResult,
+  DataEmbeddingsResult,
   EmbeddingsResultBase,
-  FileEncodingResult,
+  FileEmbeddingsResult,
 )
 from birdnet.acoustic_models.inference.emb.tensor import EmbeddingsTensor
 from birdnet.acoustic_models.inference.emb.worker import EmbeddingsWorker
@@ -107,7 +107,7 @@ class EmbeddingsStrategy(
   ) -> EmbeddingsResultBase:
     assert resources.analyzer_resources.input_durations is not None
 
-    return FileEncodingResult(
+    return FileEmbeddingsResult(
       tensor=tensor,
       files=files,
       segment_duration_s=config.model_conf.segment_size_s,
@@ -130,7 +130,7 @@ class EmbeddingsStrategy(
   ) -> EmbeddingsResultBase:
     assert resources.analyzer_resources.input_durations is not None
 
-    return DataEncodingResult(
+    return DataEmbeddingsResult(
       tensor=tensor,
       segment_duration_s=config.model_conf.segment_size_s,
       overlap_duration_s=config.processing_conf.overlap_duration_s,

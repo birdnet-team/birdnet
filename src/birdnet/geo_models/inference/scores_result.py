@@ -12,19 +12,41 @@ from birdnet.base import ResultBase
 VAR_SPECIES_NAME = "species_name"
 VAR_CONFIDENCE = "confidence"
 
+
+NP_SPECIES_IDS_KEY = "species_ids"
+NP_SPECIES_PROBS_KEY = "species_probs"
+NP_SPECIES_MASKED_KEY = "species_masked"
+NP_SPECIES_LIST_KEY = "species_list"
+
+NP_LATITUDE_KEY = "latitude"
+NP_LONGITUDE_KEY = "longitude"
+NP_WEEK_KEY = "week"
+
 if TYPE_CHECKING:
   import pandas as pd
   import pyarrow as pa
 
 
-class PredictionResult(ResultBase):
+class ScoresResult(ResultBase):
   def __init__(
     self,
+    model_path: Path,
+    model_version: str,
+    model_precision: str,
+    latitude: float,
+    longitude: float,
+    week: int,
     species_masked: np.ndarray,
     species_ids: np.ndarray,
     species_probs: np.ndarray,
     species_list: OrderedSet[str],
   ) -> None:
+    super().__init__(
+      model_path=model_path,
+      model_version=model_version,
+      model_precision=model_precision,
+    )
+
     assert species_ids.dtype in (np.uint8, np.uint16, np.uint32, np.uint64)
     assert species_probs.dtype in (np.float16, np.float32)
     assert species_masked.dtype == bool
@@ -41,14 +63,38 @@ class PredictionResult(ResultBase):
     self._species_ids = species_ids
     self._species_masked = species_masked
 
+    self._latitude = np.array([latitude], dtype=np.float32)
+    self._longitude = np.array([longitude], dtype=np.float32)
+
+    assert week == -1 or (1 <= week <= 48)
+    self._week = np.array([week], dtype=np.int8)
+
   @property
   def memory_size_mb(self) -> float:
-    return (
-      self._species_ids.nbytes
-      + self._species_probs.nbytes
-      + self._species_masked.nbytes
-      + self._species_list.nbytes
-    ) / 1024**2
+    return super().memory_size_mb + (
+      (
+        self._species_ids.nbytes
+        + self._species_probs.nbytes
+        + self._species_masked.nbytes
+        + self._species_list.nbytes
+        + self._latitude.nbytes
+        + self._longitude.nbytes
+        + self._week.nbytes
+      )
+      / 1024**2
+    )
+
+  @property
+  def latitude(self) -> int:
+    return int(self._latitude[0])
+
+  @property
+  def longitude(self) -> int:
+    return int(self._longitude[0])
+
+  @property
+  def week(self) -> int:
+    return int(self._week[0])
 
   @property
   def species_list(self) -> np.ndarray:
@@ -70,32 +116,26 @@ class PredictionResult(ResultBase):
   def n_species(self) -> int:
     return len(self._species_list)
 
-  def save(self, npz_out_path: os.PathLike | str, /, *, compress: bool = True) -> None:
-    npz_out_path = Path(npz_out_path)
-    if npz_out_path.suffix != ".npz":
-      raise ValueError("Output path must have a .npz suffix")
-
-    save_method = np.savez_compressed if compress else np.savez
-
-    save_method(
-      npz_out_path,
-      species_ids=self._species_ids,
-      species_probs=self._species_probs,
-      species_masked=self._species_masked,
-      species_list=self._species_list,
-    )
+  def _get_extra_save_data(self) -> dict[str, np.ndarray]:
+    return {
+      NP_SPECIES_IDS_KEY: self._species_ids,
+      NP_SPECIES_PROBS_KEY: self._species_probs,
+      NP_SPECIES_MASKED_KEY: self._species_masked,
+      NP_SPECIES_LIST_KEY: self._species_list,
+      NP_LATITUDE_KEY: self._latitude,
+      NP_LONGITUDE_KEY: self._longitude,
+      NP_WEEK_KEY: self._week,
+    }
 
   @classmethod
-  def load(cls, path: os.PathLike | str) -> Self:
-    result = cls.__new__(cls)
-    with np.load(path, allow_pickle=True) as npz:
-      data = {k: npz[k] for k in npz.files}
-
-    result._species_ids = data["species_ids"]
-    result._species_probs = data["species_probs"]
-    result._species_masked = data["species_masked"]
-    result._species_list = data["species_list"]
-    return result
+  def _set_extra_load_data(cls, data: dict[str, np.ndarray]) -> None:
+    cls._species_ids = data[NP_SPECIES_IDS_KEY]
+    cls._species_probs = data[NP_SPECIES_PROBS_KEY]
+    cls._species_masked = data[NP_SPECIES_MASKED_KEY]
+    cls._species_list = data[NP_SPECIES_LIST_KEY]
+    cls._latitude = data[NP_LATITUDE_KEY]
+    cls._longitude = data[NP_LONGITUDE_KEY]
+    cls._week = data[NP_WEEK_KEY]
 
   def to_structured_array(
     self,
