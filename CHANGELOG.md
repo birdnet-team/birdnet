@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.11] - 2025-12-09
+
 ### Added
 
 - Added model metadata to output
@@ -220,7 +222,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release
 
-[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v0.2.10...HEAD
+[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v0.2.11...HEAD
+[0.2.11]: https://github.com/birdnet-team/birdnet/compare/v0.2.10...v0.2.11
 [0.2.10]: https://github.com/birdnet-team/birdnet/compare/v0.2.9...v0.2.10
 [0.2.9]: https://github.com/birdnet-team/birdnet/compare/v0.2.8...v0.2.9
 [0.2.8]: https://github.com/birdnet-team/birdnet/compare/v0.2.7...v0.2.8
