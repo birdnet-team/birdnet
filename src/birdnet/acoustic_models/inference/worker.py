@@ -23,7 +23,7 @@ from birdnet.globals import (
 from birdnet.shm import RingField
 
 if TYPE_CHECKING:
-  from tensorflow import Tensor
+  pass
 
 
 class WorkerBase(bn_logging.LogableProcessBase):

@@ -15,7 +15,7 @@ from birdnet.shm import RingField
 from birdnet.utils import flat_sigmoid_logaddexp_fast
 
 if TYPE_CHECKING:
-  from tensorflow import Tensor
+  pass
 
 
 class ScoresWorker(WorkerBase):

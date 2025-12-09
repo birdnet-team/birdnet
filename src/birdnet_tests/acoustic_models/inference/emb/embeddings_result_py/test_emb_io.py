@@ -2,14 +2,10 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
-from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.emb.embeddings_result import FileEmbeddingsResult
 from birdnet.acoustic_models.inference.emb.tensor import EmbeddingsTensor
 from birdnet.helper import get_float_dtype, get_n_segments_speed
-from birdnet_tests.acoustic_models.inference.scores.prediction_result_py.test_to_structured_array import (
-  create_file_prediction_result,
-)
 
 
 def create_mock_emb_tensor(emb: np.ndarray, emb_masked: np.ndarray) -> EmbeddingsTensor:

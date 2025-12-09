@@ -1,4 +1,4 @@
-from typing import Literal, get_args
+from typing import Literal
 
 import numpy as np
 import numpy.typing as npt

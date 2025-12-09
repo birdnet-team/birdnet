@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
-from typing import Self
 
 import numpy as np
 
 from birdnet.acoustic_models.inference.emb.tensor import EmbeddingsTensor
 from birdnet.acoustic_models.inference.result_base import AcousticResultBase
-from birdnet.base import ResultBase
-from birdnet.helper import get_float_dtype, get_uint_dtype
+from birdnet.helper import get_uint_dtype
 
 NP_EMB_KEY = "embeddings"
 NP_EMB_MASKED_KEY = "embeddings_masked"

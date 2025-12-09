@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Self
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 from ordered_set import OrderedSet
@@ -10,10 +10,8 @@ from tqdm import tqdm
 
 from birdnet.acoustic_models.inference.result_base import AcousticResultBase
 from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
-from birdnet.base import ResultBase
 from birdnet.helper import (
   apply_speed_to_duration,
-  get_float_dtype,
   get_hop_duration_s,
   get_uint_dtype,
 )

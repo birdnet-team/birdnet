@@ -9,7 +9,7 @@ from typing import Self
 import numpy as np
 from ordered_set import OrderedSet
 
-from birdnet.helper import get_float_dtype, get_hash, get_uint_dtype
+from birdnet.helper import get_hash
 
 NP_MODEL_PATH_KEY = "model_path"
 NP_MODEL_PRECISION_KEY = "model_precision"
