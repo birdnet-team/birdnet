@@ -111,4 +111,6 @@ class AcousticPredictionTensor(AcousticTensorBase):
 
   def set_unprocessable_inputs(self, unprocessable_inputs: set[int]) -> None:
     super().set_unprocessable_inputs(unprocessable_inputs)
+    self._species_probs[self._unprocessable_inputs, :, :] = 0.0
+    self._species_ids[self._unprocessable_inputs, :, :] = 0
     self._species_masked[self._unprocessable_inputs, :, :] = True

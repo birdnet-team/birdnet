@@ -86,4 +86,5 @@ class AcousticEncodingTensor(AcousticTensorBase):
 
   def set_unprocessable_inputs(self, unprocessable_inputs: set[int]) -> None:
     super().set_unprocessable_inputs(unprocessable_inputs)
+    self._emb[self._unprocessable_inputs, :, :] = 0
     self._emb_masked[self._unprocessable_inputs, :, :] = True

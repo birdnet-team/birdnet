@@ -109,7 +109,7 @@ def test_tflite_fp32_empty_wav_is_not_unprocessed() -> None:
     tmp_broken_wav.close()
   assert res.species_probs.shape == (1, 0, 6522)
   assert numpy.all(res.species_probs[0] == 0)
-  assert numpy.all(res.species_ids[0] == 0)  # TODO
+  assert numpy.all(res.species_ids[0] == 0)
   assert numpy.all(res.species_masked[0])
   assert res.get_unprocessed_files() == set()
 
@@ -129,6 +129,7 @@ def test_tflite_fp32_empty_and_valid_file() -> None:
   unprocessed_idx = res.unprocessable_inputs[0]
   processed_idx = list(set(range(len(res.inputs))) - {unprocessed_idx})[0]
   assert numpy.all(res.species_probs[unprocessed_idx] == 0)
+  assert numpy.all(res.species_ids[unprocessed_idx] == 0)
   assert numpy.all(res.species_masked[unprocessed_idx])
   assert numpy.all(res.species_probs[processed_idx] != 0)
   assert not numpy.any(res.species_masked[processed_idx])
@@ -148,7 +149,13 @@ def test_tflite_fp32_empty_files_are_skipped_normal_is_kept() -> None:
       suffix=".wav", delete=False, mode="wb"
     ) as tmp_broken_wav2:
       tmp_broken_wav2.write(b"NOT_A_VALID_WAV_FILE")
-    res = session.run([tmp_broken_wav1.name, TEST_FILE_SHORT, tmp_broken_wav2.name])
+    res = session.run(
+      [
+        tmp_broken_wav1.name,
+        TEST_FILE_SHORT,
+        tmp_broken_wav2.name,
+      ]
+    )
     tmp_broken_wav1.close()
     tmp_broken_wav2.close()
 
@@ -177,6 +184,14 @@ def test_tflite_fp32_empty_files_are_skipped_two_feeders() -> None:
     res = session.run([empty_wav1.name, empty_wav2.name])
     empty_wav1.close()
     empty_wav2.close()
+
+  assert numpy.all(res.species_probs[0] == 0)
+  assert numpy.all(res.species_ids[0] == 0)
+  assert numpy.all(res.species_masked[0])
+
+  assert numpy.all(res.species_probs[1] == 0)
+  assert numpy.all(res.species_ids[1] == 0)
+  assert numpy.all(res.species_masked[1])
 
   assert res.get_unprocessed_files() == {
     Path(empty_wav1.name).absolute(),
