@@ -7,7 +7,7 @@ import numpy
 import pytest
 import soundfile as sf
 
-from birdnet.acoustic_models.inference.perf_tracker import ProgressStats
+from birdnet.acoustic_models.inference.perf_tracker import AcousticProgressStats
 from birdnet.model_loader import load
 from birdnet_tests.helper import (
   assert_prediction_result_is_close,
@@ -36,7 +36,7 @@ def xtest_pb_cpu_fp32_callback() -> None:
   # depending on the speed of the machine, this may or may not collect any stats
   collected_stats = []
 
-  def test_callback(data: ProgressStats) -> None:
+  def test_callback(data: AcousticProgressStats) -> None:
     assert data is not None
     collected_stats.append(data)
 

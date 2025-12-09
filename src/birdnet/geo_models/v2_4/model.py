@@ -10,8 +10,8 @@ from birdnet.backends import (
   VersionedGeoBackendProtocol,
 )
 from birdnet.geo_models.base import GeoModelBase
-from birdnet.geo_models.inference.api import ScoreSession
-from birdnet.geo_models.inference.scores_result import ScoresResult
+from birdnet.geo_models.inference.api import GeoPredictionSession
+from birdnet.geo_models.inference.prediction_result import GeoPredictionResult
 from birdnet.globals import (
   GEO_MODEL_VERSION_V2_4,
   GEO_MODEL_VERSIONS,
@@ -137,8 +137,8 @@ class GeoModelV2_4(GeoModelBase):
     min_confidence: float = 0.03,
     half_precision: bool = False,
     device: str = "CPU",
-  ) -> ScoreSession:
-    return ScoreSession(
+  ) -> GeoPredictionSession:
+    return GeoPredictionSession(
       species_list=self.species_list,
       model_path=self.model_path,
       model_is_custom=self.use_custom_model,
@@ -160,7 +160,7 @@ class GeoModelV2_4(GeoModelBase):
     min_confidence: float = 0.03,
     half_precision: bool = False,
     device: str = "CPU",
-  ) -> ScoresResult:
+  ) -> GeoPredictionResult:
     with self.predict_session(
       min_confidence=min_confidence,
       half_precision=half_precision,

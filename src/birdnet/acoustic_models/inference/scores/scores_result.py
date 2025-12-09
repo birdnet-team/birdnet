@@ -32,7 +32,7 @@ NP_SPECIES_MASKED_KEY = "species_masked"
 NP_SPECIES_LIST_KEY = "species_list"
 
 
-class ScoresResultBase(AcousticResultBase):
+class AcousticPredictionResultBase(AcousticResultBase):
   def __init__(
     self,
     inputs: np.ndarray,
@@ -353,7 +353,7 @@ class ScoresResultBase(AcousticResultBase):
       print(f"Parquet file: {file_size:.1f} MB (compression: {compression_ratio:.1f}x)")
 
 
-class FilePredictionResult(ScoresResultBase):
+class AcousticFilePredictionResult(AcousticPredictionResultBase):
   def __init__(
     self,
     tensor: ScoresTensor,
@@ -400,7 +400,7 @@ class FilePredictionResult(ScoresResultBase):
     return f'"{input_value}"'
 
 
-class DataPredictionResult(ScoresResultBase):
+class AcousticDataPredictionResult(AcousticPredictionResultBase):
   def __init__(
     self,
     tensor: ScoresTensor,

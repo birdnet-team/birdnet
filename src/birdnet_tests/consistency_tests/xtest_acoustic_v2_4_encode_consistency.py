@@ -6,7 +6,9 @@ import numpy.testing
 import pytest
 from tqdm import tqdm
 
-from birdnet.acoustic_models.inference.emb.embeddings_result import EmbeddingsResultBase
+from birdnet.acoustic_models.inference.emb.encoding_result import (
+  AcousticEncodingResultBase,
+)
 from birdnet.acoustic_models.v2_4.model import AcousticModelV2_4
 from birdnet.model_loader import load
 from birdnet_tests.helper import ensure_gpu_or_skip, ensure_litert_or_skip
@@ -31,7 +33,7 @@ TEST_CASES_REF_DIR = Path(__file__).with_suffix("")
 def predict_test_cases(
   model: AcousticModelV2_4,
   device: str = "CPU",
-) -> Generator[tuple[int, EmbeddingsResultBase], None, None]:
+) -> Generator[tuple[int, AcousticEncodingResultBase], None, None]:
   for case_nr, default in enumerate(tqdm(TEST_CASES)):
     with model.encode_session(
       n_workers=1,
@@ -60,8 +62,8 @@ def create_reference_results() -> None:
 
 
 def assert_encoding_results_are_close(
-  result: EmbeddingsResultBase,
-  ref_result: EmbeddingsResultBase,
+  result: AcousticEncodingResultBase,
+  ref_result: AcousticEncodingResultBase,
   case_nr: int,
   rtol: float,
   atol: float,
@@ -101,7 +103,7 @@ def test_pb_cpu_is_close() -> None:
   model = load("acoustic", "2.4", "pb", precision="fp32")
   for case_nr, result in predict_test_cases(model, device="CPU"):
     ref_case_file = TEST_CASES_REF_DIR / f"{case_nr}.npz"
-    ref_result = EmbeddingsResultBase.load(ref_case_file)
+    ref_result = AcousticEncodingResultBase.load(ref_case_file)
     assert_encoding_results_are_close(result, ref_result, case_nr, rtol=0.01, atol=0.01)
 
 
@@ -112,7 +114,7 @@ def test_pb_gpu_is_close() -> None:
   model = load("acoustic", "2.4", "pb", precision="fp32")
   for case_nr, result in predict_test_cases(model, device="GPU"):
     ref_case_file = TEST_CASES_REF_DIR / f"{case_nr}.npz"
-    ref_result = EmbeddingsResultBase.load(ref_case_file)
+    ref_result = AcousticEncodingResultBase.load(ref_case_file)
     assert_encoding_results_are_close(result, ref_result, case_nr, rtol=0.01, atol=0.01)
 
 
@@ -120,7 +122,7 @@ def test_tf32_is_same() -> None:
   model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
   for case_nr, result in predict_test_cases(model):
     ref_case_file = TEST_CASES_REF_DIR / f"{case_nr}.npz"
-    ref_result = EmbeddingsResultBase.load(ref_case_file)
+    ref_result = AcousticEncodingResultBase.load(ref_case_file)
     assert_encoding_results_are_close(result, ref_result, case_nr, rtol=0, atol=0)
 
 
@@ -131,7 +133,7 @@ def test_tf32_litert_is_very_close() -> None:
   model = load("acoustic", "2.4", "tf", precision="fp32", library="litert")
   for case_nr, result in predict_test_cases(model):
     ref_case_file = TEST_CASES_REF_DIR / f"{case_nr}.npz"
-    ref_result = EmbeddingsResultBase.load(ref_case_file)
+    ref_result = AcousticEncodingResultBase.load(ref_case_file)
     assert_encoding_results_are_close(
       result, ref_result, case_nr, rtol=0.001, atol=0.0001
     )
@@ -141,7 +143,7 @@ def test_tf16_is_somewhat_close() -> None:
   model = load("acoustic", "2.4", "tf", precision="fp16")
   for case_nr, result in predict_test_cases(model):
     ref_case_file = TEST_CASES_REF_DIR / f"{case_nr}.npz"
-    ref_result = EmbeddingsResultBase.load(ref_case_file)
+    ref_result = AcousticEncodingResultBase.load(ref_case_file)
     assert_encoding_results_are_close(result, ref_result, case_nr, rtol=0.1, atol=0.1)
 
 
@@ -149,7 +151,7 @@ def test_int8_is_somewhat_close() -> None:
   model = load("acoustic", "2.4", "tf", precision="int8")
   for case_nr, result in predict_test_cases(model):
     ref_case_file = TEST_CASES_REF_DIR / f"{case_nr}.npz"
-    ref_result = EmbeddingsResultBase.load(ref_case_file)
+    ref_result = AcousticEncodingResultBase.load(ref_case_file)
     assert_encoding_results_are_close(result, ref_result, case_nr, rtol=0.1, atol=0.1)
 
 

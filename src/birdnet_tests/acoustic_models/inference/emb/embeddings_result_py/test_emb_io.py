@@ -3,7 +3,9 @@ from pathlib import Path
 
 import numpy as np
 
-from birdnet.acoustic_models.inference.emb.embeddings_result import FileEmbeddingsResult
+from birdnet.acoustic_models.inference.emb.encoding_result import (
+  AcousticFileEncodingResult,
+)
 from birdnet.acoustic_models.inference.emb.tensor import EmbeddingsTensor
 from birdnet.helper import get_float_dtype, get_n_segments_speed
 
@@ -21,7 +23,7 @@ def create_dummy_emb_result(
   segment_duration_s: float = 3.0,
   overlap_duration_s: float = 0.0,
   speed: float = 1.0,
-) -> FileEmbeddingsResult:
+) -> AcousticFileEncodingResult:
   assert n_files > 0
   assert 0 <= overlap_duration_s < segment_duration_s
   np.random.seed(0)
@@ -39,7 +41,7 @@ def create_dummy_emb_result(
     duration_s,
     dtype=get_float_dtype(duration_s),
   )
-  return FileEmbeddingsResult(
+  return AcousticFileEncodingResult(
     tensor=tensor,
     files=files,
     file_durations=file_durations,

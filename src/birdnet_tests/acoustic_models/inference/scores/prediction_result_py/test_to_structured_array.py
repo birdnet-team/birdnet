@@ -5,8 +5,8 @@ import soundfile
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.scores.scores_result import (
-  FilePredictionResult,
-  ScoresResultBase,
+  AcousticFilePredictionResult,
+  AcousticPredictionResultBase,
 )
 from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
 from birdnet.helper import (
@@ -73,7 +73,7 @@ def create_file_prediction_result(
   segment_duration_s: float,
   overlap_duration_s: float,
   speed: float = 1.0,
-) -> FilePredictionResult:
+) -> AcousticFilePredictionResult:
   assert n_files > 0
   assert 0 <= overlap_duration_s < segment_duration_s
   np.random.seed(0)
@@ -95,7 +95,7 @@ def create_file_prediction_result(
     duration_s,
     dtype=get_float_dtype(duration_s),
   )
-  return FilePredictionResult(
+  return AcousticFilePredictionResult(
     tensor=tensor,
     files=files,
     species_list=species_list,
@@ -369,7 +369,7 @@ def test_end_time_clipping_two_segments() -> None:
 
 def _test_end_time_clipping_multiple_segments(
   max_duration: float,
-) -> ScoresResultBase:
+) -> AcousticPredictionResultBase:
   n_segments = round(max_duration / 3)
   result = create_file_prediction_result(
     n_files=1,

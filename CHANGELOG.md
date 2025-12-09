@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added model metadata to output
+- Added more classes to `__init__.py` for easier imports
 
 ### Fixed
 

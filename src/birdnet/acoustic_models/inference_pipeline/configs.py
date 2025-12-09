@@ -11,7 +11,7 @@ import numpy.typing as npt
 import psutil
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.perf_tracker import ProgressStats
+from birdnet.acoustic_models.inference.perf_tracker import AcousticProgressStats
 from birdnet.acoustic_models.inference.tensor import TensorBase
 from birdnet.backends import VersionedBackendProtocol
 from birdnet.base import ResultBase
@@ -216,7 +216,7 @@ class FilteringConfig:
 @dataclass(frozen=True)
 class OutputConfig:
   show_stats: None | Literal["minimal", "progress", "benchmark"]
-  progress_callback: Callable[[ProgressStats], None] | None
+  progress_callback: Callable[[AcousticProgressStats], None] | None
 
   @classmethod
   def validate_show_stats(

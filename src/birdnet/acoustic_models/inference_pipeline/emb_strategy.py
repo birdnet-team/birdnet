@@ -9,10 +9,10 @@ from birdnet.acoustic_models.inference.emb.benchmarking import (
   FullBenchmarkEmbMeta,
   MinimalBenchmarkEmbMeta,
 )
-from birdnet.acoustic_models.inference.emb.embeddings_result import (
-  DataEmbeddingsResult,
-  EmbeddingsResultBase,
-  FileEmbeddingsResult,
+from birdnet.acoustic_models.inference.emb.encoding_result import (
+  AcousticDataEncodingResult,
+  AcousticEncodingResultBase,
+  AcousticFileEncodingResult,
 )
 from birdnet.acoustic_models.inference.emb.tensor import EmbeddingsTensor
 from birdnet.acoustic_models.inference.emb.worker import EmbeddingsWorker
@@ -36,7 +36,7 @@ from birdnet.helper import get_file_formats
 
 
 class EmbeddingsStrategy(
-  PredictionStrategy[EmbeddingsResultBase, EmbeddingsConfig, EmbeddingsTensor]
+  PredictionStrategy[AcousticEncodingResultBase, EmbeddingsConfig, EmbeddingsTensor]
 ):
   def validate_config(
     self, config: PredictionConfig, specific_config: EmbeddingsConfig
@@ -104,10 +104,10 @@ class EmbeddingsStrategy(
     config: PredictionConfig,
     resources: PipelineResources,
     files: list[Path],
-  ) -> EmbeddingsResultBase:
+  ) -> AcousticEncodingResultBase:
     assert resources.analyzer_resources.input_durations is not None
 
-    return FileEmbeddingsResult(
+    return AcousticFileEncodingResult(
       tensor=tensor,
       files=files,
       segment_duration_s=config.model_conf.segment_size_s,
@@ -127,10 +127,10 @@ class EmbeddingsStrategy(
     tensor: EmbeddingsTensor,
     config: PredictionConfig,
     resources: PipelineResources,
-  ) -> EmbeddingsResultBase:
+  ) -> AcousticEncodingResultBase:
     assert resources.analyzer_resources.input_durations is not None
 
-    return DataEmbeddingsResult(
+    return AcousticDataEncodingResult(
       tensor=tensor,
       segment_duration_s=config.model_conf.segment_size_s,
       overlap_duration_s=config.processing_conf.overlap_duration_s,
@@ -149,7 +149,7 @@ class EmbeddingsStrategy(
     config: PredictionConfig,
     specific_config: EmbeddingsConfig,
     resources: PipelineResources,
-    pred_result: EmbeddingsResultBase,
+    pred_result: AcousticEncodingResultBase,
   ) -> MinimalBenchmarkEmbMeta:
     assert resources.stats_resources.end_timepoint is not None
     assert resources.stats_resources.stop is not None
@@ -181,7 +181,7 @@ class EmbeddingsStrategy(
     config: PredictionConfig,
     specific_config: EmbeddingsConfig,
     resources: PipelineResources,
-    pred_result: EmbeddingsResultBase,
+    pred_result: AcousticEncodingResultBase,
   ) -> FullBenchmarkEmbMeta:
     perf_result = resources.stats_resources.tracking_result
     assert perf_result is not None
@@ -262,6 +262,6 @@ class EmbeddingsStrategy(
     return "emb"
 
   def save_results_extra(
-    self, result: EmbeddingsResultBase, benchmark_run_out_dir: Path, prepend: str
+    self, result: AcousticEncodingResultBase, benchmark_run_out_dir: Path, prepend: str
   ) -> list[Path]:
     return []

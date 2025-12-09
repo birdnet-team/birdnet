@@ -12,9 +12,9 @@ from birdnet.acoustic_models.inference.scores.benchmarking import (
   MinimalBenchmarkMeta,
 )
 from birdnet.acoustic_models.inference.scores.scores_result import (
-  DataPredictionResult,
-  FilePredictionResult,
-  ScoresResultBase,
+  AcousticDataPredictionResult,
+  AcousticFilePredictionResult,
+  AcousticPredictionResultBase,
 )
 from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
 from birdnet.acoustic_models.inference.scores.worker import ScoresWorker
@@ -37,7 +37,9 @@ from birdnet.globals import (
 from birdnet.helper import get_file_formats
 
 
-class ScoresStrategy(PredictionStrategy[ScoresResultBase, ScoresConfig, ScoresTensor]):
+class ScoresStrategy(
+  PredictionStrategy[AcousticPredictionResultBase, ScoresConfig, ScoresTensor]
+):
   def validate_config(
     self, config: PredictionConfig, specific_config: ScoresConfig
   ) -> None:
@@ -143,10 +145,10 @@ class ScoresStrategy(PredictionStrategy[ScoresResultBase, ScoresConfig, ScoresTe
     config: PredictionConfig,
     resources: PipelineResources,
     files: list[Path],
-  ) -> ScoresResultBase:
+  ) -> AcousticPredictionResultBase:
     assert resources.analyzer_resources.input_durations is not None
 
-    return FilePredictionResult(
+    return AcousticFilePredictionResult(
       tensor=tensor,
       files=files,
       segment_duration_s=config.model_conf.segment_size_s,
@@ -167,10 +169,10 @@ class ScoresStrategy(PredictionStrategy[ScoresResultBase, ScoresConfig, ScoresTe
     tensor: ScoresTensor,
     config: PredictionConfig,
     resources: PipelineResources,
-  ) -> ScoresResultBase:
+  ) -> AcousticPredictionResultBase:
     assert resources.analyzer_resources.input_durations is not None
 
-    return DataPredictionResult(
+    return AcousticDataPredictionResult(
       tensor=tensor,
       segment_duration_s=config.model_conf.segment_size_s,
       overlap_duration_s=config.processing_conf.overlap_duration_s,
@@ -190,7 +192,7 @@ class ScoresStrategy(PredictionStrategy[ScoresResultBase, ScoresConfig, ScoresTe
     config: PredictionConfig,
     specific_config: ScoresConfig,
     resources: PipelineResources,
-    pred_result: ScoresResultBase,
+    pred_result: AcousticPredictionResultBase,
   ) -> MinimalBenchmarkMeta:
     assert resources.stats_resources.end_timepoint is not None
     assert resources.stats_resources.stop is not None
@@ -198,7 +200,7 @@ class ScoresStrategy(PredictionStrategy[ScoresResultBase, ScoresConfig, ScoresTe
     assert resources.analyzer_resources.input_durations is not None
 
     file_formats = NA
-    if isinstance(pred_result, FilePredictionResult):
+    if isinstance(pred_result, AcousticFilePredictionResult):
       file_formats = get_file_formats({Path(x) for x in pred_result.inputs})
 
     return MinimalBenchmarkMeta(
@@ -226,7 +228,7 @@ class ScoresStrategy(PredictionStrategy[ScoresResultBase, ScoresConfig, ScoresTe
     config: PredictionConfig,
     specific_config: ScoresConfig,
     resources: PipelineResources,
-    pred_result: ScoresResultBase,
+    pred_result: AcousticPredictionResultBase,
   ) -> FullBenchmarkMeta:
     perf_result = resources.stats_resources.tracking_result
     assert perf_result is not None
@@ -243,7 +245,7 @@ class ScoresStrategy(PredictionStrategy[ScoresResultBase, ScoresConfig, ScoresTe
     )
 
     file_formats = NA
-    if isinstance(pred_result, FilePredictionResult):
+    if isinstance(pred_result, AcousticFilePredictionResult):
       file_formats = get_file_formats({Path(x) for x in pred_result.inputs})
 
     return FullBenchmarkMeta(
@@ -324,7 +326,10 @@ class ScoresStrategy(PredictionStrategy[ScoresResultBase, ScoresConfig, ScoresTe
     return "scores"
 
   def save_results_extra(
-    self, result: ScoresResultBase, benchmark_run_out_dir: Path, prepend: str
+    self,
+    result: AcousticPredictionResultBase,
+    benchmark_run_out_dir: Path,
+    prepend: str,
   ) -> list[Path]:
     print("Saving result using CSV format (.csv)...")
     csv_path = benchmark_run_out_dir / f"{prepend}-result.csv"

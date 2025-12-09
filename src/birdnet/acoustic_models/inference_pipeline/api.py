@@ -7,14 +7,14 @@ from typing import Any, Literal
 import numpy.typing as npt
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.emb.embeddings_result import (
-  DataEmbeddingsResult,
-  FileEmbeddingsResult,
+from birdnet.acoustic_models.inference.emb.encoding_result import (
+  AcousticDataEncodingResult,
+  AcousticFileEncodingResult,
 )
-from birdnet.acoustic_models.inference.perf_tracker import ProgressStats
+from birdnet.acoustic_models.inference.perf_tracker import AcousticProgressStats
 from birdnet.acoustic_models.inference.scores.scores_result import (
-  DataPredictionResult,
-  FilePredictionResult,
+  AcousticDataPredictionResult,
+  AcousticFilePredictionResult,
 )
 from birdnet.acoustic_models.inference_pipeline.configs import (
   EmbeddingsConfig,
@@ -32,7 +32,7 @@ from birdnet.backends import VersionedAcousticBackendProtocol
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
 
 
-class EncodingSession(AcousticSessionBase):
+class AcousticEncodingSession(AcousticSessionBase):
   def __init__(
     self,
     species_list: OrderedSet[str],
@@ -58,7 +58,7 @@ class EncodingSession(AcousticSessionBase):
     half_precision: bool,
     max_audio_duration_min: float | None,
     show_stats: None | Literal["minimal", "progress", "benchmark"],
-    progress_callback: Callable[[ProgressStats], None] | None,
+    progress_callback: Callable[[AcousticProgressStats], None] | None,
     device: str | list[str],
     max_n_files: int,  # Limit to avoid excessive memory usage
   ) -> None:
@@ -136,7 +136,9 @@ class EncodingSession(AcousticSessionBase):
       ),
     )
 
-  def run(self, inputs: Path | str | Iterable[Path | str]) -> FileEmbeddingsResult:
+  def run(
+    self, inputs: Path | str | Iterable[Path | str]
+  ) -> AcousticFileEncodingResult:
     inputs = PredictionConfig.validate_input_files(inputs)
 
     if len(inputs) > self._conf.processing_conf.max_n_files:
@@ -149,12 +151,12 @@ class EncodingSession(AcousticSessionBase):
 
   def run_arrays(
     self, inputs: tuple[npt.NDArray, int] | Iterable[tuple[npt.NDArray, int]]
-  ) -> DataEmbeddingsResult:
+  ) -> AcousticDataEncodingResult:
     data = PredictionConfig.validate_input_audio(inputs)
     return super()._run(data)
 
 
-class ScoreSession(AcousticSessionBase):
+class AcousticPredictionSession(AcousticSessionBase):
   def __init__(
     self,
     species_list: OrderedSet[str],
@@ -185,7 +187,7 @@ class ScoreSession(AcousticSessionBase):
     half_precision: bool = True,
     max_audio_duration_min: float | None,
     show_stats: Literal["minimal", "progress", "benchmark"] | None,
-    progress_callback: Callable[[ProgressStats], None] | None,
+    progress_callback: Callable[[AcousticProgressStats], None] | None,
     device: str | list[str],
     max_n_files: int,
   ) -> None:
@@ -291,7 +293,9 @@ class ScoreSession(AcousticSessionBase):
       ),
     )
 
-  def run(self, inputs: Path | str | Iterable[Path | str]) -> FilePredictionResult:
+  def run(
+    self, inputs: Path | str | Iterable[Path | str]
+  ) -> AcousticFilePredictionResult:
     inputs = PredictionConfig.validate_input_files(inputs)
 
     if len(inputs) > self._conf.processing_conf.max_n_files:
@@ -304,6 +308,6 @@ class ScoreSession(AcousticSessionBase):
 
   def run_arrays(
     self, inputs: tuple[npt.NDArray, int] | Iterable[tuple[npt.NDArray, int]]
-  ) -> DataPredictionResult:
+  ) -> AcousticDataPredictionResult:
     data = PredictionConfig.validate_input_audio(inputs)
     return super()._run(data)

@@ -27,7 +27,7 @@ if TYPE_CHECKING:
   import pyarrow as pa
 
 
-class ScoresResult(ResultBase):
+class GeoPredictionResult(ResultBase):
   def __init__(
     self,
     model_path: Path,

@@ -37,26 +37,26 @@ def get_package_logger() -> logging.Logger:
 #   root.addHandler(h)
 
 
-def xadd_queue_handler(logging_queue: Queue) -> QueueHandler:
-  root = get_package_logger()
-  h = QueueHandler(logging_queue)  # Just the one handler needed
-  root.addHandler(h)
-  return h
+# def xadd_queue_handler(logging_queue: Queue) -> QueueHandler:
+#   root = get_package_logger()
+#   h = QueueHandler(logging_queue)  # Just the one handler needed
+#   root.addHandler(h)
+#   return h
 
 
-def xqueue_handler_exists(logging_queue: Queue) -> bool:
-  root = get_package_logger()
-  for handler in root.handlers:
-    if isinstance(handler, QueueHandler) and handler.queue is logging_queue:
-      return True
-  return False
+# def xqueue_handler_exists(logging_queue: Queue) -> bool:
+#   root = get_package_logger()
+#   for handler in root.handlers:
+#     if isinstance(handler, QueueHandler) and handler.queue is logging_queue:
+#       return True
+#   return False
 
 
-def xremove_queue_handler(handler: QueueHandler) -> None:
-  root = get_package_logger()
-  # check has queue handler already
-  assert handler in root.handlers
-  root.removeHandler(handler)
+# def xremove_queue_handler(handler: QueueHandler) -> None:
+#   root = get_package_logger()
+#   # check has queue handler already
+#   assert handler in root.handlers
+#   root.removeHandler(handler)
 
 
 def get_logger_for_package(name: str) -> logging.Logger:

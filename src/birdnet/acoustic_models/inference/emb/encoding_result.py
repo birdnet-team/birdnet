@@ -12,7 +12,7 @@ NP_EMB_KEY = "embeddings"
 NP_EMB_MASKED_KEY = "embeddings_masked"
 
 
-class EmbeddingsResultBase(AcousticResultBase):
+class AcousticEncodingResultBase(AcousticResultBase):
   def __init__(
     self,
     inputs: np.ndarray,
@@ -82,7 +82,7 @@ class EmbeddingsResultBase(AcousticResultBase):
     cls._embeddings_masked = data[NP_EMB_MASKED_KEY]
 
 
-class FileEmbeddingsResult(EmbeddingsResultBase):
+class AcousticFileEncodingResult(AcousticEncodingResultBase):
   def __init__(
     self,
     tensor: EmbeddingsTensor,
@@ -127,7 +127,7 @@ class FileEmbeddingsResult(EmbeddingsResultBase):
     return f'"{input_value}"'
 
 
-class DataEmbeddingsResult(EmbeddingsResultBase):
+class AcousticDataEncodingResult(AcousticEncodingResultBase):
   def __init__(
     self,
     tensor: EmbeddingsTensor,

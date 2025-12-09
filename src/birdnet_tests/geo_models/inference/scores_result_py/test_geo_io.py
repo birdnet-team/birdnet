@@ -4,11 +4,11 @@ from pathlib import Path
 import numpy as np
 from ordered_set import OrderedSet
 
-from birdnet.geo_models.inference.scores_result import ScoresResult
+from birdnet.geo_models.inference.prediction_result import GeoPredictionResult
 
 
-def get_dummy_result() -> ScoresResult:
-  res = ScoresResult(
+def get_dummy_result() -> GeoPredictionResult:
+  res = GeoPredictionResult(
     latitude=10.0,
     longitude=20.0,
     week=5,

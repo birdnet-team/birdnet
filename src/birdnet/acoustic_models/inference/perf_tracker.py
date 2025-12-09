@@ -210,7 +210,9 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       is_empty = False
       n_received += 1
 
-      stats: tuple[int, float, float, float, float, float, float, float, int] = queue_entry
+      stats: tuple[int, float, float, float, float, float, float, float, int] = (
+        queue_entry
+      )
       (
         worker_pid,
         wall_time,
@@ -364,7 +366,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
     # avg_segments_per_s.append(raw_segments_per_s_old)
     assert self._ring_flags is not None
-    stats = ProgressStats()
+    stats = AcousticProgressStats()
     output_msg_fields = [
       # f"inference speed: {self._summed_raw_pred_duration /
       # self._total_segments_processed * 1000:.0f} ms/segment",
@@ -627,7 +629,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
 
 @dataclass
-class ProgressStats:
+class AcousticProgressStats:
   worker_speed_xrt: float | None = None
   worker_speed_seg_per_s: float | None = None
   progress: float | None = None
@@ -641,7 +643,7 @@ class ProgressDispatcher:
     self,
     session_id: str,
     callback_queue: Queue,
-    callback_fn: Callable[[ProgressStats], None],
+    callback_fn: Callable[[AcousticProgressStats], None],
     cancel_event: Event,
     end_event: Event,
     start_signal: threading.Event,
