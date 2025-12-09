@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import logging
-from logging.handlers import QueueHandler
-from multiprocessing import Queue
 
 from birdnet.globals import PKG_NAME
 

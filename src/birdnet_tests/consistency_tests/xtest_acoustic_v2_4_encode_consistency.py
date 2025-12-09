@@ -1,6 +1,6 @@
+from collections.abc import Generator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Generator
 
 import numpy.testing
 import pytest

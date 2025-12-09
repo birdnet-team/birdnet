@@ -29,7 +29,6 @@ from birdnet.acoustic_models.inference_pipeline.encoding_strategy import (
   EncodingStrategy,
 )
 from birdnet.acoustic_models.inference_pipeline.prediction_strategy import (
-  InferenceStrategyBase,
   PredictionStrategy,
 )
 from birdnet.acoustic_models.inference_pipeline.session import AcousticSessionBase
