@@ -1,6 +1,9 @@
 import tempfile
 from pathlib import Path
 
+import pytest
+from requests import ReadTimeout
+
 from birdnet.utils import download_file_tqdm
 
 
@@ -15,10 +18,14 @@ def test_download_geo_model_to_tmp() -> None:
     prefix="birdnet_tests.test_download_geo_model_to_tmp."
   ) as tmp_dir:
     output_path = Path(tmp_dir) / "dl.zip"
-    download_file_tqdm(
-      url,
-      output_path,
-      download_size=dlsize,
-      description="Downloading model",
-    )
+    try:
+      download_file_tqdm(
+        url,
+        output_path,
+        download_size=dlsize,
+        description="Downloading model",
+      )
+    except ReadTimeout as e:
+      # sometimes the server is slow, so we just skip the test then
+      pytest.skip(f"Download timed out: {e}")
     assert output_path.is_file()
