@@ -17,7 +17,7 @@ from birdnet.acoustic_models.inference.prediction.result import (
   AcousticFilePredictionResult,
 )
 from birdnet.acoustic_models.inference_pipeline.configs import (
-  EmbeddingsConfig,
+  EncodingConfig,
   FilteringConfig,
   InferenceConfig,
   ModelConfig,
@@ -25,8 +25,13 @@ from birdnet.acoustic_models.inference_pipeline.configs import (
   PredictionConfig,
   ProcessingConfig,
 )
-from birdnet.acoustic_models.inference_pipeline.emb_strategy import EmbeddingsStrategy
-from birdnet.acoustic_models.inference_pipeline.scores_strategy import ScoresStrategy
+from birdnet.acoustic_models.inference_pipeline.encoding_strategy import (
+  EncodingStrategy,
+)
+from birdnet.acoustic_models.inference_pipeline.prediction_strategy import (
+  InferenceStrategyBase,
+  PredictionStrategy,
+)
 from birdnet.acoustic_models.inference_pipeline.session import AcousticSessionBase
 from birdnet.backends import VersionedAcousticBackendProtocol
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
@@ -130,8 +135,8 @@ class AcousticEncodingSession(AcousticSessionBase):
           progress_callback=progress_callback,
         ),
       ),
-      strategy=EmbeddingsStrategy(),
-      specific_config=EmbeddingsConfig(
+      strategy=EncodingStrategy(),
+      specific_config=EncodingConfig(
         emb_dim=model_emb_dim,
       ),
     )
@@ -284,7 +289,7 @@ class AcousticPredictionSession(AcousticSessionBase):
           progress_callback=progress_callback,
         ),
       ),
-      strategy=ScoresStrategy(),
+      strategy=PredictionStrategy(),
       specific_config=PredictionConfig(
         top_k=top_k,
         default_confidence_threshold=default_confidence_threshold,

@@ -114,7 +114,7 @@ predictions = model.predict(
   custom_species_list="example/species_list.txt",
 )
 
-predictions.to_csv("example/scores.csv")
+predictions.to_csv("example/predictions.csv")
 ```
 
 The resulting predictions look like this (excerpt, scores may vary):
@@ -130,7 +130,7 @@ The resulting predictions look like this (excerpt, scores may vary):
 |/home/.../example/soundscape.wav|00:00:21.00|00:00:24.00|Haemorhous mexicanus_House Finch|0.1866|
 |...|...|...|...|...|
 
-For a more detailed prediction you can take a look at [example/scores.csv](example/scores.csv).
+For a more detailed prediction you can take a look at [example/predictions.csv](example/predictions.csv).
 
 ### Predict species for a given location and time
 

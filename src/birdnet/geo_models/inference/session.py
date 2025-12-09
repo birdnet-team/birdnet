@@ -11,9 +11,9 @@ from birdnet.backends import (
 )
 from birdnet.base import SessionBase
 from birdnet.geo_models.inference.configs import (
+  InferenceConfig,
   PredictionConfig,
   RunConfig,
-  ScoresConfig,
 )
 from birdnet.geo_models.inference.prediction_result import GeoPredictionResult
 from birdnet.helper import get_uint_dtype
@@ -22,8 +22,8 @@ from birdnet.helper import get_uint_dtype
 class GeoSessionBase(SessionBase, ABC):
   def __init__(
     self,
-    conf: PredictionConfig,
-    specific_config: ScoresConfig,
+    conf: InferenceConfig,
+    specific_config: PredictionConfig,
   ) -> None:
     self._conf = conf
     self._specific_config = specific_config

@@ -18,7 +18,7 @@ if TYPE_CHECKING:
   pass
 
 
-class ScoresWorker(WorkerBase):
+class PredictionWorker(WorkerBase):
   def __init__(
     self,
     session_id: str,
@@ -97,7 +97,7 @@ class ScoresWorker(WorkerBase):
       end_event=end_event,
     )
 
-  def _infer(self, batch: BatchT) -> BatchT: 
+  def _infer(self, batch: BatchT) -> BatchT:
     assert self._backend is not None
     return self._backend.predict(batch)
 

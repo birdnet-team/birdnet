@@ -22,7 +22,7 @@ from birdnet.acoustic_models.inference_pipeline.resources import (
   PipelineResources,
   ResourceManager,
 )
-from birdnet.acoustic_models.inference_pipeline.strategy import PredictionStrategy
+from birdnet.acoustic_models.inference_pipeline.strategy import InferenceStrategyBase
 from birdnet.base import SessionBase, get_session_id_hash
 from birdnet.globals import WRITABLE_FLAG
 from birdnet.shm import create_shm_ring
@@ -34,7 +34,7 @@ class AcousticSessionBase(
   def __init__(
     self,
     conf: InferenceConfig,
-    strategy: PredictionStrategy[ResultType, ConfigType, TensorType],
+    strategy: InferenceStrategyBase[ResultType, ConfigType, TensorType],
     specific_config: ConfigType,
   ) -> None:
     self._conf = conf
@@ -191,7 +191,7 @@ def shared_memory_context(session_id: str, resources: PipelineResources):
 def _handle_statistics(
   session_id: str,
   config: InferenceConfig,
-  strategy: PredictionStrategy[ResultType, ConfigType, TensorType],
+  strategy: InferenceStrategyBase[ResultType, ConfigType, TensorType],
   specific_config: ConfigType,
   result: ResultType,
   resources: PipelineResources,
@@ -217,7 +217,7 @@ def _handle_statistics(
 
 def _show_minimal_statistics(
   config: InferenceConfig,
-  strategy: PredictionStrategy[ResultType, ConfigType, TensorType],
+  strategy: InferenceStrategyBase[ResultType, ConfigType, TensorType],
   resources: PipelineResources,
   specific_config: ConfigType,
   result: ResultType,
@@ -251,7 +251,7 @@ def _show_minimal_statistics(
 def _create_benchmark_statistics(
   session_id: str,
   config: InferenceConfig,
-  strategy: PredictionStrategy[ResultType, ConfigType, TensorType],
+  strategy: InferenceStrategyBase[ResultType, ConfigType, TensorType],
   resources: PipelineResources,
   specific_config: ConfigType,
   result: ResultType,

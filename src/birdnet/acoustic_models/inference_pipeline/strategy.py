@@ -20,7 +20,7 @@ from birdnet.acoustic_models.inference_pipeline.resources import (
 )
 
 
-class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
+class InferenceStrategyBase(Generic[ResultType, ConfigType, TensorType], ABC):
   @abstractmethod
   def validate_config(
     self, config: InferenceConfig, specific_config: ConfigType

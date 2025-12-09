@@ -138,15 +138,15 @@ class AcousticTFBackendInt8V2_4(TFBackend, VersionedAcousticBackendProtocol):
     return 0
 
   @classmethod
-  def scores_out_idx(cls) -> int:
+  def prediction_out_idx(cls) -> int:
     return 643
 
   @classmethod
-  def emb_supported(cls) -> bool:
+  def supports_encoding(cls) -> bool:
     return True
 
   @classmethod
-  def emb_out_idx(cls) -> int | None:
+  def encoding_out_idx(cls) -> int | None:
     return 640
 
   @classmethod
@@ -165,15 +165,15 @@ class AcousticTFBackendFP16V2_4(TFBackend, VersionedAcousticBackendProtocol):
     return 0
 
   @classmethod
-  def scores_out_idx(cls) -> int:
+  def prediction_out_idx(cls) -> int:
     return 546
 
   @classmethod
-  def emb_supported(cls) -> bool:
+  def supports_encoding(cls) -> bool:
     return True
 
   @classmethod
-  def emb_out_idx(cls) -> int | None:
+  def encoding_out_idx(cls) -> int | None:
     return 545
 
   @classmethod
@@ -192,15 +192,15 @@ class AcousticTFBackendFP32V2_4(TFBackend, VersionedAcousticBackendProtocol):
     return 0
 
   @classmethod
-  def scores_out_idx(cls) -> int:
+  def prediction_out_idx(cls) -> int:
     return 546
 
   @classmethod
-  def emb_supported(cls) -> bool:
+  def supports_encoding(cls) -> bool:
     return True
 
   @classmethod
-  def emb_out_idx(cls) -> int | None:
+  def encoding_out_idx(cls) -> int | None:
     return 545
 
   @classmethod

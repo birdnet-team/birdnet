@@ -57,7 +57,7 @@ class Backend(Generic[BatchT], ABC):
   def predict(self, batch: BatchT) -> BatchT: ...
 
   @abstractmethod
-  def embed(self, batch: BatchT) -> BatchT: ...
+  def encode(self, batch: BatchT) -> BatchT: ...
 
   @classmethod
   @abstractmethod
@@ -65,7 +65,7 @@ class Backend(Generic[BatchT], ABC):
 
   @classmethod
   @abstractmethod
-  def emb_supported(cls) -> bool: ...
+  def supports_encoding(cls) -> bool: ...
 
   @property
   @abstractmethod
@@ -104,10 +104,10 @@ class VersionedBackendProtocol(Generic[BatchT], Protocol):
 
   def predict(self, batch: BatchT) -> BatchT: ...
 
-  def embed(self, batch: BatchT) -> BatchT: ...
+  def encode(self, batch: BatchT) -> BatchT: ...
 
   @classmethod
-  def emb_supported(cls) -> bool: ...
+  def supports_encoding(cls) -> bool: ...
 
   @classmethod
   def supports_cow(cls) -> bool: ...
@@ -173,11 +173,11 @@ class TFBackend(Backend, ABC):
 
   @classmethod
   @abstractmethod
-  def scores_out_idx(cls) -> int: ...
+  def prediction_out_idx(cls) -> int: ...
 
   @classmethod
   @abstractmethod
-  def emb_out_idx(cls) -> int | None: ...
+  def encoding_out_idx(cls) -> int | None: ...
 
   def load(self) -> None:
     assert self._interp is None
@@ -238,11 +238,11 @@ class TFBackend(Backend, ABC):
 
   @final
   def predict(self, batch: np.ndarray) -> np.ndarray:
-    return self._infer(batch, self.scores_out_idx())
+    return self._infer(batch, self.prediction_out_idx())
 
   @final
-  def embed(self, batch: np.ndarray) -> np.ndarray:
-    out_idx = self.emb_out_idx()
+  def encode(self, batch: np.ndarray) -> np.ndarray:
+    out_idx = self.encoding_out_idx()
     assert out_idx is not None
     return self._infer(batch, out_idx)
 
@@ -260,7 +260,7 @@ class PBBackend(Backend, ABC):
     self._logical_device: Any | None = None
     self._logical_device_name: str | None = None
     self._predict_fn: Callable | None = None
-    self._emb_fn: Callable | None = None
+    self._encoding_fn: Callable | None = None
 
   @classmethod
   def name(cls) -> str:
@@ -277,19 +277,19 @@ class PBBackend(Backend, ABC):
 
   @classmethod
   @abstractmethod
-  def scores_signature_name(cls) -> str: ...
+  def prediction_signature_name(cls) -> str: ...
 
   @classmethod
   @abstractmethod
-  def scores_prediction_key(cls) -> str: ...
+  def prediction_key(cls) -> str: ...
 
   @classmethod
   @abstractmethod
-  def emb_signature_name(cls) -> str | None: ...
+  def encoding_signature_name(cls) -> str | None: ...
 
   @classmethod
   @abstractmethod
-  def emb_prediction_key(cls) -> str | None: ...
+  def encoding_key(cls) -> str | None: ...
 
   @final
   def load(self) -> None:
@@ -297,23 +297,23 @@ class PBBackend(Backend, ABC):
     self._set_logical_device()
     assert self._logical_device_name is not None
     self._model = load_pb_model(self._model_path, self._logical_device_name)
-    self._predict_fn = self._model.signatures[self.scores_signature_name()]  # type: ignore
-    if self.emb_supported():
-      emb_sig_name = self.emb_signature_name()
-      assert emb_sig_name is not None
-      self._emb_fn = self._model.signatures[emb_sig_name]  # type: ignore
+    self._predict_fn = self._model.signatures[self.prediction_signature_name()]  # type: ignore
+    if self.supports_encoding():
+      encoding_sig_name = self.encoding_signature_name()
+      assert encoding_sig_name is not None
+      self._encoding_fn = self._model.signatures[encoding_sig_name]  # type: ignore
 
   def unload(self) -> None:
     self._model = None
     self._logical_device = None
     self._predict_fn = None
-    self._emb_fn = None
+    self._encoding_fn = None
 
   @property
   def n_species(self) -> int:
     assert self._predict_fn is not None
     n_species_in_model: int = (
-      self._predict_fn.output_shapes[self.scores_prediction_key()].dims[1].value  # type: ignore
+      self._predict_fn.output_shapes[self.prediction_key()].dims[1].value  # type: ignore
     )
     return n_species_in_model
 
@@ -346,26 +346,26 @@ class PBBackend(Backend, ABC):
 
     with device(self._logical_device_name):  # type: ignore
       # prediction = self._audio_model.basic(batch)["scores"]
-      predictions = self._predict_fn(**{self.input_key(): batch})
-    scores: Tensor = predictions[self.scores_prediction_key()]
-    assert scores.dtype == float32
-    return scores
+      prediction_result = self._predict_fn(**{self.input_key(): batch})
+    predictions: Tensor = prediction_result[self.prediction_key()]
+    assert predictions.dtype == float32
+    return predictions
 
   @final
-  def embed(self, batch: Tensor) -> Tensor:
+  def encode(self, batch: Tensor) -> Tensor:
     from tensorflow import device, float32
 
-    assert self.emb_supported()
-    emb_pred_key = self.emb_prediction_key()
-    assert emb_pred_key is not None
-    assert self._emb_fn is not None
+    assert self.supports_encoding()
+    encoding_key = self.encoding_key()
+    assert encoding_key is not None
+    assert self._encoding_fn is not None
     assert self._logical_device_name is not None
 
     with device(self._logical_device_name):  # type: ignore
-      predictions = self._emb_fn(**{self.input_key(): batch})
-    emb: Tensor = predictions[emb_pred_key]
-    assert emb.dtype == float32
-    return emb
+      encoding_result = self._encoding_fn(**{self.input_key(): batch})
+    embeddings: Tensor = encoding_result[encoding_key]
+    assert embeddings.dtype == float32
+    return embeddings
 
   def copy_from_device(self, inference_result: Tensor) -> np.ndarray:
     from tensorflow import Tensor

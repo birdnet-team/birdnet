@@ -8,4 +8,4 @@ predictions = model.predict(
   custom_species_list="example/species_list.txt",
 )
 
-predictions.to_csv("example/scores.csv")
+predictions.to_csv("example/predictions.csv")

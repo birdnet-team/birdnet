@@ -5,11 +5,11 @@ from ordered_set import OrderedSet
 
 from birdnet.backends import VersionedGeoBackendProtocol
 from birdnet.geo_models.inference.configs import (
+  InferenceConfig,
   ModelConfig,
   PredictionConfig,
   ProcessingConfig,
   RunConfig,
-  ScoresConfig,
 )
 from birdnet.geo_models.inference.prediction_result import GeoPredictionResult
 from birdnet.geo_models.inference.session import GeoSessionBase
@@ -36,12 +36,12 @@ class GeoPredictionSession(GeoSessionBase):
 
     half_precision = ProcessingConfig.validate_half_precision(half_precision)
 
-    min_confidence = ScoresConfig.validate_min_confidence(min_confidence)
+    min_confidence = PredictionConfig.validate_min_confidence(min_confidence)
 
     device = ProcessingConfig.validate_device(device)
 
     super().__init__(
-      conf=PredictionConfig(
+      conf=InferenceConfig(
         model_conf=ModelConfig(
           species_list=species_list,
           path=model_path,
@@ -55,7 +55,7 @@ class GeoPredictionSession(GeoSessionBase):
           device=ProcessingConfig.validate_device(device),
         ),
       ),
-      specific_config=ScoresConfig(
+      specific_config=PredictionConfig(
         min_confidence=min_confidence,
       ),
     )

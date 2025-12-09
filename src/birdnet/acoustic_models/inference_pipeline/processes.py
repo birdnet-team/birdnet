@@ -23,7 +23,7 @@ from birdnet.acoustic_models.inference_pipeline.configs import (
   TensorType,
 )
 from birdnet.acoustic_models.inference_pipeline.resources import PipelineResources
-from birdnet.acoustic_models.inference_pipeline.strategy import PredictionStrategy
+from birdnet.acoustic_models.inference_pipeline.strategy import InferenceStrategyBase
 from birdnet.base import get_session_id_hash
 
 
@@ -32,7 +32,7 @@ class ProcessManager:
     self,
     session_id: str,
     config: InferenceConfig,
-    strategy: PredictionStrategy[ResultType, ConfigType, TensorType],
+    strategy: InferenceStrategyBase[ResultType, ConfigType, TensorType],
     specific_config: ConfigType,
     resources: PipelineResources,
   ) -> None:

@@ -53,7 +53,7 @@ class ModelConfig:
   def validate_backend_supports_embeddings(
     cls, backend: type[VersionedBackendProtocol]
   ) -> None:
-    if not backend.emb_supported():
+    if not backend.supports_encoding():
       raise ValueError("loaded backend does not support embeddings")
 
 
@@ -238,7 +238,7 @@ class SpecificConfigBase:
 
 
 @dataclass(frozen=True)
-class EmbeddingsConfig(SpecificConfigBase):
+class EncodingConfig(SpecificConfigBase):
   emb_dim: int
 
 

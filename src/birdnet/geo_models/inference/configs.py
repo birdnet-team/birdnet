@@ -47,7 +47,7 @@ class ProcessingConfig:
 
 
 @dataclass(frozen=True)
-class ScoresConfig:
+class PredictionConfig:
   min_confidence: float
 
   @classmethod
@@ -102,6 +102,6 @@ class RunConfig:
 
 
 @dataclass(frozen=True)
-class PredictionConfig:
+class InferenceConfig:
   model_conf: ModelConfig
   processing_conf: ProcessingConfig

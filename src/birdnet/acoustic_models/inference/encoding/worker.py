@@ -74,6 +74,6 @@ class EmbeddingsWorker(WorkerBase):
   ) -> tuple[np.ndarray, ...]:
     return (file_indices, segment_indices, infer_result)
 
-  def _infer(self, batch: BatchT) -> BatchT: 
+  def _infer(self, batch: BatchT) -> BatchT:
     assert self._backend is not None
-    return self._backend.embed(batch)
+    return self._backend.encode(batch)

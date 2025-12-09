@@ -111,15 +111,15 @@ class GeoTFBackendFP32V2_4(TFBackend, VersionedGeoBackendProtocol):
     return 0
 
   @classmethod
-  def scores_out_idx(cls) -> int:
+  def prediction_out_idx(cls) -> int:
     return 62
 
   @classmethod
-  def emb_supported(cls) -> bool:
+  def supports_encoding(cls) -> bool:
     return False
 
   @classmethod
-  def emb_out_idx(cls) -> int | None:
+  def encoding_out_idx(cls) -> int | None:
     return None
 
   @classmethod

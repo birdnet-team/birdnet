@@ -10,7 +10,7 @@ from birdnet.acoustic_models.inference.encoding.tensor import AcousticEncodingTe
 from birdnet.helper import get_float_dtype, get_n_segments_speed
 
 
-def create_mock_emb_tensor(
+def create_mock_tensor(
   emb: np.ndarray, emb_masked: np.ndarray
 ) -> AcousticEncodingTensor:
   tensor = AcousticEncodingTensor.__new__(AcousticEncodingTensor)
@@ -19,7 +19,7 @@ def create_mock_emb_tensor(
   return tensor
 
 
-def create_dummy_emb_result(
+def create_dummy_result(
   n_files: int = 3,
   duration_s: float = 20.0,
   segment_duration_s: float = 3.0,
@@ -35,7 +35,7 @@ def create_dummy_emb_result(
   species_emb = np.random.random((n_files, n_segments, 1024)).astype(np.float32)
   species_masked = np.full((n_files, n_segments, 1024), False, dtype=bool)
 
-  tensor = create_mock_emb_tensor(species_emb, species_masked)
+  tensor = create_mock_tensor(species_emb, species_masked)
 
   files = [Path(f"/test/file_{i}.wav") for i in range(n_files)]
   file_durations = np.full(
@@ -60,7 +60,7 @@ def create_dummy_emb_result(
 
 
 def test_save_and_load_is_equal() -> None:
-  reference = create_dummy_emb_result()
+  reference = create_dummy_result()
 
   with tempfile.NamedTemporaryFile(suffix=".npz", delete=False, mode="wb") as tmp_file:
     reference.save(tmp_file.name, compress=False)
@@ -90,7 +90,7 @@ def test_save_and_load_is_equal() -> None:
 
 
 def test_memory_size_mb() -> None:
-  res = create_dummy_emb_result()
+  res = create_dummy_result()
 
   expected_size = (
     res._inputs.nbytes

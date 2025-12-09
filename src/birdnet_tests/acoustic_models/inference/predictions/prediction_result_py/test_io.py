@@ -2,7 +2,7 @@ import tempfile
 
 import numpy as np
 
-from birdnet_tests.acoustic_models.inference.scores.prediction_result_py.test_to_structured_array import (
+from birdnet_tests.acoustic_models.inference.predictions.prediction_result_py.test_to_structured_array import (
   create_file_prediction_result,
 )
 

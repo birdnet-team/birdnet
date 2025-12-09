@@ -108,23 +108,23 @@ class GeoPBBackendFP32V2_4(PBBackend, VersionedGeoBackendProtocol):
     return "MNET_INPUT"
 
   @classmethod
-  def scores_signature_name(cls) -> str:
+  def prediction_signature_name(cls) -> str:
     return "serving_default"
 
   @classmethod
-  def scores_prediction_key(cls) -> str:
+  def prediction_key(cls) -> str:
     return "MNET_CLASS_ACTIVATION"
 
   @classmethod
-  def emb_supported(cls) -> bool:
+  def supports_encoding(cls) -> bool:
     return False
 
   @classmethod
-  def emb_signature_name(cls) -> str | None:
+  def encoding_signature_name(cls) -> str | None:
     return None
 
   @classmethod
-  def emb_prediction_key(cls) -> str | None:
+  def encoding_key(cls) -> str | None:
     return None
 
   @classmethod

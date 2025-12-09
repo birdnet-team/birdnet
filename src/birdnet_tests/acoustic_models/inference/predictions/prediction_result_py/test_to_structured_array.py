@@ -58,7 +58,7 @@ def assert_species_masked_pattern(species_masked: np.ndarray) -> None:
 def create_mock_scores_tensor(
   species_ids: np.ndarray, species_probs: np.ndarray, species_masked: np.ndarray
 ) -> AcousticPredictionTensor:
-  """Helper to create a mock ScoresTensor."""
+  """Helper to create a mock tensor."""
   tensor = AcousticPredictionTensor.__new__(AcousticPredictionTensor)
   tensor._species_ids = species_ids
   tensor._species_probs = species_probs

@@ -108,23 +108,23 @@ class AcousticPBBackendFP32V2_4(PBBackend, VersionedAcousticBackendProtocol):
     return "inputs"
 
   @classmethod
-  def scores_signature_name(cls) -> str:
+  def prediction_signature_name(cls) -> str:
     return "basic"
 
   @classmethod
-  def scores_prediction_key(cls) -> str:
+  def prediction_key(cls) -> str:
     return "scores"
 
   @classmethod
-  def emb_supported(cls) -> bool:
+  def supports_encoding(cls) -> bool:
     return True
 
   @classmethod
-  def emb_signature_name(cls) -> str | None:
+  def encoding_signature_name(cls) -> str | None:
     return "embeddings"
 
   @classmethod
-  def emb_prediction_key(cls) -> str | None:
+  def encoding_key(cls) -> str | None:
     return "embeddings"
 
   @classmethod
@@ -147,23 +147,23 @@ class AcousticRavenBackendFP32V2_4(PBBackend, VersionedAcousticBackendProtocol):
     return "inputs"
 
   @classmethod
-  def scores_signature_name(cls) -> str:
+  def prediction_signature_name(cls) -> str:
     return "basic"
 
   @classmethod
-  def scores_prediction_key(cls) -> str:
+  def prediction_key(cls) -> str:
     return "scores"
 
   @classmethod
-  def emb_supported(cls) -> bool:
+  def supports_encoding(cls) -> bool:
     return False
 
   @classmethod
-  def emb_signature_name(cls) -> str | None:
+  def encoding_signature_name(cls) -> str | None:
     return None
 
   @classmethod
-  def emb_prediction_key(cls) -> str | None:
+  def encoding_key(cls) -> str | None:
     return None
 
   @classmethod
