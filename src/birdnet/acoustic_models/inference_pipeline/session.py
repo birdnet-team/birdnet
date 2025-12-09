@@ -94,10 +94,6 @@ class AcousticSessionBase(
     )
 
     self._process_manager.run_consumer(result_tensor)
-    self._resources.processing_resources.processing_finished_event.set()
-    self._resources.stats_resources.save_end_time()
-    self._resources.stats_resources.collect_performance_results()
-    self._resources.analyzer_resources.collect_file_durations()
 
     if self._resources.processing_resources.cancel_event.is_set():
       raise RuntimeError(
@@ -105,6 +101,13 @@ class AcousticSessionBase(
         f"Please check the logs: "
         f"{self._resources.logging_resources.session_log_file.absolute()}"
       )
+
+    self._resources.processing_resources.processing_finished_event.set()
+    self._resources.stats_resources.save_end_time()
+
+    # Collect only if no cancellation occurred, otherwise the result queues may be empty
+    self._resources.stats_resources.collect_performance_results()
+    self._resources.analyzer_resources.collect_file_durations()
 
     if is_file_input := any(isinstance(inp, Path) for inp in inputs):
       assert all(isinstance(inp, Path) for inp in inputs)

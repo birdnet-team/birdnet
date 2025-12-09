@@ -75,7 +75,6 @@ class FilesAnalyzer:
         "FilesAnalyzer encountered an exception.", exc_info=e, stack_info=True
       )
       self._cancel_event.set()
-      self._analyzing_result.put(None, block=True)
 
   def run_main_loop(self) -> None:
     while True:
