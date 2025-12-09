@@ -16,14 +16,14 @@ class AcousticEncodingTensor(AcousticTensorBase):
     n_inputs: int,
     emb_dim: int,
     half_precision: bool,
-    files_dtype: DTypeLike,
+    input_indices_dtype: DTypeLike,
     segment_indices_dtype: DTypeLike,
     max_segment_index: mp.RawValue,  # type: ignore
   ) -> None:
     self._session_id = session_id
     self._logger = get_logger_from_session(session_id, __name__)
 
-    self._files_dtype = files_dtype
+    self._input_indices_dtype = input_indices_dtype
     self._segment_indices_dtype = segment_indices_dtype
     self._max_segment_index = max_segment_index
 
@@ -75,7 +75,7 @@ class AcousticEncodingTensor(AcousticTensorBase):
     segment_indices: np.ndarray,
     emb: np.ndarray,  # 2dim
   ) -> None:
-    assert file_indices.dtype == self._files_dtype
+    assert file_indices.dtype == self._input_indices_dtype
     assert emb.dtype == self._emb.dtype
     assert segment_indices.dtype == self._segment_indices_dtype
     block_max_segment_idx = segment_indices.max()
@@ -83,3 +83,7 @@ class AcousticEncodingTensor(AcousticTensorBase):
     self._ensure_capacity(max_segment_size)
     self._emb[file_indices, segment_indices] = emb
     self._emb_masked[file_indices, segment_indices] = False
+
+  def set_unprocessable_inputs(self, unprocessable_inputs: np.ndarray) -> None:
+    super().set_unprocessable_inputs(unprocessable_inputs)
+    self._emb_masked[unprocessable_inputs, :, :] = True

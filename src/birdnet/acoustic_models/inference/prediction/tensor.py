@@ -18,19 +18,19 @@ class AcousticPredictionTensor(AcousticTensorBase):
     top_k: int,
     n_species: int,
     half_precision: bool,
-    files_dtype: DTypeLike,
+    input_indices_dtype: DTypeLike,
     segment_indices_dtype: DTypeLike,
     max_segment_index: mp.RawValue,  # TODO: watch max_n_segments instead # type: ignore
   ) -> None:
     self._session_id = session_id
     self._logger = get_logger_from_session(session_id, __name__)
 
-    self._files_dtype = files_dtype
+    self._input_indices_dtype = input_indices_dtype
     self._segment_indices_dtype = segment_indices_dtype
     self._top_k = top_k
     self._max_segment_index = max_segment_index
 
-    initial_n_segments = max_segment_index.value + 1
+    initial_n_segments = max_segment_index.value
 
     self._species_ids = np.empty(
       (n_inputs, initial_n_segments, self._top_k),
@@ -91,13 +91,13 @@ class AcousticPredictionTensor(AcousticTensorBase):
 
   def write_block(
     self,
-    file_indices: np.ndarray,
+    input_indices: np.ndarray,
     segment_indices: np.ndarray,
     top_k_species: np.ndarray,  # 2dim
     top_k_scores: np.ndarray,  # 2dim
     top_k_mask: np.ndarray,  # 2dim
   ) -> None:
-    assert file_indices.dtype == self._files_dtype
+    assert input_indices.dtype == self._input_indices_dtype
     assert top_k_species.dtype == self._species_ids.dtype
     assert top_k_scores.dtype == self._species_probs.dtype
     assert top_k_mask.dtype == self._species_masked.dtype
@@ -105,6 +105,10 @@ class AcousticPredictionTensor(AcousticTensorBase):
     block_max_segment_idx = segment_indices.max()
     max_segment_size = max(block_max_segment_idx, self._max_segment_index.value) + 1
     self._ensure_capacity(max_segment_size)
-    self._species_ids[file_indices, segment_indices] = top_k_species
-    self._species_probs[file_indices, segment_indices] = top_k_scores
-    self._species_masked[file_indices, segment_indices] = top_k_mask
+    self._species_ids[input_indices, segment_indices] = top_k_species
+    self._species_probs[input_indices, segment_indices] = top_k_scores
+    self._species_masked[input_indices, segment_indices] = top_k_mask
+
+  def set_unprocessable_inputs(self, unprocessable_inputs: np.ndarray) -> None:
+    super().set_unprocessable_inputs(unprocessable_inputs)
+    self._species_masked[unprocessable_inputs, :, :] = True

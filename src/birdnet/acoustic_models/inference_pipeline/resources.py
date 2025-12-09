@@ -204,9 +204,18 @@ class ProducerResources:
   all_finished: multiprocessing.synchronize.Event
   ring_access_lock: multiprocessing.synchronize.Lock
   input_queue: Queue
+  unprocessed_inputs_queue: Queue
   start_signals: list[multiprocessing.synchronize.Event]
 
+  _unprocessed_inputs: np.ndarray | None = None
+
+  @property
+  def unprocessed_inputs(self) -> np.ndarray:
+    assert self._unprocessed_inputs is not None
+    return self._unprocessed_inputs
+
   def reset(self) -> None:
+    object.__setattr__(self, "_unprocessed_inputs", None)
     self.n_finished_pointer.value = 0  # type: ignore
     self.all_finished.clear()
     for start_signal in self.start_signals:
@@ -228,7 +237,18 @@ class ProducerResources:
       ring_access_lock=mp.Lock(),
       all_finished=mp.Event(),
       start_signals=[mp.Event() for _ in range(n_producers)],
+      unprocessed_inputs_queue=Queue(),
     )
+
+  def collect_unprocessed_inputs(self) -> None:
+    unprocessed_inputs: set[int] = set()
+    for _ in range(self.n_producers):
+      unprocessed = self.unprocessed_inputs_queue.get(block=True, timeout=None)
+      unprocessed_inputs.update(unprocessed)
+    unprocessable_inputs_np = np.array(
+      sorted(unprocessed_inputs), dtype=get_uint_dtype(max(unprocessed_inputs))
+    )
+    object.__setattr__(self, "_unprocessed_inputs", unprocessable_inputs_np)
 
 
 @dataclass(frozen=True)
@@ -296,20 +316,21 @@ class FilesAnalyzerResources:
   start_signal: threading.Event
   segments_dtype: np.dtype
 
-  _file_durations: np.ndarray | None = None
+  _input_durations: np.ndarray | None = None
 
   @property
-  def input_durations(self) -> np.ndarray | None:
-    return self._file_durations
+  def input_durations(self) -> np.ndarray:
+    assert self._input_durations is not None
+    return self._input_durations
 
-  def collect_file_durations(self) -> None:
+  def collect_input_durations(self) -> None:
     durations: list[float] = self.analyzer_queue.get(block=True, timeout=None)
     dtype = get_float_dtype(max(durations))
     file_durations = np.array(durations, dtype=dtype)
-    object.__setattr__(self, "_file_durations", file_durations)
+    object.__setattr__(self, "_input_durations", file_durations)
 
   def reset(self) -> None:
-    object.__setattr__(self, "_file_durations", None)
+    object.__setattr__(self, "_input_durations", None)
     self.tot_n_segments_ptr.value = 0
     self.max_segment_idx_ptr.value = self.max_segment_idx_init_value
     self.finished.clear()

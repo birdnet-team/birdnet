@@ -30,6 +30,7 @@ NP_SPECIES_IDS_KEY = "species_ids"
 NP_SPECIES_PROBS_KEY = "species_probs"
 NP_SPECIES_MASKED_KEY = "species_masked"
 NP_SPECIES_LIST_KEY = "species_list"
+NP_UNPROCESSABLE_INPUTS_KEY = "unprocessable_inputs"
 
 
 class AcousticPredictionResultBase(AcousticResultBase):
@@ -65,12 +66,19 @@ class AcousticPredictionResultBase(AcousticResultBase):
     assert tensor._species_ids.dtype in (np.uint8, np.uint16, np.uint32, np.uint64)
     assert tensor._species_probs.dtype in (np.float16, np.float32)
     assert tensor._species_masked.dtype == bool
+    assert tensor.unprocessable_inputs.dtype in (
+      np.uint8,
+      np.uint16,
+      np.uint32,
+      np.uint64,
+    )
 
     max_len = max(map(len, species_list))
     self._species_list = np.array(list(species_list), dtype=f"<U{max_len}")
     self._species_probs = tensor._species_probs
     self._species_ids = tensor._species_ids
     self._species_masked = tensor._species_masked
+    self._unprocessable_inputs = tensor.unprocessable_inputs
 
   @property
   def memory_size_mb(self) -> float:
@@ -80,6 +88,7 @@ class AcousticPredictionResultBase(AcousticResultBase):
         + self._species_probs.nbytes
         + self._species_masked.nbytes
         + self._species_list.nbytes
+        + self._unprocessable_inputs.nbytes
       )
       / 1024**2
     )
@@ -112,12 +121,17 @@ class AcousticPredictionResultBase(AcousticResultBase):
   def top_k(self) -> int:
     return self._species_ids.shape[2]
 
+  @property
+  def unprocessable_inputs(self) -> np.ndarray:
+    return self._unprocessable_inputs
+
   def _get_extra_save_data(self) -> dict[str, np.ndarray]:
     return super()._get_extra_save_data() | {
       NP_SPECIES_IDS_KEY: self._species_ids,
       NP_SPECIES_PROBS_KEY: self._species_probs,
       NP_SPECIES_MASKED_KEY: self._species_masked,
       NP_SPECIES_LIST_KEY: self._species_list,
+      NP_UNPROCESSABLE_INPUTS_KEY: self._unprocessable_inputs,
     }
 
   @classmethod
@@ -127,6 +141,7 @@ class AcousticPredictionResultBase(AcousticResultBase):
     cls._species_probs = data[NP_SPECIES_PROBS_KEY]
     cls._species_masked = data[NP_SPECIES_MASKED_KEY]
     cls._species_list = data[NP_SPECIES_LIST_KEY]
+    cls._unprocessable_inputs = data[NP_UNPROCESSABLE_INPUTS_KEY]
 
   @property
   def _input_dtype(self) -> type:
@@ -389,6 +404,11 @@ class AcousticFilePredictionResult(AcousticPredictionResultBase):
       model_precision=model_precision,
       model_version=model_version,
     )
+
+  def get_unprocessed_files(self) -> list[Path]:
+    inputs = self._inputs[self._unprocessable_inputs]
+    inputs_paths = [Path(input_str) for input_str in inputs]
+    return inputs_paths
 
   @property
   def _input_dtype(self) -> type:

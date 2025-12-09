@@ -15,7 +15,7 @@ from queue import Empty
 
 import numpy as np
 import numpy.typing as npt
-import soundfile as sf
+import soundfile
 
 import birdnet.acoustic_models.inference_pipeline.logs as bn_logging
 from birdnet.globals import (
@@ -150,6 +150,7 @@ class Producer(bn_logging.LogableProcessBase):
     bandpass_fmax: int,
     fmin: int | None,
     fmax: int | None,
+    unprocessed_inputs_queue: Queue,
   ):
     super().__init__(session_id, __name__, logging_queue, logging_level)
     self._end_event = end_event
@@ -170,6 +171,8 @@ class Producer(bn_logging.LogableProcessBase):
     self._prod_done_ptr: Synchronized[int] = prod_done_ptr  # type: ignore
     self._n_producers = n_feeders
     self._start_signal = start_signal
+    self._unprocessable_inputs: set[int] = set()
+    self._unprocessed_inputs_queue = unprocessed_inputs_queue
 
     if use_bandpass:
       assert bandpass_fmin is not None
@@ -227,17 +230,51 @@ class Producer(bn_logging.LogableProcessBase):
     self._shm_ring_flags, self._ring_flags = self._rf_flags.attach_and_get_array()
 
   def get_segments_from_input(
-    self, inp_data: Path | tuple[np.ndarray, int]
+    self, input_idx: int, inp_data: Path | tuple[np.ndarray, int]
   ) -> Generator[tuple[int, npt.NDArray[np.float32]], None, None]:
+    audio_n_samples: int = 0
+    audio_sample_rate: int = 0
+
     if isinstance(inp_data, Path):
-      audio_duration_s = get_audio_duration_s(inp_data)
+      read_file_successfully = False
+      try:
+        sf_info = get_sf_info(inp_data)
+        audio_n_samples = get_audio_n_samples_from_sf(sf_info)
+        audio_sample_rate = get_sample_rate_from_sf(sf_info)
+        read_file_successfully = True
+      except (
+        soundfile.LibsndfileError,
+        soundfile.SoundFileRuntimeError,
+        soundfile.SoundFileError,
+      ) as error:
+        self._logger.warning(
+          f"FA_{os.getpid()}: "
+          f"Could not read audio file #{input_idx} '{inp_data.absolute()}': {error}. "
+          f"Skipping file.",
+        )
+      except Exception as error:
+        self._logger.warning(
+          f"FA_{os.getpid()}: "
+          f"Could not read audio file #{input_idx} '{inp_data.absolute()}': {error}. "
+          f"Skipping file.",
+          exc_info=error,
+          stack_info=True,
+        )
+
+      if not read_file_successfully:
+        self._unprocessable_inputs.add(input_idx)
+        return
     else:
       assert isinstance(inp_data, tuple)
       assert len(inp_data) == 2
       assert isinstance(inp_data[0], np.ndarray)
       assert isinstance(inp_data[1], int)
-      audio_array, sample_rate = inp_data
-      audio_duration_s = audio_array.shape[0] / sample_rate
+      audio_array, audio_sample_rate = inp_data
+      audio_n_samples = audio_array.shape[0]
+
+    assert audio_sample_rate > 0
+
+    audio_duration_s = audio_n_samples / audio_sample_rate
 
     file_n_segments = get_n_segments_speed(
       audio_duration_s, self._segment_duration_s, self._overlap_duration_s, self._speed
@@ -247,9 +284,9 @@ class Producer(bn_logging.LogableProcessBase):
     if file_max_segment_index > self._max_segment_idx_ptr.value:
       if file_max_segment_index > self._max_supported_segment_index:
         inp_path = (
-          f"'{inp_data.absolute()}'"
+          f"#{input_idx} '{inp_data.absolute()}'"
           if isinstance(inp_data, Path)
-          else "<in-memory audio array>"
+          else f"<in-memory audio array> at index {input_idx}"
         )
         self._logger.error(
           f"Input {inp_path} has a duration of {audio_duration_s / 60:.2f} min and "
@@ -260,29 +297,71 @@ class Producer(bn_logging.LogableProcessBase):
         return
       self._max_segment_idx_ptr.value = file_max_segment_index
 
+    segments: Generator[npt.NDArray[np.float32], None, None]
     if isinstance(inp_data, Path):
-      segments = get_file_segments_with_overlap(
-        inp_data,
-        segment_duration_s=self._segment_duration_s,
-        overlap_duration_s=self._overlap_duration_s,
-        speed=self._speed,
-        target_sample_rate=self._target_sample_rate,
-      )
+      try:
+        segments = get_file_segments_with_overlap(
+          inp_data,
+          audio_n_samples=audio_n_samples,
+          sample_rate=audio_sample_rate,
+          segment_duration_s=self._segment_duration_s,
+          overlap_duration_s=self._overlap_duration_s,
+          speed=self._speed,
+          target_sample_rate=self._target_sample_rate,
+        )
+      except (
+        soundfile.LibsndfileError,
+        soundfile.SoundFileRuntimeError,
+        soundfile.SoundFileError,
+      ) as error:
+        self._logger.warning(
+          f"FA_{os.getpid()}: "
+          f"Could not read file #{input_idx} '{inp_data.absolute()}': {error}. "
+          f"Skipping file.",
+        )
+        self._unprocessable_inputs.add(input_idx)
+        return
+      except ValueError as error:
+        self._logger.warning(
+          f"FA_{os.getpid()}: "
+          f"Could not process file #{input_idx} '{inp_data.absolute()}': {error}. "
+          f"Skipping file.",
+        )
+        self._unprocessable_inputs.add(input_idx)
+        return
+      except Exception as error:
+        self._logger.warning(
+          f"FA_{os.getpid()}: "
+          f"Could not process file #{input_idx} '{inp_data.absolute()}': {error}. "
+          f"Skipping file.",
+          exc_info=error,
+          stack_info=True,
+        )
+        self._unprocessable_inputs.add(input_idx)
+        return
     else:
       assert isinstance(inp_data, tuple)
       assert len(inp_data) == 2
       assert isinstance(inp_data[0], np.ndarray)
       assert isinstance(inp_data[1], int)
 
-      audio_array, sample_rate = inp_data
-      segments = get_file_array_segments_with_overlap(
-        audio_array,
-        sample_rate,
-        segment_duration_s=self._segment_duration_s,
-        overlap_duration_s=self._overlap_duration_s,
-        speed=self._speed,
-        target_sample_rate=self._target_sample_rate,
-      )
+      audio_array, audio_sample_rate = inp_data
+      try:
+        segments = get_data_segments_with_overlap(
+          audio_array,
+          audio_sample_rate,
+          segment_duration_s=self._segment_duration_s,
+          overlap_duration_s=self._overlap_duration_s,
+          speed=self._speed,
+          target_sample_rate=self._target_sample_rate,
+        )
+      except ValueError as error:
+        self._logger.warning(
+          f"FA_{os.getpid()}: Could not process data at index {input_idx}: {error}. "
+          f"Skipping it.",
+        )
+        self._unprocessable_inputs.add(input_idx)
+        return
 
     # fill last segment with silence up to segmentsize if it is smaller than 3s
     segments = (
@@ -330,10 +409,10 @@ class Producer(bn_logging.LogableProcessBase):
         self._log("Received poison pill. Exiting.")
         break
       assert isinstance(input_queue_entry, tuple)
-      file_index, inp_data = input_queue_entry
+      input_index, inp_data = input_queue_entry
 
-      for segment_index, segment in self.get_segments_from_input(inp_data):
-        yield file_index, segment_index, segment
+      for segment_index, segment in self.get_segments_from_input(input_index, inp_data):
+        yield input_index, segment_index, segment
 
   @property
   def _pid(self) -> int:
@@ -342,6 +421,7 @@ class Producer(bn_logging.LogableProcessBase):
   def _iter_files(self) -> None:
     start_time = time.perf_counter()
     buffer_input = self.get_segments_from_files()
+
     batches = itertools_batched(buffer_input, self._batch_size)
 
     while True:
@@ -443,6 +523,9 @@ class Producer(bn_logging.LogableProcessBase):
             n,
           )
         )
+
+    self._unprocessed_inputs_queue.put(self._unprocessable_inputs, block=True)
+    self._unprocessable_inputs = set()
 
     self._log(
       "Finished processing files. "
@@ -553,13 +636,38 @@ class Producer(bn_logging.LogableProcessBase):
       assert_queue_is_empty(self._input_queue)
 
 
+def get_sf_info(audio_path: Path) -> soundfile._SoundFileInfo:
+  """
+  Returns the soundfile info of the audio file.
+  """
+  assert audio_path.is_file()
+  assert audio_path.suffix.upper() in SF_FORMATS
+  sf_info = soundfile.info(audio_path)
+  return sf_info
+
+
+def get_audio_duration_from_sf(sf_info: soundfile._SoundFileInfo) -> float:
+  result = float(sf_info.duration)
+  return result
+
+
+def get_audio_n_samples_from_sf(sf_info: soundfile._SoundFileInfo) -> int:
+  result = int(sf_info.frames)
+  return result
+
+
+def get_sample_rate_from_sf(sf_info: soundfile._SoundFileInfo) -> int:
+  result = int(sf_info.samplerate)
+  return result
+
+
 def get_audio_duration_s(audio_path: Path) -> float:
   """
   Returns the duration of the audio file in seconds.
   """
   assert audio_path.is_file()
   assert audio_path.suffix.upper() in SF_FORMATS
-  sf_info = sf.info(audio_path)
+  sf_info = soundfile.info(audio_path)
   result = float(sf_info.duration)
   return result
 
@@ -570,13 +678,15 @@ def get_audio_n_samples(audio_path: Path) -> int:
   """
   assert audio_path.is_file()
   assert audio_path.suffix.upper() in SF_FORMATS
-  sf_info = sf.info(audio_path)
+  sf_info = soundfile.info(audio_path)
   result = int(sf_info.frames)
   return result
 
 
 def get_file_segments_with_overlap(
   audio_path: Path,
+  audio_n_samples: int,
+  sample_rate: int,
   segment_duration_s: float,
   overlap_duration_s: float,
   speed: float,
@@ -594,18 +704,11 @@ def get_file_segments_with_overlap(
     segment will have 3 * 48000 samples, independent of the speed
     setting. Changing speed only changes how many segments are produced.
   """
-
-  assert audio_path.is_file()
-  assert audio_path.suffix.upper() in SF_FORMATS
-
-  audio_n_samples = get_audio_n_samples(audio_path)
-  audio_info = sf.info(audio_path)
-  audio_sr: int = audio_info.samplerate
   read_method = partial(read_file_in_mono, audio_path=audio_path)
 
   segments = get_segments_with_overlap(
     audio_n_samples,
-    audio_sr,
+    sample_rate,
     read_method,
     segment_duration_s=segment_duration_s,
     overlap_duration_s=overlap_duration_s,
@@ -616,7 +719,7 @@ def get_file_segments_with_overlap(
   yield from segments
 
 
-def get_file_array_segments_with_overlap(
+def get_data_segments_with_overlap(
   audio_array: npt.NDArray,
   sample_rate: int,
   segment_duration_s: float,
@@ -649,6 +752,13 @@ def get_segments_with_overlap(
   speed: float,
   target_sample_rate: int,
 ) -> Generator[npt.NDArray[np.float32], None, None]:
+  assert audio_sr > 0
+  assert audio_n_samples >= 0
+  assert target_sample_rate > 0
+
+  if audio_n_samples == 0:
+    return
+
   n_samples_orig_seg = duration_as_samples(segment_duration_s, audio_sr)
   n_samples_orig_overlap = duration_as_samples(overlap_duration_s, audio_sr)
 
@@ -776,7 +886,9 @@ def read_file_in_mono(
   assert audio_path.suffix.upper() in SF_FORMATS
   assert 0 <= start_samples < end_samples
 
-  audio, _ = sf.read(audio_path, start=start_samples, stop=end_samples, dtype="float32")  # type: ignore
+  audio, _ = soundfile.read(
+    audio_path, start=start_samples, stop=end_samples, dtype="float32"
+  )  # type: ignore
 
   if (
     not isinstance(audio, np.ndarray)

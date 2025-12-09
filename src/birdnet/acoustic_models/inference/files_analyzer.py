@@ -8,9 +8,14 @@ from pathlib import Path
 from queue import Empty
 
 import numpy as np
+import soundfile
 
 import birdnet.acoustic_models.inference_pipeline.logs as bn_logging
-from birdnet.acoustic_models.inference.producer import get_audio_duration_s
+from birdnet.acoustic_models.inference.producer import (
+  get_audio_duration_from_sf,
+  get_audio_duration_s,
+  get_sf_info,
+)
 from birdnet.helper import (
   get_n_segments_speed,
   max_value_for_uint_dtype,
@@ -99,7 +104,9 @@ class FilesAnalyzer:
 
     while True:
       try:
-        input_data = self._input_queue.get(block=True, timeout=1.0)
+        input_data: list[Path] | list[tuple[np.ndarray, int]] = self._input_queue.get(
+          block=True, timeout=1.0
+        )
         break
       except Empty:
         # it has started, so ending is not possible, only canceling
@@ -108,12 +115,36 @@ class FilesAnalyzer:
 
     self._log(f"Received {len(input_data)} inputs to analyze.")
 
-    for i, inp_data in enumerate(input_data):
+    unprocessable_inputs: set[int] = set()
+    for input_idx, inp_data in enumerate(input_data):
       if self._check_cancel_event():
         return
 
+      audio_duration_s: float = 0.0
       if isinstance(inp_data, Path):
-        audio_duration_s = get_audio_duration_s(inp_data)
+        try:
+          sf_info = get_sf_info(inp_data)
+          audio_duration_s = get_audio_duration_from_sf(sf_info)
+        except (
+          soundfile.LibsndfileError,
+          soundfile.SoundFileRuntimeError,
+          soundfile.SoundFileError,
+        ) as error:
+          self._logger.warning(
+            f"FA_{os.getpid()}: "
+            f"Could not read audio file #{input_idx} '{inp_data.absolute()}': {error}. "
+            f"Skipped file.",
+          )
+          unprocessable_inputs.add(input_idx)
+        except Exception as error:
+          self._logger.warning(
+            f"FA_{os.getpid()}: "
+            f"Could not read audio file #{input_idx} '{inp_data.absolute()}': {error}. "
+            f"Skipped file.",
+            exc_info=error,
+            stack_info=True,
+          )
+          unprocessable_inputs.add(input_idx)
       else:
         assert isinstance(inp_data, tuple)
         assert len(inp_data) == 2
@@ -138,7 +169,7 @@ class FilesAnalyzer:
           inp_path = (
             f"'{inp_data.absolute()}'"
             if isinstance(inp_data, Path)
-            else f"<in-memory audio array> at index {i}"
+            else f"<in-memory audio array> at index {input_idx}"
           )
           self._logger.error(
             f"Input {inp_path} has a duration of {audio_duration_s / 60:.2f} min and "

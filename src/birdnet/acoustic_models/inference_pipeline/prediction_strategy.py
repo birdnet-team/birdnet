@@ -84,7 +84,7 @@ class PredictionStrategy(
       n_species=config.model_conf.n_species,
       half_precision=config.processing_conf.half_precision,
       segment_indices_dtype=resources.ring_buffer_resources.rf_segment_indices.dtype,
-      files_dtype=resources.ring_buffer_resources.rf_file_indices.dtype,
+      input_indices_dtype=resources.ring_buffer_resources.rf_file_indices.dtype,
       max_segment_index=resources.analyzer_resources.max_segment_idx_ptr,
     )
 
@@ -150,8 +150,6 @@ class PredictionStrategy(
     resources: PipelineResources,
     files: list[Path],
   ) -> AcousticPredictionResultBase:
-    assert resources.analyzer_resources.input_durations is not None
-
     return AcousticFilePredictionResult(
       tensor=tensor,
       files=files,
@@ -174,8 +172,6 @@ class PredictionStrategy(
     config: InferenceConfig,
     resources: PipelineResources,
   ) -> AcousticPredictionResultBase:
-    assert resources.analyzer_resources.input_durations is not None
-
     return AcousticDataPredictionResult(
       tensor=tensor,
       segment_duration_s=config.model_conf.segment_size_s,
@@ -201,7 +197,6 @@ class PredictionStrategy(
     assert resources.stats_resources.end_timepoint is not None
     assert resources.stats_resources.stop is not None
     wall_time_s = resources.stats_resources.stop - resources.stats_resources.start
-    assert resources.analyzer_resources.input_durations is not None
 
     file_formats = NA
     if isinstance(pred_result, AcousticFilePredictionResult):
@@ -240,7 +235,6 @@ class PredictionStrategy(
     assert resources.stats_resources.end_timepoint is not None
     assert resources.stats_resources.stop is not None
     wall_time_s = resources.stats_resources.stop - resources.stats_resources.start
-    assert resources.analyzer_resources.input_durations is not None
 
     device_str = (
       ", ".join(config.processing_conf.device)

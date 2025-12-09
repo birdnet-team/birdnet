@@ -3,11 +3,14 @@ import ctypes
 import importlib.util
 import multiprocessing as mp
 import os
+import struct
 import subprocess
 import threading
 import time
 from collections.abc import Callable, Generator
 from multiprocessing import get_all_start_methods, set_start_method
+from pathlib import Path
+from typing import IO
 
 import numpy as np
 import psutil
@@ -20,6 +23,24 @@ from birdnet.acoustic_models.inference.prediction.result import (
   AcousticPredictionResultBase,
 )
 from birdnet.backends import litert_installed
+
+
+def create_empty_wav(f: IO[bytes]) -> None:
+  # 44-Byte WAV Header
+  f.write(
+    b"RIFF"
+    + (36).to_bytes(4, "little")
+    + b"WAVEfmt "
+    + (16).to_bytes(4, "little")  # fmt chunk length
+    + (1).to_bytes(2, "little")  # PCM
+    + (1).to_bytes(2, "little")  # channels
+    + (44100).to_bytes(4, "little")  # sample rate
+    + (88200).to_bytes(4, "little")  # byte rate
+    + (2).to_bytes(2, "little")  # block align
+    + (16).to_bytes(2, "little")  # bits per sample
+    + b"data"
+    + (0).to_bytes(4, "little")  # data size = 0
+  )
 
 
 def assert_encoding_result_is_equal(

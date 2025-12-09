@@ -201,6 +201,7 @@ class ProcessManager:
           cancel_event=self._res.processing_resources.cancel_event,
           end_event=self._res.processing_resources.end_event,
           start_signal=self._res.producer_resources.start_signals[i],
+          unprocessed_inputs_queue=self._res.producer_resources.unprocessed_inputs_queue,
         ),
         name=f"{self._session_hash}-Producer-{i}",
         daemon=True,

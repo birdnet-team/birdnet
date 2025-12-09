@@ -3,6 +3,7 @@ from math import ceil
 import numpy as np
 import numpy.testing
 import pytest
+import soundfile
 
 from birdnet.acoustic_models.inference.producer import (
   get_file_segments_with_overlap,
@@ -12,9 +13,16 @@ from birdnet_tests.test_files import AUDIO_FORMATS_DIR, TEST_FILE_LONG
 
 def format_can_be_read(filename: str) -> bool:
   inp = AUDIO_FORMATS_DIR / filename
+  inp_sf = soundfile.info(inp)
   res = list(
     get_file_segments_with_overlap(
-      inp, segment_duration_s=3, overlap_duration_s=0, target_sample_rate=48000, speed=1
+      inp,
+      inp_sf.frames,
+      inp_sf.samplerate,
+      segment_duration_s=3,
+      overlap_duration_s=0,
+      target_sample_rate=48000,
+      speed=1,
     )
   )
   result = len(res) == 40
@@ -35,7 +43,7 @@ def test_three_channels_can_be_read() -> None:
 
 def test_aac_can_not_be_read() -> None:
   with pytest.raises(
-    AssertionError,
+    soundfile.LibsndfileError,
   ):
     format_can_be_read("soundscape.aac")
 
@@ -58,7 +66,7 @@ def test_flac_can_be_read() -> None:
 
 def test_m4a_can_not_be_read() -> None:
   with pytest.raises(
-    AssertionError,
+    soundfile.LibsndfileError,
   ):
     format_can_be_read("soundscape.m4a")
 
@@ -84,7 +92,7 @@ def test_wav_can_be_read() -> None:
 
 def test_wma_can_not_be_read() -> None:
   with pytest.raises(
-    AssertionError,
+    soundfile.LibsndfileError,
   ):
     format_can_be_read("soundscape.wma")
 
@@ -92,9 +100,13 @@ def test_wma_can_not_be_read() -> None:
 def get_segments(
   seg: float = 3, overlap: float = 0, sr: int = 48_000, speed: float = 1.0
 ) -> list:
+  inp_sf = soundfile.info(TEST_FILE_LONG)
+
   return list(
     get_file_segments_with_overlap(
       TEST_FILE_LONG,
+      inp_sf.frames,
+      inp_sf.samplerate,
       segment_duration_s=seg,
       overlap_duration_s=overlap,
       target_sample_rate=sr,
