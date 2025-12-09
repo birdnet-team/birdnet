@@ -302,12 +302,12 @@ class FilesAnalyzerResources:
   def input_durations(self) -> np.ndarray | None:
     return self._file_durations
 
-  def collect_file_durations(self) -> np.ndarray:
-    durations: list[float] = self.analyzer_queue.get(block=True, timeout=None)
-    dtype = get_float_dtype(max(durations))
-    file_durations = np.array(durations, dtype=dtype)
-    object.__setattr__(self, "_file_durations", file_durations)
-    return file_durations
+  def collect_file_durations(self) -> None:
+    durations: list[float] | None = self.analyzer_queue.get(block=True, timeout=None)
+    if analyzer_had_no_error := durations is not None:
+      dtype = get_float_dtype(max(durations))
+      file_durations = np.array(durations, dtype=dtype)
+      object.__setattr__(self, "_file_durations", file_durations)
 
   def reset(self) -> None:
     object.__setattr__(self, "_file_durations", None)

@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Loading multiple GPUs in parallel processes was not possible
+- Fixed hanging problem after error in processing occurred
 
 ## [0.2.10] - 2025-11-28
 

@@ -19,6 +19,7 @@ from birdnet_tests.helper import (
   use_spawn_or_skip,
 )
 from birdnet_tests.test_files import (
+  AUDIO_FORMATS_DIR,
   TEST_FILE_LONG,
   TEST_FILE_SHORT,
   TEST_FILE_SHORT_SCORE_SHAPE,
@@ -76,6 +77,13 @@ def test_tflite_fp32() -> None:
   model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
   with model.predict_session(n_workers=1, top_k=None) as session:
     res = session.run(TEST_FILE_SHORT)
+  assert res.species_probs.shape == TEST_FILE_SHORT_SCORE_SHAPE
+
+
+def test_tflite_fp32_invalid_file() -> None:
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
+  with model.predict_session(n_workers=1, top_k=None) as session:
+    res = session.run(AUDIO_FORMATS_DIR / "empty.wav")
   assert res.species_probs.shape == TEST_FILE_SHORT_SCORE_SHAPE
 
 
