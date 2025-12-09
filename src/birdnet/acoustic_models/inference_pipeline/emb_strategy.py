@@ -5,21 +5,21 @@ from pathlib import Path
 
 import psutil
 
-from birdnet.acoustic_models.inference.emb.benchmarking import (
+from birdnet.acoustic_models.inference.encoding.benchmarking import (
   FullBenchmarkEmbMeta,
   MinimalBenchmarkEmbMeta,
 )
-from birdnet.acoustic_models.inference.emb.encoding_result import (
+from birdnet.acoustic_models.inference.encoding.result import (
   AcousticDataEncodingResult,
   AcousticEncodingResultBase,
   AcousticFileEncodingResult,
 )
-from birdnet.acoustic_models.inference.emb.tensor import EmbeddingsTensor
-from birdnet.acoustic_models.inference.emb.worker import EmbeddingsWorker
+from birdnet.acoustic_models.inference.encoding.tensor import AcousticEncodingTensor
+from birdnet.acoustic_models.inference.encoding.worker import EmbeddingsWorker
 from birdnet.acoustic_models.inference.worker import WorkerBase
 from birdnet.acoustic_models.inference_pipeline.configs import (
   EmbeddingsConfig,
-  PredictionConfig,
+  InferenceConfig,
 )
 from birdnet.acoustic_models.inference_pipeline.resources import (
   PipelineResources,
@@ -36,22 +36,24 @@ from birdnet.helper import get_file_formats
 
 
 class EmbeddingsStrategy(
-  PredictionStrategy[AcousticEncodingResultBase, EmbeddingsConfig, EmbeddingsTensor]
+  PredictionStrategy[
+    AcousticEncodingResultBase, EmbeddingsConfig, AcousticEncodingTensor
+  ]
 ):
   def validate_config(
-    self, config: PredictionConfig, specific_config: EmbeddingsConfig
+    self, config: InferenceConfig, specific_config: EmbeddingsConfig
   ) -> None:
     pass
 
   def create_tensor(
     self,
     session_id: str,
-    config: PredictionConfig,
+    config: InferenceConfig,
     specific_config: EmbeddingsConfig,
     resources: PipelineResources,
     n_inputs: int,
-  ) -> EmbeddingsTensor:
-    return EmbeddingsTensor(
+  ) -> AcousticEncodingTensor:
+    return AcousticEncodingTensor(
       session_id,
       n_inputs,
       emb_dim=specific_config.emb_dim,
@@ -64,7 +66,7 @@ class EmbeddingsStrategy(
   def create_workers(
     self,
     session_id: str,
-    config: PredictionConfig,
+    config: InferenceConfig,
     specific_config: EmbeddingsConfig,
     resources: PipelineResources,
   ) -> list[WorkerBase]:
@@ -100,8 +102,8 @@ class EmbeddingsStrategy(
 
   def create_files_result(
     self,
-    tensor: EmbeddingsTensor,
-    config: PredictionConfig,
+    tensor: AcousticEncodingTensor,
+    config: InferenceConfig,
     resources: PipelineResources,
     files: list[Path],
   ) -> AcousticEncodingResultBase:
@@ -124,8 +126,8 @@ class EmbeddingsStrategy(
 
   def create_array_result(
     self,
-    tensor: EmbeddingsTensor,
-    config: PredictionConfig,
+    tensor: AcousticEncodingTensor,
+    config: InferenceConfig,
     resources: PipelineResources,
   ) -> AcousticEncodingResultBase:
     assert resources.analyzer_resources.input_durations is not None
@@ -146,7 +148,7 @@ class EmbeddingsStrategy(
 
   def create_minimal_benchmark_meta(
     self,
-    config: PredictionConfig,
+    config: InferenceConfig,
     specific_config: EmbeddingsConfig,
     resources: PipelineResources,
     pred_result: AcousticEncodingResultBase,
@@ -178,7 +180,7 @@ class EmbeddingsStrategy(
 
   def create_full_benchmark_meta(
     self,
-    config: PredictionConfig,
+    config: InferenceConfig,
     specific_config: EmbeddingsConfig,
     resources: PipelineResources,
     pred_result: AcousticEncodingResultBase,

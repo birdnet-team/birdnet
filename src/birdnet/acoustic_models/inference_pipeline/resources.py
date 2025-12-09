@@ -22,7 +22,7 @@ from birdnet.acoustic_models.inference.perf_tracker import (
   AcousticProgressStats,
   PerformanceTrackingResult,
 )
-from birdnet.acoustic_models.inference_pipeline.configs import PredictionConfig
+from birdnet.acoustic_models.inference_pipeline.configs import InferenceConfig
 from birdnet.acoustic_models.inference_pipeline.logs import add_session_queue_handler
 from birdnet.backends import BackendLoader
 from birdnet.base import get_session_id_hash
@@ -59,7 +59,7 @@ class PipelineResources:
 
 
 class ResourceManager:
-  def __init__(self, conf: PredictionConfig) -> None:
+  def __init__(self, conf: InferenceConfig) -> None:
     self.conf = conf
     self._resources: PipelineResources | None = None
 
@@ -179,7 +179,7 @@ class RingBufferResources:
   def create(
     cls,
     session_id: str,
-    conf: PredictionConfig,
+    conf: InferenceConfig,
     analyzer_resources: FilesAnalyzerResources,
   ) -> RingBufferResources:
     return cls._create(
@@ -213,7 +213,7 @@ class ProducerResources:
       start_signal.clear()
 
   @classmethod
-  def create(cls, conf: PredictionConfig) -> ProducerResources:
+  def create(cls, conf: InferenceConfig) -> ProducerResources:
     n_producers = conf.processing_conf.feeders
     n_finished_pointer = mp.Value(
       uint_ctype_from_dtype(get_uint_dtype(n_producers)),  # type: ignore
@@ -240,7 +240,7 @@ class WorkerResources:
   start_signals: list[multiprocessing.synchronize.Event]
 
   @classmethod
-  def create(cls, config: PredictionConfig) -> WorkerResources:
+  def create(cls, config: InferenceConfig) -> WorkerResources:
     n_workers = config.processing_conf.workers
     devices = (
       config.processing_conf.device
@@ -317,7 +317,7 @@ class FilesAnalyzerResources:
     self.start_signal.clear()
 
   @classmethod
-  def create(cls, conf: PredictionConfig) -> FilesAnalyzerResources:
+  def create(cls, conf: InferenceConfig) -> FilesAnalyzerResources:
     reserve_n_segments = 0
 
     if conf.processing_conf.max_audio_duration_min is not None:
@@ -447,7 +447,7 @@ class StatisticsResources:
   def create(
     cls,
     session_id: str,
-    conf: PredictionConfig,
+    conf: InferenceConfig,
     benchmark_dir_name: str,
   ) -> StatisticsResources:
     start = time.perf_counter()

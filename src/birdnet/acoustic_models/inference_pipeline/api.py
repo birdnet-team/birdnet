@@ -7,23 +7,23 @@ from typing import Any, Literal
 import numpy.typing as npt
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.emb.encoding_result import (
+from birdnet.acoustic_models.inference.encoding.result import (
   AcousticDataEncodingResult,
   AcousticFileEncodingResult,
 )
 from birdnet.acoustic_models.inference.perf_tracker import AcousticProgressStats
-from birdnet.acoustic_models.inference.scores.scores_result import (
+from birdnet.acoustic_models.inference.prediction.result import (
   AcousticDataPredictionResult,
   AcousticFilePredictionResult,
 )
 from birdnet.acoustic_models.inference_pipeline.configs import (
   EmbeddingsConfig,
   FilteringConfig,
+  InferenceConfig,
   ModelConfig,
   OutputConfig,
   PredictionConfig,
   ProcessingConfig,
-  ScoresConfig,
 )
 from birdnet.acoustic_models.inference_pipeline.emb_strategy import EmbeddingsStrategy
 from birdnet.acoustic_models.inference_pipeline.scores_strategy import ScoresStrategy
@@ -96,7 +96,7 @@ class AcousticEncodingSession(AcousticSessionBase):
     max_n_files = ProcessingConfig.validate_max_n_files(max_n_files)
 
     super().__init__(
-      conf=PredictionConfig(
+      conf=InferenceConfig(
         model_conf=ModelConfig(
           species_list=species_list,
           path=model_path,
@@ -139,7 +139,7 @@ class AcousticEncodingSession(AcousticSessionBase):
   def run(
     self, inputs: Path | str | Iterable[Path | str]
   ) -> AcousticFileEncodingResult:
-    inputs = PredictionConfig.validate_input_files(inputs)
+    inputs = InferenceConfig.validate_input_files(inputs)
 
     if len(inputs) > self._conf.processing_conf.max_n_files:
       raise RuntimeError(
@@ -152,7 +152,7 @@ class AcousticEncodingSession(AcousticSessionBase):
   def run_arrays(
     self, inputs: tuple[npt.NDArray, int] | Iterable[tuple[npt.NDArray, int]]
   ) -> AcousticDataEncodingResult:
-    data = PredictionConfig.validate_input_audio(inputs)
+    data = InferenceConfig.validate_input_audio(inputs)
     return super()._run(data)
 
 
@@ -199,7 +199,7 @@ class AcousticPredictionSession(AcousticSessionBase):
     assert model_backend_custom_kwargs is not None
 
     if top_k is not None:
-      top_k = ScoresConfig.validate_top_k(top_k, len(species_list))
+      top_k = PredictionConfig.validate_top_k(top_k, len(species_list))
     n_feeders = ProcessingConfig.validate_n_feeders(n_feeders)
     n_workers = ProcessingConfig.validate_n_workers(n_workers)
     batch_size = ProcessingConfig.validate_batch_size(batch_size)
@@ -231,24 +231,26 @@ class AcousticPredictionSession(AcousticSessionBase):
       )
 
     if custom_confidence_thresholds is not None:
-      custom_confidence_thresholds = ScoresConfig.validate_custom_confidence_thresholds(
-        custom_confidence_thresholds, species_list
+      custom_confidence_thresholds = (
+        PredictionConfig.validate_custom_confidence_thresholds(
+          custom_confidence_thresholds, species_list
+        )
       )
 
     if custom_species_list is not None:
-      custom_species_list = ScoresConfig.validate_custom_species_list(
+      custom_species_list = PredictionConfig.validate_custom_species_list(
         custom_species_list, species_list
       )
 
     if apply_sigmoid:
-      sigmoid_sensitivity = ScoresConfig.validate_sigmoid_sensitivity(
+      sigmoid_sensitivity = PredictionConfig.validate_sigmoid_sensitivity(
         sigmoid_sensitivity
       )
 
     max_n_files = ProcessingConfig.validate_max_n_files(max_n_files)
 
     super().__init__(
-      conf=PredictionConfig(
+      conf=InferenceConfig(
         model_conf=ModelConfig(
           species_list=species_list,
           path=model_path,
@@ -283,7 +285,7 @@ class AcousticPredictionSession(AcousticSessionBase):
         ),
       ),
       strategy=ScoresStrategy(),
-      specific_config=ScoresConfig(
+      specific_config=PredictionConfig(
         top_k=top_k,
         default_confidence_threshold=default_confidence_threshold,
         custom_confidence_thresholds=custom_confidence_thresholds,
@@ -296,7 +298,7 @@ class AcousticPredictionSession(AcousticSessionBase):
   def run(
     self, inputs: Path | str | Iterable[Path | str]
   ) -> AcousticFilePredictionResult:
-    inputs = PredictionConfig.validate_input_files(inputs)
+    inputs = InferenceConfig.validate_input_files(inputs)
 
     if len(inputs) > self._conf.processing_conf.max_n_files:
       raise RuntimeError(
@@ -309,5 +311,5 @@ class AcousticPredictionSession(AcousticSessionBase):
   def run_arrays(
     self, inputs: tuple[npt.NDArray, int] | Iterable[tuple[npt.NDArray, int]]
   ) -> AcousticDataPredictionResult:
-    data = PredictionConfig.validate_input_audio(inputs)
+    data = InferenceConfig.validate_input_audio(inputs)
     return super()._run(data)

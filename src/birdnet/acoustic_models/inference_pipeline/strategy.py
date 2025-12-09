@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Generic
 
-
 from birdnet.acoustic_models.inference.benchmarking import (
   FullBenchmarkMetaBase,
   MinimalBenchmarkMetaBase,
@@ -12,7 +11,7 @@ from birdnet.acoustic_models.inference.benchmarking import (
 from birdnet.acoustic_models.inference.worker import WorkerBase
 from birdnet.acoustic_models.inference_pipeline.configs import (
   ConfigType,
-  PredictionConfig,
+  InferenceConfig,
   ResultType,
   TensorType,
 )
@@ -24,14 +23,14 @@ from birdnet.acoustic_models.inference_pipeline.resources import (
 class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
   @abstractmethod
   def validate_config(
-    self, config: PredictionConfig, specific_config: ConfigType
+    self, config: InferenceConfig, specific_config: ConfigType
   ) -> None: ...
 
   @abstractmethod
   def create_tensor(
     self,
     session_id: str,
-    config: PredictionConfig,
+    config: InferenceConfig,
     specific_config: ConfigType,
     resources: PipelineResources,
     n_inputs: int,
@@ -41,7 +40,7 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
   def create_workers(
     self,
     session_id: str,
-    config: PredictionConfig,
+    config: InferenceConfig,
     specific_config: ConfigType,
     resources: PipelineResources,
   ) -> list[WorkerBase]: ...
@@ -50,7 +49,7 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
   def create_files_result(
     self,
     tensor: TensorType,
-    config: PredictionConfig,
+    config: InferenceConfig,
     resources: PipelineResources,
     files: list[Path],
   ) -> ResultType: ...
@@ -59,14 +58,14 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
   def create_array_result(
     self,
     tensor: TensorType,
-    config: PredictionConfig,
+    config: InferenceConfig,
     resources: PipelineResources,
   ) -> ResultType: ...
 
   @abstractmethod
   def create_minimal_benchmark_meta(
     self,
-    config: PredictionConfig,
+    config: InferenceConfig,
     specific_config: ConfigType,
     resources: PipelineResources,
     pred_result: ResultType,
@@ -75,7 +74,7 @@ class PredictionStrategy(Generic[ResultType, ConfigType, TensorType], ABC):
   @abstractmethod
   def create_full_benchmark_meta(
     self,
-    config: PredictionConfig,
+    config: InferenceConfig,
     specific_config: ConfigType,
     resources: PipelineResources,
     pred_result: ResultType,

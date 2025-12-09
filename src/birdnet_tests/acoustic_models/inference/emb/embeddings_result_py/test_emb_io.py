@@ -3,15 +3,17 @@ from pathlib import Path
 
 import numpy as np
 
-from birdnet.acoustic_models.inference.emb.encoding_result import (
+from birdnet.acoustic_models.inference.encoding.result import (
   AcousticFileEncodingResult,
 )
-from birdnet.acoustic_models.inference.emb.tensor import EmbeddingsTensor
+from birdnet.acoustic_models.inference.encoding.tensor import AcousticEncodingTensor
 from birdnet.helper import get_float_dtype, get_n_segments_speed
 
 
-def create_mock_emb_tensor(emb: np.ndarray, emb_masked: np.ndarray) -> EmbeddingsTensor:
-  tensor = EmbeddingsTensor.__new__(EmbeddingsTensor)
+def create_mock_emb_tensor(
+  emb: np.ndarray, emb_masked: np.ndarray
+) -> AcousticEncodingTensor:
+  tensor = AcousticEncodingTensor.__new__(AcousticEncodingTensor)
   tensor._emb = emb
   tensor._emb_masked = emb_masked
   return tensor

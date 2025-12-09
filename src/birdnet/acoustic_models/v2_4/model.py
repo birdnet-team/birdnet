@@ -7,18 +7,18 @@ from typing import Any, Literal, final
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.base import AcousticModelBase
-from birdnet.acoustic_models.inference.emb.encoding_result import (
+from birdnet.acoustic_models.inference.encoding.result import (
   AcousticEncodingResultBase,
 )
 from birdnet.acoustic_models.inference.perf_tracker import AcousticProgressStats
-from birdnet.acoustic_models.inference.scores.scores_result import (
+from birdnet.acoustic_models.inference.prediction.result import (
   AcousticPredictionResultBase,
 )
 from birdnet.acoustic_models.inference_pipeline.api import (
   AcousticEncodingSession,
   AcousticPredictionSession,
 )
-from birdnet.acoustic_models.inference_pipeline.configs import PredictionConfig
+from birdnet.acoustic_models.inference_pipeline.configs import InferenceConfig
 from birdnet.backends import BackendLoader, VersionedAcousticBackendProtocol
 from birdnet.globals import ACOUSTIC_MODEL_VERSION_V2_4, ACOUSTIC_MODEL_VERSIONS
 from birdnet.helper import validate_species_list
@@ -283,7 +283,7 @@ class AcousticModelV2_4(AcousticModelBase):
     device: str | list[str] = "CPU",
     max_n_files: int = 65_536,  # Limit to avoid excessive memory usage
   ) -> AcousticEncodingResultBase:
-    input_files = PredictionConfig.validate_input_files(inp)
+    input_files = InferenceConfig.validate_input_files(inp)
     max_n_files = len(input_files)
 
     with self.encode_session(
@@ -329,7 +329,7 @@ class AcousticModelV2_4(AcousticModelBase):
     show_stats: Literal["minimal", "progress", "benchmark"] | None = None,
     progress_callback: Callable[[AcousticProgressStats], None] | None = None,
   ) -> AcousticPredictionResultBase:
-    input_files = PredictionConfig.validate_input_files(inp)
+    input_files = InferenceConfig.validate_input_files(inp)
     max_n_files = len(input_files)
 
     with self.predict_session(

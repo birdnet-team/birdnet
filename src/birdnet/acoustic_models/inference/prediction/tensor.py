@@ -5,12 +5,12 @@ import multiprocessing as mp
 import numpy as np
 from numpy.typing import DTypeLike
 
-from birdnet.acoustic_models.inference.tensor import TensorBase
+from birdnet.acoustic_models.inference.tensor import AcousticTensorBase
 from birdnet.acoustic_models.inference_pipeline.logs import get_logger_from_session
 from birdnet.helper import get_uint_dtype
 
 
-class ScoresTensor(TensorBase):
+class AcousticPredictionTensor(AcousticTensorBase):
   def __init__(
     self,
     session_id: str,

@@ -8,8 +8,8 @@ import numpy as np
 from ordered_set import OrderedSet
 from tqdm import tqdm
 
+from birdnet.acoustic_models.inference.prediction.tensor import AcousticPredictionTensor
 from birdnet.acoustic_models.inference.result_base import AcousticResultBase
-from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
 from birdnet.helper import (
   apply_speed_to_duration,
   get_hop_duration_s,
@@ -47,7 +47,7 @@ class AcousticPredictionResultBase(AcousticResultBase):
     segment_duration_s: int | float,
     overlap_duration_s: int | float,
     speed: int | float,
-    tensor: ScoresTensor,
+    tensor: AcousticPredictionTensor,
   ) -> None:
     super().__init__(
       inputs=inputs,
@@ -356,7 +356,7 @@ class AcousticPredictionResultBase(AcousticResultBase):
 class AcousticFilePredictionResult(AcousticPredictionResultBase):
   def __init__(
     self,
-    tensor: ScoresTensor,
+    tensor: AcousticPredictionTensor,
     files: list[Path],
     species_list: OrderedSet[str],
     file_durations: np.ndarray,
@@ -403,7 +403,7 @@ class AcousticFilePredictionResult(AcousticPredictionResultBase):
 class AcousticDataPredictionResult(AcousticPredictionResultBase):
   def __init__(
     self,
-    tensor: ScoresTensor,
+    tensor: AcousticPredictionTensor,
     species_list: OrderedSet[str],
     input_durations: np.ndarray,
     segment_duration_s: int | float,

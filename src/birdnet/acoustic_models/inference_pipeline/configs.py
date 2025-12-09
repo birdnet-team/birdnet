@@ -12,7 +12,7 @@ import psutil
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.perf_tracker import AcousticProgressStats
-from birdnet.acoustic_models.inference.tensor import TensorBase
+from birdnet.acoustic_models.inference.tensor import AcousticTensorBase
 from birdnet.backends import VersionedBackendProtocol
 from birdnet.base import ResultBase
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
@@ -25,7 +25,7 @@ from birdnet.helper import (
 
 ResultType = TypeVar("ResultType", bound="ResultBase")
 ConfigType = TypeVar("ConfigType", bound="SpecificConfigBase")
-TensorType = TypeVar("TensorType", bound="TensorBase")
+TensorType = TypeVar("TensorType", bound="AcousticTensorBase")
 
 
 @dataclass(frozen=True)
@@ -243,7 +243,7 @@ class EmbeddingsConfig(SpecificConfigBase):
 
 
 @dataclass(frozen=True)
-class ScoresConfig(SpecificConfigBase):
+class PredictionConfig(SpecificConfigBase):
   top_k: int | None
   default_confidence_threshold: float | None
   custom_confidence_thresholds: dict[str, float] | None
@@ -323,7 +323,7 @@ class ScoresConfig(SpecificConfigBase):
 
 
 @dataclass(frozen=True)
-class PredictionConfig:
+class InferenceConfig:
   model_conf: ModelConfig
   processing_conf: ProcessingConfig
   filtering_conf: FilteringConfig

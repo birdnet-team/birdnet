@@ -13,10 +13,10 @@ import numpy as np
 import psutil
 import pytest
 
-from birdnet.acoustic_models.inference.emb.encoding_result import (
+from birdnet.acoustic_models.inference.encoding.result import (
   AcousticEncodingResultBase,
 )
-from birdnet.acoustic_models.inference.scores.scores_result import (
+from birdnet.acoustic_models.inference.prediction.result import (
   AcousticPredictionResultBase,
 )
 from birdnet.backends import litert_installed

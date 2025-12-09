@@ -7,21 +7,21 @@ import numpy as np
 import numpy.typing as npt
 import psutil
 
-from birdnet.acoustic_models.inference.scores.benchmarking import (
+from birdnet.acoustic_models.inference.prediction.benchmarking import (
   FullBenchmarkMeta,
   MinimalBenchmarkMeta,
 )
-from birdnet.acoustic_models.inference.scores.scores_result import (
+from birdnet.acoustic_models.inference.prediction.result import (
   AcousticDataPredictionResult,
   AcousticFilePredictionResult,
   AcousticPredictionResultBase,
 )
-from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
-from birdnet.acoustic_models.inference.scores.worker import ScoresWorker
+from birdnet.acoustic_models.inference.prediction.tensor import AcousticPredictionTensor
+from birdnet.acoustic_models.inference.prediction.worker import ScoresWorker
 from birdnet.acoustic_models.inference.worker import WorkerBase
 from birdnet.acoustic_models.inference_pipeline.configs import (
+  InferenceConfig,
   PredictionConfig,
-  ScoresConfig,
 )
 from birdnet.acoustic_models.inference_pipeline.resources import (
   PipelineResources,
@@ -38,10 +38,12 @@ from birdnet.helper import get_file_formats
 
 
 class ScoresStrategy(
-  PredictionStrategy[AcousticPredictionResultBase, ScoresConfig, ScoresTensor]
+  PredictionStrategy[
+    AcousticPredictionResultBase, PredictionConfig, AcousticPredictionTensor
+  ]
 ):
   def validate_config(
-    self, config: PredictionConfig, specific_config: ScoresConfig
+    self, config: InferenceConfig, specific_config: PredictionConfig
   ) -> None:
     if specific_config.apply_sigmoid:
       if specific_config.sigmoid_sensitivity is None:
@@ -70,12 +72,12 @@ class ScoresStrategy(
   def create_tensor(
     self,
     session_id: str,
-    config: PredictionConfig,
-    specific_config: ScoresConfig,
+    config: InferenceConfig,
+    specific_config: PredictionConfig,
     resources: PipelineResources,
     n_inputs: int,
-  ) -> ScoresTensor:
-    return ScoresTensor(
+  ) -> AcousticPredictionTensor:
+    return AcousticPredictionTensor(
       session_id,
       n_inputs,
       top_k=self.get_top_k(config, specific_config),
@@ -86,7 +88,9 @@ class ScoresStrategy(
       max_segment_index=resources.analyzer_resources.max_segment_idx_ptr,
     )
 
-  def get_top_k(self, config: PredictionConfig, specific_config: ScoresConfig) -> int:
+  def get_top_k(
+    self, config: InferenceConfig, specific_config: PredictionConfig
+  ) -> int:
     return (
       specific_config.top_k
       if specific_config.top_k is not None
@@ -96,8 +100,8 @@ class ScoresStrategy(
   def create_workers(
     self,
     session_id: str,
-    config: PredictionConfig,
-    specific_config: ScoresConfig,
+    config: InferenceConfig,
+    specific_config: PredictionConfig,
     resources: PipelineResources,
   ) -> list[WorkerBase]:
     species_blacklist = create_species_blacklist(config, specific_config)
@@ -141,8 +145,8 @@ class ScoresStrategy(
 
   def create_files_result(
     self,
-    tensor: ScoresTensor,
-    config: PredictionConfig,
+    tensor: AcousticPredictionTensor,
+    config: InferenceConfig,
     resources: PipelineResources,
     files: list[Path],
   ) -> AcousticPredictionResultBase:
@@ -166,8 +170,8 @@ class ScoresStrategy(
 
   def create_array_result(
     self,
-    tensor: ScoresTensor,
-    config: PredictionConfig,
+    tensor: AcousticPredictionTensor,
+    config: InferenceConfig,
     resources: PipelineResources,
   ) -> AcousticPredictionResultBase:
     assert resources.analyzer_resources.input_durations is not None
@@ -189,8 +193,8 @@ class ScoresStrategy(
 
   def create_minimal_benchmark_meta(
     self,
-    config: PredictionConfig,
-    specific_config: ScoresConfig,
+    config: InferenceConfig,
+    specific_config: PredictionConfig,
     resources: PipelineResources,
     pred_result: AcousticPredictionResultBase,
   ) -> MinimalBenchmarkMeta:
@@ -225,8 +229,8 @@ class ScoresStrategy(
 
   def create_full_benchmark_meta(
     self,
-    config: PredictionConfig,
-    specific_config: ScoresConfig,
+    config: InferenceConfig,
+    specific_config: PredictionConfig,
     resources: PipelineResources,
     pred_result: AcousticPredictionResultBase,
   ) -> FullBenchmarkMeta:
@@ -338,7 +342,7 @@ class ScoresStrategy(
 
 
 def create_thresholds(
-  config: PredictionConfig, scores_config: ScoresConfig
+  config: InferenceConfig, scores_config: PredictionConfig
 ) -> npt.NDArray:
   default_threshold = scores_config.default_confidence_threshold
   if default_threshold is None:
@@ -356,7 +360,7 @@ def create_thresholds(
 
 
 def create_species_blacklist(
-  config: PredictionConfig, scores_config: ScoresConfig
+  config: InferenceConfig, scores_config: PredictionConfig
 ) -> npt.NDArray:
   """Setup species filtering logic"""
   # Species whitelist

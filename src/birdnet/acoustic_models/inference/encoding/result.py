@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 
-from birdnet.acoustic_models.inference.emb.tensor import EmbeddingsTensor
+from birdnet.acoustic_models.inference.encoding.tensor import AcousticEncodingTensor
 from birdnet.acoustic_models.inference.result_base import AcousticResultBase
 from birdnet.helper import get_uint_dtype
 
@@ -26,7 +26,7 @@ class AcousticEncodingResultBase(AcousticResultBase):
     segment_duration_s: int | float,
     overlap_duration_s: int | float,
     speed: int | float,
-    tensor: EmbeddingsTensor,
+    tensor: AcousticEncodingTensor,
   ) -> None:
     super().__init__(
       inputs=inputs,
@@ -85,7 +85,7 @@ class AcousticEncodingResultBase(AcousticResultBase):
 class AcousticFileEncodingResult(AcousticEncodingResultBase):
   def __init__(
     self,
-    tensor: EmbeddingsTensor,
+    tensor: AcousticEncodingTensor,
     files: list[Path],
     file_durations: np.ndarray,
     segment_duration_s: int | float,
@@ -130,7 +130,7 @@ class AcousticFileEncodingResult(AcousticEncodingResultBase):
 class AcousticDataEncodingResult(AcousticEncodingResultBase):
   def __init__(
     self,
-    tensor: EmbeddingsTensor,
+    tensor: AcousticEncodingTensor,
     input_durations: np.ndarray,
     segment_duration_s: int | float,
     overlap_duration_s: int | float,

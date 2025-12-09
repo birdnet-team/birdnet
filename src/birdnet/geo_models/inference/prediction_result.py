@@ -12,7 +12,6 @@ from birdnet.base import ResultBase
 VAR_SPECIES_NAME = "species_name"
 VAR_CONFIDENCE = "confidence"
 
-
 NP_SPECIES_IDS_KEY = "species_ids"
 NP_SPECIES_PROBS_KEY = "species_probs"
 NP_SPECIES_MASKED_KEY = "species_masked"

@@ -12,7 +12,7 @@ import numpy as np
 
 from birdnet.acoustic_models.inference_pipeline.configs import (
   ConfigType,
-  PredictionConfig,
+  InferenceConfig,
   ResultType,
   TensorType,
 )
@@ -33,7 +33,7 @@ class AcousticSessionBase(
 ):
   def __init__(
     self,
-    conf: PredictionConfig,
+    conf: InferenceConfig,
     strategy: PredictionStrategy[ResultType, ConfigType, TensorType],
     specific_config: ConfigType,
   ) -> None:
@@ -190,7 +190,7 @@ def shared_memory_context(session_id: str, resources: PipelineResources):
 
 def _handle_statistics(
   session_id: str,
-  config: PredictionConfig,
+  config: InferenceConfig,
   strategy: PredictionStrategy[ResultType, ConfigType, TensorType],
   specific_config: ConfigType,
   result: ResultType,
@@ -216,7 +216,7 @@ def _handle_statistics(
 
 
 def _show_minimal_statistics(
-  config: PredictionConfig,
+  config: InferenceConfig,
   strategy: PredictionStrategy[ResultType, ConfigType, TensorType],
   resources: PipelineResources,
   specific_config: ConfigType,
@@ -250,7 +250,7 @@ def _show_minimal_statistics(
 
 def _create_benchmark_statistics(
   session_id: str,
-  config: PredictionConfig,
+  config: InferenceConfig,
   strategy: PredictionStrategy[ResultType, ConfigType, TensorType],
   resources: PipelineResources,
   specific_config: ConfigType,

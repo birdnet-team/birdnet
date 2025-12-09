@@ -6,7 +6,7 @@ import numpy.testing
 import pytest
 from tqdm import tqdm
 
-from birdnet.acoustic_models.inference.emb.encoding_result import (
+from birdnet.acoustic_models.inference.encoding.result import (
   AcousticEncodingResultBase,
 )
 from birdnet.acoustic_models.v2_4.model import AcousticModelV2_4

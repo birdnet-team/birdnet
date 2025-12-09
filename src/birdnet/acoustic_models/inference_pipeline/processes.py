@@ -15,10 +15,10 @@ from birdnet.acoustic_models.inference.perf_tracker import (
   ProgressDispatcher,
 )
 from birdnet.acoustic_models.inference.producer import Producer
-from birdnet.acoustic_models.inference.tensor import TensorBase
+from birdnet.acoustic_models.inference.tensor import AcousticTensorBase
 from birdnet.acoustic_models.inference_pipeline.configs import (
   ConfigType,
-  PredictionConfig,
+  InferenceConfig,
   ResultType,
   TensorType,
 )
@@ -31,7 +31,7 @@ class ProcessManager:
   def __init__(
     self,
     session_id: str,
-    config: PredictionConfig,
+    config: InferenceConfig,
     strategy: PredictionStrategy[ResultType, ConfigType, TensorType],
     specific_config: ConfigType,
     resources: PipelineResources,
@@ -281,7 +281,7 @@ class ProcessManager:
       assert res.stats_resources.callback_start_signal is not None
       res.stats_resources.callback_start_signal.set()
 
-  def run_consumer(self, result_tensor: TensorBase) -> None:
+  def run_consumer(self, result_tensor: AcousticTensorBase) -> None:
     consumer = Consumer(
       session_id=self._session_id,
       n_workers=self._cfg.processing_conf.workers,

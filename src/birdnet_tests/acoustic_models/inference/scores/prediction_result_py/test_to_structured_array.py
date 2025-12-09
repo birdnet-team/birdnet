@@ -4,11 +4,11 @@ import numpy as np
 import soundfile
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.scores.scores_result import (
+from birdnet.acoustic_models.inference.prediction.result import (
   AcousticFilePredictionResult,
   AcousticPredictionResultBase,
 )
-from birdnet.acoustic_models.inference.scores.tensor import ScoresTensor
+from birdnet.acoustic_models.inference.prediction.tensor import AcousticPredictionTensor
 from birdnet.helper import (
   get_float_dtype,
   get_n_segments_speed,
@@ -57,9 +57,9 @@ def assert_species_masked_pattern(species_masked: np.ndarray) -> None:
 
 def create_mock_scores_tensor(
   species_ids: np.ndarray, species_probs: np.ndarray, species_masked: np.ndarray
-) -> ScoresTensor:
+) -> AcousticPredictionTensor:
   """Helper to create a mock ScoresTensor."""
-  tensor = ScoresTensor.__new__(ScoresTensor)
+  tensor = AcousticPredictionTensor.__new__(AcousticPredictionTensor)
   tensor._species_ids = species_ids
   tensor._species_probs = species_probs
   tensor._species_masked = species_masked

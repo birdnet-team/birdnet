@@ -7,7 +7,7 @@ import numpy.testing
 import pytest
 from tqdm import tqdm
 
-from birdnet.acoustic_models.inference.scores.scores_result import (
+from birdnet.acoustic_models.inference.prediction.result import (
   AcousticPredictionResultBase,
 )
 from birdnet.acoustic_models.v2_4.model import AcousticModelV2_4

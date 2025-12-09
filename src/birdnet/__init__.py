@@ -1,12 +1,12 @@
 import logging
 
-from birdnet.acoustic_models.inference.emb.encoding_result import (
+from birdnet.acoustic_models.inference.encoding.result import (
   AcousticDataEncodingResult,
   AcousticEncodingResultBase,
   AcousticFileEncodingResult,
 )
 from birdnet.acoustic_models.inference.perf_tracker import AcousticProgressStats
-from birdnet.acoustic_models.inference.scores.scores_result import (
+from birdnet.acoustic_models.inference.prediction.result import (
   AcousticDataPredictionResult,
   AcousticFilePredictionResult,
   AcousticPredictionResultBase,

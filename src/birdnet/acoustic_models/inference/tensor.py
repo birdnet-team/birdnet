@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import abstractmethod
 
 
-class TensorBase:
+class AcousticTensorBase:
   @property
   @abstractmethod
   def memory_usage_mb(self) -> float: ...

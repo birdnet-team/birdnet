@@ -3,7 +3,7 @@ from tempfile import TemporaryDirectory
 
 import pytest
 
-from birdnet.acoustic_models.inference_pipeline.configs import PredictionConfig
+from birdnet.acoustic_models.inference_pipeline.configs import InferenceConfig
 
 
 def test_component_test() -> None:
@@ -26,7 +26,7 @@ def test_component_test() -> None:
       folder2 = Path(tmpdir2)
       file_f = folder2 / "f.wav"
       file_f.touch()
-      result = PredictionConfig.validate_input_files([folder, file_c, file_f, file_f])
+      result = InferenceConfig.validate_input_files([folder, file_c, file_f, file_f])
       assert result == sorted(
         [
           file_f.absolute(),
@@ -42,7 +42,7 @@ def test_one_supported_file() -> None:
     folder = Path(tmpdir)
     file_a = folder / "a.wav"
     file_a.touch()
-    result = PredictionConfig.validate_input_files(folder)
+    result = InferenceConfig.validate_input_files(folder)
     assert result == [file_a.absolute()]
 
 
@@ -51,7 +51,7 @@ def test_one_supported_file_as_str() -> None:
     folder = Path(tmpdir)
     file_a = folder / "a.wav"
     file_a.touch()
-    result = PredictionConfig.validate_input_files(str(folder.absolute()))
+    result = InferenceConfig.validate_input_files(str(folder.absolute()))
     assert result == [file_a.absolute()]
 
 
@@ -62,7 +62,7 @@ def test_one_supported_file_in_subfolder() -> None:
     subfolder.mkdir()
     file_a = subfolder / "a.wav"
     file_a.touch()
-    result = PredictionConfig.validate_input_files(folder)
+    result = InferenceConfig.validate_input_files(folder)
     assert result == [file_a.absolute()]
 
 
@@ -73,7 +73,7 @@ def test_one_supported_file_in_subsubfolder() -> None:
     subfolder.mkdir(parents=True)
     file_a = subfolder / "a.wav"
     file_a.touch()
-    result = PredictionConfig.validate_input_files(folder)
+    result = InferenceConfig.validate_input_files(folder)
     assert result == [file_a.absolute()]
 
 
@@ -84,7 +84,7 @@ def test_two_supported_files() -> None:
     file_b = folder / "b.wav"
     file_a.touch()
     file_b.touch()
-    result = PredictionConfig.validate_input_files(folder)
+    result = InferenceConfig.validate_input_files(folder)
     assert result == [file_a.absolute(), file_b.absolute()]
 
 
@@ -96,7 +96,7 @@ def test_empty_folder_raise_error() -> None:
     TemporaryDirectory() as tmpdir,
   ):
     folder = Path(tmpdir)
-    result = PredictionConfig.validate_input_files(folder)
+    result = InferenceConfig.validate_input_files(folder)
     assert result == []
 
 
@@ -110,7 +110,7 @@ def test_no_supported_file_found_in_dir_raise_error() -> None:
     folder = Path(tmpdir)
     file_a = folder / "a.txt"
     file_a.touch()
-    PredictionConfig.validate_input_files(folder)
+    InferenceConfig.validate_input_files(folder)
 
 
 def test_no_supported_file_raise_error() -> None:
@@ -124,7 +124,7 @@ def test_no_supported_file_raise_error() -> None:
     folder = Path(tmpdir)
     file_a = folder / "a.txt"
     file_a.touch()
-    PredictionConfig.validate_input_files(file_a)
+    InferenceConfig.validate_input_files(file_a)
 
 
 def test_wrong_type_raise_error() -> None:
@@ -132,7 +132,7 @@ def test_wrong_type_raise_error() -> None:
     ValueError,
     match=r"Unsupported input type: <class 'int'>",
   ):
-    PredictionConfig.validate_input_files(123)  # type: ignore
+    InferenceConfig.validate_input_files(123)  # type: ignore
 
 
 def test_wrong_type_in_list_raise_error() -> None:
@@ -140,4 +140,4 @@ def test_wrong_type_in_list_raise_error() -> None:
     ValueError,
     match=r"Unsupported input type: <class 'int'>",
   ):
-    PredictionConfig.validate_input_files([123])  # type: ignore
+    InferenceConfig.validate_input_files([123])  # type: ignore
