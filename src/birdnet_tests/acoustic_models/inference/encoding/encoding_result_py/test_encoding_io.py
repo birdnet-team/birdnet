@@ -10,12 +10,13 @@ from birdnet.acoustic_models.inference.encoding.tensor import AcousticEncodingTe
 from birdnet.helper import get_float_dtype, get_n_segments_speed
 
 
-def create_mock_tensor(
+def create_mock_tensor_one_unproc(
   emb: np.ndarray, emb_masked: np.ndarray
 ) -> AcousticEncodingTensor:
   tensor = AcousticEncodingTensor.__new__(AcousticEncodingTensor)
   tensor._emb = emb
   tensor._emb_masked = emb_masked
+  tensor._unprocessable_inputs = np.array([0], dtype=np.uint8)
   return tensor
 
 
@@ -35,7 +36,7 @@ def create_dummy_result(
   species_emb = np.random.random((n_files, n_segments, 1024)).astype(np.float32)
   species_masked = np.full((n_files, n_segments, 1024), False, dtype=bool)
 
-  tensor = create_mock_tensor(species_emb, species_masked)
+  tensor = create_mock_tensor_one_unproc(species_emb, species_masked)
 
   files = [Path(f"/test/file_{i}.wav") for i in range(n_files)]
   file_durations = np.full(
@@ -87,6 +88,9 @@ def test_save_and_load_is_equal() -> None:
 
   np.testing.assert_array_equal(reference._embeddings, loaded._embeddings)
   np.testing.assert_array_equal(reference._embeddings_masked, loaded._embeddings_masked)
+  np.testing.assert_array_equal(
+    reference._unprocessable_inputs, loaded._unprocessable_inputs
+  )
 
 
 def test_memory_size_mb() -> None:
@@ -106,6 +110,7 @@ def test_memory_size_mb() -> None:
     + res._model_sr.nbytes
     + res._embeddings.nbytes
     + res._embeddings_masked.nbytes
+    + res._unprocessable_inputs.nbytes
   ) / 1024**2
 
   assert res.memory_size_mb == expected_size

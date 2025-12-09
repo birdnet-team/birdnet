@@ -55,7 +55,7 @@ def assert_species_masked_pattern(species_masked: np.ndarray) -> None:
         )
 
 
-def create_mock_scores_tensor(
+def create_mock_scores_tensor_one_unproc(
   species_ids: np.ndarray, species_probs: np.ndarray, species_masked: np.ndarray
 ) -> AcousticPredictionTensor:
   """Helper to create a mock tensor."""
@@ -63,7 +63,7 @@ def create_mock_scores_tensor(
   tensor._species_ids = species_ids
   tensor._species_probs = species_probs
   tensor._species_masked = species_masked
-  tensor._unprocessable_inputs = np.array([], dtype=np.uint8)
+  tensor._unprocessable_inputs = np.array([0], dtype=np.uint8)
   return tensor
 
 
@@ -87,7 +87,7 @@ def create_file_prediction_result(
   species_probs = np.random.random((n_files, n_segments, top_k)).astype(np.float32)
   species_masked = np.full((n_files, n_segments, top_k), False, dtype=bool)
 
-  tensor = create_mock_scores_tensor(species_ids, species_probs, species_masked)
+  tensor = create_mock_scores_tensor_one_unproc(species_ids, species_probs, species_masked)
 
   files = [Path(f"/test/file_{i}.wav") for i in range(n_files)]
   species_list = OrderedSet([f"species_{i}" for i in range(15)])

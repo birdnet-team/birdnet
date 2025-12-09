@@ -10,6 +10,7 @@ from birdnet.helper import get_uint_dtype
 
 NP_EMB_KEY = "embeddings"
 NP_EMB_MASKED_KEY = "embeddings_masked"
+NP_UNPROCESSABLE_INPUTS_KEY = "unprocessable_inputs"
 
 
 class AcousticEncodingResultBase(AcousticResultBase):
@@ -46,11 +47,17 @@ class AcousticEncodingResultBase(AcousticResultBase):
 
     self._embeddings = tensor._emb
     self._embeddings_masked = tensor._emb_masked
+    self._unprocessable_inputs = tensor.unprocessable_inputs
 
   @property
   def memory_size_mb(self) -> float:
     return super().memory_size_mb + (
-      (self._embeddings.nbytes + self._embeddings_masked.nbytes) / 1024**2
+      (
+        self._embeddings.nbytes
+        + self._embeddings_masked.nbytes
+        + self._unprocessable_inputs.nbytes
+      )
+      / 1024**2
     )
 
   @property
@@ -69,10 +76,14 @@ class AcousticEncodingResultBase(AcousticResultBase):
   def max_n_segments(self) -> int:
     return self._embeddings.shape[1]
 
+  def unprocessable_inputs(self) -> np.ndarray:
+    return self._unprocessable_inputs
+
   def _get_extra_save_data(self) -> dict[str, np.ndarray]:
     return super()._get_extra_save_data() | {
       NP_EMB_KEY: self._embeddings,
       NP_EMB_MASKED_KEY: self._embeddings_masked,
+      NP_UNPROCESSABLE_INPUTS_KEY: self._unprocessable_inputs,
     }
 
   @classmethod
@@ -80,6 +91,7 @@ class AcousticEncodingResultBase(AcousticResultBase):
     super()._set_extra_load_data(data)
     cls._embeddings = data[NP_EMB_KEY]
     cls._embeddings_masked = data[NP_EMB_MASKED_KEY]
+    cls._unprocessable_inputs = data[NP_UNPROCESSABLE_INPUTS_KEY]
 
 
 class AcousticFileEncodingResult(AcousticEncodingResultBase):

@@ -44,6 +44,9 @@ def test_save_and_load_is_equal() -> None:
   np.testing.assert_array_equal(reference._species_ids, loaded._species_ids)
   np.testing.assert_array_equal(reference._species_probs, loaded._species_probs)
   np.testing.assert_array_equal(reference._species_masked, loaded._species_masked)
+  np.testing.assert_array_equal(
+    reference._unprocessable_inputs, loaded._unprocessable_inputs
+  )
 
 
 def test_memory_size_mb() -> None:
@@ -72,6 +75,7 @@ def test_memory_size_mb() -> None:
     + res._species_ids.nbytes
     + res._species_list.nbytes
     + res._species_masked.nbytes
+    + res._unprocessable_inputs.nbytes
   ) / 1024**2
 
   assert res.memory_size_mb == expected_size
