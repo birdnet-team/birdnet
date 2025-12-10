@@ -47,7 +47,7 @@ dependencies = [
 
 [project.optional-dependencies]
 and-cuda = [
-  "tensorflow[and-cuda] >= 2.8.0", # 2022/02/02
+  "tensorflow[and-cuda] >= 2.8.0 ; sys_platform == 'linux'", # 2022/02/02
 ]
 repro = [
   # Reproducible results only with Python 3.12 and on CPU
