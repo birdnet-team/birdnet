@@ -21,21 +21,9 @@ jobs:
           fetch-depth: 2
 
       - name: Install audio system libs (Linux)
-        if: startsWith(matrix.os, 'ubuntu')
         run: |
           sudo apt-get update
           sudo apt-get install -y libsndfile1
-
-      - name: Install audio system libs (macOS)
-        if: startsWith(matrix.os, 'macos')
-        run: |
-          brew update
-          brew install libsndfile
-
-      - name: Install audio system libs (Windows)
-        if: startsWith(matrix.os, 'windows')
-        run: |
-          choco install libsndfile
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -52,7 +40,7 @@ jobs:
 
       - name: Download models
         run: |
-          pytest -m "not repro and load_model" -n auto --max-worker-restart=0 --cov=src/birdnet --cov-report=
+          pytest -m "not repro and load_model" -n auto --max-worker-restart=0 --cov=src/birdnet --cov-append --cov-report=
 
       - name: Run standard tests
         run: |
