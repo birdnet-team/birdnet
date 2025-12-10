@@ -291,7 +291,7 @@ def get_max_absolute_tolerance_threshold(
   std = np.std(masked_diff)
   minimum = np.min(masked_diff)
   maximum = np.max(masked_diff)
-  return mean
+  return mean  # type: ignore
 
 
 def estimate_best_rtol_atol(a, b):

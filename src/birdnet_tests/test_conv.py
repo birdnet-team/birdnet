@@ -2,7 +2,6 @@
 from birdnet.model_loader import load
 from birdnet_tests.test_files import TEST_FILE_LONG
 
-
 # def get_cached_result(
 #   audio_paths: list[Path], k: int, conf: float
 # ) -> PredictionResultBase:

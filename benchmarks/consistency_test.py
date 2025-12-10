@@ -144,7 +144,7 @@ def save_results(results: list[dict]):
     pickle.dump(results, f)
   print("Saved results to:", report_path.absolute())
   print(
-    f"Please include a name (e.g., '..._report_stefan_laptop') and update the results to: https://mytuc.org/sknk"
+    "Please include a name (e.g., '..._report_stefan_laptop') and update the results to: https://mytuc.org/sknk"
   )
 
 

@@ -128,6 +128,7 @@ dev = [
   "scipy-stubs",
   "tuna",
   "pyarrow-stubs",
+  "pygount",
   "types-tqdm",
   "types-requests",
   "pandas-stubs",
@@ -155,6 +156,8 @@ python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
+show_error_codes = true
+pretty = true
 packages = ["birdnet"]
 
 [tool.setuptools.packages.find]
@@ -186,18 +189,12 @@ indent-style = "space"
 
 [tool.ruff.lint]
 select = [
-  # pycodestyle
-  "E",
-  # Pyflakes
-  "F",
-  # pyupgrade
-  "UP",
-  # flake8-bugbear
-  "B",
-  # flake8-simplify
-  "SIM",
-  # isort
-  "I",
+  "E",    # pycodestyle
+  "F",    # Pyflakes
+  "UP",   # pyupgrade
+  "B",    # flake8-bugbear
+  "SIM",  # flake8-simplify
+  "I",    # isort
   "C4",
   "T20",
   "PERF",

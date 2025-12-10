@@ -12,7 +12,10 @@ Documentation for the birdnet package.
    :maxdepth: 1
    :caption: Contents:
    
+   setup
+   general
    birdnet
+   benchmarking
    models
    changelog
 
@@ -27,7 +30,7 @@ This project is under active development, so you might encounter changes that co
 
 The package is also available as an R package at: `birdnetR <https://github.com/birdnet-team/birdnetR>`__.
 
-Citing BirdNET-Analyzer
+Citing BirdNET
 -----------------------
 
 Feel free to use BirdNET for your acoustic analyses and research. If you do, please cite as:
@@ -44,34 +47,6 @@ Feel free to use BirdNET for your acoustic analyses and research. If you do, ple
      publisher={Elsevier}
    }
 
-About
------
-
-Developed by the `K. Lisa Yang Center for Conservation Bioacoustics <https://www.birds.cornell.edu/ccb/>`__ at the `Cornell Lab of Ornithology <https://www.birds.cornell.edu/home>`__ in collaboration with `Chemnitz University of Technology <https://www.tu-chemnitz.de/index.html.en>`__.
-
-Go to https://birdnet.cornell.edu to learn more about the project.
-
-Want to use BirdNET to analyze a large dataset? Don't hesitate to contact us: ccb-birdnet@cornell.edu
-
-We also have a discussion forum on `Reddit <https://www.reddit.com/r/BirdNET_Analyzer/>`__ if you have a general question or just want to chat.
-
-Have a question, remark, or feature request? Please start a new issue thread to let us know. Feel free to submit a pull request.
-
-More tools and resources
-------------------------
-
-We also provide Python and R packages to interact with BirdNET models, as well as training and deployment tools for microcontrollers. Make sure to check out our other repositories at `https://github.com/birdnet-team <https://github.com/birdnet-team>`__.
-
-
-Projects map
-------------
-
-We have created an interactive map of projects that use BirdNET. If you are working on a project that uses BirdNET, please let us know and we can add your project to the map.
-
-You can access the map here: `Open projects map <https://birdnet-team.github.io/BirdNET-Analyzer/projects.html>`__
-
-Please refer to the `projects map documentation <usage/projects-map.html>`__ for more information on how to contribute.
-
 License
 -------
 
@@ -86,9 +61,18 @@ Please ensure you review and adhere to the specific license terms provided with 
 Funding
 -------
 
-This project is supported by Jake Holshuh (Cornell class of ´69) and The Arthur Vining Davis Foundations.
 Our work in the K. Lisa Yang Center for Conservation Bioacoustics is made possible by the generosity of K. Lisa Yang to advance innovative conservation technologies to inspire and inform the conservation of wildlife and habitats.
 
-The development of BirdNET is supported by the German Federal Ministry of Education and Research through the project “BirdNET+” (FKZ 01|S22072).
-The German Federal Ministry for the Environment, Nature Conservation and Nuclear Safety contributes through the “DeepBirdDetect” project (FKZ 67KI31040E).
-In addition, the Deutsche Bundesstiftung Umwelt supports BirdNET through the project “RangerSound” (project 39263/01).
+The development of BirdNET is supported by the German Federal Ministry of Research, Technology and Space (FKZ 01|S22072), the German Federal Ministry for the Environment, Climate Action, Nature Conservation and Nuclear Safety (FKZ 67KI31040E), the German Federal Ministry of Economic Affairs and Energy (FKZ 16KN095550), the Deutsche Bundesstiftung Umwelt (project 39263/01) and the European Social Fund.
+
+Partners
+----
+
+BirdNET is a joint effort of partners from academia and industry.
+Without these partnerships, this project would not have been possible.
+Thank you!
+
+.. image:: https://tuc.cloud/index.php/s/KSdWfX5CnSRpRgQ/download/box_logos.png
+   :alt: Our partners
+   :align: center
+   :width: 600px
