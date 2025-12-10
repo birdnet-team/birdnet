@@ -31,7 +31,10 @@ jobs:
             python-version: "3.13" # no TF support
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Install audio system libs (Linux)
         if: startsWith(matrix.os, 'ubuntu')

@@ -1,0 +1,61 @@
+name: Run tests and upload coverage
+
+on:
+  push:
+    branches: ["main"]
+
+  pull_request:
+    branches: ["main"]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Run tests and collect coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Install audio system libs (Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsndfile1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install uv
+          python -m uv pip install --system .[tests]
+
+      - name: Download models
+        run: |
+          pytest -m "not repro and load_model" -n auto --max-worker-restart=0 --cov=src/birdnet --cov-append --cov-report=
+
+      - name: Run standard tests
+        run: |
+          pytest -m "not repro and not load_model and (not litert and not gpu)" -n auto --max-worker-restart=0 --cov=src/birdnet --cov-append --cov-report=
+
+      - name: Run LiteRT tests
+        run: |
+          pytest -m "not repro and not load_model and litert" -n auto --max-worker-restart=0 --cov=src/birdnet --cov-append --cov-report=
+
+      - name: Show coverage report
+        run: |
+          coverage report
+
+      - name: Upload results to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: birdnet-team/birdnet
