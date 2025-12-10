@@ -25,7 +25,8 @@ def test_download_geo_model_to_tmp() -> None:
         download_size=dlsize,
         description="Downloading model",
       )
-    except ReadTimeout as e:
+    except ValueError as e:
       # sometimes the server is slow, so we just skip the test then
-      pytest.skip(f"Download timed out: {e}")
+      if str(e) == "Failed to download the file. Status code: 503":
+        pytest.skip(f"Download timed out: {e}")
     assert output_path.is_file()
