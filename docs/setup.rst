@@ -175,6 +175,16 @@ You can also run only specific tests using the following commands (examples):
   # run specific tests with pytest
   pytest -m "not repro and (not litert and not gpu)" -n auto
 
+Calculate code coverage
+^^^^^^^^^^^
+
+To calculate code coverage, use the following command:
+
+.. code-block:: bash
+    
+  # run all tests with coverage for Python 3.12
+  tox -e py312-coverage
+
 Deploy package to PyPI
 ^^^^^^^^^^^
 
