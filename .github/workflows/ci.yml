@@ -77,15 +77,15 @@ jobs:
 
       - name: Download models
         run: |
-          pytest -m "not repro and load_model" -n auto --max-worker-restart=0
+          pytest -m "not repro and load_model" -n auto
 
       - name: Run standard tests
         run: |
-          pytest -m "not repro and not load_model and (not litert and not gpu)" -n auto --max-worker-restart=0
+          pytest -m "not repro and not load_model and (not litert and not gpu)" -n auto
 
       - name: Run LiteRT tests
         run: |
-          pytest -m "not repro and not load_model and litert" -n auto --max-worker-restart=0
+          pytest -m "not repro and not load_model and litert" -n auto
 
       - name: Test build
         run: |
@@ -136,17 +136,9 @@ jobs:
           python -m uv pip install twine build --upgrade
           python -m uv pip install --system .[tests,repro]
 
-      - name: Download models
+      - name: Run tests
         run: |
-          pytest -m "load_model" -n auto --max-worker-restart=0
-
-      - name: Run standard tests incl. repro tests
-        run: |
-          pytest -m "not load_model and (not litert and not gpu)" -n auto --max-worker-restart=0
-
-      - name: Run LiteRT tests incl. repro tests
-        run: |
-          pytest -m "not load_model and litert" -n auto --max-worker-restart=0
+          python -m tox -e py312-repro
 
       - name: Test build
         run: |

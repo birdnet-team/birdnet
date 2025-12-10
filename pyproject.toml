@@ -171,6 +171,7 @@ namespaces = true
 log_cli = true
 log_level = "DEBUG"
 timeout = 300
+addopts = ["--max-worker-restart=0"]
 testpaths = ["src/birdnet_tests"]
 norecursedirs = ["src/birdnet_v1_tests"]
 markers = [
@@ -209,39 +210,62 @@ select = [
 [tool.ruff.lint.isort]
 known-first-party = ["birdnet*"]
 
+[tool.coverage.run]
+branch = true
+source = ["src/birdnet"]
+parallel = true
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = ["if __name__ == .__main__.:"]
+
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-envlist = py{311,312,313}, py{312}-repro
+envlist = py{311,312,313}, py312-repro
 isolated_build = True
 
 [testenv]
-setenv =
-  COVERAGE_FILE = .coverage.{envname}
 package = wheel
 allowlist_externals = uv
 install_command = uv pip install {opts} {packages}
+skip_missing_interpreters = true
 
 deps = 
   .[tests,and-cuda]
 commands = 
   # ruff check src/birdnet
   # ruff check src/birdnet_tests
-  pytest -m "not repro and load_model" -n auto --max-worker-restart=0
-  pytest -m "not repro and not load_model and (not litert and not gpu)" -n auto --max-worker-restart=0
-  pytest -m "not repro and not load_model and litert" -n auto --max-worker-restart=0
-  pytest -m "not repro and not load_model and gpu" -n 1 --max-worker-restart=0
+  pytest -m "not repro and load_model" -n auto
+  pytest -m "not repro and not load_model and (not litert and not gpu)" -n auto
+  pytest -m "not repro and not load_model and litert" -n auto
+  pytest -m "not repro and not load_model and gpu" -n 1
+  python -m build -o dist/
+  python -m twine check dist/*
 
 [testenv:py312-repro]
 deps =
   .[tests,repro]
 commands = 
-  pytest -m "load_model" -n auto --max-worker-restart=0
+  pytest -m "load_model" -n auto
   # run normal tests including repro tests
-  pytest -m "not load_model and (not litert and not gpu)" -n auto --max-worker-restart=0
+  pytest -m "not load_model and (not litert and not gpu)" -n auto
   # run litert tests including repro tests
-  pytest -m "not load_model and litert" -n auto --max-worker-restart=0
+  pytest -m "not load_model and litert" -n auto
   # gpu tests are not supported to be run with repro environment
+  python -m build -o dist/
+  python -m twine check dist/*
+  
+[testenv:py312-coverage]
+deps =
+  .[tests]
+commands =
+  coverage erase
+  pytest -m "not repro and load_model" -n auto --cov=src/birdnet --cov-append --cov-report=
+  pytest -m "not repro and not load_model and (not litert and not gpu)" -n auto --cov=src/birdnet --cov-append --cov-report=
+  pytest -m "not repro and not load_model and litert" -n auto --cov=src/birdnet --cov-append --cov-report=
+  pytest -m "not repro and not load_model and gpu" -n 1 --cov=src/birdnet --cov-append --cov-report=
+  coverage report
 """
 
 [build-system]

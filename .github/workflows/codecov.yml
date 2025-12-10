@@ -38,21 +38,9 @@ jobs:
           python -m pip install uv
           python -m uv pip install --system .[tests]
 
-      - name: Download models
+      - name: Run coverage tests
         run: |
-          pytest -m "not repro and load_model" -n auto --max-worker-restart=0 --cov=src/birdnet --cov-append --cov-report=
-
-      - name: Run standard tests
-        run: |
-          pytest -m "not repro and not load_model and (not litert and not gpu)" -n auto --max-worker-restart=0 --cov=src/birdnet --cov-append --cov-report=
-
-      - name: Run LiteRT tests
-        run: |
-          pytest -m "not repro and not load_model and litert" -n auto --max-worker-restart=0 --cov=src/birdnet --cov-append --cov-report=
-
-      - name: Show coverage report
-        run: |
-          coverage report
+          python -m tox -e py312-coverage
 
       - name: Upload results to Codecov
         uses: codecov/codecov-action@v5
