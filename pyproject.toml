@@ -31,23 +31,23 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
 ]
 dependencies = [
-  "soundfile >= 0.11.0", # 2022/09/27
-  "scipy >= 1.8.0", # 2022/02/05
-  "ordered-set >= 4.1.0", # 2022/01/26
-  "tqdm >= 4.64.0", # 2022/04/04
-  "numpy >= 1.22.0", # 2021/12/31
-  "pandas >= 1.4.0", # 2022/02/22
-  "psutil >= 5.9.0", # 2021/12/29
-  "pyarrow >= 7.0.0", # 2022/02/03
-  "kagglehub >= 0.3.13", # 2025/08/26; needed for downloading PERCH models
-  "tensorflow >= 2.8.0 ; sys_platform != 'darwin' or platform_machine != 'x86_64'", # 2022/02/02
+  "soundfile >= 0.11.0",                                                                    # 2022/09/27
+  "scipy >= 1.8.0",                                                                         # 2022/02/05
+  "ordered-set >= 4.1.0",                                                                   # 2022/01/26
+  "tqdm >= 4.64.0",                                                                         # 2022/04/04
+  "numpy >= 1.22.0",                                                                        # 2021/12/31
+  "pandas >= 1.4.0",                                                                        # 2022/02/22
+  "psutil >= 5.9.0",                                                                        # 2021/12/29
+  "pyarrow >= 7.0.0",                                                                       # 2022/02/03
+  "kagglehub >= 0.3.13",                                                                    # 2025/08/26; needed for downloading PERCH models
+  "tensorflow >= 2.8.0 ; sys_platform != 'darwin' or platform_machine != 'x86_64'",         # 2022/02/02
   "tensorflow >= 2.8.0, <2.17 ; sys_platform == 'darwin' and platform_machine == 'x86_64'",
-  "ai-edge-litert >= 2.0.2 ; python_version < '3.13' and sys_platform == 'linux'", # 2025/09/17
+  "ai-edge-litert >= 2.0.2 ; python_version < '3.13' and sys_platform == 'linux'",          # 2025/09/17
 ]
 
 [project.optional-dependencies]
 and-cuda = [
-  "tensorflow[and-cuda] >= 2.8.0" # 2022/02/02
+  "tensorflow[and-cuda] >= 2.8.0", # 2022/02/02
 ]
 repro = [
   # Reproducible results only with Python 3.12 and on CPU
@@ -115,10 +115,31 @@ tests = [
   "pytest-xdist >= 3.8.0",
   "pytest-timeout >= 2.4.0",
   "mypy >= 1.18.2",
-  "ruff >= 0.14.4"
+  "ruff >= 0.14.4",
 ]
-dev = ["jupyter", "uv", "ruff", "mypy", "rope", "build", "twine", "scipy-stubs", "tuna", "pyarrow-stubs", "types-tqdm", "types-requests", "pandas-stubs", "types-tensorflow"]
-docs = ["sphinx==9.0.4", "numpydoc", "sphinx-autodoc-typehints", "sphinx-autobuild", "myst-parser"]
+dev = [
+  "jupyter",
+  "uv",
+  "ruff",
+  "mypy",
+  "rope",
+  "build",
+  "twine",
+  "scipy-stubs",
+  "tuna",
+  "pyarrow-stubs",
+  "types-tqdm",
+  "types-requests",
+  "pandas-stubs",
+  "types-tensorflow",
+]
+docs = [
+  "sphinx == 8.2.3",
+  "sphinx-autodoc-typehints == 3.5.2",
+  "sphinx-autobuild == 2025.8.25",
+  "numpydoc == 1.10.0",
+  "myst-parser == 4.0.1",
+]
 
 [project.urls]
 Homepage = "https://github.com/birdnet-team/birdnet"
@@ -165,26 +186,26 @@ indent-style = "space"
 
 [tool.ruff.lint]
 select = [
-    # pycodestyle
-    "E",
-    # Pyflakes
-    "F",
-    # pyupgrade
-    "UP",
-    # flake8-bugbear
-    "B",
-    # flake8-simplify
-    "SIM",
-    # isort
-    "I",
-    "C4",
-    "T20",
-    "PERF",
-    "ANN",
-    "TID",
-    "EXE", 
-    "W",
-    # "D",
+  # pycodestyle
+  "E",
+  # Pyflakes
+  "F",
+  # pyupgrade
+  "UP",
+  # flake8-bugbear
+  "B",
+  # flake8-simplify
+  "SIM",
+  # isort
+  "I",
+  "C4",
+  "T20",
+  "PERF",
+  "ANN",
+  "TID",
+  "EXE",
+  "W",
+  # "D",
 ]
 
 [tool.ruff.lint.isort]
@@ -228,6 +249,6 @@ commands =
 [build-system]
 requires = [
   "setuptools >= 80.9.0", # 2025/05/27
-  "wheel >= 0.45.1" # 2024/11/23
+  "wheel >= 0.45.1",      # 2024/11/23
 ]
 build-backend = "setuptools.build_meta"
