@@ -47,7 +47,7 @@ def predict_test_cases(
       top_k=None,
       default_confidence_threshold=-np.inf,
       n_workers=n_workers,
-      n_feeders=1,
+      n_producers=1,
       prefetch_ratio=1,
       half_precision=False,
       show_stats=None,

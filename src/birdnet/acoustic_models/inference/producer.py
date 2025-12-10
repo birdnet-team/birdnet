@@ -134,7 +134,7 @@ class Producer(bn_logging.LogableProcessBase):
     | Synchronized[ctypes.c_uint64],
     end_event: Event,
     start_signal: Event,
-    n_feeders: int,
+    n_producers: int,
     prd_ring_access_lock: multiprocessing.synchronize.Lock,
     logging_queue: Queue,
     logging_level: int,
@@ -169,7 +169,7 @@ class Producer(bn_logging.LogableProcessBase):
     self._use_bandpass = use_bandpass
     self._max_segment_idx_ptr = max_segment_idx_ptr  # type: ignore
     self._prod_done_ptr: Synchronized[int] = prod_done_ptr  # type: ignore
-    self._n_producers = n_feeders
+    self._n_producers = n_producers
     self._start_signal = start_signal
     self._unprocessable_inputs: set[int] = set()
     self._unprocessed_inputs_queue = unprocessed_inputs_queue

@@ -326,7 +326,7 @@ def _create_benchmark_statistics(
     f"  Average duration: {bmm.file_duration_average}\n"
     f"  Minimum duration (single file): {bmm.file_duration_minimum}\n"
     f"  Maximum duration (single file): {bmm.file_duration_maximum}\n"
-    f"Feeder(s): {bmm.param_producers}\n"
+    f"Producer(s): {bmm.param_producers}\n"
     f"Buffer: {bmm.mem_shm_slots_average_filled:.1f}/{config.processing_conf.n_slots} filled slots (mean)\n"
     f"Busy workers: {bmm.worker_busy_average:.1f}/{bmm.param_workers} (mean)\n"
     f"  Average wait time for next batch: {bmm.worker_wait_time_average_milliseconds:.3f} ms\n"

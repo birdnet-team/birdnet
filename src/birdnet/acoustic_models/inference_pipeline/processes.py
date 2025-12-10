@@ -197,7 +197,7 @@ class ProcessManager:
           fmax=self._cfg.model_conf.sig_fmax,
           max_segment_idx_ptr=self._res.analyzer_resources.max_segment_idx_ptr,
           prod_done_ptr=self._res.producer_resources.n_finished_pointer,
-          n_feeders=self._res.producer_resources.n_producers,
+          n_producers=self._res.producer_resources.n_producers,
           cancel_event=self._res.processing_resources.cancel_event,
           end_event=self._res.processing_resources.end_event,
           start_signal=self._res.producer_resources.start_signals[i],

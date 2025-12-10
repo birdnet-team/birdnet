@@ -51,7 +51,7 @@ class AcousticEncodingSession(AcousticSessionBase):
     model_backend_custom_kwargs: dict[str, Any],
     model_emb_dim: int,
     *,
-    n_feeders: int,
+    n_producers: int,
     n_workers: int | None,
     batch_size: int,
     prefetch_ratio: int,
@@ -75,7 +75,7 @@ class AcousticEncodingSession(AcousticSessionBase):
     assert model_emb_dim > 0
 
     ModelConfig.validate_backend_supports_embeddings(model_backend_type)
-    n_feeders = ProcessingConfig.validate_n_feeders(n_feeders)
+    n_producers = ProcessingConfig.validate_n_producers(n_producers)
     n_workers = ProcessingConfig.validate_n_workers(n_workers)
     batch_size = ProcessingConfig.validate_batch_size(batch_size)
     prefetch_ratio = ProcessingConfig.validate_prefetch_ratio(prefetch_ratio)
@@ -114,7 +114,7 @@ class AcousticEncodingSession(AcousticSessionBase):
           backend_kwargs=model_backend_custom_kwargs,
         ),
         processing_conf=ProcessingConfig(
-          feeders=n_feeders,
+          producers=n_producers,
           workers=n_workers,
           batch_size=batch_size,
           prefetch_ratio=prefetch_ratio,
@@ -175,7 +175,7 @@ class AcousticPredictionSession(AcousticSessionBase):
     model_backend_custom_kwargs: dict[str, Any],
     *,
     top_k: int | None,
-    n_feeders: int,
+    n_producers: int,
     n_workers: int | None,
     batch_size: int = 1,
     prefetch_ratio: int = 1,
@@ -204,7 +204,7 @@ class AcousticPredictionSession(AcousticSessionBase):
 
     if top_k is not None:
       top_k = PredictionConfig.validate_top_k(top_k, len(species_list))
-    n_feeders = ProcessingConfig.validate_n_feeders(n_feeders)
+    n_producers = ProcessingConfig.validate_n_producers(n_producers)
     n_workers = ProcessingConfig.validate_n_workers(n_workers)
     batch_size = ProcessingConfig.validate_batch_size(batch_size)
     prefetch_ratio = ProcessingConfig.validate_prefetch_ratio(prefetch_ratio)
@@ -268,7 +268,7 @@ class AcousticPredictionSession(AcousticSessionBase):
           backend_kwargs=model_backend_custom_kwargs,
         ),
         processing_conf=ProcessingConfig(
-          feeders=n_feeders,
+          producers=n_producers,
           workers=n_workers,
           batch_size=batch_size,
           prefetch_ratio=prefetch_ratio,

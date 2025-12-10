@@ -223,7 +223,7 @@ class ProducerResources:
 
   @classmethod
   def create(cls, conf: InferenceConfig) -> ProducerResources:
-    n_producers = conf.processing_conf.feeders
+    n_producers = conf.processing_conf.producers
     n_finished_pointer = mp.Value(
       uint_ctype_from_dtype(get_uint_dtype(n_producers)),  # type: ignore
       0,

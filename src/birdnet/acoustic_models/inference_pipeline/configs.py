@@ -59,7 +59,7 @@ class ModelConfig:
 
 @dataclass(frozen=True)
 class ProcessingConfig:
-  feeders: int
+  producers: int
   workers: int
   batch_size: int
   prefetch_ratio: int
@@ -86,15 +86,15 @@ class ProcessingConfig:
     return max_n_files
 
   @classmethod
-  def validate_n_feeders(cls, n_feeders: Any) -> int:  # noqa: ANN401
-    if not isinstance(n_feeders, int):
-      raise TypeError("n_feeders must be an integer")
-    if not n_feeders >= 1:
-      raise ValueError("n_feeders must be >= 1")
+  def validate_n_producers(cls, n_producers: Any) -> int:  # noqa: ANN401
+    if not isinstance(n_producers, int):
+      raise TypeError("n_producers must be an integer")
+    if not n_producers >= 1:
+      raise ValueError("n_producers must be >= 1")
     max_threads = multiprocessing.cpu_count() or 1
-    if not n_feeders <= max_threads:
-      raise ValueError(f"n_feeders must be <= {max_threads}")
-    return n_feeders
+    if not n_producers <= max_threads:
+      raise ValueError(f"n_producers must be <= {max_threads}")
+    return n_producers
 
   @classmethod
   def validate_n_workers(cls, n_workers: Any) -> int:  # noqa: ANN401

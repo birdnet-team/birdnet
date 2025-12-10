@@ -16,7 +16,7 @@ Run 10 h WAV-files on Intel i7-8565U (4-Core, 16 GB RAM, Windows 10)
 
 .. code-block:: txt
 
-   $ birdnet-benchmark test-dataset/test_dataset_100x60min -f 5
+   $ birdnet-benchmark test-dataset/test_dataset_100x60min -p 5
 
    -------------------------------
    ------ Benchmark summary ------
@@ -29,7 +29,7 @@ Run 10 h WAV-files on Intel i7-8565U (4-Core, 16 GB RAM, Windows 10)
      Average duration: 1:00:00
      Minimum duration (single file): 1:00:00
      Maximum duration (single file): 1:00:00
-   Feeder(s): 1
+   Producer(s): 1
    Buffer: 8.0/8 filled slots (mean)
    Busy workers: 3.9/4 (mean)
      Average wait time for next batch: 0.257 ms
@@ -67,7 +67,7 @@ Run 100 h WAV-files on AMD Ryzen 7 3800X (8-Core, 64 GB RAM, Linux)
      Average duration: 1:00:00
      Minimum duration (single file): 1:00:00
      Maximum duration (single file): 1:00:00
-   Feeder(s): 1
+   Producer(s): 1
    Buffer: 15.4/16 filled slots (mean)
    Busy workers: 8.0/8 (mean)
      Average wait time for next batch: 0.044 ms
@@ -100,7 +100,7 @@ Disk speed:
 
 .. code-block:: txt
 
-   $ birdnet-benchmark test-dataset/test_dataset_100x60min --device GPU --backend pb -w 1 -f 5 -s 1025 --prefetch-ratio 5
+   $ birdnet-benchmark test-dataset/test_dataset_100x60min --device GPU --backend pb -w 1 -p 5 -s 1025 --prefetch-ratio 5
 
    -------------------------------
    ------ Benchmark summary ------
@@ -113,7 +113,7 @@ Disk speed:
      Average duration: 1:00:00
      Minimum duration (single file): 1:00:00
      Maximum duration (single file): 1:00:00
-   Feeder(s): 5
+   Producer(s): 5
    Buffer: 1.7/6 filled slots (mean)
    Busy workers: 0.9/1 (mean)
      Average wait time for next batch: 0.001 ms
@@ -139,7 +139,7 @@ Run 100 h FLAC-files on NVIDIA Titan RTX (24 GB, Linux)
 
 .. code-block:: txt
 
-   $ birdnet-benchmark test-dataset/test_dataset_100x60min_flac --device GPU --backend pb -w 1 -f 5 -s 1025
+   $ birdnet-benchmark test-dataset/test_dataset_100x60min_flac --device GPU --backend pb -w 1 -p 5 -s 1025
 
    -------------------------------
    ------ Benchmark summary ------
@@ -152,7 +152,7 @@ Run 100 h FLAC-files on NVIDIA Titan RTX (24 GB, Linux)
      Average duration: 1:00:00
      Minimum duration (single file): 1:00:00
      Maximum duration (single file): 1:00:00
-   Feeder(s): 5
+   Producer(s): 5
    Buffer: 1.9/2 filled slots (mean)
    Busy workers: 1.0/1 (mean)
      Average wait time for next batch: 0.051 ms

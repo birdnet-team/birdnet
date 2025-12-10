@@ -111,7 +111,7 @@ Example log line::
 Typical bottlenecks and mitigation measures
 ^^^^
 
-* **High WAIT values or empty buffer** – Increase the number of *Feeders*. If insufficient, use faster storage (NVMe/SSD) or reduce *Workers*.
+* **High WAIT values or empty buffer** – Increase the number of *Producers*. If insufficient, use faster storage (NVMe/SSD) or reduce *Workers*.
 * **BUSY < Worker count** – Typically an I/O bottleneck. Apply steps above.
 * **Cache effect** – OS file caching boosts SPEED significantly on the second pass. For benchmarking, use only runs starting from the second pass.
 

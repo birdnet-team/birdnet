@@ -165,13 +165,13 @@ def test_tflite_fp32_empty_files_are_skipped_normal_is_kept() -> None:
   }
 
 
-def test_tflite_fp32_empty_files_are_skipped_two_feeders() -> None:
+def test_tflite_fp32_empty_files_are_skipped_two_producers() -> None:
   model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
   with model.predict_session(
     n_workers=1,
     top_k=None,
     default_confidence_threshold=-numpy.inf,
-    n_feeders=2,
+    n_producers=2,
   ) as session:
     with tempfile.NamedTemporaryFile(
       suffix=".wav", delete=False, mode="wb"

@@ -37,7 +37,7 @@ def predict_test_cases(
   for case_nr, default in enumerate(tqdm(TEST_CASES)):
     with model.encode_session(
       n_workers=1,
-      n_feeders=1,
+      n_producers=1,
       prefetch_ratio=1,
       half_precision=False,
       show_stats=None,

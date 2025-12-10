@@ -196,7 +196,7 @@ class EncodingStrategy(
     return FullBenchmarkEmbMeta(
       _start_timepoint=resources.stats_resources.start_timepoint,
       _end_timepoint=resources.stats_resources.end_timepoint,
-      param_producers=config.processing_conf.feeders,
+      param_producers=config.processing_conf.producers,
       param_workers=config.processing_conf.workers,
       _worker_avg_wall_time_s=perf_result.worker_avg_wall_time_s,
       param_devices=device_str,

@@ -86,7 +86,6 @@ def run_benchmark_from_args(args: list[str]) -> None:
   )
 
   parser.add_argument(
-    "-p",
     "--precision",
     type=str,
     choices=VALID_MODEL_PRECISIONS,
@@ -96,11 +95,11 @@ def run_benchmark_from_args(args: list[str]) -> None:
   )
 
   parser.add_argument(
-    "-f",
-    "--feeders",
+    "-p",
+    "--producers",
     type=parse_positive_integer,
-    metavar="FEEDERS",
-    help="number of feeders which will read the input files (default: 1)",
+    metavar="PRODUCERS",
+    help="number of producers which will read the input files (default: 1)",
     default=1,
   )
 
@@ -144,7 +143,7 @@ def run_benchmark_from_args(args: list[str]) -> None:
     type=parse_non_empty_or_whitespace,
     nargs="+",
     metavar="DEVICE",
-    help="device(s) to use for processing (only available for the Protobuf backend), e.g., 'CPU', 'GPU', 'GPU:0', 'GPU:1', ...,  (default: 'CPU'); either string or list of strings, latter is useful for multi-GPU setups, the first GPU will be used for the first feeder, the second for the second feeder, etc.",
+    help="device(s) to use for processing (only available for the Protobuf backend), e.g., 'CPU', 'GPU', 'GPU:0', 'GPU:1', ...,  (default: 'CPU'); either string or list of strings, latter is useful for multi-GPU setups, the first GPU will be used for the first producer, the second for the second producer, etc.",
     default=["CPU"],
   )
 
@@ -220,7 +219,7 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
     perch_model.predict(
       ns.inputs,
       top_k=ns.top_k,
-      n_feeders=ns.feeders,
+      n_producers=ns.producers,
       n_workers=ns.workers,
       batch_size=ns.batch_size,
       overlap_duration_s=ns.overlap,
@@ -262,7 +261,7 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
     model.predict(
       ns.inputs,
       top_k=ns.top_k,
-      n_feeders=ns.feeders,
+      n_producers=ns.producers,
       n_workers=ns.workers,
       batch_size=ns.batch_size,
       overlap_duration_s=ns.overlap,
