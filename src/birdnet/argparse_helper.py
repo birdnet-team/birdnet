@@ -14,6 +14,10 @@ T = TypeVar("T")
 
 
 class ConvertToOrderedSetAction(argparse._StoreAction):
+  """
+  Docstring für ConvertToOrderedSetAction.
+  """
+
   def __call__(
     self,
     parser: argparse.ArgumentParser,
