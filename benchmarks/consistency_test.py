@@ -98,15 +98,15 @@ def run_gpu_model() -> list[dict]:
 def run_tflite_models() -> list[dict]:
   run_name = "tflite"
 
-  model_tf32 = load("acoustic", "2.4", "tf", precision="fp32", library="tf")
+  model_tf32 = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
   tf32 = predict(run_name, model_tf32, "CPU", n_workers=None, batch_size=1)
   print("TF FP32 done.")
 
-  model_tf16 = load("acoustic", "2.4", "tf", precision="fp16", library="tf")
+  model_tf16 = load("acoustic", "2.4", "tf", precision="fp16", library="tflite")
   tf16 = predict(run_name, model_tf16, "CPU", n_workers=None, batch_size=1)
   print("TF FP16 done.")
 
-  model_int8 = load("acoustic", "2.4", "tf", precision="int8", library="tf")
+  model_int8 = load("acoustic", "2.4", "tf", precision="int8", library="tflite")
   int8 = predict(run_name, model_int8, "CPU", n_workers=None, batch_size=1)
   print("TF INT8 done.")
   return [tf32, tf16, int8]
