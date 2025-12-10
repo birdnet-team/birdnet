@@ -236,6 +236,7 @@ deps =
 commands = 
   # ruff check src/birdnet
   # ruff check src/birdnet_tests
+  # mypy src/birdnet
   pytest -m "not repro and load_model" -n auto
   pytest -m "not repro and not load_model and (not litert and not gpu)" -n auto
   pytest -m "not repro and not load_model and litert" -n auto
