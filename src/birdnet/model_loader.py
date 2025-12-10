@@ -1,3 +1,7 @@
+"""Module for loading models.
+Provides functions to load official and custom models.
+"""
+
 from os import PathLike
 from pathlib import Path
 from typing import Any, Literal, cast

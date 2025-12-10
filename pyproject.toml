@@ -118,6 +118,7 @@ tests = [
   "ruff >= 0.14.4"
 ]
 dev = ["jupyter", "uv", "ruff", "mypy", "rope", "build", "twine", "scipy-stubs", "tuna", "pyarrow-stubs", "types-tqdm", "types-requests", "pandas-stubs", "types-tensorflow"]
+docs = ["sphinx==9.0.4", "numpydoc", "sphinx-autodoc-typehints", "sphinx-autobuild", "myst-parser"]
 
 [project.urls]
 Homepage = "https://github.com/birdnet-team/birdnet"

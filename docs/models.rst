@@ -25,9 +25,9 @@ Technical details
 
 * both spectrograms have a final resolution of 96x511 pixels
 * raw audio will be normalized between -1 and 1 before spectrogram conversion
-* we use non-linear magnitude scaling as mentioned in `Schlüter 2018 <http://ceur-ws.org/Vol-2125/paper_181.pdf>`_
+* we use non-linear magnitude scaling as mentioned in `Schlüter 2018 <http://ceur-ws.org/Vol-2125/paper_181.pdf>`__
 * V2.4 uses an EfficienNetB0-like backbone with a final embedding size of 1024
-* See `this comment <https://github.com/birdnet-team/BirdNET-Analyzer/issues/177#issuecomment-1772538736>`_ for more details
+* See `this comment <https://github.com/birdnet-team/BirdNET-Analyzer/issues/177#issuecomment-1772538736>`__ for more details
 
 Geo model (species range model) V2.4 - V2, Jan 2024
 ---------------------------------------
@@ -35,9 +35,9 @@ Geo model (species range model) V2.4 - V2, Jan 2024
 * updated species range model based on eBird data
 * more accurate (spatial) species range prediction
 * slightly increased long-tail distribution in the temporal resolution 
-* see `this discussion post <https://github.com/birdnet-team/BirdNET-Analyzer/discussions/234>`_ for more details
+* see `this discussion post <https://github.com/birdnet-team/BirdNET-Analyzer/discussions/234>`__ for more details
 
 Using older models
 ------------------
 
-Older models are not supported in the current version of the package. If you need to use an older model, please refer to the `BirdNET-Analyzer repository <https://github.com/birdnet-team/BirdNET-Analyzer>`_.
+Older models are not supported in the current version of the package. If you need to use an older model, please refer to the `BirdNET-Analyzer repository <https://github.com/birdnet-team/BirdNET-Analyzer>`__.

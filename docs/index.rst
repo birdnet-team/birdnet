@@ -14,17 +14,18 @@ Documentation for the birdnet package.
    
    birdnet
    models
+   changelog
 
 Introduction
 ------------
 
 A Python library for identifying bird species by their sounds.
 
-The library is geared towards providing a robust workflow for ecological data analysis in bioacoustic projects. While it covers essential functionalities, it doesn’t include all the features found in BirdNET-Analyzer, which is available [here](https://github.com/birdnet-team/BirdNET-Analyzer). Some features might only be available in the BirdNET Analyzer and not in this package.
+The library is geared towards providing a robust workflow for ecological data analysis in bioacoustic projects. While it covers essential functionalities, it doesn’t include all the features found in BirdNET-Analyzer, which is available `here <https://github.com/birdnet-team/BirdNET-Analyzer>`__. Some features might only be available in the BirdNET Analyzer and not in this package.
 
 This project is under active development, so you might encounter changes that could affect your current workflow. We recommend checking for updates regularly.
 
-The package is also available as an R package at: [birdnetR](https://github.com/birdnet-team/birdnetR).
+The package is also available as an R package at: `birdnetR <https://github.com/birdnet-team/birdnetR>`__.
 
 Citing BirdNET-Analyzer
 -----------------------
@@ -46,20 +47,20 @@ Feel free to use BirdNET for your acoustic analyses and research. If you do, ple
 About
 -----
 
-Developed by the `K. Lisa Yang Center for Conservation Bioacoustics <https://www.birds.cornell.edu/ccb/>`_ at the `Cornell Lab of Ornithology <https://www.birds.cornell.edu/home>`_ in collaboration with `Chemnitz University of Technology <https://www.tu-chemnitz.de/index.html>`_.
+Developed by the `K. Lisa Yang Center for Conservation Bioacoustics <https://www.birds.cornell.edu/ccb/>`__ at the `Cornell Lab of Ornithology <https://www.birds.cornell.edu/home>`__ in collaboration with `Chemnitz University of Technology <https://www.tu-chemnitz.de/index.html.en>`__.
 
 Go to https://birdnet.cornell.edu to learn more about the project.
 
 Want to use BirdNET to analyze a large dataset? Don't hesitate to contact us: ccb-birdnet@cornell.edu
 
-We also have a discussion forum on `Reddit <https://www.reddit.com/r/BirdNET_Analyzer/>`_ if you have a general question or just want to chat.
+We also have a discussion forum on `Reddit <https://www.reddit.com/r/BirdNET_Analyzer/>`__ if you have a general question or just want to chat.
 
 Have a question, remark, or feature request? Please start a new issue thread to let us know. Feel free to submit a pull request.
 
 More tools and resources
 ------------------------
 
-We also provide Python and R packages to interact with BirdNET models, as well as training and deployment tools for microcontrollers. Make sure to check out our other repositories at `https://github.com/birdnet-team <https://github.com/birdnet-team>`_.
+We also provide Python and R packages to interact with BirdNET models, as well as training and deployment tools for microcontrollers. Make sure to check out our other repositories at `https://github.com/birdnet-team <https://github.com/birdnet-team>`__.
 
 
 Projects map
@@ -67,16 +68,16 @@ Projects map
 
 We have created an interactive map of projects that use BirdNET. If you are working on a project that uses BirdNET, please let us know and we can add your project to the map.
 
-You can access the map here: `Open projects map <https://birdnet-team.github.io/BirdNET-Analyzer/projects.html>`_
+You can access the map here: `Open projects map <https://birdnet-team.github.io/BirdNET-Analyzer/projects.html>`__
 
-Please refer to the `projects map documentation <usage/projects-map.html>`_ for more information on how to contribute.
+Please refer to the `projects map documentation <usage/projects-map.html>`__ for more information on how to contribute.
 
 License
 -------
 
-**Source Code**: The source code for this project is licensed under the `MIT License <https://opensource.org/licenses/MIT>`_
+**Source Code**: The source code for this project is licensed under the `MIT License <https://opensource.org/licenses/MIT>`__
 
-**Models**: The models used in this project are licensed under the `Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License (CC BY-NC-SA 4.0) <https://creativecommons.org/licenses/by-nc-sa/4.0/>`_
+**Models**: The models used in this project are licensed under the `Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License (CC BY-NC-SA 4.0) <https://creativecommons.org/licenses/by-nc-sa/4.0/>`__
 
 Please ensure you review and adhere to the specific license terms provided with each model.
 
