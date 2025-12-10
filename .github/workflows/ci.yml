@@ -63,6 +63,18 @@ jobs:
           python -m pip install uv --upgrade
           python -m uv pip install --system .[tests]
 
+      - name: Run coverage tests
+        if: matrix.os == 'ubuntu-24.04' && matrix.python-version == '3.12'
+        run: |
+          python -m tox -e py312-coverage
+
+      - name: Upload results to Codecov
+        if: matrix.os == 'ubuntu-24.04' && matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: birdnet-team/birdnet
+
       - name: Run available tests for current configuration
         run: |
           python -m tox
