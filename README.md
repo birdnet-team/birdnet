@@ -39,7 +39,7 @@ The package is also available as an R package at: [birdnetR](https://github.com/
 | Ryzen 7 3800X      | 8 cores     | NVMe | Linux   | 7 min        | 8.5 s
 | Nvidia Titan RTX   | 24 GB VRAM  | NVMe | Linux   | 41 min       | 1.5 s
 
-For more detailed benchmarks, please refer to the [BENCHMARKING.md](BENCHMARKING.md) file.
+For more detailed benchmarks, please refer to the [documentation](https://birdnet-team.github.io/birdnet/benchmarking.html).
 
 ## Installation
 
