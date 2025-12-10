@@ -145,6 +145,7 @@ docs = [
 [project.urls]
 Homepage = "https://github.com/birdnet-team/birdnet"
 Issues = "https://github.com/birdnet-team/birdnet/issues"
+Documentation = "https://birdnet-team.github.io/birdnet"
 Repository = "https://github.com/birdnet-team/birdnet.git"
 Changelog = "https://github.com/birdnet-team/birdnet/blob/master/CHANGELOG.md"
 

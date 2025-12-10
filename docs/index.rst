@@ -12,6 +12,7 @@ Documentation for the birdnet package.
    :maxdepth: 1
    :caption: Contents:
    
+   quick_start
    setup
    general
    birdnet
