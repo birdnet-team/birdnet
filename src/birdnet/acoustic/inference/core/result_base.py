@@ -189,12 +189,12 @@ class ModelBase(ABC):
     self,
     model_path: Path,
     species_list: OrderedSet[str],
-    use_custom_model: bool,
+    is_custom_model: bool,
   ) -> None:
     super().__init__()
     self._model_path = model_path
     self._species_list = species_list
-    self._use_custom_model = use_custom_model
+    self._is_custom_model = is_custom_model
 
   @property
   def model_path(self) -> Path:
@@ -209,8 +209,8 @@ class ModelBase(ABC):
     return len(self.species_list)
 
   @property
-  def use_custom_model(self) -> bool:
-    return self._use_custom_model
+  def is_custom_model(self) -> bool:
+    return self._is_custom_model
 
   @classmethod
   @abstractmethod

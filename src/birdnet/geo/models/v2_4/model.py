@@ -9,9 +9,9 @@ from birdnet.core.backends import (
   BackendLoader,
   VersionedGeoBackendProtocol,
 )
-from birdnet.geo.models.base import GeoModelBase
-from birdnet.geo.inference.session import GeoPredictionSession
 from birdnet.geo.inference.prediction_result import GeoPredictionResult
+from birdnet.geo.inference.session import GeoPredictionSession
+from birdnet.geo.models.base import GeoModelBase
 from birdnet.globals import (
   GEO_MODEL_VERSION_V2_4,
   GEO_MODEL_VERSIONS,
@@ -60,11 +60,11 @@ class GeoModelV2_4(GeoModelBase):
     self,
     model_path: Path,
     species_list: OrderedSet[str],
-    use_custom_model: bool,
+    is_custom_model: bool,
     backend_type: type[VersionedGeoBackendProtocol],
     backend_kwargs: dict[str, Any],
   ) -> None:
-    super().__init__(model_path, species_list, use_custom_model)
+    super().__init__(model_path, species_list, is_custom_model)
     self._backend_type = backend_type
     self._backend_custom_kwargs = backend_kwargs
 
@@ -79,7 +79,7 @@ class GeoModelV2_4(GeoModelBase):
     result = GeoModelV2_4(
       model_path,
       species_list,
-      use_custom_model=False,
+      is_custom_model=False,
       backend_type=backend_type,
       backend_kwargs=backend_kwargs,
     )
@@ -114,7 +114,7 @@ class GeoModelV2_4(GeoModelBase):
     result = GeoModelV2_4(
       model_path,
       loaded_species_list,
-      use_custom_model=True,
+      is_custom_model=True,
       backend_type=backend_type,
       backend_kwargs=backend_kwargs,
     )
@@ -141,7 +141,7 @@ class GeoModelV2_4(GeoModelBase):
     return GeoPredictionSession(
       species_list=self.species_list,
       model_path=self.model_path,
-      model_is_custom=self.use_custom_model,
+      model_is_custom=self.is_custom_model,
       model_version=self.get_version(),
       model_backend_type=self._backend_type,
       model_backend_custom_kwargs=self._backend_custom_kwargs,
