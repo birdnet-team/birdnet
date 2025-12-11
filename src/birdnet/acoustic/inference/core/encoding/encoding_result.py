@@ -4,8 +4,8 @@ from pathlib import Path
 
 import numpy as np
 
-from birdnet.acoustic_models.inference.encoding.tensor import AcousticEncodingTensor
-from birdnet.acoustic_models.inference.result_base import AcousticResultBase
+from birdnet.acoustic.inference.core.encoding.encoding_tensor import AcousticEncodingTensor
+from birdnet.acoustic.inference.core.result_base import AcousticResultBase
 from birdnet.utils.helper import get_uint_dtype
 
 NP_EMB_KEY = "embeddings"

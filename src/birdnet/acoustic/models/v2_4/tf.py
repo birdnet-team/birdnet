@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.v2_4.model import (
+from birdnet.acoustic.models.v2_4.model import (
   AcousticDownloaderBaseV2_4,
 )
 from birdnet.core.backends import (

@@ -5,7 +5,7 @@ import numpy.testing
 import pytest
 import soundfile
 
-from birdnet.acoustic_models.inference.producer import (
+from birdnet.acoustic.inference.core.producer import (
   get_file_segments_with_overlap,
 )
 from birdnet_tests.test_files import AUDIO_FORMATS_DIR, TEST_FILE_LONG

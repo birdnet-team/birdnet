@@ -3,7 +3,7 @@ from typing import Literal, cast
 import pytest
 from requests.exceptions import ReadTimeout
 
-from birdnet.acoustic_models.v2_4.model import AcousticModelV2_4
+from birdnet.acoustic.models.v2_4.model import AcousticModelV2_4
 from birdnet.globals import MODEL_PRECISIONS
 from birdnet.model_loader import load
 from birdnet_tests.helper import ensure_litert_or_skip

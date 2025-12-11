@@ -1,6 +1,6 @@
 import pytest
 
-from birdnet.acoustic_models.inference_pipeline.configs import ProcessingConfig
+from birdnet.acoustic.inference.configs import ProcessingConfig
 
 
 def test_CPU_is_valid() -> None:

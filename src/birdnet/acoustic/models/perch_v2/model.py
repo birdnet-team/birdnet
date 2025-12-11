@@ -7,18 +7,18 @@ from typing import Any, Literal, final
 from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.base import AcousticModelBase
-from birdnet.acoustic_models.inference.encoding.result import (
+from birdnet.acoustic.inference.core.encoding.encoding_result import (
   AcousticEncodingResultBase,
 )
-from birdnet.acoustic_models.inference.perf_tracker import AcousticProgressStats
-from birdnet.acoustic_models.inference.prediction.result import (
+from birdnet.acoustic.inference.core.perf_tracker import AcousticProgressStats
+from birdnet.acoustic.inference.core.prediction.prediction_result import (
   AcousticPredictionResultBase,
 )
 from birdnet.acoustic_models.api import (
   AcousticEncodingSession,
   AcousticPredictionSession,
 )
-from birdnet.acoustic_models.inference_pipeline.configs import InferenceConfig
+from birdnet.acoustic.inference.configs import InferenceConfig
 from birdnet.core.backends import BackendLoader, VersionedAcousticBackendProtocol
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
 from birdnet.utils.helper import validate_species_list

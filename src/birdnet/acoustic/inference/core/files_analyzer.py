@@ -10,8 +10,8 @@ from queue import Empty
 import numpy as np
 import soundfile
 
-import birdnet.acoustic_models.inference_pipeline.logs as bn_logging
-from birdnet.acoustic_models.inference.producer import (
+import birdnet.acoustic.inference.logs as bn_logging
+from birdnet.acoustic.inference.core.producer import (
   get_audio_duration_from_sf,
   get_sf_info,
 )

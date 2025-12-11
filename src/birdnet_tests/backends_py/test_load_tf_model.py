@@ -2,7 +2,7 @@ import platform
 
 import pytest
 
-from birdnet.acoustic_models.v2_4.tf import AcousticTFDownloaderV2_4
+from birdnet.acoustic.models.v2_4.tf import AcousticTFDownloaderV2_4
 from birdnet.core.backends import load_tf_model
 from birdnet.utils.local_data import get_model_path
 from birdnet_tests.helper import ensure_litert_or_skip, use_fork_or_skip

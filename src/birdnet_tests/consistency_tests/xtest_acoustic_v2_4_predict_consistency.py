@@ -7,10 +7,10 @@ import numpy.testing
 import pytest
 from tqdm import tqdm
 
-from birdnet.acoustic_models.inference.prediction.result import (
+from birdnet.acoustic.inference.core.prediction.prediction_result import (
   AcousticPredictionResultBase,
 )
-from birdnet.acoustic_models.v2_4.model import AcousticModelV2_4
+from birdnet.acoustic.models.v2_4.model import AcousticModelV2_4
 from birdnet.model_loader import load
 from birdnet_tests.helper import (
   ensure_gpu_or_skip,

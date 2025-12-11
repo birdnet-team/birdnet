@@ -3,7 +3,7 @@ from tempfile import TemporaryDirectory
 
 import pytest
 
-from birdnet.acoustic_models.inference_pipeline.configs import InferenceConfig
+from birdnet.acoustic.inference.configs import InferenceConfig
 
 
 def test_component_test() -> None:

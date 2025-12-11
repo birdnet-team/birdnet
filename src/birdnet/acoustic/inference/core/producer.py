@@ -17,7 +17,7 @@ import numpy as np
 import numpy.typing as npt
 import soundfile
 
-import birdnet.acoustic_models.inference_pipeline.logs as bn_logging
+import birdnet.acoustic.inference.logs as bn_logging
 from birdnet.globals import (
   READABLE_FLAG,
   READING_FLAG,

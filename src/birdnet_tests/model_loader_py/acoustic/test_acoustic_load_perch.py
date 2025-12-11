@@ -1,7 +1,7 @@
 import pytest
 from requests import ReadTimeout
 
-from birdnet.acoustic_models.perch_v2.model import AcousticModelPerchV2
+from birdnet.acoustic.models.perch_v2.model import AcousticModelPerchV2
 from birdnet.model_loader import load_perch_v2
 from birdnet_tests.helper import ensure_gpu_or_skip
 

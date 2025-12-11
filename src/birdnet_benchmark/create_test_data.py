@@ -30,7 +30,7 @@ def create_test_dataset(
   data, samplerate = sf.read(input_file)
 
   if samplerate != sr:
-    from birdnet.acoustic_models.inference.producer import resample_array_by_sr
+    from birdnet.acoustic.inference.core.producer import resample_array_by_sr
 
     data = resample_array_by_sr(
       data,

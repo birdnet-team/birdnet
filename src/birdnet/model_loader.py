@@ -7,20 +7,20 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 from birdnet.acoustic_models.base import AcousticModelBase
-from birdnet.acoustic_models.perch_v2.model import AcousticModelPerchV2
-from birdnet.acoustic_models.perch_v2.pb import (
+from birdnet.acoustic.models.perch_v2.model import AcousticModelPerchV2
+from birdnet.acoustic.models.perch_v2.pb import (
   AcousticPBBackendFP32PerchV2,
   AcousticPBDownloaderPerchV2,
 )
-from birdnet.acoustic_models.v2_4.model import (
+from birdnet.acoustic.models.v2_4.model import (
   AcousticModelV2_4,
 )
-from birdnet.acoustic_models.v2_4.pb import (
+from birdnet.acoustic.models.v2_4.pb import (
   AcousticPBBackendFP32V2_4,
   AcousticPBDownloaderV2_4,
   AcousticRavenBackendFP32V2_4,
 )
-from birdnet.acoustic_models.v2_4.tf import (
+from birdnet.acoustic.models.v2_4.tf import (
   AcousticTFBackendFP16V2_4,
   AcousticTFBackendFP32V2_4,
   AcousticTFBackendInt8V2_4,

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
-from birdnet.acoustic_models.v2_4.model import AcousticModelV2_4
+from birdnet.acoustic.models.v2_4.model import AcousticModelV2_4
 from birdnet.core.backends import litert_installed
 from birdnet.utils.local_data import get_package_version
 from birdnet.model_loader import load

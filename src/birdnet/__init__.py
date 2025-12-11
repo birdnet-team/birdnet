@@ -1,12 +1,12 @@
 import logging
 
-from birdnet.acoustic_models.inference.encoding.result import (
+from birdnet.acoustic.inference.core.encoding.encoding_result import (
   AcousticDataEncodingResult,
   AcousticEncodingResultBase,
   AcousticFileEncodingResult,
 )
-from birdnet.acoustic_models.inference.perf_tracker import AcousticProgressStats
-from birdnet.acoustic_models.inference.prediction.result import (
+from birdnet.acoustic.inference.core.perf_tracker import AcousticProgressStats
+from birdnet.acoustic.inference.core.prediction.prediction_result import (
   AcousticDataPredictionResult,
   AcousticFilePredictionResult,
   AcousticPredictionResultBase,
@@ -15,8 +15,8 @@ from birdnet.acoustic_models.api import (
   AcousticEncodingSession,
   AcousticPredictionSession,
 )
-from birdnet.acoustic_models.perch_v2.model import AcousticModelPerchV2
-from birdnet.acoustic_models.v2_4.model import AcousticModelV2_4
+from birdnet.acoustic.models.perch_v2.model import AcousticModelPerchV2
+from birdnet.acoustic.models.v2_4.model import AcousticModelV2_4
 from birdnet.geo_models.inference.api import GeoPredictionSession
 from birdnet.geo_models.inference.prediction_result import GeoPredictionResult
 from birdnet.geo_models.v2_4.model import GeoModelV2_4

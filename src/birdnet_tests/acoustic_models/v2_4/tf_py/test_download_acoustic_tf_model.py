@@ -1,4 +1,4 @@
-from birdnet.acoustic_models.v2_4.tf import AcousticTFDownloaderV2_4
+from birdnet.acoustic.models.v2_4.tf import AcousticTFDownloaderV2_4
 
 
 def xtest_double_download() -> None:

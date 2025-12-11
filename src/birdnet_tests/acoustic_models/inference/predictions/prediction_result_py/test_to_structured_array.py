@@ -4,11 +4,11 @@ import numpy as np
 import soundfile
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.prediction.result import (
+from birdnet.acoustic.inference.core.prediction.prediction_result import (
   AcousticFilePredictionResult,
   AcousticPredictionResultBase,
 )
-from birdnet.acoustic_models.inference.prediction.tensor import AcousticPredictionTensor
+from birdnet.acoustic.inference.core.prediction.prediction_tensor import AcousticPredictionTensor
 from birdnet.utils.helper import (
   get_float_dtype,
   get_n_segments_speed,

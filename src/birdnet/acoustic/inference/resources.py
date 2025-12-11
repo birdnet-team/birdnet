@@ -18,12 +18,12 @@ from typing import Self, cast, final
 
 import numpy as np
 
-from birdnet.acoustic_models.inference.perf_tracker import (
+from birdnet.acoustic.inference.core.perf_tracker import (
   AcousticProgressStats,
   PerformanceTrackingResult,
 )
-from birdnet.acoustic_models.inference_pipeline.configs import InferenceConfig
-from birdnet.acoustic_models.inference_pipeline.logs import add_session_queue_handler
+from birdnet.acoustic.inference.configs import InferenceConfig
+from birdnet.acoustic.inference.logs import add_session_queue_handler
 from birdnet.core.backends import BackendLoader
 from birdnet.core.base import get_session_id_hash
 from birdnet.globals import MODEL_TYPE_ACOUSTIC, PKG_NAME

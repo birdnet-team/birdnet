@@ -11,8 +11,8 @@ import numpy.typing as npt
 import psutil
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.perf_tracker import AcousticProgressStats
-from birdnet.acoustic_models.inference.tensor import AcousticTensorBase
+from birdnet.acoustic.inference.core.perf_tracker import AcousticProgressStats
+from birdnet.acoustic.inference.core.tensor import AcousticTensorBase
 from birdnet.core.backends import VersionedBackendProtocol
 from birdnet.core.base import ResultBase
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS

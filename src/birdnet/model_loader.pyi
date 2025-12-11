@@ -1,8 +1,8 @@
 from os import PathLike
 from typing import Literal, overload
 
-from birdnet.acoustic_models.perch_v2.model import AcousticModelPerchV2
-from birdnet.acoustic_models.v2_4.model import AcousticModelV2_4
+from birdnet.acoustic.models.perch_v2.model import AcousticModelPerchV2
+from birdnet.acoustic.models.v2_4.model import AcousticModelV2_4
 from birdnet.geo_models.v2_4.model import GeoModelV2_4
 from birdnet.globals import (
   CUSTOM_PB_IS_RAVEN_DEFAULT,

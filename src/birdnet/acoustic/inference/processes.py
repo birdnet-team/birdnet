@@ -7,26 +7,26 @@ from pathlib import Path
 
 import numpy as np
 
-from birdnet.acoustic_models.inference.consumer import Consumer
-from birdnet.acoustic_models.inference.files_analyzer import FilesAnalyzer
-from birdnet.acoustic_models.inference.perf_tracker import (
+from birdnet.acoustic.inference.core.consumer import Consumer
+from birdnet.acoustic.inference.core.files_analyzer import FilesAnalyzer
+from birdnet.acoustic.inference.core.perf_tracker import (
   PerformanceTracker,
   ProgressDispatcher,
 )
-from birdnet.acoustic_models.inference.producer import Producer
-from birdnet.acoustic_models.inference.tensor import AcousticTensorBase
-from birdnet.acoustic_models.inference_pipeline.configs import (
+from birdnet.acoustic.inference.core.producer import Producer
+from birdnet.acoustic.inference.core.tensor import AcousticTensorBase
+from birdnet.acoustic.inference.configs import (
   ConfigType,
   InferenceConfig,
   ResultType,
   TensorType,
 )
-from birdnet.acoustic_models.inference_pipeline.logs import (
+from birdnet.acoustic.inference.logs import (
   QueueFileWriter,
   get_logger_from_session,
 )
-from birdnet.acoustic_models.inference_pipeline.resources import PipelineResources
-from birdnet.acoustic_models.inference_pipeline.strategy import InferenceStrategyBase
+from birdnet.acoustic.inference.resources import PipelineResources
+from birdnet.acoustic.inference.strategy import InferenceStrategyBase
 from birdnet.core.base import get_session_id_hash
 
 

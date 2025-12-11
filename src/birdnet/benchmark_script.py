@@ -8,8 +8,8 @@ import psutil
 
 import birdnet
 import birdnet.model_loader
-from birdnet.acoustic_models.inference.perf_tracker import AcousticProgressStats
-from birdnet.acoustic_models.v2_4.model import AcousticModelV2_4
+from birdnet.acoustic.inference.core.perf_tracker import AcousticProgressStats
+from birdnet.acoustic.models.v2_4.model import AcousticModelV2_4
 from birdnet.utils.argparse_helper import (
   ConvertToSetAction,
   parse_float,

@@ -1,6 +1,6 @@
 import numpy as np
 
-from birdnet.acoustic_models.inference_pipeline.resources import (
+from birdnet.acoustic.inference.resources import (
   RingBufferResources,
 )
 from birdnet.core.base import get_session_id

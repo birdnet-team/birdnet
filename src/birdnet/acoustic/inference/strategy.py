@@ -4,18 +4,18 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Generic
 
-from birdnet.acoustic_models.inference.benchmarking import (
+from birdnet.acoustic.inference.core.benchmarking import (
   FullBenchmarkMetaBase,
   MinimalBenchmarkMetaBase,
 )
-from birdnet.acoustic_models.inference.worker import WorkerBase
-from birdnet.acoustic_models.inference_pipeline.configs import (
+from birdnet.acoustic.inference.core.worker import WorkerBase
+from birdnet.acoustic.inference.configs import (
   ConfigType,
   InferenceConfig,
   ResultType,
   TensorType,
 )
-from birdnet.acoustic_models.inference_pipeline.resources import (
+from birdnet.acoustic.inference.resources import (
   PipelineResources,
 )
 

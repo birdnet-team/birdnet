@@ -1,7 +1,7 @@
 
 import pytest
 
-from birdnet.acoustic_models.inference.producer import (
+from birdnet.acoustic.inference.core.producer import (
   read_file_in_mono,
 )
 from birdnet_tests.test_files import AUDIO_FORMATS_DIR

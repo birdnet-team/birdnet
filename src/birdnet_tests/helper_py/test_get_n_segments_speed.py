@@ -1,4 +1,4 @@
-from birdnet.acoustic_models.inference.producer import get_segments_with_overlap_samples
+from birdnet.acoustic.inference.core.producer import get_segments_with_overlap_samples
 from birdnet.utils.helper import duration_as_samples, get_n_segments_speed
 
 

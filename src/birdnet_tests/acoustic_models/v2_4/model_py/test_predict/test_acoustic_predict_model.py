@@ -9,7 +9,7 @@ import numpy
 import pytest
 import soundfile as sf
 
-from birdnet.acoustic_models.inference.perf_tracker import AcousticProgressStats
+from birdnet.acoustic.inference.core.perf_tracker import AcousticProgressStats
 from birdnet.model_loader import load
 from birdnet_tests.helper import (
   assert_prediction_result_is_close,

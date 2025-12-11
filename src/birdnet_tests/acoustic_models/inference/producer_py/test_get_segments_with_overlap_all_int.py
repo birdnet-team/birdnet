@@ -1,5 +1,5 @@
 
-from birdnet.acoustic_models.inference.producer import get_segments_with_overlap_all_int
+from birdnet.acoustic.inference.core.producer import get_segments_with_overlap_all_int
 
 
 def test_1_2_0__returns_01() -> None:

@@ -10,19 +10,19 @@ from typing import ContextManager, Generic, Self, cast
 
 import numpy as np
 
-from birdnet.acoustic_models.inference_pipeline.configs import (
+from birdnet.acoustic.inference.configs import (
   ConfigType,
   InferenceConfig,
   ResultType,
   TensorType,
 )
-from birdnet.acoustic_models.inference_pipeline.logs import get_logger_from_session
-from birdnet.acoustic_models.inference_pipeline.processes import ProcessManager
-from birdnet.acoustic_models.inference_pipeline.resources import (
+from birdnet.acoustic.inference.logs import get_logger_from_session
+from birdnet.acoustic.inference.processes import ProcessManager
+from birdnet.acoustic.inference.resources import (
   PipelineResources,
   ResourceManager,
 )
-from birdnet.acoustic_models.inference_pipeline.strategy import InferenceStrategyBase
+from birdnet.acoustic.inference.strategy import InferenceStrategyBase
 from birdnet.core.base import SessionBase, get_session_id_hash
 from birdnet.globals import WRITABLE_FLAG
 from birdnet.shm import create_shm_ring

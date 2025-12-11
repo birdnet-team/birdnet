@@ -7,16 +7,16 @@ from typing import Any, Literal
 import numpy.typing as npt
 from ordered_set import OrderedSet
 
-from birdnet.acoustic_models.inference.encoding.result import (
+from birdnet.acoustic.inference.core.encoding.encoding_result import (
   AcousticDataEncodingResult,
   AcousticFileEncodingResult,
 )
-from birdnet.acoustic_models.inference.perf_tracker import AcousticProgressStats
-from birdnet.acoustic_models.inference.prediction.result import (
+from birdnet.acoustic.inference.core.perf_tracker import AcousticProgressStats
+from birdnet.acoustic.inference.core.prediction.prediction_result import (
   AcousticDataPredictionResult,
   AcousticFilePredictionResult,
 )
-from birdnet.acoustic_models.inference_pipeline.configs import (
+from birdnet.acoustic.inference.configs import (
   EncodingConfig,
   FilteringConfig,
   InferenceConfig,
@@ -25,10 +25,10 @@ from birdnet.acoustic_models.inference_pipeline.configs import (
   PredictionConfig,
   ProcessingConfig,
 )
-from birdnet.acoustic_models.inference_pipeline.encoding_strategy import (
+from birdnet.acoustic.inference.encoding_strategy import (
   EncodingStrategy,
 )
-from birdnet.acoustic_models.inference_pipeline.prediction_strategy import (
+from birdnet.acoustic.inference.prediction_strategy import (
   PredictionStrategy,
 )
 from birdnet.acoustic_models.session import AcousticSessionBase

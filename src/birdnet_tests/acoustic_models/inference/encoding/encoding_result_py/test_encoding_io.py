@@ -3,10 +3,10 @@ from pathlib import Path
 
 import numpy as np
 
-from birdnet.acoustic_models.inference.encoding.result import (
+from birdnet.acoustic.inference.core.encoding.encoding_result import (
   AcousticFileEncodingResult,
 )
-from birdnet.acoustic_models.inference.encoding.tensor import AcousticEncodingTensor
+from birdnet.acoustic.inference.core.encoding.encoding_tensor import AcousticEncodingTensor
 from birdnet.utils.helper import get_float_dtype, get_n_segments_speed
 
 

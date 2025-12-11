@@ -3,7 +3,7 @@ import multiprocessing
 import psutil
 import pytest
 
-from birdnet.acoustic_models.inference_pipeline.configs import (
+from birdnet.acoustic.inference.configs import (
   ProcessingConfig,
 )
 
