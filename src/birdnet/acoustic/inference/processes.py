@@ -14,17 +14,17 @@ from birdnet.acoustic.inference.configs import (
   TensorType,
 )
 from birdnet.acoustic.inference.core.consumer import Consumer
-from birdnet.acoustic.inference.core.files_analyzer import FilesAnalyzer
+from birdnet.acoustic.inference.core.input_analyzer import InputAnalyzer
+from birdnet.acoustic.inference.core.logs import (
+  get_logger_from_session,
+)
 from birdnet.acoustic.inference.core.perf_tracker import (
   PerformanceTracker,
   ProgressDispatcher,
 )
 from birdnet.acoustic.inference.core.producer import Producer
 from birdnet.acoustic.inference.core.tensor import AcousticTensorBase
-from birdnet.acoustic.inference.logs import (
-  QueueFileWriter,
-  get_logger_from_session,
-)
+from birdnet.acoustic.inference.file_writer import QueueFileWriter
 from birdnet.acoustic.inference.resources import PipelineResources
 from birdnet.acoustic.inference.strategy import InferenceStrategyBase
 from birdnet.core.base import get_session_id_hash
@@ -52,7 +52,7 @@ class ProcessManager:
     self._producer_processes: list[Process] | None = None
     self._worker_processes: list[Process] | None = None
 
-  def start_logging_thread(self) -> threading.Thread:
+  def start_file_logging_thread(self) -> threading.Thread:
     logging_listener = threading.Thread(
       target=QueueFileWriter(
         session_id=self._session_id,
@@ -136,7 +136,7 @@ class ProcessManager:
 
   def start_file_analyzer_thread(self) -> threading.Thread:
     file_analyzer_proc = threading.Thread(
-      target=FilesAnalyzer(
+      target=InputAnalyzer(
         session_id=self._session_id,
         segment_duration_s=self._cfg.model_conf.segment_size_s,
         overlap_duration_s=self._cfg.processing_conf.overlap_duration_s,

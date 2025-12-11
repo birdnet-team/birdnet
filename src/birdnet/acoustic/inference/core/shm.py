@@ -1,10 +1,29 @@
+from __future__ import annotations
+
+import shutil
+from abc import ABC
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from multiprocessing import shared_memory
+from pathlib import Path
+from typing import ContextManager, Generic, Self, cast
 
 import numpy as np
 
-from birdnet.acoustic.inference.logs import get_logger_from_session
+from birdnet.acoustic.inference.core.logs import get_logger_from_session
+
+
+@contextmanager  # type: ignore
+def create_shm_ring(session_id: str, ring: RingField) -> shared_memory.SharedMemory:  # type: ignore
+  shm = shared_memory.SharedMemory(name=ring.name, create=True, size=ring.nbytes)
+  try:
+    yield shm  # type: ignore
+  finally:
+    shm.close()
+    with suppress(FileNotFoundError):
+      shm.unlink()
+    logger = get_logger_from_session(session_id, __name__)
+    logger.debug(f"Shared memory {ring.name} cleaned up.")
 
 
 @dataclass(slots=True, frozen=True)
@@ -45,16 +64,3 @@ class RingField:
     shm = self.attach_shared_memory()
     view = self.get_array(shm)
     return shm, view
-
-
-@contextmanager  # type: ignore
-def create_shm_ring(session_id: str, ring: RingField) -> shared_memory.SharedMemory:  # type: ignore
-  shm = shared_memory.SharedMemory(name=ring.name, create=True, size=ring.nbytes)
-  try:
-    yield shm  # type: ignore
-  finally:
-    shm.close()
-    with suppress(FileNotFoundError):
-      shm.unlink()
-    logger = get_logger_from_session(session_id, __name__)
-    logger.debug(f"Shared memory {ring.name} cleaned up.")

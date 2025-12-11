@@ -8,10 +8,11 @@ import tempfile
 import threading
 import time
 from collections.abc import Callable
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from logging.handlers import QueueHandler
-from multiprocessing import Queue
+from multiprocessing import Queue, shared_memory
 from multiprocessing.sharedctypes import Synchronized
 from pathlib import Path
 from typing import Self, cast, final
@@ -19,15 +20,15 @@ from typing import Self, cast, final
 import numpy as np
 
 from birdnet.acoustic.inference.configs import InferenceConfig
+from birdnet.acoustic.inference.core.logs import add_session_queue_handler
 from birdnet.acoustic.inference.core.perf_tracker import (
   AcousticProgressStats,
   PerformanceTrackingResult,
 )
-from birdnet.acoustic.inference.logs import add_session_queue_handler
+from birdnet.acoustic.inference.core.shm import RingField, create_shm_ring
 from birdnet.core.backends import BackendLoader
 from birdnet.core.base import get_session_id_hash
-from birdnet.globals import MODEL_TYPE_ACOUSTIC, PKG_NAME
-from birdnet.shm import RingField
+from birdnet.globals import MODEL_TYPE_ACOUSTIC, PKG_NAME, WRITABLE_FLAG
 from birdnet.utils.helper import (
   get_float_dtype,
   get_n_segments_speed,
@@ -43,7 +44,7 @@ class PipelineResources:
   stats_resources: StatisticsResources
   logging_resources: LoggingResources
   processing_resources: ProcessingResources
-  analyzer_resources: FilesAnalyzerResources
+  analyzer_resources: InputAnalyzerResources
   producer_resources: ProducerResources
   worker_resources: WorkerResources
   ring_buffer_resources: RingBufferResources
@@ -72,7 +73,7 @@ class ResourceManager:
     )
     logging_resources = LoggingResources.create(session_id, stats_resources)
     processing_resources = ProcessingResources.create()
-    analyzer_resources = FilesAnalyzerResources.create(self.conf)
+    analyzer_resources = InputAnalyzerResources.create(self.conf)
     producer_resources = ProducerResources.create(self.conf)
     worker_resources = WorkerResources.create(self.conf)
     buf_resources = RingBufferResources.create(
@@ -107,8 +108,7 @@ class RingBufferResources:
   sem_free_slots: multiprocessing.synchronize.Semaphore
   sem_filled_slots: multiprocessing.synchronize.Semaphore
 
-  def reset(self) -> None:
-    pass
+  _rf_flags_memory: shared_memory.SharedMemory | None = None
 
   @classmethod
   def _create(
@@ -180,7 +180,7 @@ class RingBufferResources:
     cls,
     session_id: str,
     conf: InferenceConfig,
-    analyzer_resources: FilesAnalyzerResources,
+    analyzer_resources: InputAnalyzerResources,
   ) -> RingBufferResources:
     return cls._create(
       session_id=session_id,
@@ -190,6 +190,29 @@ class RingBufferResources:
       segments_dtype=analyzer_resources.segments_dtype,
       max_n_files=conf.processing_conf.max_n_files,
     )
+
+  def reset(self) -> None:
+    pass
+
+  def set_all_flags_writeable(self) -> None:
+    assert self._rf_flags_memory is not None
+    flags = self.rf_flags.get_array(self._rf_flags_memory)
+    flags[:] = WRITABLE_FLAG
+
+  @contextmanager
+  def shared_memory_context(self, session_id: str):
+    with (
+      create_shm_ring(session_id, self.rf_file_indices),
+      create_shm_ring(session_id, self.rf_segment_indices),
+      create_shm_ring(session_id, self.rf_audio_samples),
+      create_shm_ring(session_id, self.rf_batch_sizes),
+      create_shm_ring(session_id, self.rf_flags) as shm_ring_flags,
+    ):
+      object.__setattr__(self, "_rf_flags_memory", shm_ring_flags)
+      yield
+
+  def delete_ring_variables(self) -> None:
+    object.__setattr__(self, "_rf_flags_memory", None)
 
 
 @dataclass(frozen=True)
@@ -302,7 +325,7 @@ class WorkerResources:
 
 
 @dataclass(frozen=True)
-class FilesAnalyzerResources:
+class InputAnalyzerResources:
   input_queue: queue.Queue
   analyzer_queue: queue.Queue
   tot_n_segments_ptr: mp.RawValue  # type: ignore
@@ -342,7 +365,7 @@ class FilesAnalyzerResources:
     self.start_signal.clear()
 
   @classmethod
-  def create(cls, conf: InferenceConfig) -> FilesAnalyzerResources:
+  def create(cls, conf: InferenceConfig) -> InputAnalyzerResources:
     reserve_n_segments = 0
 
     if conf.processing_conf.max_audio_duration_min is not None:
@@ -368,7 +391,7 @@ class FilesAnalyzerResources:
       max_segment_ptr_value,
     )
 
-    return FilesAnalyzerResources(
+    return InputAnalyzerResources(
       analyzer_queue=queue.Queue(),
       input_queue=queue.Queue(),
       tot_n_segments_ptr=mp.RawValue(ctypes.c_uint64, 0),

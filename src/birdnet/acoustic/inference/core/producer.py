@@ -17,7 +17,7 @@ import numpy as np
 import numpy.typing as npt
 import soundfile
 
-import birdnet.acoustic.inference.logs as bn_logging
+import birdnet.acoustic.inference.core.logs as bn_logging
 from birdnet.globals import (
   READABLE_FLAG,
   READING_FLAG,
@@ -27,7 +27,7 @@ from birdnet.globals import (
   FloatArray,
   IntArray,
 )
-from birdnet.shm import RingField
+from birdnet.acoustic.inference.core.shm import RingField
 from birdnet.utils.helper import (
   SF_FORMATS,
   apply_speed_to_samples,
@@ -39,73 +39,6 @@ from birdnet.utils.helper import (
   itertools_batched,
   max_value_for_uint_dtype,
 )
-
-
-def get_segments_with_overlap_all_int(
-  total_duration: int,
-  segment_duration: int,
-  overlap_duration: int,
-) -> Generator[tuple[int, int], None, None]:
-  assert isinstance(total_duration, int)
-  assert isinstance(segment_duration, int)
-  assert isinstance(overlap_duration, int)
-  assert total_duration > 0
-  assert segment_duration > 0
-  assert 0 <= overlap_duration < segment_duration
-
-  step_duration = segment_duration - overlap_duration
-  for start in count(0, step=step_duration):
-    if start >= total_duration:
-      break
-    end = min(start + segment_duration, total_duration)
-    yield start, end
-
-
-def calculate_target_sample_count(
-  n_samples: int, sample_rate: int, target_sample_rate: int
-) -> int:
-  assert sample_rate > 0
-  assert target_sample_rate > 0
-  x, y = divmod(n_samples, sample_rate)
-  if y != 0:
-    raise ValueError("original_sample_count must be a multiple of sample_rate")
-  target_sample_count = x * target_sample_rate
-  return target_sample_count
-
-
-def resample_array_by_sr(
-  array: npt.NDArray, sample_rate: int, target_sample_rate: int
-) -> npt.NDArray:
-  assert len(array.shape) == 1
-  assert sample_rate > 0
-  assert target_sample_rate > 0
-
-  if sample_rate == target_sample_rate:
-    return array
-
-  dur_seconds = len(array) / sample_rate
-  target_sample_count = round(dur_seconds * target_sample_rate)
-
-  from scipy.signal import resample
-
-  array_resampled: npt.NDArray = resample(array, target_sample_count)
-  assert array_resampled.dtype == array.dtype
-  return array_resampled
-
-
-def resample_array_by_stretching(
-  array: npt.NDArray, target_n_samples: int
-) -> npt.NDArray:
-  assert len(array.shape) == 1
-
-  if len(array) == target_n_samples:
-    return array
-
-  from scipy.signal import resample
-
-  array_resampled: npt.NDArray = resample(array, target_n_samples)
-  assert array_resampled.dtype == array.dtype
-  return array_resampled
 
 
 class Producer(bn_logging.LogableProcessBase):
@@ -839,6 +772,73 @@ def get_segments_with_overlap_samples(
     target_n_samples = end_samples_orig - start_samples_orig
 
     yield start_samples_scaled, end_samples_scaled, target_n_samples
+
+
+def get_segments_with_overlap_all_int(
+  total_duration: int,
+  segment_duration: int,
+  overlap_duration: int,
+) -> Generator[tuple[int, int], None, None]:
+  assert isinstance(total_duration, int)
+  assert isinstance(segment_duration, int)
+  assert isinstance(overlap_duration, int)
+  assert total_duration > 0
+  assert segment_duration > 0
+  assert 0 <= overlap_duration < segment_duration
+
+  step_duration = segment_duration - overlap_duration
+  for start in count(0, step=step_duration):
+    if start >= total_duration:
+      break
+    end = min(start + segment_duration, total_duration)
+    yield start, end
+
+
+def calculate_target_sample_count(
+  n_samples: int, sample_rate: int, target_sample_rate: int
+) -> int:
+  assert sample_rate > 0
+  assert target_sample_rate > 0
+  x, y = divmod(n_samples, sample_rate)
+  if y != 0:
+    raise ValueError("original_sample_count must be a multiple of sample_rate")
+  target_sample_count = x * target_sample_rate
+  return target_sample_count
+
+
+def resample_array_by_sr(
+  array: npt.NDArray, sample_rate: int, target_sample_rate: int
+) -> npt.NDArray:
+  assert len(array.shape) == 1
+  assert sample_rate > 0
+  assert target_sample_rate > 0
+
+  if sample_rate == target_sample_rate:
+    return array
+
+  dur_seconds = len(array) / sample_rate
+  target_sample_count = round(dur_seconds * target_sample_rate)
+
+  from scipy.signal import resample
+
+  array_resampled: npt.NDArray = resample(array, target_sample_count)
+  assert array_resampled.dtype == array.dtype
+  return array_resampled
+
+
+def resample_array_by_stretching(
+  array: npt.NDArray, target_n_samples: int
+) -> npt.NDArray:
+  assert len(array.shape) == 1
+
+  if len(array) == target_n_samples:
+    return array
+
+  from scipy.signal import resample
+
+  array_resampled: npt.NDArray = resample(array, target_n_samples)
+  assert array_resampled.dtype == array.dtype
+  return array_resampled
 
 
 def read_data_in_mono(

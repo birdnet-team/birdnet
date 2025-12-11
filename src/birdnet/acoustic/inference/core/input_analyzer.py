@@ -10,19 +10,19 @@ from queue import Empty
 import numpy as np
 import soundfile
 
-import birdnet.acoustic.inference.logs as bn_logging
+import birdnet.acoustic.inference.core.logs as bn_logging
 from birdnet.acoustic.inference.core.producer import (
   get_audio_duration_from_sf,
   get_sf_info,
 )
-from birdnet.shm import RingField
+from birdnet.acoustic.inference.core.shm import RingField
 from birdnet.utils.helper import (
   get_n_segments_speed,
   max_value_for_uint_dtype,
 )
 
 
-class FilesAnalyzer:
+class InputAnalyzer:
   def __init__(
     self,
     session_id: str,
@@ -69,20 +69,20 @@ class FilesAnalyzer:
     return False
 
   def _log(self, message: str) -> None:
-    self._logger.debug(f"FA_{os.getpid()}: {message}")
+    self._logger.debug(f"IA_{os.getpid()}: {message}")
 
   def __call__(self) -> None:
     try:
       self.run_main_loop()
     except Exception as e:
       self._logger.exception(
-        "FilesAnalyzer encountered an exception.", exc_info=e, stack_info=True
+        "InputAnalyzer encountered an exception.", exc_info=e, stack_info=True
       )
       self._cancel_event.set()
 
   def run_main_loop(self) -> None:
     while True:
-      self._log("FilesAnalyzer waiting for input files batch...")
+      self._log("InputAnalyzer waiting for inputs...")
       while not self._start_signal.wait(timeout=1.0):
         if self._check_cancel_event():
           # self._uninit_logging()
@@ -151,17 +151,17 @@ class FilesAnalyzer:
 
       durations.append(audio_duration_s)
 
-      file_n_segments = get_n_segments_speed(
+      input_n_segments = get_n_segments_speed(
         audio_duration_s,
         self._segment_duration_s,
         self._overlap_duration_s,
         self._speed,
       )
-      file_max_segment_index = file_n_segments - 1
-      n_segments += file_n_segments
+      input_max_segment_index = input_n_segments - 1
+      n_segments += input_n_segments
 
-      if file_max_segment_index > current_max_segment_index:
-        if file_max_segment_index > self._max_supported_segment_index:
+      if input_max_segment_index > current_max_segment_index:
+        if input_max_segment_index > self._max_supported_segment_index:
           inp_path = (
             f"'{inp_data.absolute()}'"
             if isinstance(inp_data, Path)
@@ -169,18 +169,18 @@ class FilesAnalyzer:
           )
           self._logger.error(
             f"Input {inp_path} has a duration of {audio_duration_s / 60:.2f} min and "
-            f"contains {file_n_segments} segments, which exceeds the maximum supported "
+            f"contains {input_n_segments} segments, which exceeds the maximum supported "
             f"amount of segments {self._max_supported_segment_index + 1}. "
             f"Please set maximum audio duration."
           )
           self._cancel_event.set()
           return
 
-        current_max_segment_index = file_max_segment_index
+        current_max_segment_index = input_max_segment_index
         self._max_segment_idx_ptr.value = current_max_segment_index
     self._tot_n_segments.value = n_segments
     self._log("Putting analyzing result into queue.")
     self._analyzing_result.put(durations, block=True)
     self._log("Done putting analyzing result into queue.")
-    self._log(f"Total duration of all files: {sum(durations) / 60**2:.2f} h.")
+    self._log(f"Total duration of all inputs: {sum(durations) / 60**2:.2f} h.")
     self._finished.set()
