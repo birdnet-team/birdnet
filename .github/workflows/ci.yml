@@ -13,8 +13,11 @@ on:
 jobs:
   build-and-test:
     runs-on: ${{ matrix.os }}
+    continue-on-error: false
+    timeout-minutes: 360
 
     strategy:
+      fail-fast: false
       matrix:
         os:
           [
