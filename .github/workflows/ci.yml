@@ -63,6 +63,26 @@ jobs:
           python -m pip install uv --upgrade
           python -m uv pip install --system .[tests]
 
+      - name: Run tests py311
+        if: matrix.python-version == '3.11'
+        run: |
+          python -m tox -e py311
+
+      - name: Run tests py312
+        if: matrix.python-version == '3.12'
+        run: |
+          python -m tox -e py312
+
+      - name: Run tests py313
+        if: matrix.python-version == '3.13'
+        run: |
+          python -m tox -e py313
+
+      - name: Run repro tests
+        if: matrix.python-version == '3.12'
+        run: |
+          python -m tox -e py312-repro
+
       - name: Run coverage tests
         if: matrix.os == 'ubuntu-24.04' && matrix.python-version == '3.12'
         run: |
@@ -74,7 +94,3 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: birdnet-team/birdnet
-
-      - name: Run available tests for current configuration
-        run: |
-          python -m tox

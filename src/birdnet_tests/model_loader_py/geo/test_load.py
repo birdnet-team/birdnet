@@ -1,6 +1,7 @@
 from typing import Literal, cast
 
 import pytest
+from requests import ReadTimeout
 
 from birdnet.geo_models.v2_4.model import GeoModelV2_4
 from birdnet.model_loader import load
@@ -20,13 +21,19 @@ def test_pb_v2_4_with_library_raises_error() -> None:
 
 @pytest.mark.load_model
 def test_v2_4_pb() -> None:
-  model = load("geo", "2.4", "pb", precision="fp32")
+  try:
+    model = load("geo", "2.4", "pb", precision="fp32")
+  except ReadTimeout as e:
+    pytest.fail(f"Model download timed out: {e}. Try again later.")
   assert isinstance(model, GeoModelV2_4)
 
 
 @pytest.mark.load_model
 def test_v2_4_tf_fp32() -> None:
-  model = load("geo", "2.4", "tf", precision="fp32", library="tflite")
+  try:
+    model = load("geo", "2.4", "tf", precision="fp32", library="tflite")
+  except ReadTimeout as e:
+    pytest.fail(f"Model download timed out: {e}. Try again later.")
   assert isinstance(model, GeoModelV2_4)
 
 
