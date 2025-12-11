@@ -3,7 +3,9 @@ from pathlib import Path
 
 from ordered_set import OrderedSet
 
-from birdnet.base import ModelBase, ResultBase
+from birdnet.acoustic_models.inference.result_base import SessionBase
+from birdnet.acoustic_models.session import AcousticSessionBase
+from birdnet.core.base import ModelBase, ResultBase
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
 
 
@@ -20,7 +22,10 @@ class AcousticModelBase(ModelBase, ABC):
   @abstractmethod
   def get_version(cls) -> ACOUSTIC_MODEL_VERSIONS: ...
 
-  @classmethod
   @abstractmethod
-  def encode(cls, *args, **kwargs) -> ResultBase:  # noqa: ANN002, ANN003
+  def encode(self, *args, **kwargs) -> ResultBase:  # noqa: ANN002, ANN003
+    ...
+
+  @abstractmethod
+  def encode_session(self, *args, **kwargs) -> AcousticSessionBase:  # noqa: ANN002, ANN003
     ...

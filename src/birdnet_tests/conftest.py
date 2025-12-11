@@ -1,6 +1,6 @@
 import logging
 
-from birdnet.logging_utils import get_package_logger
+from birdnet.utils.logging_utils import get_package_logger
 
 
 def pytest_configure() -> None:

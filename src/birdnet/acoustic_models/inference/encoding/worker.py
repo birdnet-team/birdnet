@@ -6,7 +6,7 @@ from multiprocessing.synchronize import Event, Lock, Semaphore
 import numpy as np
 
 from birdnet.acoustic_models.inference.worker import WorkerBase
-from birdnet.backends import BackendLoader, BatchT
+from birdnet.core.backends import BackendLoader, BatchT
 from birdnet.shm import RingField
 
 

@@ -6,8 +6,8 @@ from logging.handlers import MemoryHandler, QueueHandler
 from multiprocessing import Queue
 from pathlib import Path
 
-from birdnet.base import get_session_id_hash
-from birdnet.logging_utils import get_package_logger, init_package_logger
+from birdnet.core.base import get_session_id_hash
+from birdnet.utils.logging_utils import get_package_logger, init_package_logger
 
 
 def get_session_logger(session_id: str) -> logging.Logger:

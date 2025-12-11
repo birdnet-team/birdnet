@@ -14,14 +14,14 @@ from birdnet.acoustic_models.inference.perf_tracker import AcousticProgressStats
 from birdnet.acoustic_models.inference.prediction.result import (
   AcousticPredictionResultBase,
 )
-from birdnet.acoustic_models.inference_pipeline.api import (
+from birdnet.acoustic_models.api import (
   AcousticEncodingSession,
   AcousticPredictionSession,
 )
 from birdnet.acoustic_models.inference_pipeline.configs import InferenceConfig
-from birdnet.backends import BackendLoader, VersionedAcousticBackendProtocol
+from birdnet.core.backends import BackendLoader, VersionedAcousticBackendProtocol
 from birdnet.globals import ACOUSTIC_MODEL_VERSION_V2_4, ACOUSTIC_MODEL_VERSIONS
-from birdnet.helper import validate_species_list
+from birdnet.utils.helper import validate_species_list
 
 
 class AcousticDownloaderBaseV2_4:

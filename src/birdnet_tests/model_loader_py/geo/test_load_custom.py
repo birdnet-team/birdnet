@@ -5,7 +5,7 @@ import pytest
 from birdnet.geo_models.v2_4.model import GeoModelV2_4
 from birdnet.geo_models.v2_4.pb import GeoPBDownloaderV2_4
 from birdnet.geo_models.v2_4.tf import GeoTFDownloaderV2_4
-from birdnet.local_data import get_lang_dir, get_model_path
+from birdnet.utils.local_data import get_lang_dir, get_model_path
 from birdnet.model_loader import load_custom
 from birdnet_tests.helper import ensure_litert_or_skip
 

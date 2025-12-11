@@ -4,7 +4,7 @@ from typing import Any
 
 from ordered_set import OrderedSet
 
-from birdnet.backends import VersionedBackendProtocol
+from birdnet.core.backends import VersionedBackendProtocol
 from birdnet.globals import GEO_MODEL_VERSIONS
 
 

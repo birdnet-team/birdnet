@@ -2,7 +2,7 @@ import numpy as np
 import numpy.testing as npt
 
 from birdnet.acoustic_models.inference.producer import resample_array_by_sr
-from birdnet.helper import apply_speed_to_samples
+from birdnet.utils.helper import apply_speed_to_samples
 
 
 def test_same_sr__changes_nothing() -> None:

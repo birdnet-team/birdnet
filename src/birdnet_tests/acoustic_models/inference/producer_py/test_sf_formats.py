@@ -1,4 +1,4 @@
-from birdnet.helper import SF_FORMATS
+from birdnet.utils.helper import SF_FORMATS
 
 
 def test_all_formats_from_sf_are_in_global_var() -> None:

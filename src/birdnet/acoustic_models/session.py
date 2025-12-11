@@ -23,7 +23,7 @@ from birdnet.acoustic_models.inference_pipeline.resources import (
   ResourceManager,
 )
 from birdnet.acoustic_models.inference_pipeline.strategy import InferenceStrategyBase
-from birdnet.base import SessionBase, get_session_id_hash
+from birdnet.core.base import SessionBase, get_session_id_hash
 from birdnet.globals import WRITABLE_FLAG
 from birdnet.shm import create_shm_ring
 

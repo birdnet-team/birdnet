@@ -4,7 +4,7 @@ from abc import abstractmethod
 
 import numpy as np
 
-from birdnet.helper import get_uint_dtype
+from birdnet.utils.helper import get_uint_dtype
 
 
 class AcousticTensorBase:

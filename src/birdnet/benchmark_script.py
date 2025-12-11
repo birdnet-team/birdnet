@@ -10,7 +10,7 @@ import birdnet
 import birdnet.model_loader
 from birdnet.acoustic_models.inference.perf_tracker import AcousticProgressStats
 from birdnet.acoustic_models.v2_4.model import AcousticModelV2_4
-from birdnet.argparse_helper import (
+from birdnet.utils.argparse_helper import (
   ConvertToSetAction,
   parse_float,
   parse_non_empty_or_whitespace,
@@ -32,7 +32,7 @@ from birdnet.globals import (
   VALID_MODEL_BACKENDS,
   VALID_MODEL_PRECISIONS,
 )
-from birdnet.logging_utils import get_package_logger
+from birdnet.utils.logging_utils import get_package_logger
 
 
 def run_benchmark() -> None:

@@ -15,7 +15,7 @@ from birdnet.acoustic_models.inference.producer import (
   get_audio_duration_from_sf,
   get_sf_info,
 )
-from birdnet.helper import (
+from birdnet.utils.helper import (
   get_n_segments_speed,
   max_value_for_uint_dtype,
 )

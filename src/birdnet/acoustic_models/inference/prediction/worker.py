@@ -9,10 +9,9 @@ import numpy as np
 from numpy.typing import DTypeLike
 
 from birdnet.acoustic_models.inference.worker import WorkerBase
-from birdnet.backends import BackendLoader, BatchT
-from birdnet.helper import get_uint_dtype
+from birdnet.core.backends import BackendLoader, BatchT
+from birdnet.utils.helper import flat_sigmoid_logaddexp_fast, get_uint_dtype
 from birdnet.shm import RingField
-from birdnet.utils import flat_sigmoid_logaddexp_fast
 
 if TYPE_CHECKING:
   pass

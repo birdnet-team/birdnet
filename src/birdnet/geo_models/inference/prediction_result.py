@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 from ordered_set import OrderedSet
 
-from birdnet.base import ResultBase
+from birdnet.core.base import ResultBase
 
 VAR_SPECIES_NAME = "species_name"
 VAR_CONFIDENCE = "confidence"

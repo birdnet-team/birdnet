@@ -24,17 +24,17 @@ from birdnet.acoustic_models.inference.perf_tracker import (
 )
 from birdnet.acoustic_models.inference_pipeline.configs import InferenceConfig
 from birdnet.acoustic_models.inference_pipeline.logs import add_session_queue_handler
-from birdnet.backends import BackendLoader
-from birdnet.base import get_session_id_hash
+from birdnet.core.backends import BackendLoader
+from birdnet.core.base import get_session_id_hash
 from birdnet.globals import MODEL_TYPE_ACOUSTIC, PKG_NAME
-from birdnet.helper import (
+from birdnet.utils.helper import (
   get_float_dtype,
   get_n_segments_speed,
   get_uint_dtype,
   uint_ctype_from_dtype,
 )
-from birdnet.local_data import get_benchmark_dir
-from birdnet.logging_utils import get_package_logging_level
+from birdnet.utils.local_data import get_benchmark_dir
+from birdnet.utils.logging_utils import get_package_logging_level
 from birdnet.shm import RingField
 
 

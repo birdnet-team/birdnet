@@ -31,8 +31,8 @@ from birdnet.acoustic_models.inference_pipeline.encoding_strategy import (
 from birdnet.acoustic_models.inference_pipeline.prediction_strategy import (
   PredictionStrategy,
 )
-from birdnet.acoustic_models.inference_pipeline.session import AcousticSessionBase
-from birdnet.backends import VersionedAcousticBackendProtocol
+from birdnet.acoustic_models.session import AcousticSessionBase
+from birdnet.core.backends import VersionedAcousticBackendProtocol
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
 
 

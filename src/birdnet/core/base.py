@@ -9,7 +9,7 @@ from typing import Self
 import numpy as np
 from ordered_set import OrderedSet
 
-from birdnet.helper import get_hash
+from birdnet.utils.helper import get_hash
 
 NP_MODEL_PATH_KEY = "model_path"
 NP_MODEL_PRECISION_KEY = "model_precision"
@@ -183,12 +183,10 @@ class ModelBase(ABC):
   def load_custom(cls, *args, **kwargs) -> Self:  # noqa: ANN002, ANN003
     ...
 
-  @classmethod
   @abstractmethod
-  def predict(cls, *args, **kwargs) -> ResultBase:  # noqa: ANN002, ANN003
+  def predict(self, *args, **kwargs) -> ResultBase:  # noqa: ANN002, ANN003
     ...
 
-  @classmethod
   @abstractmethod
-  def predict_session(cls, *args, **kwargs) -> SessionBase:  # noqa: ANN002, ANN003
+  def predict_session(self, *args, **kwargs) -> SessionBase:  # noqa: ANN002, ANN003
     ...

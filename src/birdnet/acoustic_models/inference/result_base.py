@@ -8,8 +8,8 @@ from typing import Self
 import numpy as np
 from ordered_set import OrderedSet
 
-from birdnet.base import ResultBase
-from birdnet.helper import get_float_dtype, get_hash, get_uint_dtype
+from birdnet.core.base import ResultBase
+from birdnet.utils.helper import get_float_dtype, get_hash, get_uint_dtype
 
 NP_INPUTS_KEY = "inputs"
 NP_INPUT_DURATIONS_KEY = "input_durations"

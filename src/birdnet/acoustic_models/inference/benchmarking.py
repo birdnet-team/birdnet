@@ -11,7 +11,7 @@ from typing import Any
 import numpy as np
 import psutil
 
-from birdnet.backends import (
+from birdnet.core.backends import (
   litert_installed,
   tf_installed,
 )
@@ -21,7 +21,7 @@ from birdnet.globals import (
   MODEL_TYPES,
   NA,
 )
-from birdnet.local_data import get_package_version
+from birdnet.utils.local_data import get_package_version
 
 
 @dataclass

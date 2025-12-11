@@ -11,7 +11,7 @@ from ordered_set import OrderedSet
 from birdnet.acoustic_models.v2_4.model import (
   AcousticDownloaderBaseV2_4,
 )
-from birdnet.backends import (
+from birdnet.core.backends import (
   TFBackend,
   VersionedAcousticBackendProtocol,
 )
@@ -22,9 +22,8 @@ from birdnet.globals import (
   MODEL_PRECISION_INT8,
   MODEL_PRECISIONS,
 )
-from birdnet.helper import ModelInfo
-from birdnet.local_data import get_lang_dir, get_model_path
-from birdnet.utils import download_file_tqdm, get_species_from_file
+from birdnet.utils.helper import ModelInfo, download_file_tqdm, get_species_from_file
+from birdnet.utils.local_data import get_lang_dir, get_model_path
 
 models = {
   MODEL_PRECISION_INT8: ModelInfo(

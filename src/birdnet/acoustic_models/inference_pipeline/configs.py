@@ -13,10 +13,10 @@ from ordered_set import OrderedSet
 
 from birdnet.acoustic_models.inference.perf_tracker import AcousticProgressStats
 from birdnet.acoustic_models.inference.tensor import AcousticTensorBase
-from birdnet.backends import VersionedBackendProtocol
-from birdnet.base import ResultBase
+from birdnet.core.backends import VersionedBackendProtocol
+from birdnet.core.base import ResultBase
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
-from birdnet.helper import (
+from birdnet.utils.helper import (
   SF_FORMATS,
   get_supported_audio_files_recursive,
   is_supported_audio_file,

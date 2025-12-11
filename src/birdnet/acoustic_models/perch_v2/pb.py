@@ -5,7 +5,7 @@ from typing import Literal
 
 from ordered_set import OrderedSet
 
-from birdnet.backends import (
+from birdnet.core.backends import (
   PBBackend,
   VersionedAcousticBackendProtocol,
 )
@@ -13,8 +13,7 @@ from birdnet.globals import (
   MODEL_PRECISION_FP32,
   MODEL_PRECISIONS,
 )
-from birdnet.helper import check_protobuf_model_files_exist
-from birdnet.utils import get_species_from_file
+from birdnet.utils.helper import check_protobuf_model_files_exist, get_species_from_file
 
 
 class AcousticPBDownloaderPerchV2:

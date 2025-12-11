@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from requests import ReadTimeout
 
-from birdnet.utils import download_file_tqdm
+from birdnet.utils.helper import download_file_tqdm
 
 
 def test_download_geo_model_to_tmp() -> None:

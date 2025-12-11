@@ -7,7 +7,7 @@ from pathlib import Path
 
 from ordered_set import OrderedSet
 
-from birdnet.backends import (
+from birdnet.core.backends import (
   PBBackend,
   VersionedGeoBackendProtocol,
 )
@@ -16,9 +16,12 @@ from birdnet.globals import (
   MODEL_PRECISION_FP32,
   MODEL_PRECISIONS,
 )
-from birdnet.helper import check_protobuf_model_files_exist
-from birdnet.local_data import get_lang_dir, get_model_path
-from birdnet.utils import download_file_tqdm, get_species_from_file
+from birdnet.utils.helper import (
+  check_protobuf_model_files_exist,
+  download_file_tqdm,
+  get_species_from_file,
+)
+from birdnet.utils.local_data import get_lang_dir, get_model_path
 
 
 class GeoPBDownloaderV2_4(GeoDownloaderBaseV2_4):

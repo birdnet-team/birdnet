@@ -7,7 +7,7 @@ from birdnet.acoustic_models.inference.encoding.result import (
   AcousticFileEncodingResult,
 )
 from birdnet.acoustic_models.inference.encoding.tensor import AcousticEncodingTensor
-from birdnet.helper import get_float_dtype, get_n_segments_speed
+from birdnet.utils.helper import get_float_dtype, get_n_segments_speed
 
 
 def create_mock_tensor_one_unproc(

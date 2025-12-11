@@ -1,7 +1,7 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from birdnet.helper import get_supported_audio_files_recursive
+from birdnet.utils.helper import get_supported_audio_files_recursive
 
 
 def test_component_test() -> None:

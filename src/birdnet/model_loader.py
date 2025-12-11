@@ -26,13 +26,13 @@ from birdnet.acoustic_models.v2_4.tf import (
   AcousticTFBackendInt8V2_4,
   AcousticTFDownloaderV2_4,
 )
-from birdnet.backends import (
+from birdnet.core.backends import (
   TF_BACKEND_LIB_ARG,
   VersionedAcousticBackendProtocol,
   litert_installed,
   tf_installed,
 )
-from birdnet.base import ModelBase
+from birdnet.core.base import ModelBase
 from birdnet.geo_models.base import GeoModelBase
 from birdnet.geo_models.v2_4.model import (
   GeoModelV2_4,
@@ -74,7 +74,7 @@ from birdnet.globals import (
   VALID_MODEL_PRECISIONS,
   VALID_MODEL_TYPES,
 )
-from birdnet.helper import check_protobuf_model_files_exist
+from birdnet.utils.helper import check_protobuf_model_files_exist
 
 
 def _validate_model_type(model_type: Any) -> MODEL_TYPES:  # noqa: ANN401

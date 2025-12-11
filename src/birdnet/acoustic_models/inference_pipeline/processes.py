@@ -7,7 +7,6 @@ from pathlib import Path
 
 import numpy as np
 
-import birdnet.acoustic_models.inference_pipeline.logs
 from birdnet.acoustic_models.inference.consumer import Consumer
 from birdnet.acoustic_models.inference.files_analyzer import FilesAnalyzer
 from birdnet.acoustic_models.inference.perf_tracker import (
@@ -22,9 +21,13 @@ from birdnet.acoustic_models.inference_pipeline.configs import (
   ResultType,
   TensorType,
 )
+from birdnet.acoustic_models.inference_pipeline.logs import (
+  QueueFileWriter,
+  get_logger_from_session,
+)
 from birdnet.acoustic_models.inference_pipeline.resources import PipelineResources
 from birdnet.acoustic_models.inference_pipeline.strategy import InferenceStrategyBase
-from birdnet.base import get_session_id_hash
+from birdnet.core.base import get_session_id_hash
 
 
 class ProcessManager:
@@ -38,11 +41,7 @@ class ProcessManager:
   ) -> None:
     self._session_id = session_id
     self._session_hash = get_session_id_hash(session_id)
-    self._logger = (
-      birdnet.acoustic_models.inference_pipeline.logs.get_logger_from_session(
-        session_id, __name__
-      )
-    )
+    self._logger = get_logger_from_session(session_id, __name__)
     self._cfg = config
     self._strategy = strategy
     self._specific_cfg = specific_config
@@ -55,7 +54,7 @@ class ProcessManager:
 
   def start_logging_thread(self) -> threading.Thread:
     logging_listener = threading.Thread(
-      target=birdnet.acoustic_models.inference_pipeline.logs.QueueFileWriter(
+      target=QueueFileWriter(
         session_id=self._session_id,
         log_queue=self._res.logging_resources.logging_queue,
         logging_level=self._res.logging_resources.logging_level,
@@ -304,9 +303,7 @@ class ProcessManager:
       self.start_progress_dispatcher_thread()
 
   def join_main_processes(self) -> None:
-    logger = birdnet.acoustic_models.inference_pipeline.logs.get_logger_from_session(
-      self._session_id, __name__
-    )
+    logger = get_logger_from_session(self._session_id, __name__)
 
     logger.debug("Joining file analyzer thread...")
     assert self._analyzer_thread is not None

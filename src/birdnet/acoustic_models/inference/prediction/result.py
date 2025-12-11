@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from birdnet.acoustic_models.inference.prediction.tensor import AcousticPredictionTensor
 from birdnet.acoustic_models.inference.result_base import AcousticResultBase
-from birdnet.helper import (
+from birdnet.utils.helper import (
   apply_speed_to_duration,
   get_hop_duration_s,
   get_uint_dtype,

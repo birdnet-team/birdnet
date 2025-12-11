@@ -20,7 +20,7 @@ from birdnet.acoustic_models.inference.encoding.result import (
 from birdnet.acoustic_models.inference.prediction.result import (
   AcousticPredictionResultBase,
 )
-from birdnet.backends import litert_installed
+from birdnet.core.backends import litert_installed
 
 
 def create_zero_len_wav(f: IO[bytes]) -> None:

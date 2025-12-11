@@ -5,7 +5,7 @@ from typing import Any, final
 
 from ordered_set import OrderedSet
 
-from birdnet.backends import (
+from birdnet.core.backends import (
   BackendLoader,
   VersionedGeoBackendProtocol,
 )
@@ -18,7 +18,7 @@ from birdnet.globals import (
   MODEL_TYPE_GEO,
   MODEL_TYPES,
 )
-from birdnet.helper import validate_species_list
+from birdnet.utils.helper import validate_species_list
 
 
 class GeoDownloaderBaseV2_4:

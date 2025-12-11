@@ -9,7 +9,7 @@ from birdnet.acoustic_models.inference.prediction.result import (
   AcousticPredictionResultBase,
 )
 from birdnet.acoustic_models.inference.prediction.tensor import AcousticPredictionTensor
-from birdnet.helper import (
+from birdnet.utils.helper import (
   get_float_dtype,
   get_n_segments_speed,
 )

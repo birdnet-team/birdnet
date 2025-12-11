@@ -5,18 +5,18 @@ from typing import Self
 
 import numpy as np
 
-from birdnet.backends import (
+from birdnet.core.backends import (
   BackendLoader,
   VersionedGeoBackendProtocol,
 )
-from birdnet.base import SessionBase
+from birdnet.core.base import SessionBase
 from birdnet.geo_models.inference.configs import (
   InferenceConfig,
   PredictionConfig,
   RunConfig,
 )
 from birdnet.geo_models.inference.prediction_result import GeoPredictionResult
-from birdnet.helper import get_uint_dtype
+from birdnet.utils.helper import get_uint_dtype
 
 
 class GeoSessionBase(SessionBase, ABC):

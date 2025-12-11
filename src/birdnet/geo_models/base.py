@@ -3,7 +3,7 @@ from pathlib import Path
 
 from ordered_set import OrderedSet
 
-from birdnet.base import ModelBase
+from birdnet.core.base import ModelBase
 from birdnet.globals import GEO_MODEL_VERSIONS
 
 

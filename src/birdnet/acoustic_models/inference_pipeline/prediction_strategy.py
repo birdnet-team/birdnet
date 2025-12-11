@@ -29,12 +29,12 @@ from birdnet.acoustic_models.inference_pipeline.resources import (
 from birdnet.acoustic_models.inference_pipeline.strategy import (
   InferenceStrategyBase,
 )
-from birdnet.backends import TF_BACKEND_LIB_ARG
+from birdnet.core.backends import TF_BACKEND_LIB_ARG
 from birdnet.globals import (
   MODEL_TYPE_ACOUSTIC,
   NA,
 )
-from birdnet.helper import get_file_formats
+from birdnet.utils.helper import get_file_formats
 
 
 class PredictionStrategy(

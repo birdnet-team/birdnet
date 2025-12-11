@@ -31,7 +31,7 @@ from birdnet.globals import (
   MODEL_BACKEND_TF,
   MODEL_PRECISIONS,
 )
-from birdnet.logging_utils import get_logger_for_package
+from birdnet.utils.logging_utils import get_logger_for_package
 
 if TYPE_CHECKING:
   from ai_edge_litert.interpreter import Interpreter as LiteRTInterpreter
