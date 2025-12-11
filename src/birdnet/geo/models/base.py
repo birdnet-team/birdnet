@@ -4,6 +4,8 @@ from pathlib import Path
 from ordered_set import OrderedSet
 
 from birdnet.core.base import ModelBase
+from birdnet.geo.inference.prediction_result import GeoPredictionResult
+from birdnet.geo.inference.session import GeoPredictionSession
 from birdnet.globals import GEO_MODEL_VERSIONS
 
 
@@ -16,3 +18,11 @@ class GeoModelBase(ModelBase):
   @classmethod
   @abstractmethod
   def get_version(cls) -> GEO_MODEL_VERSIONS: ...
+
+  @abstractmethod
+  def predict(self, *args, **kwargs) -> GeoPredictionResult:  # noqa: ANN002, ANN003
+    ...
+
+  @abstractmethod
+  def predict_session(self, *args, **kwargs) -> GeoPredictionSession:  # noqa: ANN002, ANN003
+    ...
