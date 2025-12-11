@@ -21,7 +21,7 @@ from birdnet.acoustic.inference.core.encoding.encoding_result import (
 from birdnet.acoustic.inference.core.encoding.encoding_tensor import (
   AcousticEncodingTensor,
 )
-from birdnet.acoustic.inference.core.encoding.encoding_worker import EmbeddingsWorker
+from birdnet.acoustic.inference.core.encoding.encoding_worker import EncodingWorker
 from birdnet.acoustic.inference.core.worker import WorkerBase
 from birdnet.acoustic.inference.resources import (
   PipelineResources,
@@ -73,7 +73,7 @@ class EncodingStrategy(
     resources: PipelineResources,
   ) -> list[WorkerBase]:
     return [
-      EmbeddingsWorker(
+      EncodingWorker(
         session_id=session_id,
         backend_loader=resources.worker_resources.backend_loader,
         device=resources.worker_resources.devices[i],

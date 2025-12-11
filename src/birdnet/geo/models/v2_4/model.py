@@ -9,9 +9,9 @@ from birdnet.core.backends import (
   BackendLoader,
   VersionedGeoBackendProtocol,
 )
-from birdnet.geo_models.base import GeoModelBase
-from birdnet.geo_models.inference.api import GeoPredictionSession
-from birdnet.geo_models.inference.prediction_result import GeoPredictionResult
+from birdnet.geo.models.base import GeoModelBase
+from birdnet.geo.inference.session import GeoPredictionSession
+from birdnet.geo.inference.prediction_result import GeoPredictionResult
 from birdnet.globals import (
   GEO_MODEL_VERSION_V2_4,
   GEO_MODEL_VERSIONS,

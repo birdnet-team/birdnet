@@ -11,7 +11,7 @@ from birdnet.core.backends import (
   PBBackend,
   VersionedGeoBackendProtocol,
 )
-from birdnet.geo_models.v2_4.model import GeoDownloaderBaseV2_4
+from birdnet.geo.models.v2_4.model import GeoDownloaderBaseV2_4
 from birdnet.globals import (
   MODEL_PRECISION_FP32,
   MODEL_PRECISIONS,

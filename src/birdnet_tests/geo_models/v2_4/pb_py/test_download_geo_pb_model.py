@@ -1,4 +1,4 @@
-from birdnet.geo_models.v2_4.pb import GeoPBDownloaderV2_4
+from birdnet.geo.models.v2_4.pb import GeoPBDownloaderV2_4
 
 
 def xtest_double_download() -> None:

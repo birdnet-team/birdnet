@@ -6,8 +6,8 @@ import numpy.testing
 import pytest
 from tqdm import tqdm
 
-from birdnet.geo_models.inference.prediction_result import GeoPredictionResult
-from birdnet.geo_models.v2_4.model import GeoModelV2_4
+from birdnet.geo.inference.prediction_result import GeoPredictionResult
+from birdnet.geo.models.v2_4.model import GeoModelV2_4
 from birdnet.model_loader import load
 from birdnet_tests.helper import ensure_gpu_or_skip, ensure_litert_or_skip
 

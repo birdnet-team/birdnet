@@ -3,7 +3,7 @@ from typing import Literal, cast
 import pytest
 from requests import ReadTimeout
 
-from birdnet.geo_models.v2_4.model import GeoModelV2_4
+from birdnet.geo.models.v2_4.model import GeoModelV2_4
 from birdnet.model_loader import load
 from birdnet_tests.helper import ensure_litert_or_skip
 

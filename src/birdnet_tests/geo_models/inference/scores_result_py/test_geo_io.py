@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 from ordered_set import OrderedSet
 
-from birdnet.geo_models.inference.prediction_result import GeoPredictionResult
+from birdnet.geo.inference.prediction_result import GeoPredictionResult
 
 
 def get_dummy_result() -> GeoPredictionResult:

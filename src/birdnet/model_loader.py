@@ -33,12 +33,12 @@ from birdnet.core.backends import (
   tf_installed,
 )
 from birdnet.core.base import ModelBase
-from birdnet.geo_models.base import GeoModelBase
-from birdnet.geo_models.v2_4.model import (
+from birdnet.geo.models.base import GeoModelBase
+from birdnet.geo.models.v2_4.model import (
   GeoModelV2_4,
 )
-from birdnet.geo_models.v2_4.pb import GeoPBBackendFP32V2_4, GeoPBDownloaderV2_4
-from birdnet.geo_models.v2_4.tf import (
+from birdnet.geo.models.v2_4.pb import GeoPBBackendFP32V2_4, GeoPBDownloaderV2_4
+from birdnet.geo.models.v2_4.tf import (
   GeoTFBackendFP32V2_4,
   GeoTFDownloaderV2_4,
 )

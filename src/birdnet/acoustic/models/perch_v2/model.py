@@ -6,10 +6,6 @@ from typing import Any, Literal, final
 
 from ordered_set import OrderedSet
 
-from birdnet.acoustic.inference.api import (
-  AcousticEncodingSession,
-  AcousticPredictionSession,
-)
 from birdnet.acoustic.inference.configs import InferenceConfig
 from birdnet.acoustic.inference.core.encoding.encoding_result import (
   AcousticEncodingResultBase,
@@ -17,6 +13,10 @@ from birdnet.acoustic.inference.core.encoding.encoding_result import (
 from birdnet.acoustic.inference.core.perf_tracker import AcousticProgressStats
 from birdnet.acoustic.inference.core.prediction.prediction_result import (
   AcousticPredictionResultBase,
+)
+from birdnet.acoustic.inference.session import (
+  AcousticEncodingSession,
+  AcousticPredictionSession,
 )
 from birdnet.acoustic.models.base import AcousticModelBase
 from birdnet.core.backends import BackendLoader, VersionedAcousticBackendProtocol
