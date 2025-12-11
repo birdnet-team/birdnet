@@ -3,11 +3,13 @@ from requests import ReadTimeout
 
 from birdnet.acoustic.models.perch_v2.model import AcousticModelPerchV2
 from birdnet.model_loader import load_perch_v2
-from birdnet_tests.helper import ensure_gpu_or_skip
+from birdnet_tests.helper import ensure_gpu_or_skip, ensure_not_intel_macos_or_skip
 
 
 @pytest.mark.load_model
 def test_perch_cpu_v2() -> None:
+  ensure_not_intel_macos_or_skip()
+
   try:
     model = load_perch_v2("CPU")
   except ReadTimeout as e:
@@ -16,6 +18,8 @@ def test_perch_cpu_v2() -> None:
 
 
 def test_perch_cpu_v2_invalid_device_raise_error() -> None:
+  ensure_not_intel_macos_or_skip()
+
   with pytest.raises(ValueError):
     load_perch_v2("TPU")  # type: ignore
 
@@ -23,6 +27,7 @@ def test_perch_cpu_v2_invalid_device_raise_error() -> None:
 @pytest.mark.gpu
 @pytest.mark.load_model
 def test_perch_gpu_v2() -> None:
+  ensure_not_intel_macos_or_skip()
   ensure_gpu_or_skip()
 
   try:

@@ -100,6 +100,8 @@ If you encounter issues with audio file reading, please ensure that `libsndfile`
 | **FP16** | ❌ | ❌
 | **FP32** | CPU/GPU | ❌
 
+Note: Perch can **not** be run on Intel macOS systems due to compatibility issues with TensorFlow.
+
 ## Example usage
 
 ### Identify species within an audio file

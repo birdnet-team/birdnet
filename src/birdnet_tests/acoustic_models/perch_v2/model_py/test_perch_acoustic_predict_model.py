@@ -9,6 +9,7 @@ from birdnet_tests.helper import (
   assert_prediction_result_is_close,
   assert_prediction_result_is_equal,
   ensure_gpu_or_skip,
+  ensure_not_intel_macos_or_skip,
   use_fork_or_skip,
   use_forkserver_or_skip,
   use_spawn_or_skip,
@@ -17,6 +18,8 @@ from birdnet_tests.test_files import TEST_FILE_LONG, TEST_FILE_SHORT
 
 
 def test_cpu() -> None:
+  ensure_not_intel_macos_or_skip()
+
   model = load_perch_v2("CPU")
   with model.predict_session(n_workers=1, top_k=None, device="CPU") as session:
     res = session.run(TEST_FILE_SHORT)
@@ -24,6 +27,8 @@ def test_cpu() -> None:
 
 
 def test_cpu_speed_factor() -> None:
+  ensure_not_intel_macos_or_skip()
+
   model = load_perch_v2("CPU")
   with model.predict_session(
     n_workers=1, top_k=None, device="CPU", speed=0.5
@@ -34,6 +39,7 @@ def test_cpu_speed_factor() -> None:
 
 @pytest.mark.gpu
 def test_gpu() -> None:
+  ensure_not_intel_macos_or_skip()
   ensure_gpu_or_skip()
 
   model = load_perch_v2("GPU")
@@ -44,6 +50,7 @@ def test_gpu() -> None:
 
 @pytest.mark.gpu
 def xtest_gpu_too_large_batch_size_raises_error() -> None:
+  ensure_not_intel_macos_or_skip()
   ensure_gpu_or_skip()
 
   import soundfile as sf
@@ -53,15 +60,20 @@ def xtest_gpu_too_large_batch_size_raises_error() -> None:
 
   model = load_perch_v2("GPU")
 
-  with pytest.raises(RuntimeError), model.predict_session(
-    n_workers=1, top_k=None, device="GPU", batch_size=2000
-  ) as session:
+  with (
+    pytest.raises(RuntimeError),
+    model.predict_session(
+      n_workers=1, top_k=None, device="GPU", batch_size=2000
+    ) as session,
+  ):
     session.run_arrays((data_6h, sr))
 
 
 def run_session_process(
   x: multiprocessing.synchronize.Barrier, q: multiprocessing.Queue
 ) -> None:
+  ensure_not_intel_macos_or_skip()
+
   model = load_perch_v2("CPU")
   x.wait()
   with model.predict_session(n_workers=1, top_k=None) as session:
@@ -136,6 +148,8 @@ def test_twice_two_sessions_parallel_processes_spawn() -> None:
 
 
 def test_twice_same_session() -> None:
+  ensure_not_intel_macos_or_skip()
+
   model = load_perch_v2("CPU")
   with model.predict_session(n_workers=1, top_k=None) as session:
     res1 = session.run(TEST_FILE_SHORT)
@@ -144,6 +158,8 @@ def test_twice_same_session() -> None:
 
 
 def test_twice_two_sessions() -> None:
+  ensure_not_intel_macos_or_skip()
+
   model = load_perch_v2("CPU")
   with model.predict_session(n_workers=1, top_k=None) as session:
     res1 = session.run(TEST_FILE_SHORT)
@@ -154,6 +170,7 @@ def test_twice_two_sessions() -> None:
 
 @pytest.mark.gpu
 def test_twice_two_sessions_gpu() -> None:
+  ensure_not_intel_macos_or_skip()
   ensure_gpu_or_skip()
 
   model = load_perch_v2("GPU")
@@ -170,6 +187,7 @@ def test_twice_two_sessions_gpu() -> None:
 
 @pytest.mark.gpu
 def test_twice_same_session_gpu() -> None:
+  ensure_not_intel_macos_or_skip()
   ensure_gpu_or_skip()
 
   model = load_perch_v2("GPU")

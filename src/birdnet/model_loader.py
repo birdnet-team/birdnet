@@ -74,7 +74,7 @@ from birdnet.globals import (
   VALID_MODEL_PRECISIONS,
   VALID_MODEL_TYPES,
 )
-from birdnet.utils.helper import check_protobuf_model_files_exist
+from birdnet.utils.helper import check_is_intel_macos, check_protobuf_model_files_exist
 
 
 def _validate_model_type(model_type: Any) -> MODEL_TYPES:  # noqa: ANN401
@@ -218,6 +218,11 @@ def _validate_device(device: Any) -> Literal["CPU", "GPU"]:  # noqa: ANN401
 
 
 def load_perch_v2(device: str) -> AcousticModelPerchV2:
+  if check_is_intel_macos():
+    # intel macos is not supported
+    # it would raise "Graph execution error" as XlaCallModule cannot be deserialized
+    raise OSError("The Perch v2 model is not supported on Intel macOS systems.")
+
   device = _validate_device(device)
   model_path, species_list = AcousticPBDownloaderPerchV2.get_model_path_and_labels(
     device

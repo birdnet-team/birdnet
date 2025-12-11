@@ -17,6 +17,17 @@ from numpy.typing import DTypeLike
 from ordered_set import OrderedSet
 from tqdm import tqdm
 
+from birdnet.globals import Float32Array
+
+
+def check_is_intel_macos() -> bool:
+  import platform
+
+  if platform.system() == "Darwin":
+    is_intel = platform.machine() == "x86_64"
+    return is_intel
+  return False
+
 
 def get_hash(session_id: str) -> str:
   hash_digest = hashlib.sha256(session_id.encode()).hexdigest()

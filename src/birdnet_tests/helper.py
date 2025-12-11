@@ -21,6 +21,7 @@ from birdnet.acoustic.inference.core.prediction.prediction_result import (
   AcousticPredictionResultBase,
 )
 from birdnet.core.backends import litert_installed
+from birdnet.utils.helper import check_is_intel_macos
 
 
 def create_zero_len_wav(f: IO[bytes]) -> None:
@@ -168,6 +169,11 @@ def tensorflow_gpu_available() -> bool:
 def ensure_gpu_or_skip() -> None:
   if not tensorflow_gpu_available():
     pytest.skip("GPU not available")
+
+
+def ensure_not_intel_macos_or_skip() -> None:
+  if check_is_intel_macos():
+    pytest.skip("Test not supported on Intel macOS systems")
 
 
 def ensure_gpu_or_skip_smi() -> None:
