@@ -7,7 +7,7 @@ import queue
 import tempfile
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
@@ -200,7 +200,7 @@ class RingBufferResources:
     flags[:] = WRITABLE_FLAG
 
   @contextmanager
-  def shared_memory_context(self, session_id: str):
+  def shared_memory_context(self, session_id: str) -> Iterator[None]:
     with (
       create_shm_ring(session_id, self.rf_file_indices),
       create_shm_ring(session_id, self.rf_segment_indices),
