@@ -72,8 +72,6 @@ def xtest_gpu_too_large_batch_size_raises_error() -> None:
 def run_session_process(
   x: multiprocessing.synchronize.Barrier, q: multiprocessing.Queue
 ) -> None:
-  ensure_not_intel_macos_or_skip()
-
   model = load_perch_v2("CPU")
   x.wait()
   with model.predict_session(n_workers=1, top_k=None) as session:
@@ -82,6 +80,7 @@ def run_session_process(
 
 
 def test_twice_two_sessions_parallel_processes_fork() -> None:
+  ensure_not_intel_macos_or_skip()
   use_fork_or_skip()
 
   with multiprocessing.Manager() as manager:
@@ -104,6 +103,7 @@ def test_twice_two_sessions_parallel_processes_fork() -> None:
 
 
 def test_twice_two_sessions_parallel_processes_forkserver() -> None:
+  ensure_not_intel_macos_or_skip()
   use_forkserver_or_skip()
 
   with multiprocessing.Manager() as manager:
@@ -126,6 +126,7 @@ def test_twice_two_sessions_parallel_processes_forkserver() -> None:
 
 
 def test_twice_two_sessions_parallel_processes_spawn() -> None:
+  ensure_not_intel_macos_or_skip()
   use_spawn_or_skip()
 
   with multiprocessing.Manager() as manager:
