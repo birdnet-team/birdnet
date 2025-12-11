@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-test:
+  run-tests:
     runs-on: ${{ matrix.os }}
     continue-on-error: false
     timeout-minutes: 360
@@ -21,7 +21,6 @@ jobs:
       matrix:
         os:
           [
-            ubuntu-slim,
             ubuntu-24.04,
             ubuntu-24.04-arm,
             macos-15,

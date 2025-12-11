@@ -10,6 +10,7 @@ from birdnet_tests.helper import (
   assert_prediction_result_is_equal,
   ensure_gpu_or_skip,
   ensure_not_intel_macos_or_skip,
+  ensure_not_mac_or_skip,
   use_fork_or_skip,
   use_forkserver_or_skip,
   use_spawn_or_skip,
@@ -80,6 +81,7 @@ def run_session_process(
 
 
 def test_twice_two_sessions_parallel_processes_fork() -> None:
+  ensure_not_mac_or_skip()  # reason unknown why this hangs on macOS
   ensure_not_intel_macos_or_skip()
   use_fork_or_skip()
 

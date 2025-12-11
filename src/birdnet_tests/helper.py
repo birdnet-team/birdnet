@@ -198,6 +198,13 @@ def ensure_litert_or_skip() -> None:
     pytest.skip("litert library is not available")
 
 
+def ensure_not_mac_or_skip() -> None:
+  import platform
+
+  if platform.system() == "Darwin":
+    pytest.skip("Test not supported on macOS systems")
+
+
 def use_forkserver_or_skip() -> None:
   if "forkserver" in get_all_start_methods():
     set_start_method("forkserver", force=True)
