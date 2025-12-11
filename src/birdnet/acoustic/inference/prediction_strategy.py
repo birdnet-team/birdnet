@@ -7,6 +7,10 @@ import numpy as np
 import numpy.typing as npt
 import psutil
 
+from birdnet.acoustic.inference.configs import (
+  InferenceConfig,
+  PredictionConfig,
+)
 from birdnet.acoustic.inference.core.prediction.prediction_benchmarking import (
   FullBenchmarkMeta,
   MinimalBenchmarkMeta,
@@ -16,13 +20,13 @@ from birdnet.acoustic.inference.core.prediction.prediction_result import (
   AcousticFilePredictionResult,
   AcousticPredictionResultBase,
 )
-from birdnet.acoustic.inference.core.prediction.prediction_tensor import AcousticPredictionTensor
-from birdnet.acoustic.inference.core.prediction.prediction_worker import PredictionWorker
-from birdnet.acoustic.inference.core.worker import WorkerBase
-from birdnet.acoustic.inference.configs import (
-  InferenceConfig,
-  PredictionConfig,
+from birdnet.acoustic.inference.core.prediction.prediction_tensor import (
+  AcousticPredictionTensor,
 )
+from birdnet.acoustic.inference.core.prediction.prediction_worker import (
+  PredictionWorker,
+)
+from birdnet.acoustic.inference.core.worker import WorkerBase
 from birdnet.acoustic.inference.resources import (
   PipelineResources,
 )

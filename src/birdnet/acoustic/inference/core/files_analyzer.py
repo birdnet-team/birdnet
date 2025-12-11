@@ -15,11 +15,11 @@ from birdnet.acoustic.inference.core.producer import (
   get_audio_duration_from_sf,
   get_sf_info,
 )
+from birdnet.shm import RingField
 from birdnet.utils.helper import (
   get_n_segments_speed,
   max_value_for_uint_dtype,
 )
-from birdnet.shm import RingField
 
 
 class FilesAnalyzer:

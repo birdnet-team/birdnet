@@ -8,7 +8,9 @@ import numpy as np
 from ordered_set import OrderedSet
 from tqdm import tqdm
 
-from birdnet.acoustic.inference.core.prediction.prediction_tensor import AcousticPredictionTensor
+from birdnet.acoustic.inference.core.prediction.prediction_tensor import (
+  AcousticPredictionTensor,
+)
 from birdnet.acoustic.inference.core.result_base import AcousticResultBase
 from birdnet.utils.helper import (
   apply_speed_to_duration,

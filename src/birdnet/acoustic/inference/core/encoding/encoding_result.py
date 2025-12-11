@@ -4,7 +4,9 @@ from pathlib import Path
 
 import numpy as np
 
-from birdnet.acoustic.inference.core.encoding.encoding_tensor import AcousticEncodingTensor
+from birdnet.acoustic.inference.core.encoding.encoding_tensor import (
+  AcousticEncodingTensor,
+)
 from birdnet.acoustic.inference.core.result_base import AcousticResultBase
 from birdnet.utils.helper import get_uint_dtype
 

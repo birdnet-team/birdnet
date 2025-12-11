@@ -6,7 +6,7 @@ from os import PathLike
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from birdnet.acoustic_models.base import AcousticModelBase
+from birdnet.acoustic.models.base import AcousticModelBase
 from birdnet.acoustic.models.perch_v2.model import AcousticModelPerchV2
 from birdnet.acoustic.models.perch_v2.pb import (
   AcousticPBBackendFP32PerchV2,

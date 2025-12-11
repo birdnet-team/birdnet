@@ -27,6 +27,7 @@ from birdnet.globals import (
   FloatArray,
   IntArray,
 )
+from birdnet.shm import RingField
 from birdnet.utils.helper import (
   SF_FORMATS,
   apply_speed_to_samples,
@@ -38,7 +39,6 @@ from birdnet.utils.helper import (
   itertools_batched,
   max_value_for_uint_dtype,
 )
-from birdnet.shm import RingField
 
 
 def get_segments_with_overlap_all_int(

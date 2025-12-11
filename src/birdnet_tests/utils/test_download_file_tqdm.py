@@ -2,7 +2,6 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from requests import ReadTimeout
 
 from birdnet.utils.helper import download_file_tqdm
 

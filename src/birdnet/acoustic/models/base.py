@@ -3,8 +3,7 @@ from pathlib import Path
 
 from ordered_set import OrderedSet
 
-from birdnet.acoustic.inference.core.result_base import SessionBase
-from birdnet.acoustic_models.session import AcousticSessionBase
+from birdnet.acoustic.inference.session import AcousticSessionBase
 from birdnet.core.base import ModelBase, ResultBase
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
 

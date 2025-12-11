@@ -18,15 +18,16 @@ from typing import Self, cast, final
 
 import numpy as np
 
+from birdnet.acoustic.inference.configs import InferenceConfig
 from birdnet.acoustic.inference.core.perf_tracker import (
   AcousticProgressStats,
   PerformanceTrackingResult,
 )
-from birdnet.acoustic.inference.configs import InferenceConfig
 from birdnet.acoustic.inference.logs import add_session_queue_handler
 from birdnet.core.backends import BackendLoader
 from birdnet.core.base import get_session_id_hash
 from birdnet.globals import MODEL_TYPE_ACOUSTIC, PKG_NAME
+from birdnet.shm import RingField
 from birdnet.utils.helper import (
   get_float_dtype,
   get_n_segments_speed,
@@ -35,7 +36,6 @@ from birdnet.utils.helper import (
 )
 from birdnet.utils.local_data import get_benchmark_dir
 from birdnet.utils.logging_utils import get_package_logging_level
-from birdnet.shm import RingField
 
 
 @dataclass(frozen=True)

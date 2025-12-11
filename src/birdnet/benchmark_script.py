@@ -10,15 +10,6 @@ import birdnet
 import birdnet.model_loader
 from birdnet.acoustic.inference.core.perf_tracker import AcousticProgressStats
 from birdnet.acoustic.models.v2_4.model import AcousticModelV2_4
-from birdnet.utils.argparse_helper import (
-  ConvertToSetAction,
-  parse_float,
-  parse_non_empty_or_whitespace,
-  parse_non_negative_integer,
-  parse_path,
-  parse_positive_float,
-  parse_positive_integer,
-)
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V2_4,
   LIBRARY_TFLITE,
@@ -31,6 +22,15 @@ from birdnet.globals import (
   VALID_LIBRARY_TYPES,
   VALID_MODEL_BACKENDS,
   VALID_MODEL_PRECISIONS,
+)
+from birdnet.utils.argparse_helper import (
+  ConvertToSetAction,
+  parse_float,
+  parse_non_empty_or_whitespace,
+  parse_non_negative_integer,
+  parse_path,
+  parse_positive_float,
+  parse_positive_integer,
 )
 from birdnet.utils.logging_utils import get_package_logger
 

@@ -7,6 +7,12 @@ from pathlib import Path
 
 import numpy as np
 
+from birdnet.acoustic.inference.configs import (
+  ConfigType,
+  InferenceConfig,
+  ResultType,
+  TensorType,
+)
 from birdnet.acoustic.inference.core.consumer import Consumer
 from birdnet.acoustic.inference.core.files_analyzer import FilesAnalyzer
 from birdnet.acoustic.inference.core.perf_tracker import (
@@ -15,12 +21,6 @@ from birdnet.acoustic.inference.core.perf_tracker import (
 )
 from birdnet.acoustic.inference.core.producer import Producer
 from birdnet.acoustic.inference.core.tensor import AcousticTensorBase
-from birdnet.acoustic.inference.configs import (
-  ConfigType,
-  InferenceConfig,
-  ResultType,
-  TensorType,
-)
 from birdnet.acoustic.inference.logs import (
   QueueFileWriter,
   get_logger_from_session,

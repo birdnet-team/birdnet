@@ -5,6 +5,10 @@ from pathlib import Path
 
 import psutil
 
+from birdnet.acoustic.inference.configs import (
+  EncodingConfig,
+  InferenceConfig,
+)
 from birdnet.acoustic.inference.core.encoding.encoding_benchmarking import (
   FullBenchmarkEmbMeta,
   MinimalBenchmarkEmbMeta,
@@ -14,13 +18,11 @@ from birdnet.acoustic.inference.core.encoding.encoding_result import (
   AcousticEncodingResultBase,
   AcousticFileEncodingResult,
 )
-from birdnet.acoustic.inference.core.encoding.encoding_tensor import AcousticEncodingTensor
+from birdnet.acoustic.inference.core.encoding.encoding_tensor import (
+  AcousticEncodingTensor,
+)
 from birdnet.acoustic.inference.core.encoding.encoding_worker import EmbeddingsWorker
 from birdnet.acoustic.inference.core.worker import WorkerBase
-from birdnet.acoustic.inference.configs import (
-  EncodingConfig,
-  InferenceConfig,
-)
 from birdnet.acoustic.inference.resources import (
   PipelineResources,
 )
