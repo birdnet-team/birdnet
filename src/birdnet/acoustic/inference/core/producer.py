@@ -18,6 +18,7 @@ import numpy.typing as npt
 import soundfile
 
 import birdnet.acoustic.inference.core.logs as bn_logging
+from birdnet.acoustic.inference.core.shm import RingField
 from birdnet.globals import (
   READABLE_FLAG,
   READING_FLAG,
@@ -27,7 +28,6 @@ from birdnet.globals import (
   FloatArray,
   IntArray,
 )
-from birdnet.acoustic.inference.core.shm import RingField
 from birdnet.utils.helper import (
   SF_FORMATS,
   apply_speed_to_samples,
@@ -162,7 +162,7 @@ class Producer(bn_logging.LogableProcessBase):
 
   def get_segments_from_input(
     self, input_idx: int, inp_data: Path | tuple[np.ndarray, int]
-  ) -> Generator[tuple[int, npt.NDArray[np.float32]], None, None]:
+  ) -> Generator[tuple[int, Float32Array], None, None]:
     audio_n_samples: int = 0
     audio_sample_rate: int = 0
 
@@ -228,7 +228,7 @@ class Producer(bn_logging.LogableProcessBase):
         return
       self._max_segment_idx_ptr.value = file_max_segment_index
 
-    segments: Generator[npt.NDArray[np.float32], None, None]
+    segments: Generator[Float32Array, None, None]
     if isinstance(inp_data, Path):
       try:
         segments = get_file_segments_with_overlap(
@@ -322,7 +322,7 @@ class Producer(bn_logging.LogableProcessBase):
 
   def get_segments_from_files(
     self,
-  ) -> Generator[tuple[int, int, npt.NDArray[np.float32]], None, None]:
+  ) -> Generator[tuple[int, int, Float32Array], None, None]:
     while True:
       if self._check_cancel_event():
         return
@@ -622,7 +622,7 @@ def get_file_segments_with_overlap(
   overlap_duration_s: float,
   speed: float,
   target_sample_rate: int,
-) -> Generator[npt.NDArray[np.float32], None, None]:
+) -> Generator[Float32Array, None, None]:
   """Load audio in overlapping segments with optional speed change.
 
   speed:
@@ -657,7 +657,7 @@ def get_data_segments_with_overlap(
   overlap_duration_s: float,
   speed: float,
   target_sample_rate: int,
-) -> Generator[npt.NDArray[np.float32], None, None]:
+) -> Generator[Float32Array, None, None]:
   audio_n_samples = audio_array.shape[0]
   read_method = partial(read_data_in_mono, audio_data=audio_array)
 
@@ -677,12 +677,12 @@ def get_data_segments_with_overlap(
 def get_segments_with_overlap(
   audio_n_samples: int,
   audio_sr: int,
-  audio_read_fn: Callable[[int, int], npt.NDArray[np.float32]],
+  audio_read_fn: Callable[[int, int], Float32Array],
   segment_duration_s: float,
   overlap_duration_s: float,
   speed: float,
   target_sample_rate: int,
-) -> Generator[npt.NDArray[np.float32], None, None]:
+) -> Generator[Float32Array, None, None]:
   assert audio_sr > 0
   assert audio_n_samples >= 0
   assert target_sample_rate > 0
@@ -845,7 +845,7 @@ def read_data_in_mono(
   start_samples: int,
   end_samples: int,
   audio_data: npt.NDArray,
-) -> npt.NDArray[np.float32]:
+) -> Float32Array:
   assert 0 <= start_samples < end_samples <= audio_data.shape[0]
   if (
     not isinstance(audio_data, np.ndarray)
@@ -879,7 +879,7 @@ def read_file_in_mono(
   start_samples: int,
   end_samples: int,
   audio_path: Path,
-) -> npt.NDArray[np.float32]:
+) -> Float32Array:
   assert audio_path.is_file()
   assert audio_path.suffix.upper() in SF_FORMATS
   assert 0 <= start_samples < end_samples
@@ -900,12 +900,12 @@ def read_file_in_mono(
 
 def convert_to_mono(
   audio_data: npt.NDArray,
-) -> npt.NDArray[np.float32]:
+) -> Float32Array:
   if audio_data.ndim == 2:
     n_channels = audio_data.shape[1]
     if not n_channels > 1:
       raise Exception("Invalid audio data.")
-    result: npt.NDArray[np.float32] = np.mean(audio_data, axis=1, dtype=np.float32)
+    result: Float32Array = np.mean(audio_data, axis=1, dtype=np.float32)
     return result
   else:
     assert audio_data.ndim == 1

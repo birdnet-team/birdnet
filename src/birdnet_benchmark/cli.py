@@ -23,7 +23,8 @@ from birdnet.globals import (
   VALID_MODEL_BACKENDS,
   VALID_MODEL_PRECISIONS,
 )
-from birdnet.utils.argparse_helper import (
+from birdnet.utils.logging_utils import get_package_logger
+from birdnet_benchmark.argparse_helper import (
   ConvertToSetAction,
   parse_float,
   parse_non_empty_or_whitespace,
@@ -32,7 +33,6 @@ from birdnet.utils.argparse_helper import (
   parse_positive_float,
   parse_positive_integer,
 )
-from birdnet.utils.logging_utils import get_package_logger
 
 
 def run_benchmark() -> None:

@@ -236,13 +236,13 @@ def get_species_from_file(
 
 
 def bandpass_signal(
-  audio_signal: npt.NDArray[np.float32],
+  audio_signal: Float32Array,
   rate: int,
   fmin: int,
   fmax: int,
   new_fmin: int,
   new_fmax: int,
-) -> npt.NDArray[np.float32]:
+) -> Float32Array:
   assert rate > 0
   assert fmin >= 0
   assert fmin < fmax
@@ -278,8 +278,8 @@ def bandpass_signal(
 
 
 def fillup_with_silence(
-  audio_segment: npt.NDArray[np.float32], target_length: int
-) -> npt.NDArray[np.float32]:
+  audio_segment: Float32Array, target_length: int
+) -> Float32Array:
   current_length = len(audio_segment)
   assert current_length <= target_length
 

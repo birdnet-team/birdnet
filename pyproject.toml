@@ -153,7 +153,7 @@ Repository = "https://github.com/birdnet-team/birdnet.git"
 Changelog = "https://github.com/birdnet-team/birdnet/blob/master/CHANGELOG.md"
 
 [project.scripts]
-birdnet-benchmark = "birdnet.benchmark_script:run_benchmark"
+birdnet-benchmark = "birdnet_benchmark.cli:run_benchmark"
 
 [tool.mypy]
 python_version = "3.12"
@@ -166,7 +166,7 @@ packages = ["birdnet"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["birdnet", "birdnet.*"]
+include = ["birdnet", "birdnet.*", "birdnet_benchmark", "birdnet_benchmark.*"]
 exclude = ["birdnet_tests", "birdnet_tests.*"]
 namespaces = true
 
