@@ -3,8 +3,9 @@ from __future__ import annotations
 import shutil
 from abc import ABC
 from collections.abc import Callable, Collection, Iterable
+from contextlib import AbstractContextManager
 from pathlib import Path
-from typing import Any, ContextManager, Generic, Literal, Self, cast
+from typing import Any, Generic, Literal, Self, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -64,7 +65,7 @@ class AcousticSessionBase(
     self._specific_config = specific_config
     self._resource_manager: ResourceManager | None = None
     self._process_manager: ProcessManager | None = None
-    self._shm_context: ContextManager | None = None
+    self._shm_context: AbstractContextManager | None = None
     self._is_initialized = False
     super().__init__()
 
@@ -129,9 +130,11 @@ class AcousticSessionBase(
 
     self._resources.stats_resources.save_end_time()
 
-    # Finish processing and wait for processes to finish ("join") their main loops
+    # Finish processing and wait for processes to finish their main loops
+    # Event is necessary for logging, perf_tracking and progress dispatcher,
+    # which have no defined ending otherwise
     self._resources.processing_resources.processing_finished_event.set()
-    self._process_manager.join_processing()
+    self._process_manager.wait_until_all_finished()
 
     # Collect only if no cancellation occurred, otherwise result queues might be empty
     self._resources.analyzer_resources.collect_input_durations()

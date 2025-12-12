@@ -82,7 +82,7 @@ class ProcessManager:
       target=ProgressDispatcher(
         session_id=self._session_id,
         callback_fn=self._res.stats_resources.callback_fn,
-        check_interval=0.5,
+        check_interval=self._res.processing_resources.update_interval,
         start_signal=self._res.stats_resources.callback_start_signal,
         finish_signal=self._res.stats_resources.callback_finish_signal,
         end_event=self._res.processing_resources.end_event,
@@ -113,8 +113,7 @@ class ProcessManager:
         session_id=self._session_id,
         pred_dur_queue=self._res.stats_resources.wkr_stats_queue,
         processing_finished_event=self._res.processing_resources.processing_finished_event,
-        update_interval=0.5,
-        print_interval=1,
+        update_interval=self._res.processing_resources.update_interval,
         prod_stats_queue=self._res.stats_resources.prd_stats_queue,
         n_workers=self._cfg.processing_conf.workers,
         start=self._res.stats_resources.start,
@@ -291,7 +290,7 @@ class ProcessManager:
       assert res.stats_resources.callback_start_signal is not None
       res.stats_resources.callback_start_signal.set()
 
-  def join_processing(self) -> None:
+  def wait_until_all_finished(self) -> None:
     res = self._res
 
     # wait for file analyzer to finish

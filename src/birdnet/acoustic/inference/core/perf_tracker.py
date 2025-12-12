@@ -122,7 +122,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     callback_queue: Queue | None,
     processing_finished_event: Event,
     update_interval: float,
-    print_interval: float,
     n_workers: int,
     logging_queue: Queue,
     logging_level: int,
@@ -141,13 +140,9 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
   ) -> None:
     super().__init__(session_id, __name__, logging_queue, logging_level)
 
-    assert update_interval <= print_interval
-
-    update_interval = 1.0
-    print_interval = 2.0
     n_last_batches = 10
-    n_last_updated_s = 5.0
-    n_last_updated = math.ceil(n_last_updated_s / update_interval)
+    n_last_live = 5.0
+    n_last_updated = math.ceil(n_last_live / update_interval)
 
     self._sem_filled_slots = sem_filled_slots
     self._processing_finished_event = processing_finished_event
@@ -163,7 +158,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
     self._parent_process_id = parent_process_id
     self._parent_process: psutil.Process | None = None
-    self._print_interval = print_interval
     self._rf_flags = rf_flags
     self._shm_ring_flags: shared_memory.SharedMemory | None = None
     self._ring_flags: np.ndarray | None = None
@@ -303,13 +297,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     return time.perf_counter() - self._start
 
   def run_main(self) -> None:
-    # print_thread = threading.Thread(
-    #   target=self.callback_stats_continuously,
-    #   name=f"{self._session_hash}-PerformanceTracker.CallbackThread",
-    #   daemon=True,
-    # )
-    # print_thread.start()
-
     self.reset()
 
     while True:
@@ -368,10 +355,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     # self._perf_res.close()
     # self._perf_res.join_thread()
     self._log("Done putting performance tracking result into queue.")
-
-    self._log("Joining print thread...")
-    # print_thread.join()
-    self._log("Print thread joined.")
 
   def _track_stats(self) -> bool:
     # finished = self._processing_finished_event.is_set()
@@ -553,13 +536,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     )
     return is_empty
 
-  def callback_stats_continuously(self) -> None:
-    while not self._processing_finished_event.wait(self._print_interval):
-      if self._cancel_event.is_set():
-        return
-      self._callback_stats(False)
-    self._log("PerformanceTracker.CallbackThread finished.")
-
   def _callback_stats(self, finished: bool) -> None:
     received_at_least_one_prediction = len(self._wkr_wall_times) > 0
     if not received_at_least_one_prediction:
@@ -632,7 +608,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         processed_batches=processed_batches,
         memory_usage_MiB=self._memory_usage_MiB_tracker.median_val,
         memory_usage_max_MiB=self._memory_usage_MiB_tracker.max_val,
-        n_usage_recordings=self._memory_usage_MiB_tracker.n_vals,
         cpu_usage_pct=self._cpu_usage_tracker.median_val,
         cpu_usage_max_pct=self._cpu_usage_tracker.max_val,
       )
@@ -756,9 +731,6 @@ class AcousticProgressStats:
   # total segments to process, or None if still unknown
   total_segments: int | None
 
-  # number of recordings used for median calculations on all stats
-  n_usage_recordings: int
-
 
 class ProgressDispatcher:
   def __init__(
@@ -771,7 +743,7 @@ class ProgressDispatcher:
     start_signal: threading.Event,
     finish_signal: threading.Event,
     processing_finished_event: Event,
-    check_interval: float = 1.0,
+    check_interval: float,
   ) -> None:
     self._session_id = session_id
     self._callback_queue = callback_queue
@@ -810,8 +782,7 @@ class ProgressDispatcher:
 
   def run_main_loop(self) -> None:
     while True:
-      self._log("Waiting for input files batch...")
-      while not self._start_signal.wait(timeout=self._check_interval):
+      while not self._start_signal.wait(timeout=1.0):
         if self._check_cancel_event():
           # self._uninit_logging()
           return
@@ -830,7 +801,7 @@ class ProgressDispatcher:
 
     while True:
       try:
-        latest = self._callback_queue.get(block=True, timeout=1.0)
+        latest = self._callback_queue.get(block=True, timeout=self._check_interval)
       except Empty:
         break
 

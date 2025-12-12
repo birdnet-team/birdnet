@@ -416,6 +416,10 @@ class InputAnalyzerResources:
 
 @dataclass(frozen=True)
 class ProcessingResources:
+  @property
+  def update_interval(self) -> float:
+    return 1.0
+
   processing_finished_event: multiprocessing.synchronize.Event
   cancel_event: multiprocessing.synchronize.Event
 
