@@ -5,8 +5,8 @@ import multiprocessing as mp
 import numpy as np
 from numpy.typing import DTypeLike
 
-from birdnet.acoustic.inference.core.tensor import AcousticTensorBase
 from birdnet.acoustic.inference.core.logs import get_logger_from_session
+from birdnet.acoustic.inference.core.tensor import AcousticTensorBase
 
 
 class AcousticEncodingTensor(AcousticTensorBase):

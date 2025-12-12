@@ -4,7 +4,6 @@ import ctypes
 import datetime
 import math
 import os
-import sys
 import threading
 import time
 from collections import Counter, deque
@@ -13,7 +12,6 @@ from dataclasses import dataclass
 from multiprocessing import Queue, shared_memory
 from multiprocessing.synchronize import Event, Semaphore
 from queue import Empty
-from typing import Literal
 
 import numpy as np
 import psutil
