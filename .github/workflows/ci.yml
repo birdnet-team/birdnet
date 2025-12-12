@@ -81,7 +81,7 @@ jobs:
           python -m tox -e py313
 
       - name: Run repro tests
-        if: matrix.python-version == '3.12'
+        if: matrix.python-version == '3.12' && matrix.os != 'macos-15-intel'
         run: |
           python -m tox -e py312-repro
 
