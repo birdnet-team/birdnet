@@ -161,7 +161,7 @@ class EncodingStrategy(
       _end_timepoint=resources.stats_resources.end_timepoint,
       _time_wall_time_s=wall_time_s,
       _file_durations=resources.analyzer_resources.input_durations,
-      mem_result_total_memory_usage_MiB=pred_result.memory_size_mb,
+      mem_result_total_memory_usage_MiB=pred_result.memory_size_MiB,
       mem_shm_size_file_indices_MiB=resources.ring_buffer_resources.rf_file_indices.nbytes
       / 1024**2,
       mem_shm_size_segment_indices_MiB=resources.ring_buffer_resources.rf_segment_indices.nbytes
@@ -225,7 +225,7 @@ class EncodingStrategy(
       _time_rampup_first_line_s=resources.stats_resources.start_time
       - psutil.Process(os.getpid()).create_time(),  # TODO: Berechnen
       _time_wall_time_s=wall_time_s,
-      mem_result_total_memory_usage_MiB=pred_result.memory_size_mb,
+      mem_result_total_memory_usage_MiB=pred_result.memory_size_MiB,
       mem_shm_size_file_indices_MiB=resources.ring_buffer_resources.rf_file_indices.nbytes
       / 1024**2,
       mem_shm_size_segment_indices_MiB=resources.ring_buffer_resources.rf_segment_indices.nbytes

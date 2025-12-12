@@ -573,6 +573,9 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     processed_segments = 0
     total_segments = None
     est_remaining_time_s = None
+    wall_time = self.wall_time
+    speed_xrt = None
+    speed_seg_per_s = None
     if self._tot_n_segments_ptr.value > 0 and self._wkr_total_segments_processed > 0:
       progress_pct = (
         self._wkr_total_segments_processed / self._tot_n_segments_ptr.value * 100
@@ -581,10 +584,15 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       total_segments = self._tot_n_segments_ptr.value
 
       est_remaining_time_s = (
-        self.wall_time
+        wall_time
         * (self._tot_n_segments_ptr.value - self._wkr_total_segments_processed)
         / self._wkr_total_segments_processed
       )
+
+      speed_xrt = (
+        self._wkr_total_segments_processed * self._segment_size_s
+      ) / wall_time
+      speed_seg_per_s = self._wkr_total_segments_processed / wall_time
 
     if self._callback_queue is not None:
       stats = AcousticProgressStats(
@@ -602,6 +610,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         memory_usage_max_MiB=self._memory_usage_MiB_tracker.max_val,
         cpu_usage_pct=self._cpu_usage_tracker.median_val,
         cpu_usage_max_pct=self._cpu_usage_tracker.max_val,
+        speed_xrt=speed_xrt,
+        speed_seg_per_s=speed_seg_per_s,
       )
       self._callback_queue.put_nowait(stats)
 
@@ -722,6 +732,10 @@ class AcousticProgressStats:
 
   # total segments to process, or None if still unknown
   total_segments: int | None
+
+  speed_xrt: float | None
+
+  speed_seg_per_s: float | None
 
 
 class ProgressDispatcher:

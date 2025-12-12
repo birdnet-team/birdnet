@@ -39,7 +39,7 @@ def test_memory_size_mb() -> None:
     + res._model_precision.nbytes
   ) / 1024**2
 
-  assert res.memory_size_mb == expected_size
+  assert res.memory_size_MiB == expected_size
 
 
 def test_save_and_load_is_equal() -> None:

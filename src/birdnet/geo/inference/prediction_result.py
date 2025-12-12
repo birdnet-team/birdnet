@@ -69,8 +69,8 @@ class GeoPredictionResult(ResultBase):
     self._week = np.array([week], dtype=np.int8)
 
   @property
-  def memory_size_mb(self) -> float:
-    return super().memory_size_mb + (
+  def memory_size_MiB(self) -> float:
+    return super().memory_size_MiB + (
       (
         self._species_ids.nbytes
         + self._species_probs.nbytes

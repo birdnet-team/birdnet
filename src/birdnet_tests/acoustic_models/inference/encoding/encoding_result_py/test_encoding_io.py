@@ -6,7 +6,9 @@ import numpy as np
 from birdnet.acoustic.inference.core.encoding.encoding_result import (
   AcousticFileEncodingResult,
 )
-from birdnet.acoustic.inference.core.encoding.encoding_tensor import AcousticEncodingTensor
+from birdnet.acoustic.inference.core.encoding.encoding_tensor import (
+  AcousticEncodingTensor,
+)
 from birdnet.utils.helper import get_float_dtype, get_n_segments_speed
 
 
@@ -113,4 +115,4 @@ def test_memory_size_mb() -> None:
     + res._unprocessable_inputs.nbytes
   ) / 1024**2
 
-  assert res.memory_size_mb == expected_size
+  assert res.memory_size_MiB == expected_size

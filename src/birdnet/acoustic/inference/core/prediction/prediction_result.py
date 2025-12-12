@@ -83,8 +83,8 @@ class AcousticPredictionResultBase(AcousticResultBase):
     self._unprocessable_inputs = tensor.unprocessable_inputs
 
   @property
-  def memory_size_mb(self) -> float:
-    return super().memory_size_mb + (
+  def memory_size_MiB(self) -> float:
+    return super().memory_size_MiB + (
       (
         self._species_ids.nbytes
         + self._species_probs.nbytes

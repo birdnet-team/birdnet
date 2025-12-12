@@ -67,9 +67,9 @@ class AcousticModelV2_4(AcousticModelBase):
     backend_type: type[VersionedAcousticBackendProtocol],
     backend_kwargs: dict[str, Any],
   ) -> None:
-    super().__init__(model_path, species_list, is_custom_model)
-    self._backend_type = backend_type
-    self._backend_custom_kwargs = backend_kwargs
+    super().__init__(
+      model_path, species_list, is_custom_model, backend_type, backend_kwargs
+    )
 
   @classmethod
   def load(
@@ -186,8 +186,8 @@ class AcousticModelV2_4(AcousticModelBase):
       model_sig_fmin=self.get_sig_fmin(),
       model_sig_fmax=self.get_sig_fmax(),
       model_version=self.get_version(),
-      model_backend_type=self._backend_type,
-      model_backend_custom_kwargs=self._backend_custom_kwargs,
+      model_backend_type=self.backend_type,
+      model_backend_custom_kwargs=self.backend_kwargs,
       model_emb_dim=self.get_embeddings_dim(),
       n_producers=n_producers,
       n_workers=n_workers,
@@ -239,8 +239,8 @@ class AcousticModelV2_4(AcousticModelBase):
       model_sig_fmin=self.get_sig_fmin(),
       model_sig_fmax=self.get_sig_fmax(),
       model_version=self.get_version(),
-      model_backend_type=self._backend_type,
-      model_backend_custom_kwargs=self._backend_custom_kwargs,
+      model_backend_type=self.backend_type,
+      model_backend_custom_kwargs=self.backend_kwargs,
       top_k=top_k,
       n_producers=n_producers,
       n_workers=n_workers,

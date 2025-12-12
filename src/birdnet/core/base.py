@@ -91,7 +91,7 @@ class ResultBase(ABC):
     return result
 
   @property
-  def memory_size_mb(self) -> float:
+  def memory_size_MiB(self) -> float:
     return (
       self._model_path.nbytes
       + self._model_precision.nbytes

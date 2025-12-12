@@ -122,8 +122,8 @@ class AcousticResultBase(ResultBase):
     cls._model_sr = data[NP_MODEL_SR_KEY]
 
   @property
-  def memory_size_mb(self) -> float:
-    return super().memory_size_mb + (
+  def memory_size_MiB(self) -> float:
+    return super().memory_size_MiB + (
       (
         self._inputs.nbytes
         + self._input_durations.nbytes

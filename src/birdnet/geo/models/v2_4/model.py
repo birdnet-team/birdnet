@@ -64,9 +64,9 @@ class GeoModelV2_4(GeoModelBase):
     backend_type: type[VersionedGeoBackendProtocol],
     backend_kwargs: dict[str, Any],
   ) -> None:
-    super().__init__(model_path, species_list, is_custom_model)
-    self._backend_type = backend_type
-    self._backend_custom_kwargs = backend_kwargs
+    super().__init__(
+      model_path, species_list, is_custom_model, backend_type, backend_kwargs
+    )
 
   @classmethod
   def load(
@@ -143,8 +143,8 @@ class GeoModelV2_4(GeoModelBase):
       model_path=self.model_path,
       model_is_custom=self.is_custom_model,
       model_version=self.get_version(),
-      model_backend_type=self._backend_type,
-      model_backend_custom_kwargs=self._backend_custom_kwargs,
+      model_backend_type=self.backend_type,
+      model_backend_custom_kwargs=self.backend_kwargs,
       min_confidence=min_confidence,
       half_precision=half_precision,
       device=device,

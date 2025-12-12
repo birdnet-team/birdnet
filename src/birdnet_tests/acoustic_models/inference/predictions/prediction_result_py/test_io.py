@@ -79,4 +79,4 @@ def test_memory_size_mb() -> None:
     + res._unprocessable_inputs.nbytes
   ) / 1024**2
 
-  assert res.memory_size_mb == expected_size
+  assert res.memory_size_MiB == expected_size
