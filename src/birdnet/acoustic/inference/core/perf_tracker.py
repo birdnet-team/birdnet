@@ -140,9 +140,9 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
   ) -> None:
     super().__init__(session_id, __name__, logging_queue, logging_level)
 
-    n_last_batches = 10
-    n_last_live = 5.0
-    n_last_updated = math.ceil(n_last_live / update_interval)
+    n_last_batch_stats = 10
+    n_last_seconds_live_stats = 5.0
+    n_last_live_stats = math.ceil(n_last_seconds_live_stats / update_interval)
 
     self._sem_filled_slots = sem_filled_slots
     self._processing_finished_event = processing_finished_event
@@ -166,33 +166,33 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
     self._wkr_wall_times = {}
     self._wkr_total_segments_processed = 0
-    self._wkr_1_wait_dur_for_filled_slot_tracker = ValueTracker(n_last_batches)
-    self._wkr_2_search_dur_for_filled_slot_tracker = ValueTracker(n_last_batches)
-    self._wkr_3_get_job_dur_tracker = ValueTracker(n_last_batches)
-    self._wkr_4_copy_to_device_tracker = ValueTracker(n_last_batches)
-    self._wkr_5_inference_dur_tracker = ValueTracker(n_last_batches)
-    self._wkr_6_add_to_queue_dur_tracker = ValueTracker(n_last_batches)
-    self._wkr_busy_tracker = ValueTracker(n_last_updated)
-    self._wkr_speed_xrt_tracker = ValueTracker(n_last_updated)
-    self._wkr_speed_seg_per_s_tracker = ValueTracker(n_last_updated)
+    self._wkr_1_wait_dur_for_filled_slot_tracker = ValueTracker(n_last_batch_stats)
+    self._wkr_2_search_dur_for_filled_slot_tracker = ValueTracker(n_last_batch_stats)
+    self._wkr_3_get_job_dur_tracker = ValueTracker(n_last_batch_stats)
+    self._wkr_4_copy_to_device_tracker = ValueTracker(n_last_batch_stats)
+    self._wkr_5_inference_dur_tracker = ValueTracker(n_last_batch_stats)
+    self._wkr_6_add_to_queue_dur_tracker = ValueTracker(n_last_batch_stats)
+    self._wkr_busy_tracker = ValueTracker(n_last_live_stats)
+    self._wkr_speed_xrt_tracker = ValueTracker(n_last_live_stats)
+    self._wkr_speed_seg_per_s_tracker = ValueTracker(n_last_live_stats)
 
     self._prd_wall_times = {}
     self._prd_total_segments_processed = 0
-    self._prd_1_batch_loading_dur_tracker = ValueTracker(n_last_batches)
-    self._prd_2_wait_dur_free_slot_tracker = ValueTracker(n_last_batches)
-    self._prd_3_free_slot_search_dur_tracker = ValueTracker(n_last_batches)
-    self._prd_4_flush_dur_tracker = ValueTracker(n_last_batches)
-    self._prd_speed_xrt_tracker = ValueTracker(n_last_updated)
-    self._prd_speed_seg_per_s_tracker = ValueTracker(n_last_updated)
+    self._prd_1_batch_loading_dur_tracker = ValueTracker(n_last_batch_stats)
+    self._prd_2_wait_dur_free_slot_tracker = ValueTracker(n_last_batch_stats)
+    self._prd_3_free_slot_search_dur_tracker = ValueTracker(n_last_batch_stats)
+    self._prd_4_flush_dur_tracker = ValueTracker(n_last_batch_stats)
+    self._prd_speed_xrt_tracker = ValueTracker(n_last_live_stats)
+    self._prd_speed_seg_per_s_tracker = ValueTracker(n_last_live_stats)
 
-    self._cpu_usage_tracker = ValueTracker(n_last_updated)
-    self._memory_usage_MiB_tracker = ValueTracker(n_last_updated)
+    self._cpu_usage_tracker = ValueTracker(n_last_live_stats)
+    self._memory_usage_MiB_tracker = ValueTracker(n_last_live_stats)
 
-    self._rng_free_slots_tracker = ValueTracker(n_last_updated)
-    self._rng_busy_slots_tracker = ValueTracker(n_last_updated)
-    self._rng_preloaded_slots_tracker = ValueTracker(n_last_updated)
+    self._rng_free_slots_tracker = ValueTracker(n_last_live_stats)
+    self._rng_busy_slots_tracker = ValueTracker(n_last_live_stats)
+    self._rng_preloaded_slots_tracker = ValueTracker(n_last_live_stats)
 
-    self._sem_filled_tracker = ValueTracker(n_last_updated)
+    self._sem_filled_tracker = ValueTracker(n_last_live_stats)
     self._end_event = end_event
     self._start_signal = start_signal
     self._finish_signal = finish_signal
@@ -357,19 +357,13 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._log("Done putting performance tracking result into queue.")
 
   def _track_stats(self) -> bool:
-    # finished = self._processing_finished_event.is_set()
+    was_empty = self._track_batch_stats()
+    self._track_live_stats()
+    return was_empty
+
+  def _track_batch_stats(self) -> bool:
     prod_queue_is_empty = self._track_producer_stats()
     worker_queue_is_empty = self._track_worker_stats()
-    self._track_live_stats()
-
-    # if finished and prod_queue_is_empty and worker_queue_is_empty:
-    #   return True
-
-    # if not self._processing_finished_event.wait(self._update_every):
-    #   self._track_live_stats()
-
-    # return False
-
     was_empty = prod_queue_is_empty and worker_queue_is_empty
     return was_empty
 
