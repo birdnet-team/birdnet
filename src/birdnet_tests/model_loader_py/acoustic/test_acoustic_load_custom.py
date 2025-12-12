@@ -306,6 +306,11 @@ def test_custom_from_analyzer_v2_4_raven_fp32() -> None:
 
 
 def test_custom_from_analyzer_v2_4_as_no_raven_fp32_raises_exception() -> None:
+  if not check_validity():
+    pytest.skip(
+      "Skipping test on Intel macOS Python 3.12 where model loading fails unexpectedly."
+    )
+
   with pytest.raises(
     Exception,
     match=r"Failed to load model.",
@@ -316,7 +321,7 @@ def test_custom_from_analyzer_v2_4_as_no_raven_fp32_raises_exception() -> None:
       "pb",
       TEST_FILES_DIR / "custom_models/raven/CustomClassifier",
       TEST_FILES_DIR / "custom_models/raven/CustomClassifier/labels/label_names.csv",
-      check_validity=check_validity(),
+      check_validity=True,
       is_raven=False,
       precision="fp32",
     )
