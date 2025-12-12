@@ -38,6 +38,7 @@ class InputAnalyzer:
     end_event: multiprocessing.synchronize.Event,
     finished: threading.Event,
     start_signal: threading.Event,
+    finish_signal: threading.Event,
   ) -> None:
     self._logger = bn_logging.get_logger_from_session(session_id, __name__)
     self._input_queue = input_queue
@@ -55,6 +56,7 @@ class InputAnalyzer:
     self._end_event = end_event
     self._finished = finished
     self._start_signal = start_signal
+    self._finish_signal = finish_signal
 
   def _check_cancel_event(self) -> bool:
     if self._cancel_event.is_set():
@@ -95,6 +97,9 @@ class InputAnalyzer:
       # check that it was resetted
       assert self._tot_n_segments.value == 0
       self.run_main()
+
+      self._log("Set finish signal.")
+      self._finish_signal.set()
 
   def run_main(self) -> None:
     durations: list[float] = []

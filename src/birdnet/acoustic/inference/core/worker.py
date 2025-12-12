@@ -13,6 +13,7 @@ import numpy as np
 from numpy.typing import DTypeLike
 
 import birdnet.acoustic.inference.core.logs as bn_logging
+from birdnet.acoustic.inference.core.shm import RingField
 from birdnet.core.backends import BackendLoader, BatchT, VersionedBackendProtocol
 from birdnet.globals import (
   READABLE_FLAG,
@@ -20,7 +21,6 @@ from birdnet.globals import (
   WRITABLE_FLAG,
   WRITING_FLAG,
 )
-from birdnet.acoustic.inference.core.shm import RingField
 
 if TYPE_CHECKING:
   pass
@@ -53,6 +53,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
     cancel_event: Event,
     all_producers_finished: Event,
     start_signal: Event,
+    finish_signal: Event,
     end_event: Event,
   ) -> None:
     super().__init__(session_id, name, logging_queue, logging_level)
@@ -60,6 +61,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
     self._half_precision = half_precision
     self._end_event = end_event
     self._start_signal = start_signal
+    self._finish_signal = finish_signal
     self._backend_loader = backend_loader
     self._all_producers_finished = all_producers_finished
     self._wkr_ring_access_lock = wkr_ring_access_lock
@@ -191,8 +193,6 @@ class WorkerBase(bn_logging.LogableProcessBase):
       self._log(f"Initialized in {duration_init:.4f} seconds.")
 
       self.run_main_loop()
-
-      self._log("Finished.")
     except Exception as e:
       self._logger.exception(
         "Worker encountered an exception.", exc_info=e, stack_info=True
@@ -215,6 +215,9 @@ class WorkerBase(bn_logging.LogableProcessBase):
       self._log("Received start signal. Starting processing.")
 
       self.run_main()
+
+      self._log("Set finish signal.")
+      self._finish_signal.set()
 
   def run_main(self) -> None:
     assert self._backend is not None

@@ -8,9 +8,9 @@ from typing import TYPE_CHECKING
 import numpy as np
 from numpy.typing import DTypeLike
 
+from birdnet.acoustic.inference.core.shm import RingField
 from birdnet.acoustic.inference.core.worker import WorkerBase
 from birdnet.core.backends import BackendLoader, BatchT
-from birdnet.acoustic.inference.core.shm import RingField
 from birdnet.utils.helper import flat_sigmoid_logaddexp_fast, get_uint_dtype
 
 if TYPE_CHECKING:
@@ -48,6 +48,7 @@ class PredictionWorker(WorkerBase):
     cancel_event: Event,
     all_producers_finished: Event,
     start_signal: Event,
+    finish_signal: Event,
     end_event: Event,
   ) -> None:
     assert species_thresholds.shape[0] == 1
@@ -93,6 +94,7 @@ class PredictionWorker(WorkerBase):
       cancel_event=cancel_event,
       all_producers_finished=all_producers_finished,
       start_signal=start_signal,
+      finish_signal=finish_signal,
       end_event=end_event,
     )
 

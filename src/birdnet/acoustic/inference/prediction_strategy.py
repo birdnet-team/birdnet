@@ -142,6 +142,7 @@ class PredictionStrategy(
         sem_active_workers=resources.stats_resources.sem_active_workers,
         end_event=resources.processing_resources.end_event,
         start_signal=resources.worker_resources.start_signals[i],
+        finish_signal=resources.worker_resources.finish_signals[i],
         half_precision=config.processing_conf.half_precision,
       )
       for i in range(config.processing_conf.workers)

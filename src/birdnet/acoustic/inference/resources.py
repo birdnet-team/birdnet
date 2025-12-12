@@ -229,6 +229,7 @@ class ProducerResources:
   input_queue: Queue
   unprocessed_inputs_queue: Queue
   start_signals: list[multiprocessing.synchronize.Event]
+  finish_signals: list[multiprocessing.synchronize.Event]
 
   _unprocessed_inputs: set[int] | None = None
 
@@ -243,6 +244,8 @@ class ProducerResources:
     self.all_finished.clear()
     for start_signal in self.start_signals:
       start_signal.clear()
+    for finish_signal in self.finish_signals:
+      finish_signal.clear()
 
   @classmethod
   def create(cls, conf: InferenceConfig) -> ProducerResources:
@@ -260,6 +263,7 @@ class ProducerResources:
       ring_access_lock=mp.Lock(),
       all_finished=mp.Event(),
       start_signals=[mp.Event() for _ in range(n_producers)],
+      finish_signals=[mp.Event() for _ in range(n_producers)],
       unprocessed_inputs_queue=Queue(),
     )
 
@@ -278,6 +282,7 @@ class WorkerResources:
   devices: list[str]
   backend_loader: BackendLoader
   start_signals: list[multiprocessing.synchronize.Event]
+  finish_signals: list[multiprocessing.synchronize.Event]
 
   @classmethod
   def create(cls, config: InferenceConfig) -> WorkerResources:
@@ -300,11 +305,14 @@ class WorkerResources:
       devices=devices,
       backend_loader=backend_loader,
       start_signals=[mp.Event() for _ in range(n_workers)],
+      finish_signals=[mp.Event() for _ in range(n_workers)],
     )
 
   def reset(self) -> None:
     for start_signal in self.start_signals:
       start_signal.clear()
+    for finish_signal in self.finish_signals:
+      finish_signal.clear()
 
 
 # def _create_backend_loader(config: PredictionConfig) -> InferenceBackendLoader:
@@ -334,6 +342,7 @@ class InputAnalyzerResources:
   finished: threading.Event
   # each resource needs own start signal to allow resetting it individually
   start_signal: threading.Event
+  finish_signal: threading.Event
   segments_dtype: np.dtype
 
   _unprocessed_inputs: set[int] | None = None
@@ -363,6 +372,7 @@ class InputAnalyzerResources:
     self.max_segment_idx_ptr.value = self.max_segment_idx_init_value
     self.finished.clear()
     self.start_signal.clear()
+    self.finish_signal.clear()
 
   @classmethod
   def create(cls, conf: InferenceConfig) -> InputAnalyzerResources:
@@ -400,6 +410,7 @@ class InputAnalyzerResources:
       max_segment_idx_init_value=max_segment_ptr_value,
       finished=threading.Event(),
       start_signal=threading.Event(),
+      finish_signal=threading.Event(),
     )
 
 
@@ -463,6 +474,7 @@ class StatisticsResources:
   sem_active_workers: multiprocessing.synchronize.Semaphore | None
   perf_res_queue: Queue | None
   perf_res_start_signal: multiprocessing.synchronize.Event | None
+  perf_res_finish_signal: multiprocessing.synchronize.Event | None
 
   use_callback: bool
   callback_fn: Callable[[AcousticProgressStats], None] | None
@@ -509,6 +521,7 @@ class StatisticsResources:
 
     perf_res_queue = None
     perf_res_start_signal = None
+    perf_res_finish_signal = None
     wkr_stats_queue = None
     prd_stats_queue = None
     sem_active_workers = None
@@ -516,6 +529,7 @@ class StatisticsResources:
     if track_performance:
       perf_res_queue = Queue()
       perf_res_start_signal = mp.Event()
+      perf_res_finish_signal = mp.Event()
       wkr_stats_queue = Queue()
       prd_stats_queue = Queue()
       sem_active_workers = mp.Semaphore(0)
@@ -557,6 +571,7 @@ class StatisticsResources:
       benchmark_dir=benchmark_dir,
       benchmark_session_dir=benchmark_session_dir,
       perf_res_start_signal=perf_res_start_signal,
+      perf_res_finish_signal=perf_res_finish_signal,
       benchmark_dir_name=benchmark_dir_name,
       use_callback=use_callback,
       callback_queue=callback_queue,

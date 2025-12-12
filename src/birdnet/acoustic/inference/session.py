@@ -39,7 +39,7 @@ from birdnet.acoustic.inference.encoding_strategy import (
 from birdnet.acoustic.inference.prediction_strategy import (
   PredictionStrategy,
 )
-from birdnet.acoustic.inference.processes import ProcessManager
+from birdnet.acoustic.inference.process_manager import ProcessManager
 from birdnet.acoustic.inference.resources import (
   PipelineResources,
   ResourceManager,

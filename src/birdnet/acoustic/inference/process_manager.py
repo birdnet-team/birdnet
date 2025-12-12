@@ -84,11 +84,11 @@ class ProcessManager:
         callback_fn=self._res.stats_resources.callback_fn,
         check_interval=0.5,
         start_signal=self._res.stats_resources.callback_start_signal,
+        finish_signal=self._res.stats_resources.callback_finish_signal,
         end_event=self._res.processing_resources.end_event,
         callback_queue=self._res.stats_resources.callback_queue,
         cancel_event=self._res.processing_resources.cancel_event,
         processing_finished_event=self._res.processing_resources.processing_finished_event,
-        end_signal=self._res.stats_resources.callback_finish_signal,
       ),
       name=f"{self._session_hash}-ProgressDispatcher",
       daemon=True,
@@ -104,6 +104,7 @@ class ProcessManager:
     assert self._res.stats_resources.sem_active_workers is not None
     assert self._res.stats_resources.perf_res_queue is not None
     assert self._res.stats_resources.perf_res_start_signal is not None
+    assert self._res.stats_resources.perf_res_finish_signal is not None
     assert self._res.stats_resources.wkr_stats_queue is not None
     assert self._res.stats_resources.prd_stats_queue is not None
 
@@ -129,6 +130,7 @@ class ProcessManager:
         sem_active_workers=self._res.stats_resources.sem_active_workers,
         end_event=self._res.processing_resources.end_event,
         start_signal=self._res.stats_resources.perf_res_start_signal,
+        finish_signal=self._res.stats_resources.perf_res_finish_signal,
         callback_queue=self._res.stats_resources.callback_queue,
       ),
       name=f"{self._session_hash}-PerformanceTracker",
@@ -156,6 +158,7 @@ class ProcessManager:
         input_queue=self._res.analyzer_resources.input_queue,
         finished=self._res.analyzer_resources.finished,
         start_signal=self._res.analyzer_resources.start_signal,
+        finish_signal=self._res.analyzer_resources.finish_signal,
       ),
       name=f"{self._session_hash}-FileAnalyzer",
       daemon=True,
@@ -206,6 +209,7 @@ class ProcessManager:
           cancel_event=self._res.processing_resources.cancel_event,
           end_event=self._res.processing_resources.end_event,
           start_signal=self._res.producer_resources.start_signals[i],
+          finish_signal=self._res.producer_resources.finish_signals[i],
           unprocessed_inputs_queue=self._res.producer_resources.unprocessed_inputs_queue,
         ),
         name=f"{self._session_hash}-Producer-{i}",
@@ -290,7 +294,24 @@ class ProcessManager:
   def join_processing(self) -> None:
     res = self._res
 
+    # wait for file analyzer to finish
+    res.analyzer_resources.finish_signal.wait(timeout=None)
+
+    # wait for producers to finish
+    for i in range(res.producer_resources.n_producers):
+      res.producer_resources.finish_signals[i].wait(timeout=None)
+
+    # wait for workers to finish
+    for i in range(self._cfg.processing_conf.workers):
+      res.worker_resources.finish_signals[i].wait(timeout=None)
+
+    # wait for performance tracker to finish
     if res.stats_resources.track_performance:
+      assert res.stats_resources.perf_res_finish_signal is not None
+      res.stats_resources.perf_res_finish_signal.wait(timeout=None)
+
+    # wait for progress dispatcher to finish
+    if res.stats_resources.use_callback:
       assert res.stats_resources.callback_finish_signal is not None
       res.stats_resources.callback_finish_signal.wait(timeout=None)
 

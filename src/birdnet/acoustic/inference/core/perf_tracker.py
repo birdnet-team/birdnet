@@ -136,6 +136,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     cancel_event: Event,
     end_event: Event,
     start_signal: Event,
+    finish_signal: Event,
     start: float,
   ) -> None:
     super().__init__(session_id, __name__, logging_queue, logging_level)
@@ -200,6 +201,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._sem_filled_tracker = ValueTracker(n_last_updated)
     self._end_event = end_event
     self._start_signal = start_signal
+    self._finish_signal = finish_signal
     self._start = start
 
   def _log(self, message: str) -> None:
@@ -245,6 +247,9 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       self._log("Received start signal. Starting processing.")
 
       self.run_main()
+
+      self._log("Set finish signal.")
+      self._finish_signal.set()
 
   def reset(self) -> None:
     # TODO set to statisticresources start
@@ -764,7 +769,7 @@ class ProgressDispatcher:
     cancel_event: Event,
     end_event: Event,
     start_signal: threading.Event,
-    end_signal: threading.Event,
+    finish_signal: threading.Event,
     processing_finished_event: Event,
     check_interval: float = 1.0,
   ) -> None:
@@ -773,7 +778,7 @@ class ProgressDispatcher:
     self._cancel_event = cancel_event
     self._end_event = end_event
     self._start_signal = start_signal
-    self._end_signal = end_signal
+    self._finish_signal = finish_signal
     self._callback_fn = callback_fn
     self._processing_finished_event = processing_finished_event
     self._check_interval = check_interval
@@ -816,8 +821,9 @@ class ProgressDispatcher:
       self._start_signal.clear()
       self._log("Received start signal. Starting processing.")
       self.run_main()
-      self._log("Processing finished. Setting end signal.")
-      self._end_signal.set()
+
+      self._log("Set finish signal.")
+      self._finish_signal.set()
 
   def get_last_stats(self) -> AcousticProgressStats | None:
     latest = None

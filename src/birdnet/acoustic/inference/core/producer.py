@@ -65,6 +65,7 @@ class Producer(bn_logging.LogableProcessBase):
     | Synchronized[ctypes.c_uint64],
     end_event: Event,
     start_signal: Event,
+    finish_signal: Event,
     n_producers: int,
     prd_ring_access_lock: multiprocessing.synchronize.Lock,
     logging_queue: Queue,
@@ -102,6 +103,7 @@ class Producer(bn_logging.LogableProcessBase):
     self._prod_done_ptr: Synchronized[int] = prod_done_ptr  # type: ignore
     self._n_producers = n_producers
     self._start_signal = start_signal
+    self._finish_signal = finish_signal
     self._unprocessable_inputs: set[int] = set()
     self._unprocessed_inputs_queue = unprocessed_inputs_queue
 
@@ -545,6 +547,9 @@ class Producer(bn_logging.LogableProcessBase):
       self._start_signal.clear()
       self._log("Received start signal. Starting processing.")
       self._run_main()
+
+      self._log("Set finish signal.")
+      self._finish_signal.set()
 
   def _run_main(self) -> None:
     if self._check_cancel_event():

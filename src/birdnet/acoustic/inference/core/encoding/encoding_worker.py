@@ -36,6 +36,7 @@ class EncodingWorker(WorkerBase):
     cancel_event: Event,
     prd_all_done_event: Event,
     start_signal: Event,
+    finish_signal: Event,
     end_event: Event,
   ) -> None:
     super().__init__(
@@ -63,6 +64,7 @@ class EncodingWorker(WorkerBase):
       cancel_event=cancel_event,
       all_producers_finished=prd_all_done_event,
       start_signal=start_signal,
+      finish_signal=finish_signal,
       end_event=end_event,
     )
 
