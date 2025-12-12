@@ -85,7 +85,7 @@ class AcousticSessionBase(
     )
     self._shm_context.__enter__()
 
-    self._process_manager.start_main_processes()
+    self._process_manager.start()
 
     self._is_initialized = True
     self._logger = get_logger_from_session(self._session_id, __name__)
@@ -127,8 +127,11 @@ class AcousticSessionBase(
         f"{self._resources.logging_resources.session_log_file.absolute()}"
       )
 
-    self._resources.processing_resources.processing_finished_event.set()
     self._resources.stats_resources.save_end_time()
+
+    # Finish processing and wait for processes to finish ("join") their main loops
+    self._resources.processing_resources.processing_finished_event.set()
+    self._process_manager.join_processing()
 
     # Collect only if no cancellation occurred, otherwise result queues might be empty
     self._resources.analyzer_resources.collect_input_durations()
@@ -185,7 +188,7 @@ class AcousticSessionBase(
     assert self._shm_context is not None
 
     self.end()
-    self._process_manager.join_main_processes()
+    self._process_manager.join()
 
     self._resources.ring_buffer_resources.delete_ring_variables()
     self._shm_context.__exit__(*args)

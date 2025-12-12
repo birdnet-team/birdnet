@@ -276,12 +276,47 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
       show_stats=ns.show_stats,
       device=ns.devices if len(ns.devices) > 1 else ns.devices[0],
       prefetch_ratio=ns.prefetch_ratio,
-      progress_callback=None,  # my_callback,
+      progress_callback=show_progress_stats,
       bandpass_fmin=AcousticModelV2_4.get_sig_fmin(),
       bandpass_fmax=AcousticModelV2_4.get_sig_fmax(),
     )
 
 
-def my_callback(info: AcousticProgressStats) -> None:
-  pass
-  # print("Progress update:", info)
+def show_progress_stats(info: AcousticProgressStats) -> None:
+  output_msg_fields = [
+    f"MEM: {info.memory_usage_MiB:.0f} M",
+    f"BUF: {info.buffer_stats.filled_slots}/{info.buffer_stats.slots}",
+    f"P-SPEED: {info.producer_stats.speed_xrt:.0f} xRT "
+    f"[{info.producer_stats.speed_seg_per_s:.0f} seg/s]",
+    f"P-WAIT: {info.producer_stats.wait_ms:.2f} ms",
+    f"P-BATCH: {info.producer_stats.batch_ms:.2f} ms",
+    f"P-SEARCH: {info.producer_stats.search_ms:.2f} ms",
+    f"P-FLUSH: {info.producer_stats.flush_ms:.2f} ms",
+  ]
+  if info.worker_stats is not None:
+    output_msg_fields.extend(
+      [
+        f"W-SPEED: {info.worker_stats.speed_xrt:.0f} xRT "
+        f"[{info.worker_stats.speed_seg_per_s:.0f} seg/s]",
+        f"W-WAIT: {info.worker_stats.wait_ms:.2f} ms",
+        f"W-SEARCH: {info.worker_stats.search_ms:.2f} ms",
+        f"W-JOB: {info.worker_stats.job_ms:.2f} ms",
+        f"W-COPY: {info.worker_stats.copy_ms:.2f} ms",
+        f"W-INFER: {info.worker_stats.inference_ms:.2f} ms",
+        f"W-ADD: {info.worker_stats.add_ms:.2f} ms",
+        f"BUSY: {info.worker_stats.busy}/{info.worker_stats.workers}",
+      ]
+    )
+  else:
+    output_msg_fields.append("W: loading model...")
+
+  output_msg_fields.extend(
+    [
+      f"PROG: {info.progress_pct:.1f} %",
+      f"ETA: {info.est_remaining_time_hhmmss or '...'}",
+      f"Status: {info.finished}",
+    ]
+  )
+
+  output_msg = "; ".join(output_msg_fields)
+  print(output_msg, file=sys.stdout)

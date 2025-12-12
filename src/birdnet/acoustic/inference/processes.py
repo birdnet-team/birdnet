@@ -48,6 +48,7 @@ class ProcessManager:
     self._res = resources
     self._logging_thread: threading.Thread | None = None
     self._analyzer_thread: threading.Thread | None = None
+    self._progress_dispatcher_thread: threading.Thread | None = None
     self._perf_tracker_process: Process | None = None
     self._producer_processes: list[Process] | None = None
     self._worker_processes: list[Process] | None = None
@@ -74,6 +75,7 @@ class ProcessManager:
   def start_progress_dispatcher_thread(self) -> threading.Thread:
     assert self._res.stats_resources.callback_queue is not None
     assert self._res.stats_resources.callback_start_signal is not None
+    assert self._res.stats_resources.callback_finish_signal is not None
     assert self._res.stats_resources.callback_fn is not None
 
     progress_dispatcher = threading.Thread(
@@ -86,11 +88,15 @@ class ProcessManager:
         callback_queue=self._res.stats_resources.callback_queue,
         cancel_event=self._res.processing_resources.cancel_event,
         processing_finished_event=self._res.processing_resources.processing_finished_event,
+        end_signal=self._res.stats_resources.callback_finish_signal,
       ),
       name=f"{self._session_hash}-ProgressDispatcher",
       daemon=True,
     )
     progress_dispatcher.start()
+
+    assert self._progress_dispatcher_thread is None
+    self._progress_dispatcher_thread = progress_dispatcher
     return progress_dispatcher
 
   def start_performance_tracker_process(self) -> Process:
@@ -281,6 +287,13 @@ class ProcessManager:
       assert res.stats_resources.callback_start_signal is not None
       res.stats_resources.callback_start_signal.set()
 
+  def join_processing(self) -> None:
+    res = self._res
+
+    if res.stats_resources.track_performance:
+      assert res.stats_resources.callback_finish_signal is not None
+      res.stats_resources.callback_finish_signal.wait(timeout=None)
+
   def run_consumer(self, result_tensor: AcousticTensorBase) -> None:
     consumer = Consumer(
       session_id=self._session_id,
@@ -291,7 +304,7 @@ class ProcessManager:
     )
     consumer()
 
-  def start_main_processes(self) -> None:
+  def start(self) -> None:
     self.start_file_analyzer_thread()
     self.start_producer_processes()
     self.start_worker_processes()
@@ -302,7 +315,7 @@ class ProcessManager:
     if self._res.stats_resources.use_callback:
       self.start_progress_dispatcher_thread()
 
-  def join_main_processes(self) -> None:
+  def join(self) -> None:
     logger = get_logger_from_session(self._session_id, __name__)
 
     logger.debug("Joining file analyzer thread...")
@@ -333,6 +346,12 @@ class ProcessManager:
       self._perf_tracker_process.join()
       self._perf_tracker_process = None
       logger.debug("Performance tracker finished.")
+
+      logger.debug("Joining dispatcher thread...")
+      assert self._progress_dispatcher_thread is not None
+      self._progress_dispatcher_thread.join()
+      self._progress_dispatcher_thread = None
+      logger.debug("Dispatcher thread finished.")
 
   def join_logging(self) -> None:
     assert self._logging_thread is not None

@@ -13,13 +13,14 @@ from dataclasses import dataclass
 from multiprocessing import Queue, shared_memory
 from multiprocessing.synchronize import Event, Semaphore
 from queue import Empty
+from typing import Literal
 
 import numpy as np
 import psutil
 
 import birdnet.acoustic.inference.core.logs as bn_logging
-from birdnet.globals import READABLE_FLAG, READING_FLAG, WRITABLE_FLAG
 from birdnet.acoustic.inference.core.shm import RingField
+from birdnet.globals import READABLE_FLAG, READING_FLAG, WRITABLE_FLAG
 
 
 @dataclass
@@ -54,7 +55,8 @@ class ValueTracker:
     self._max_val = 0
     self._n_vals = 0
 
-  def add_value(self, val: float) -> None:
+  def add_value(self, val: float | np.floating) -> None:
+    val = float(val)
     self._values.append(val)
     self._min_val = min(self._min_val, val) if self._n_vals > 0 else val
     self._max_val = max(self._max_val, val) if self._n_vals > 0 else val
@@ -96,14 +98,19 @@ class ValueTracker:
     return self._n_vals
 
   @property
-  def vals_last(self) -> deque[float]:
+  def vals(self) -> deque[float]:
     return self._values
 
   @property
-  def median_val_last(self) -> float:
+  def last_val(self) -> float:
+    assert len(self._values) > 0
+    return self._values[-1]
+
+  @property
+  def median_val(self) -> float:
     if len(self._values) == 0:
       return np.nan
-    return np.median(self._values)  # type: ignore
+    return float(np.median(self._values))
 
 
 class PerformanceTracker(bn_logging.LogableProcessBase):
@@ -168,9 +175,11 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._wkr_2_search_dur_for_filled_slot_tracker = ValueTracker(n_last_batches)
     self._wkr_3_get_job_dur_tracker = ValueTracker(n_last_batches)
     self._wkr_4_copy_to_device_tracker = ValueTracker(n_last_batches)
-    self._wkr_4_inference_dur_tracker = ValueTracker(n_last_batches)
-    self._wkr_5_add_to_queue_dur_tracker = ValueTracker(n_last_batches)
+    self._wkr_5_inference_dur_tracker = ValueTracker(n_last_batches)
+    self._wkr_6_add_to_queue_dur_tracker = ValueTracker(n_last_batches)
     self._wkr_busy_tracker = ValueTracker(n_last_updated)
+    self._wkr_speed_xrt_tracker = ValueTracker(n_last_updated)
+    self._wkr_speed_seg_per_s_tracker = ValueTracker(n_last_updated)
 
     self._prd_wall_times = {}
     self._prd_total_segments_processed = 0
@@ -178,6 +187,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._prd_2_wait_dur_free_slot_tracker = ValueTracker(n_last_batches)
     self._prd_3_free_slot_search_dur_tracker = ValueTracker(n_last_batches)
     self._prd_4_flush_dur_tracker = ValueTracker(n_last_batches)
+    self._prd_speed_xrt_tracker = ValueTracker(n_last_updated)
+    self._prd_speed_seg_per_s_tracker = ValueTracker(n_last_updated)
 
     self._cpu_usage_tracker = ValueTracker(n_last_updated)
     self._memory_usage_MiB_tracker = ValueTracker(n_last_updated)
@@ -193,259 +204,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
   def _log(self, message: str) -> None:
     self._logger.debug(f"PT_{os.getpid()}: {message}")
-
-  def _get_worker_stats(self) -> bool:
-    # get entries until the marker, entries added in the meanwhile are ignored
-    # fix for queue.qsize() which is not supported on macOS
-    get_end_marker = None
-    self._wkr_stats_queue.put(get_end_marker)
-    is_empty = True
-    n_received = 0
-    receive_duration_start = time.perf_counter()
-
-    while True:
-      queue_entry = self._wkr_stats_queue.get(block=True)
-      if is_end_marker := queue_entry is get_end_marker:
-        break
-      is_empty = False
-      n_received += 1
-
-      stats: tuple[int, float, float, float, float, float, float, float, int] = (
-        queue_entry
-      )
-      (
-        worker_pid,
-        wall_time,
-        dur_wait_for_filled_slot,
-        dur_search_for_filled_slot,
-        dur_get_job,
-        dur_copy_to_device,
-        dur_inference,
-        dur_add_to_queue,
-        batch_size,
-      ) = stats
-      # self._log(
-      #   f"Received prediction duration from worker {worker_pid}: "
-      #   f"wall time: {wall_time:.3f}s, "
-      #   f"wait for filled slot: {dur_wait_for_filled_slot:.3f}s, "
-      #   f"find filled slot: {dur_search_for_filled_slot:.3f}s, "
-      #   f"inference: {dur_inference:.3f}s, add to queue: {dur_add_to_queue}s, "
-      #   f"batch size: {batch_size}"
-      # )
-      self._wkr_wall_times[worker_pid] = wall_time
-      self._wkr_total_segments_processed += batch_size
-
-      self._wkr_1_wait_dur_for_filled_slot_tracker.add_value(dur_wait_for_filled_slot)
-      self._wkr_2_search_dur_for_filled_slot_tracker.add_value(
-        dur_search_for_filled_slot
-      )
-      self._wkr_3_get_job_dur_tracker.add_value(dur_get_job)
-      self._wkr_4_copy_to_device_tracker.add_value(dur_copy_to_device)
-      self._wkr_4_inference_dur_tracker.add_value(dur_inference)
-      self._wkr_5_add_to_queue_dur_tracker.add_value(dur_add_to_queue)
-    self._log(
-      f"Received {n_received} worker stats entries in "
-      f"{time.perf_counter() - receive_duration_start} ms."
-    )
-    return is_empty
-
-  def _get_producer_stats(self) -> bool:
-    get_end_marker = None
-    self._prd_stats_queue.put(get_end_marker)
-    is_empty = True
-    n_received = 0
-    receive_duration_start = time.perf_counter()
-
-    while True:
-      queue_entry = self._prd_stats_queue.get(block=True)
-      if is_end_marker := queue_entry is get_end_marker:
-        break
-      is_empty = False
-      n_received += 1
-      stats: tuple[int, float, float, float, float, float, int] = queue_entry
-      (
-        prod_pid,
-        process_total_duration,
-        batch_loading_duration,
-        wait_time_for_free_slot,
-        free_slot_search_time,
-        flush_duration,
-        n,
-      ) = stats
-      # self._log(
-      #   f"Received producer stats from producer {prod_pid}: "
-      #   f"process: {process_total_duration:.3f}s, "
-      #   f"batch loading: {batch_loading_duration:.3f}s, "
-      #   f"wait for free slot: {wait_time_for_free_slot:.3f}s, "
-      #   f"flush: {flush_duration:.3f}s, n: {n}"
-      # )
-      self._prd_wall_times[prod_pid] = process_total_duration
-      self._prd_total_segments_processed += n
-
-      self._prd_1_batch_loading_dur_tracker.add_value(batch_loading_duration)
-      self._prd_2_wait_dur_free_slot_tracker.add_value(wait_time_for_free_slot)
-      self._prd_3_free_slot_search_dur_tracker.add_value(free_slot_search_time)
-      self._prd_4_flush_dur_tracker.add_value(flush_duration)
-    self._log(
-      f"Received {n_received} producer stats entries in "
-      f"{time.perf_counter() - receive_duration_start} ms."
-    )
-    return is_empty
-
-  def _print_stats(self) -> None:
-    received_at_least_one_prediction = len(self._wkr_wall_times) > 0
-    if not received_at_least_one_prediction:
-      return
-
-    wall_time = time.perf_counter() - self._start
-    # perf_duration_workers = t - self._workers_start
-    # avg = sum(self._pred_dur_deque) / sum(self._batch_sizes_deque)
-    # segments_per_s = self._total_segments_processed / wall_time
-    # min_per_s = segments_per_s * self._segment_size_s / 60
-    if self._parent_process is None:
-      self._parent_process = psutil.Process(self._parent_process_id)
-    memory_usage = self._parent_process.memory_full_info().uss
-    for child in self._parent_process.children(recursive=True):
-      try:
-        memory_usage += child.memory_full_info().uss
-      except psutil.NoSuchProcess:
-        continue
-      except psutil.AccessDenied:
-        continue
-    memory_usage_MiB = memory_usage / 1024**2
-
-    # avg_busy_workers = self._sem_active_workers.get_value()
-
-    # raw_segments_per_s_old = (
-    #   self._total_segments_processed
-    #   / (self._summed_worker_raw_pred_duration / avg_busy_workers)
-    #   if avg_busy_workers > 0
-    #   else 0
-    # )
-    wkr_proc_audio_duration_s = (
-      self._wkr_total_segments_processed * self._segment_size_s
-    )
-    prd_proc_audio_duration_s = (
-      self._prd_total_segments_processed * self._segment_size_s
-    )
-
-    _summed_wkr_duration = sum(self._wkr_wall_times.values())
-    _summed_prd_duration = sum(self._prd_wall_times.values())
-
-    wkr_speed_xrt = (
-      wkr_proc_audio_duration_s / _summed_wkr_duration * len(self._wkr_wall_times)
-      if _summed_wkr_duration > 0
-      else 0
-    )
-    prd_speed_xrt = (
-      prd_proc_audio_duration_s / _summed_prd_duration * len(self._prd_wall_times)
-      if _summed_prd_duration > 0
-      else 0
-    )
-
-    wkr_speed_segments_per_s = (
-      self._wkr_total_segments_processed
-      / _summed_wkr_duration
-      * len(self._wkr_wall_times)
-      if _summed_wkr_duration > 0
-      else 0
-    )
-    prd_speed_segments_per_s = (
-      self._prd_total_segments_processed
-      / _summed_prd_duration
-      * len(self._prd_wall_times)
-      if _summed_prd_duration > 0
-      else 0
-    )
-
-    # speed_x_real_time_classic = processed_audio_duration_s / wall_time
-
-    # raw_min_per_s = raw_segments_per_s_old * self._segment_size_s / 60
-
-    # max_raw_segments_per_s = max(max_raw_segments_per_s, raw_segments_per_s_old)
-
-    # avg_segments_per_s.append(raw_segments_per_s_old)
-    assert self._ring_flags is not None
-    stats = AcousticProgressStats()
-    output_msg_fields = [
-      # f"inference speed: {self._summed_raw_pred_duration /
-      # self._total_segments_processed * 1000:.0f} ms/segment",
-      # f"last {len(self._pred_dur_deque)} predictions: {avg * 1000:.0f} ms/segment",
-      # f"RTF: {real_time_factor:.8f}x [{raw_segments_per_s:.0f} segm/s]",
-      # f"SPEED2: {speed_x_real_time_classic:.0f} xRT [{segments_per_s:.0f} seg/s]",
-      # f"{raw_min_per_s:.2f} min/s",
-      f"MEM: {memory_usage_MiB:.0f} M",
-      # f"CPU usage: {cpu_usage:.1f} %",
-      f"BUF: {self._ring_flags.shape[0] - self._rng_free_slots_tracker.median_val_last:.0f}/{self._ring_flags.shape[0]}",
-      # f"BUF2: {self._rng_preloaded_slots_tracker.avg_val_last:.0f}/
-      # {self._ring_flags.shape[0]}",
-      # f"S-FILL: {self._sem_filled_tracker.avg_val_last:.0f}",
-      # f"free: {avg_free_slots:.0f}/{self._ring_flags.shape[0]}",
-      f"F-SPEED: {prd_speed_xrt:.0f} xRT [{prd_speed_segments_per_s:.0f} seg/s]",
-      f"F-WAIT: {self._prd_1_batch_loading_dur_tracker.median_val_last * 1000:.2f} ms",
-      f"F-BATCH: {self._prd_2_wait_dur_free_slot_tracker.median_val_last * 1000:.2f} ms",
-      f"F-SEARCH: {self._prd_3_free_slot_search_dur_tracker.median_val_last * 1000:.2f} ms",
-      f"F-FLUSH: {self._prd_4_flush_dur_tracker.median_val_last * 1000:.2f} ms",
-    ]
-    if received_at_least_one_prediction:
-      stats.worker_speed_xrt = wkr_speed_xrt
-      stats.worker_speed_seg_per_s = wkr_speed_segments_per_s
-      output_msg_fields += [
-        f"W-SPEED: {wkr_speed_xrt:.0f} xRT [{wkr_speed_segments_per_s:.0f} seg/s]",
-        f"W-WAIT: {self._wkr_1_wait_dur_for_filled_slot_tracker.avg_val * 1000:.2f} ms",
-        f"W-SEARCH: {self._wkr_2_search_dur_for_filled_slot_tracker.median_val_last * 1000:.2f} ms",
-        f"W-JOB: {self._wkr_3_get_job_dur_tracker.median_val_last * 1000:.2f} ms",
-        f"W-COPY: {self._wkr_4_copy_to_device_tracker.median_val_last * 1000:.2f} ms",
-        f"W-INFER: {self._wkr_4_inference_dur_tracker.median_val_last * 1000:.2f} ms",
-        f"W-ADD: {self._wkr_5_add_to_queue_dur_tracker.median_val_last * 1000:.2f} ms",
-        f"BUSY: {self._wkr_busy_tracker.median_val_last:.0f}/{self._n_workers}",
-        # f"prel: {avg_preloaded_slots:.0f}",
-        # f"busy: {avg_busy_slots:.0f}",
-        # f"fill: {avg_filled_slots:.0f}",
-      ]
-    else:
-      output_msg_fields += [
-        "W: loading model...",
-      ]
-
-    if self._tot_n_segments_ptr.value > 0 and self._wkr_total_segments_processed > 0:
-      progress = (
-        self._wkr_total_segments_processed / self._tot_n_segments_ptr.value * 100
-      )
-      stats.progress = progress
-      stats.progress_current = self._wkr_total_segments_processed
-      stats.progress_total = self._tot_n_segments_ptr.value
-      output_msg_fields.append(f"PROG: {progress:.1f} %")
-
-      est_remaining_time_s = (
-        wall_time
-        * (self._tot_n_segments_ptr.value - self._wkr_total_segments_processed)
-        / self._wkr_total_segments_processed
-      )
-      # formatted as HH:MM:SS ohne ms
-      est_remaining_time = str(
-        datetime.timedelta(seconds=math.ceil(est_remaining_time_s))
-      )
-      stats.est_remaining_time_s = est_remaining_time_s
-      output_msg_fields.append(f"ETA: {est_remaining_time}")
-    else:
-      output_msg_fields.append("PROG: analyzing...")
-
-    output_msg = "; ".join(output_msg_fields)
-
-    # add to callback queue
-    if self._callback_queue is not None:
-      self._callback_queue.put_nowait(stats)
-
-    # self._logger.info(output_msg)
-    print(output_msg, file=sys.stdout)
-
-  def print_stats_continuously(self) -> None:
-    while not self._processing_finished_event.wait(self._print_interval):
-      if self._cancel_event.is_set():
-        return
-      self._print_stats()
-    self._log("PerformanceTracker.PrintThread thread finished.")
 
   def _check_cancel_event(self) -> bool:
     if self._cancel_event.is_set():
@@ -489,7 +247,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       self.run_main()
 
   def reset(self) -> None:
-    # todo set to statisticresources start
+    # TODO set to statisticresources start
     self._start = time.perf_counter()
 
     self._memory_usage_MiB_tracker.reset()
@@ -506,8 +264,10 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._wkr_1_wait_dur_for_filled_slot_tracker.reset()
     self._wkr_2_search_dur_for_filled_slot_tracker.reset()
     self._wkr_3_get_job_dur_tracker.reset()
-    self._wkr_4_inference_dur_tracker.reset()
-    self._wkr_5_add_to_queue_dur_tracker.reset()
+    self._wkr_5_inference_dur_tracker.reset()
+    self._wkr_6_add_to_queue_dur_tracker.reset()
+    self._wkr_speed_xrt_tracker.reset()
+    self._wkr_speed_seg_per_s_tracker.reset()
 
     self._prd_wall_times.clear()
     self._prd_total_segments_processed = 0
@@ -515,71 +275,52 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._prd_2_wait_dur_free_slot_tracker.reset()
     self._prd_3_free_slot_search_dur_tracker.reset()
     self._prd_4_flush_dur_tracker.reset()
+    self._prd_speed_xrt_tracker.reset()
+    self._prd_speed_seg_per_s_tracker.reset()
+
+  def _track_memory_usage(self) -> None:
+    if self._parent_process is None:
+      self._parent_process = psutil.Process(self._parent_process_id)
+    memory_usage: float = self._parent_process.memory_full_info().uss
+    for child in self._parent_process.children(recursive=True):
+      try:
+        memory_usage += child.memory_full_info().uss
+      except psutil.NoSuchProcess:
+        continue
+      except psutil.AccessDenied:
+        continue
+
+    mem_usage_MiB = memory_usage / 1024**2
+    self._memory_usage_MiB_tracker.add_value(mem_usage_MiB)
+
+  @property
+  def wall_time(self) -> float:
+    return time.perf_counter() - self._start
 
   def run_main(self) -> None:
-    print_thread = threading.Thread(
-      target=self.print_stats_continuously,
-      name=f"{self._session_hash}-PerformanceTracker.PrintThread",
-      daemon=True,
-    )
-    print_thread.start()
+    # print_thread = threading.Thread(
+    #   target=self.callback_stats_continuously,
+    #   name=f"{self._session_hash}-PerformanceTracker.CallbackThread",
+    #   daemon=True,
+    # )
+    # print_thread.start()
 
     self.reset()
-    worker_speed_xrt_max = 0
 
     while True:
       if self._check_cancel_event():
         return
 
-      finished = self._processing_finished_event.is_set()
-      prod_queue_is_empty = self._get_producer_stats()
-      worker_queue_is_empty = self._get_worker_stats()
+      was_empty = self._track_stats()
 
-      if finished and prod_queue_is_empty and worker_queue_is_empty:
+      if self._processing_finished_event.wait(self._update_every) and was_empty:
+        self._log("Processing finished and queues empty.")
+        self._callback_stats(finished=True)
         break
+      else:
+        self._callback_stats(finished=False)
 
-      if not self._processing_finished_event.wait(self._update_every):
-        if self._parent_process is None:
-          self._parent_process = psutil.Process(self._parent_process_id)
-        memory_usage: float = self._parent_process.memory_full_info().uss
-        for child in self._parent_process.children(recursive=True):
-          try:
-            memory_usage += child.memory_full_info().uss
-          except psutil.NoSuchProcess:
-            continue
-          except psutil.AccessDenied:
-            continue
-
-        self._memory_usage_MiB_tracker.add_value(memory_usage / 1024**2)
-
-        cpu_usage = psutil.cpu_percent()
-        self._cpu_usage_tracker.add_value(cpu_usage)
-
-        c = Counter(self._ring_flags)
-        n_free = c.get(WRITABLE_FLAG, 0)
-        n_preloaded = c.get(READABLE_FLAG, 0)
-        n_busy = c.get(READING_FLAG, 0)
-
-        self._rng_free_slots_tracker.add_value(n_free)
-        self._rng_busy_slots_tracker.add_value(n_busy)
-        self._rng_preloaded_slots_tracker.add_value(n_preloaded)
-        self._wkr_busy_tracker.add_value(self._sem_active_workers.get_value())
-
-        self._sem_filled_tracker.add_value(self._sem_filled_slots.get_value())
-
-        _summed_wkr_duration = sum(self._wkr_wall_times.values())
-        wkr_proc_audio_duration_s = (
-          self._wkr_total_segments_processed * self._segment_size_s
-        )
-
-        wkr_speed_xrt = (
-          wkr_proc_audio_duration_s / _summed_wkr_duration * len(self._wkr_wall_times)
-          if _summed_wkr_duration > 0
-          else 0
-        )
-
-        worker_speed_xrt_max = max(worker_speed_xrt_max, wkr_speed_xrt)
-
+    worker_speed_xrt_max = 0
     stats = PerformanceTrackingResult(
       worker_speed_xrt=(self._wkr_total_segments_processed * self._segment_size_s)
       / sum(self._wkr_wall_times.values())
@@ -593,7 +334,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       ),
       worker_speed_xrt_max=worker_speed_xrt_max,
       total_segments_processed=self._wkr_total_segments_processed,
-      total_batches_processed=self._wkr_5_add_to_queue_dur_tracker.n_vals,
+      total_batches_processed=self._wkr_6_add_to_queue_dur_tracker.n_vals,
       # summed_prediction_duration_s=self._summed_worker_raw_pred_duration,
       n_usage_recordings=self._memory_usage_MiB_tracker.n_vals,
       max_memory_usages_MiB=self._memory_usage_MiB_tracker.max_val,
@@ -624,18 +365,394 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._log("Done putting performance tracking result into queue.")
 
     self._log("Joining print thread...")
-    print_thread.join()
+    # print_thread.join()
     self._log("Print thread joined.")
+
+  def _track_stats(self) -> bool:
+    # finished = self._processing_finished_event.is_set()
+    prod_queue_is_empty = self._track_producer_stats()
+    worker_queue_is_empty = self._track_worker_stats()
+    self._track_live_stats()
+
+    # if finished and prod_queue_is_empty and worker_queue_is_empty:
+    #   return True
+
+    # if not self._processing_finished_event.wait(self._update_every):
+    #   self._track_live_stats()
+
+    # return False
+
+    was_empty = prod_queue_is_empty and worker_queue_is_empty
+    return was_empty
+
+  def _track_live_stats(self) -> None:
+    self._track_memory_usage()
+    self._track_cpu_usage()
+    self._track_ring_buffer_stats()
+    self._track_semaphore_stats()
+    self._track_producer_speed()
+    self._track_worker_speed()
+
+  def _track_semaphore_stats(self) -> None:
+    self._wkr_busy_tracker.add_value(self._sem_active_workers.get_value())
+    self._sem_filled_tracker.add_value(self._sem_filled_slots.get_value())
+
+  def _track_ring_buffer_stats(self) -> None:
+    c = Counter(self._ring_flags)
+    n_free = c.get(WRITABLE_FLAG, 0)
+    n_preloaded = c.get(READABLE_FLAG, 0)
+    n_busy = c.get(READING_FLAG, 0)
+    self._rng_free_slots_tracker.add_value(n_free)
+    self._rng_busy_slots_tracker.add_value(n_busy)
+    self._rng_preloaded_slots_tracker.add_value(n_preloaded)
+
+  def _track_cpu_usage(self) -> None:
+    cpu_usage = psutil.cpu_percent()
+    self._cpu_usage_tracker.add_value(cpu_usage)
+
+  def _track_producer_speed(self) -> None:
+    prd_proc_audio_duration_s = (
+      self._prd_total_segments_processed * self._segment_size_s
+    )
+    _summed_prd_duration = sum(self._prd_wall_times.values())
+    prd_speed_xrt = float(
+      prd_proc_audio_duration_s / _summed_prd_duration * len(self._prd_wall_times)
+      if _summed_prd_duration > 0
+      else 0
+    )
+    prd_speed_segments_per_s = float(
+      self._prd_total_segments_processed
+      / _summed_prd_duration
+      * len(self._prd_wall_times)
+      if _summed_prd_duration > 0
+      else 0
+    )
+    self._prd_speed_xrt_tracker.add_value(prd_speed_xrt)
+    self._prd_speed_seg_per_s_tracker.add_value(prd_speed_segments_per_s)
+
+  def _track_worker_speed(self) -> None:
+    wkr_proc_audio_duration_s = (
+      self._wkr_total_segments_processed * self._segment_size_s
+    )
+    _summed_wkr_duration = sum(self._wkr_wall_times.values())
+    wkr_speed_segments_per_s = float(
+      self._wkr_total_segments_processed
+      / _summed_wkr_duration
+      * len(self._wkr_wall_times)
+      if _summed_wkr_duration > 0
+      else 0
+    )
+    wkr_speed_xrt = float(
+      wkr_proc_audio_duration_s / _summed_wkr_duration * len(self._wkr_wall_times)
+      if _summed_wkr_duration > 0
+      else 0
+    )
+    self._wkr_speed_xrt_tracker.add_value(wkr_speed_xrt)
+    self._wkr_speed_seg_per_s_tracker.add_value(wkr_speed_segments_per_s)
+
+  def _track_worker_stats(self) -> bool:
+    # get entries until the marker, entries added in the meanwhile are ignored
+    # fix for queue.qsize() which is not supported on macOS
+    end_marker = None
+    self._wkr_stats_queue.put(end_marker)
+    is_empty = True
+    n_received = 0
+    receive_duration_start = time.perf_counter()
+
+    while True:
+      queue_entry = self._wkr_stats_queue.get(block=True)
+      if is_end_marker := queue_entry is end_marker:
+        break
+      is_empty = False
+      n_received += 1
+
+      stats: tuple[int, float, float, float, float, float, float, float, int] = (
+        queue_entry
+      )
+      (
+        worker_pid,
+        wall_time,
+        dur_wait_for_filled_slot,
+        dur_search_for_filled_slot,
+        dur_get_job,
+        dur_copy_to_device,
+        dur_inference,
+        dur_add_to_queue,
+        batch_size,
+      ) = stats
+      # self._log(
+      #   f"Received prediction duration from worker {worker_pid}: "
+      #   f"wall time: {wall_time:.3f}s, "
+      #   f"wait for filled slot: {dur_wait_for_filled_slot:.3f}s, "
+      #   f"find filled slot: {dur_search_for_filled_slot:.3f}s, "
+      #   f"inference: {dur_inference:.3f}s, add to queue: {dur_add_to_queue}s, "
+      #   f"batch size: {batch_size}"
+      # )
+      self._wkr_wall_times[worker_pid] = wall_time
+      self._wkr_total_segments_processed += batch_size
+
+      self._wkr_1_wait_dur_for_filled_slot_tracker.add_value(dur_wait_for_filled_slot)
+      self._wkr_2_search_dur_for_filled_slot_tracker.add_value(
+        dur_search_for_filled_slot
+      )
+      self._wkr_3_get_job_dur_tracker.add_value(dur_get_job)
+      self._wkr_4_copy_to_device_tracker.add_value(dur_copy_to_device)
+      self._wkr_5_inference_dur_tracker.add_value(dur_inference)
+      self._wkr_6_add_to_queue_dur_tracker.add_value(dur_add_to_queue)
+    self._log(
+      f"Received {n_received} worker stats entries in "
+      f"{time.perf_counter() - receive_duration_start} ms."
+    )
+    return is_empty
+
+  def _track_producer_stats(self) -> bool:
+    end_marker = None
+    self._prd_stats_queue.put(end_marker)
+    is_empty = True
+    n_received = 0
+    receive_duration_start = time.perf_counter()
+
+    while True:
+      queue_entry = self._prd_stats_queue.get(block=True)
+      if is_end_marker := queue_entry is end_marker:
+        break
+      is_empty = False
+      n_received += 1
+      stats: tuple[int, float, float, float, float, float, int] = queue_entry
+      (
+        prod_pid,
+        process_total_duration,
+        batch_loading_duration,
+        wait_time_for_free_slot,
+        free_slot_search_time,
+        flush_duration,
+        n,
+      ) = stats
+      # self._log(
+      #   f"Received producer stats from producer {prod_pid}: "
+      #   f"process: {process_total_duration:.3f}s, "
+      #   f"batch loading: {batch_loading_duration:.3f}s, "
+      #   f"wait for free slot: {wait_time_for_free_slot:.3f}s, "
+      #   f"flush: {flush_duration:.3f}s, n: {n}"
+      # )
+      self._prd_wall_times[prod_pid] = process_total_duration
+      self._prd_total_segments_processed += n
+
+      self._prd_1_batch_loading_dur_tracker.add_value(batch_loading_duration)
+      self._prd_2_wait_dur_free_slot_tracker.add_value(wait_time_for_free_slot)
+      self._prd_3_free_slot_search_dur_tracker.add_value(free_slot_search_time)
+      self._prd_4_flush_dur_tracker.add_value(flush_duration)
+    self._log(
+      f"Received {n_received} producer stats entries in "
+      f"{time.perf_counter() - receive_duration_start} ms."
+    )
+    return is_empty
+
+  def callback_stats_continuously(self) -> None:
+    while not self._processing_finished_event.wait(self._print_interval):
+      if self._cancel_event.is_set():
+        return
+      self._callback_stats(False)
+    self._log("PerformanceTracker.CallbackThread finished.")
+
+  def _callback_stats(self, finished: bool) -> None:
+    received_at_least_one_prediction = len(self._wkr_wall_times) > 0
+    if not received_at_least_one_prediction:
+      return
+
+    p_stats = ProducerStats(
+      speed_xrt=self._prd_speed_xrt_tracker.last_val,
+      speed_seg_per_s=self._prd_speed_seg_per_s_tracker.last_val,
+      wait_ms=self._prd_2_wait_dur_free_slot_tracker.median_val * 1000,
+      batch_ms=self._prd_1_batch_loading_dur_tracker.median_val * 1000,
+      search_ms=self._prd_3_free_slot_search_dur_tracker.median_val * 1000,
+      flush_ms=self._prd_4_flush_dur_tracker.median_val * 1000,
+    )
+
+    assert self._ring_flags is not None
+    b_stats = BufferStats(
+      slots=self._ring_flags.shape[0],
+      busy_slots=self._rng_busy_slots_tracker.median_val,
+      preloaded_slots=self._rng_preloaded_slots_tracker.median_val,
+      free_slots=self._rng_free_slots_tracker.median_val,
+    )
+    w_stats: WorkerStats | None = None
+
+    processed_batches = 0
+
+    if received_at_least_one_prediction:
+      processed_batches = self._wkr_6_add_to_queue_dur_tracker.n_vals
+
+      w_stats = WorkerStats(
+        speed_xrt=self._wkr_speed_xrt_tracker.last_val,
+        speed_seg_per_s=self._wkr_speed_seg_per_s_tracker.last_val,
+        wait_ms=self._wkr_1_wait_dur_for_filled_slot_tracker.median_val * 1000,
+        search_ms=self._wkr_2_search_dur_for_filled_slot_tracker.median_val * 1000,
+        job_ms=self._wkr_3_get_job_dur_tracker.median_val * 1000,
+        copy_ms=self._wkr_4_copy_to_device_tracker.median_val * 1000,
+        inference_ms=self._wkr_5_inference_dur_tracker.median_val * 1000,
+        add_ms=self._wkr_6_add_to_queue_dur_tracker.median_val * 1000,
+        workers=self._n_workers,
+        busy=self._wkr_busy_tracker.median_val,
+      )
+
+    progress_pct = 0.0
+    processed_segments = 0
+    total_segments = None
+    est_remaining_time_s = None
+    if self._tot_n_segments_ptr.value > 0 and self._wkr_total_segments_processed > 0:
+      progress_pct = (
+        self._wkr_total_segments_processed / self._tot_n_segments_ptr.value * 100
+      )
+      processed_segments = self._wkr_total_segments_processed
+      total_segments = self._tot_n_segments_ptr.value
+
+      est_remaining_time_s = (
+        self.wall_time
+        * (self._tot_n_segments_ptr.value - self._wkr_total_segments_processed)
+        / self._wkr_total_segments_processed
+      )
+
+    if self._callback_queue is not None:
+      stats = AcousticProgressStats(
+        finished=finished,
+        buffer_stats=b_stats,
+        producer_stats=p_stats,
+        worker_stats=w_stats,
+        wall_time_s=self.wall_time,
+        est_remaining_time_s=est_remaining_time_s,
+        progress_pct=progress_pct,
+        processed_segments=processed_segments,
+        total_segments=total_segments,
+        processed_batches=processed_batches,
+        memory_usage_MiB=self._memory_usage_MiB_tracker.median_val,
+        memory_usage_max_MiB=self._memory_usage_MiB_tracker.max_val,
+        n_usage_recordings=self._memory_usage_MiB_tracker.n_vals,
+        cpu_usage_pct=self._cpu_usage_tracker.median_val,
+        cpu_usage_max_pct=self._cpu_usage_tracker.max_val,
+      )
+      self._callback_queue.put_nowait(stats)
 
 
 @dataclass
+class WorkerStats:
+  # x real time
+  speed_xrt: float
+
+  # segments per second
+  speed_seg_per_s: float
+
+  # median wait time for a filled slot in ms
+  wait_ms: float
+
+  # median search time for a filled slot in ms
+  search_ms: float
+
+  job_ms: float
+  copy_ms: float
+  inference_ms: float
+  add_ms: float
+
+  # total number of workers
+  workers: int
+
+  # median number of busy workers
+  busy: float
+
+
+@dataclass(frozen=True)
+class ProducerStats:
+  # x real time
+  speed_xrt: float
+
+  # segments per second
+  speed_seg_per_s: float
+
+  # median wait time for a free slot in buffer in ms
+  wait_ms: float
+
+  # median batch loading time in ms
+  batch_ms: float
+
+  # median search time for a free slot in ms
+  search_ms: float
+
+  # median flush time in ms
+  flush_ms: float
+
+
+@dataclass(frozen=True)
+class BufferStats:
+  # total number of slots in buffer
+  slots: int
+
+  # median number of free slots which can be written to
+  free_slots: float
+
+  # median number of slots which are being filled
+  busy_slots: float
+
+  # median number of slots which are prepared for reading
+  preloaded_slots: float
+
+  # median number of filled slots
+  @property
+  def filled_slots(self) -> float:
+    return self.slots - self.free_slots
+
+
+@dataclass(frozen=True)
 class AcousticProgressStats:
-  worker_speed_xrt: float | None = None
-  worker_speed_seg_per_s: float | None = None
-  progress: float | None = None
-  est_remaining_time_s: float | None = None
-  progress_current: int | None = 0
-  progress_total: int | None = None
+  # processing status
+  finished: bool
+
+  # buffer stats
+  buffer_stats: BufferStats
+
+  # producer stats
+  producer_stats: ProducerStats
+
+  # worker stats, or None if no worker has processed data yet
+  worker_stats: WorkerStats | None
+
+  # wall time since start in seconds
+  wall_time_s: float
+
+  # memory usage in MiB
+  memory_usage_MiB: float
+
+  # maximum memory usage in MiB
+  memory_usage_max_MiB: float
+
+  # CPU usage in percentage
+  cpu_usage_pct: float
+
+  # total maximum CPU usage in percentage
+  cpu_usage_max_pct: float
+
+  # percentage of progress [0-100]
+  progress_pct: float
+
+  # estimated remaining time in seconds, or None if still unknown
+  est_remaining_time_s: float | None
+
+  @property
+  def est_remaining_time_hhmmss(self) -> str | None:
+    if self.est_remaining_time_s is None:
+      return None
+    return str(datetime.timedelta(seconds=math.ceil(self.est_remaining_time_s)))
+
+  # number of processed segments
+  processed_segments: int
+
+  # number of processed batches
+  processed_batches: int
+
+  # total segments to process, or None if still unknown
+  total_segments: int | None
+
+  # number of recordings used for median calculations on all stats
+  n_usage_recordings: int
 
 
 class ProgressDispatcher:
@@ -647,6 +764,7 @@ class ProgressDispatcher:
     cancel_event: Event,
     end_event: Event,
     start_signal: threading.Event,
+    end_signal: threading.Event,
     processing_finished_event: Event,
     check_interval: float = 1.0,
   ) -> None:
@@ -655,6 +773,7 @@ class ProgressDispatcher:
     self._cancel_event = cancel_event
     self._end_event = end_event
     self._start_signal = start_signal
+    self._end_signal = end_signal
     self._callback_fn = callback_fn
     self._processing_finished_event = processing_finished_event
     self._check_interval = check_interval
@@ -697,30 +816,34 @@ class ProgressDispatcher:
       self._start_signal.clear()
       self._log("Received start signal. Starting processing.")
       self.run_main()
+      self._log("Processing finished. Setting end signal.")
+      self._end_signal.set()
 
-  def run_main(self) -> None:
+  def get_last_stats(self) -> AcousticProgressStats | None:
     latest = None
 
     while True:
-      finished = self._processing_finished_event.is_set()
-      if finished:
-        self._log("Processing finished event is set. Exiting loop.")
-        return
+      try:
+        latest = self._callback_queue.get(block=True, timeout=1.0)
+      except Empty:
+        break
 
-      while True:
-        try:
-          latest = self._callback_queue.get(block=True, timeout=1.0)
-          break
-        except Empty:
-          # it has started, so ending is not possible, only canceling
-          if self._check_cancel_event():
-            return
+    return latest
 
-          finished = self._processing_finished_event.is_set()
-          if finished:
-            self._log("Processing finished event is set. Exiting loop.")
-            return
+  def run_main(self) -> None:
+    while True:
+      latest = self.get_last_stats()
 
-      assert latest is not None
-      self._log("Received stats. Call callback function.")
-      self._callback_fn(latest)
+      if latest is None:
+        # it has started, so ending is not possible, only canceling
+        if self._check_cancel_event():
+          return
+      else:
+        self._log("Received stats. Call callback function.")
+        self._callback_fn(latest)
+
+        finished = self._processing_finished_event.is_set()
+        if finished and latest.finished:
+          # last stats should always be called
+          self._log("Processing finished event is set. Exiting loop.")
+          return

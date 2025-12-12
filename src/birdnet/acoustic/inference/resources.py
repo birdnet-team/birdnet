@@ -468,6 +468,7 @@ class StatisticsResources:
   callback_fn: Callable[[AcousticProgressStats], None] | None
   callback_queue: Queue | None
   callback_start_signal: threading.Event | None
+  callback_finish_signal: threading.Event | None
 
   benchmarking: bool
   benchmark_dir: Path | None
@@ -520,11 +521,13 @@ class StatisticsResources:
       sem_active_workers = mp.Semaphore(0)
 
     callback_start_signal = None
+    callback_finish_signal = None
     callback_queue = None
     callback_fn = None
 
     if use_callback:
       callback_start_signal = threading.Event()
+      callback_finish_signal = threading.Event()
       callback_queue = Queue()
       callback_fn = conf.output_conf.progress_callback
 
@@ -559,6 +562,7 @@ class StatisticsResources:
       callback_queue=callback_queue,
       callback_start_signal=callback_start_signal,
       callback_fn=callback_fn,
+      callback_finish_signal=callback_finish_signal,
     )
 
   def reset(self) -> None:
