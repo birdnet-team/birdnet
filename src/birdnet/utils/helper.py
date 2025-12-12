@@ -29,6 +29,12 @@ def check_is_intel_macos() -> bool:
   return False
 
 
+def check_is_python_312() -> bool:
+  import sys
+
+  return sys.version_info.major == 3 and sys.version_info.minor == 12
+
+
 def get_hash(session_id: str) -> str:
   hash_digest = hashlib.sha256(session_id.encode()).hexdigest()
   return hash_digest

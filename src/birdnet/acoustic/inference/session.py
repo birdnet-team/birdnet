@@ -3,8 +3,6 @@ from __future__ import annotations
 import shutil
 from abc import ABC
 from collections.abc import Callable, Collection, Iterable
-from contextlib import contextmanager, suppress
-from multiprocessing import shared_memory
 from pathlib import Path
 from typing import Any, ContextManager, Generic, Literal, Self, cast
 
@@ -35,7 +33,6 @@ from birdnet.acoustic.inference.core.prediction.prediction_result import (
   AcousticDataPredictionResult,
   AcousticFilePredictionResult,
 )
-from birdnet.acoustic.inference.core.shm import RingField, create_shm_ring
 from birdnet.acoustic.inference.encoding_strategy import (
   EncodingStrategy,
 )
@@ -50,7 +47,7 @@ from birdnet.acoustic.inference.resources import (
 from birdnet.acoustic.inference.strategy import InferenceStrategyBase
 from birdnet.core.backends import VersionedAcousticBackendProtocol
 from birdnet.core.base import SessionBase
-from birdnet.globals import ACOUSTIC_MODEL_VERSIONS, WRITABLE_FLAG
+from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
 
 
 class AcousticSessionBase(

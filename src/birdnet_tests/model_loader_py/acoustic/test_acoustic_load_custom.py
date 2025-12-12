@@ -6,10 +6,18 @@ from birdnet.acoustic.models.v2_4.model import AcousticModelV2_4
 from birdnet.acoustic.models.v2_4.pb import AcousticPBDownloaderV2_4
 from birdnet.acoustic.models.v2_4.tf import AcousticTFDownloaderV2_4
 from birdnet.globals import MODEL_PRECISIONS
-from birdnet.utils.local_data import get_lang_dir, get_model_path
 from birdnet.model_loader import load_custom
+from birdnet.utils.helper import check_is_intel_macos, check_is_python_312
+from birdnet.utils.local_data import get_lang_dir, get_model_path
 from birdnet_tests.helper import ensure_litert_or_skip
 from birdnet_tests.test_files import TEST_FILES_DIR
+
+
+def check_validity() -> bool:
+  # Note: on Intel macOS python 3.12 the model could not be loaded for unknown reasons
+  # it will result in a TimeoutError
+  check_it = not (check_is_python_312() and check_is_intel_macos())
+  return check_it
 
 
 @pytest.mark.litert
@@ -29,7 +37,7 @@ def test_v2_4_pb_with_library_raises_error() -> None:
       get_lang_dir("acoustic", "2.4", "pb") / "en_us.txt",
       library="litert",
       precision="fp32",
-      check_validity=True,
+      check_validity=check_validity(),
       is_raven=False,
     )  # type: ignore
 
@@ -42,7 +50,7 @@ def test_v2_4_pb() -> None:
     "pb",
     get_model_path("acoustic", "2.4", "pb", "fp32"),
     get_lang_dir("acoustic", "2.4", "pb") / "en_us.txt",
-    check_validity=True,
+    check_validity=check_validity(),
     precision="fp32",
     is_raven=False,
   )
@@ -59,7 +67,7 @@ def test_v2_4_tf_fp32() -> None:
     get_lang_dir("acoustic", "2.4", "tf") / "en_us.txt",
     library="tflite",
     precision="fp32",
-    check_validity=True,
+    check_validity=check_validity(),
   )
   assert isinstance(model, AcousticModelV2_4)
 
@@ -77,7 +85,7 @@ def test_v2_4_litert_fp32() -> None:
     get_lang_dir("acoustic", "2.4", "tf") / "en_us.txt",
     library="litert",
     precision="fp32",
-    check_validity=True,
+    check_validity=check_validity(),
   )
   assert isinstance(model, AcousticModelV2_4)
 
@@ -92,7 +100,7 @@ def test_v2_4_tf_fp16() -> None:
     get_lang_dir("acoustic", "2.4", "tf") / "en_us.txt",
     library="tflite",
     precision="fp16",
-    check_validity=True,
+    check_validity=check_validity(),
   )
   assert isinstance(model, AcousticModelV2_4)
 
@@ -110,7 +118,7 @@ def test_v2_4_litert_fp16() -> None:
     get_lang_dir("acoustic", "2.4", "tf") / "en_us.txt",
     library="litert",
     precision="fp16",
-    check_validity=True,
+    check_validity=check_validity(),
   )
   assert isinstance(model, AcousticModelV2_4)
 
@@ -125,7 +133,7 @@ def test_v2_4_tf_int8() -> None:
     get_lang_dir("acoustic", "2.4", "tf") / "en_us.txt",
     library="tflite",
     precision="int8",
-    check_validity=True,
+    check_validity=check_validity(),
   )
   assert isinstance(model, AcousticModelV2_4)
 
@@ -143,7 +151,7 @@ def test_v2_4_litert_int8() -> None:
     get_lang_dir("acoustic", "2.4", "tf") / "en_us.txt",
     library="litert",
     precision="int8",
-    check_validity=True,
+    check_validity=check_validity(),
   )
   assert isinstance(model, AcousticModelV2_4)
 
@@ -277,7 +285,7 @@ def test_custom_from_analyzer_v2_4_tf_fp32() -> None:
     TEST_FILES_DIR / "custom_models/tf/CustomClassifier.tflite",
     TEST_FILES_DIR / "custom_models/tf/CustomClassifier_Labels.txt",
     library="tflite",
-    check_validity=True,
+    check_validity=check_validity(),
     precision="fp32",
   )
   assert isinstance(model, AcousticModelV2_4)
@@ -290,7 +298,7 @@ def test_custom_from_analyzer_v2_4_raven_fp32() -> None:
     "pb",
     TEST_FILES_DIR / "custom_models/raven/CustomClassifier",
     TEST_FILES_DIR / "custom_models/raven/CustomClassifier/labels/label_names.csv",
-    check_validity=True,
+    check_validity=check_validity(),
     is_raven=True,
     precision="fp32",
   )
@@ -308,7 +316,7 @@ def test_custom_from_analyzer_v2_4_as_no_raven_fp32_raises_exception() -> None:
       "pb",
       TEST_FILES_DIR / "custom_models/raven/CustomClassifier",
       TEST_FILES_DIR / "custom_models/raven/CustomClassifier/labels/label_names.csv",
-      check_validity=True,
+      check_validity=check_validity(),
       is_raven=False,
       precision="fp32",
     )

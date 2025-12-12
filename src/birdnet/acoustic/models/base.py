@@ -12,9 +12,8 @@ from birdnet.acoustic.inference.core.prediction.prediction_result import (
 from birdnet.acoustic.inference.session import (
   AcousticEncodingSession,
   AcousticPredictionSession,
-  AcousticSessionBase,
 )
-from birdnet.core.base import ModelBase, ResultBase
+from birdnet.core.base import ModelBase
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
 
 

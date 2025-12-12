@@ -476,10 +476,16 @@ class BackendLoader:
       n_species_in_model = None
       with ProcessPoolExecutor(max_workers=1) as executor:
         future = executor.submit(cls._get_n_species, model_path, backend_type, kwargs)
-        n_species_in_model = future.result(timeout=None)
+        n_species_in_model = future.result(timeout=180)
       if n_species_in_model is None:
         raise ValueError("Failed to load model.")
       return n_species_in_model
+    except multiprocessing.TimeoutError:
+      get_logger_for_package(__name__).error(
+        "Timeout while loading model in subprocess (3 min). Could not check if model can be loaded."
+      )
+      # Note: on Intel macOS python 3.12 the model could not be loaded for unknown reasons
+      raise ValueError("Failed to load model due to timeout.") from e
     except Exception as e:
       get_logger_for_package(__name__).error(f"Failed to load model in subprocess: {e}")
       raise ValueError("Failed to load model.") from e

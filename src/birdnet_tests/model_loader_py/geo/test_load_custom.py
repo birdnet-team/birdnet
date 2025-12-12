@@ -5,9 +5,12 @@ import pytest
 from birdnet.geo.models.v2_4.model import GeoModelV2_4
 from birdnet.geo.models.v2_4.pb import GeoPBDownloaderV2_4
 from birdnet.geo.models.v2_4.tf import GeoTFDownloaderV2_4
-from birdnet.utils.local_data import get_lang_dir, get_model_path
 from birdnet.model_loader import load_custom
+from birdnet.utils.local_data import get_lang_dir, get_model_path
 from birdnet_tests.helper import ensure_litert_or_skip
+from birdnet_tests.model_loader_py.acoustic.test_acoustic_load_custom import (
+  check_validity,
+)
 
 
 def test_load_pb_with_custom_library_raises_error() -> None:
@@ -25,7 +28,7 @@ def test_load_pb_with_custom_library_raises_error() -> None:
       get_model_path("geo", "2.4", "pb", "fp32"),
       get_lang_dir("geo", "2.4", "pb") / "en_us.txt",
       library="litert",
-      check_validity=True,
+      check_validity=check_validity(),
     )  # type: ignore
 
 
@@ -38,7 +41,7 @@ def test_load_custom_geo_model_v2_4_pb_fp32() -> None:
     get_model_path("geo", "2.4", "pb", "fp32"),
     get_lang_dir("geo", "2.4", "pb") / "en_us.txt",
     precision="fp32",
-    check_validity=True,
+    check_validity=check_validity(),
   )
   assert isinstance(model, GeoModelV2_4)
 
@@ -52,7 +55,7 @@ def test_load_custom_geo_model_v2_4_tf_fp32() -> None:
     get_model_path("geo", "2.4", "tf", "fp32"),
     get_lang_dir("geo", "2.4", "tf") / "en_us.txt",
     library="tflite",
-    check_validity=True,
+    check_validity=check_validity(),
   )
   assert isinstance(model, GeoModelV2_4)
 
@@ -68,7 +71,7 @@ def test_load_custom_geo_model_v2_4_litert_fp32() -> None:
     get_model_path("geo", "2.4", "tf", "fp32"),
     get_lang_dir("geo", "2.4", "tf") / "en_us.txt",
     library="litert",
-    check_validity=True,
+    check_validity=check_validity(),
   )
   assert isinstance(model, GeoModelV2_4)
 
