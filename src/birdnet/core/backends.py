@@ -34,7 +34,9 @@ from birdnet.globals import (
 from birdnet.utils.logging_utils import get_logger_for_package
 
 if TYPE_CHECKING:
-  from ai_edge_litert.interpreter import Interpreter as LiteRTInterpreter
+  from ai_edge_litert.interpreter import (  # type: ignore
+    Interpreter as LiteRTInterpreter,
+  )
   from tensorflow import Tensor
   from tensorflow.lite.python.interpreter import Interpreter as TFInterpreter
 
