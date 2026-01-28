@@ -11,7 +11,12 @@ from tqdm import tqdm
 from birdnet.acoustic.inference.core.prediction.prediction_tensor import (
   AcousticPredictionTensor,
 )
-from birdnet.acoustic.inference.core.result_base import AcousticResultBase
+from birdnet.acoustic.inference.core.result_base import (
+  VAR_END_TIME,
+  VAR_INPUT,
+  VAR_START_TIME,
+  AcousticResultBase,
+)
 from birdnet.utils.helper import (
   apply_speed_to_duration,
   get_hop_duration_s,
@@ -22,9 +27,6 @@ if TYPE_CHECKING:
   import pandas as pd
   import pyarrow as pa
 
-VAR_INPUT = "input"
-VAR_START_TIME = "start_time"
-VAR_END_TIME = "end_time"
 VAR_SPECIES_NAME = "species_name"
 VAR_CONFIDENCE = "confidence"
 
@@ -144,10 +146,6 @@ class AcousticPredictionResultBase(AcousticResultBase):
     cls._species_masked = data[NP_SPECIES_MASKED_KEY]
     cls._species_list = data[NP_SPECIES_LIST_KEY]
     cls._unprocessable_inputs = data[NP_UNPROCESSABLE_INPUTS_KEY]
-
-  @property
-  def _input_dtype(self) -> type:
-    return self._inputs.dtype
 
   def to_structured_array(self) -> np.ndarray:
     valid_mask = ~self._species_masked

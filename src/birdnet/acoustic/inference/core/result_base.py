@@ -11,6 +11,10 @@ from ordered_set import OrderedSet
 from birdnet.core.base import ResultBase
 from birdnet.utils.helper import get_float_dtype, get_hash, get_uint_dtype
 
+VAR_INPUT = "input"
+VAR_START_TIME = "start_time"
+VAR_END_TIME = "end_time"
+
 NP_INPUTS_KEY = "inputs"
 NP_INPUT_DURATIONS_KEY = "input_durations"
 NP_SEGMENT_DURATION_S_KEY = "segment_duration_s"
@@ -61,6 +65,10 @@ class AcousticResultBase(ResultBase):
     self._model_fmin = np.array([model_fmin], dtype=get_uint_dtype(model_fmin))
     self._model_fmax = np.array([model_fmax], dtype=get_uint_dtype(model_fmax))
     self._model_sr = np.array([model_sr], dtype=get_uint_dtype(model_sr))
+
+  @property
+  def _input_dtype(self) -> type:
+    return self._inputs.dtype
 
   @property
   def segment_duration_s(self) -> float:
@@ -146,7 +154,7 @@ class SessionBase(ABC):
   def __enter__(self) -> Self: ...
 
   @abstractmethod
-  def __exit__(self, *args): ...
+  def __exit__(self, *args) -> None: ...
 
   @abstractmethod
   def run(self, *args, **kwargs) -> ResultBase: ...

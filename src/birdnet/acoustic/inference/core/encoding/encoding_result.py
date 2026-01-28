@@ -7,8 +7,19 @@ import numpy as np
 from birdnet.acoustic.inference.core.encoding.encoding_tensor import (
   AcousticEncodingTensor,
 )
-from birdnet.acoustic.inference.core.result_base import AcousticResultBase
-from birdnet.utils.helper import get_uint_dtype
+from birdnet.acoustic.inference.core.result_base import (
+  VAR_END_TIME,
+  VAR_INPUT,
+  VAR_START_TIME,
+  AcousticResultBase,
+)
+from birdnet.utils.helper import (
+  apply_speed_to_duration,
+  get_hop_duration_s,
+  get_uint_dtype,
+)
+
+VAR_EMBEDDING = "embedding"
 
 NP_EMB_KEY = "embeddings"
 NP_EMB_MASKED_KEY = "embeddings_masked"
@@ -77,6 +88,65 @@ class AcousticEncodingResultBase(AcousticResultBase):
   @property
   def max_n_segments(self) -> int:
     return self._embeddings.shape[1]
+
+  def test() -> None:
+    pass
+
+  def to_structured_array(self) -> np.ndarray:
+    valid_mask_per_segment = ~(self._embeddings_masked).all(axis=2)
+    valid_file_idx, valid_seg_idx = np.where(valid_mask_per_segment)
+    n_embeddings = len(valid_file_idx)
+
+    embeddings_selected = self.embeddings[valid_file_idx, valid_seg_idx]
+
+    dtype = [
+      (VAR_INPUT, self._input_dtype),
+      (VAR_START_TIME, self._input_durations.dtype),
+      (VAR_END_TIME, self._input_durations.dtype),
+      (VAR_EMBEDDING, self._embeddings.dtype, self.emd_dim),
+    ]
+
+    structured_array = np.empty(n_embeddings, dtype=dtype)
+    del dtype
+
+    if n_embeddings == 0:
+      return structured_array
+    del n_embeddings
+
+    sort_keys = (
+      valid_seg_idx,
+      valid_file_idx,
+    )
+    sort_indices = np.lexsort(sort_keys)
+    del sort_keys
+
+    file_idx_flat = valid_file_idx[sort_indices]
+    chunk_idx_flat = valid_seg_idx[sort_indices]
+    emb_flat = embeddings_selected[sort_indices]
+    del embeddings_selected
+    del sort_indices
+
+    hop_duration_s = get_hop_duration_s(
+      self._segment_duration_s[0], self._overlap_duration_s[0], self._speed[0]
+    )
+    start_times = chunk_idx_flat.astype(self._input_durations.dtype) * hop_duration_s
+    del hop_duration_s
+    del chunk_idx_flat
+
+    structured_array[VAR_START_TIME] = start_times
+    structured_array[VAR_END_TIME] = np.minimum(
+      start_times
+      + apply_speed_to_duration(self._segment_duration_s[0], self._speed[0]),
+      self._input_durations[file_idx_flat],
+    )
+    del start_times
+    structured_array[VAR_INPUT] = self._inputs[file_idx_flat]
+    del file_idx_flat
+
+    structured_array[VAR_EMBEDDING] = emb_flat
+    del emb_flat
+
+    return structured_array
 
   def unprocessable_inputs(self) -> np.ndarray:
     return self._unprocessable_inputs
