@@ -159,7 +159,14 @@ class AcousticResultBase(ResultBase):
   def to_arrow_table(self) -> pa.Table: ...
 
   @abstractmethod
-  def to_csv(self) -> None: ...
+  def to_csv(
+    self,
+    path: os.PathLike | str,
+    *,
+    encoding: str = "utf-8",
+    buffer_size_kb: int = 1024,
+    silent: bool = False,
+  ) -> None: ...
 
   def to_dataframe(self) -> pd.DataFrame:
     import pandas as pd
