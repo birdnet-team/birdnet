@@ -12,9 +12,8 @@ from birdnet.acoustic.inference.core.prediction.prediction_result import (
 from birdnet.acoustic.inference.session import (
   AcousticEncodingSession,
   AcousticPredictionSession,
-  AcousticSessionBase,
 )
-from birdnet.core.base import ModelBase, ResultBase
+from birdnet.core.base import ModelBase
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
 
 
@@ -29,10 +28,20 @@ class AcousticModelBase(ModelBase, ABC):
 
   @classmethod
   @abstractmethod
-  def get_version(cls) -> ACOUSTIC_MODEL_VERSIONS: ...
+  def get_version(cls) -> ACOUSTIC_MODEL_VERSIONS:  # noqa: ANN002
+    """Return the string label that identifies the acoustic model version.
+
+    Returns:
+      ACOUSTIC_MODEL_VERSIONS: Registered enum constant for the supported version.
+    """
+    ...
 
   @abstractmethod
   def predict(self, *args, **kwargs) -> AcousticPredictionResultBase:  # noqa: ANN002, ANN003
+    ...
+
+  @abstractmethod
+  def predict_arrays(self, *args, **kwargs) -> AcousticPredictionResultBase:  # noqa: ANN002, ANN003
     ...
 
   @abstractmethod
@@ -41,6 +50,10 @@ class AcousticModelBase(ModelBase, ABC):
 
   @abstractmethod
   def encode(self, *args, **kwargs) -> AcousticEncodingResultBase:  # noqa: ANN002, ANN003
+    ...
+
+  @abstractmethod
+  def encode_arrays(self, *args, **kwargs) -> AcousticEncodingResultBase:  # noqa: ANN002, ANN003
     ...
 
   @abstractmethod

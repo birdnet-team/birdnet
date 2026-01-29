@@ -380,9 +380,6 @@ class AcousticFilePredictionResult(AcousticPredictionResultBase):
     # -> pointer to python string is more efficient
     return object
 
-  def _format_input_for_csv(self, input_value: str) -> str:
-    return f'"{input_value}"'
-
 
 class AcousticDataPredictionResult(AcousticPredictionResultBase):
   def __init__(
@@ -418,6 +415,3 @@ class AcousticDataPredictionResult(AcousticPredictionResultBase):
       model_precision=model_precision,
       model_version=model_version,
     )
-
-  def _format_input_for_csv(self, input_value: Any) -> str:  # noqa: ANN401
-    return f"{input_value}"

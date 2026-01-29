@@ -72,6 +72,11 @@ class AcousticEncodingResultBase(AcousticResultBase):
 
   @property
   def memory_size_mb(self) -> float:
+    """Return the total result memory usage including embeddings buffers.
+
+    Returns:
+      float: Memory size in megabytes.
+    """
     return super().memory_size_mb + (
       (
         self._embeddings.nbytes
@@ -83,21 +88,46 @@ class AcousticEncodingResultBase(AcousticResultBase):
 
   @property
   def embeddings(self) -> np.ndarray:
+    """Return the raw embedding tensor produced by the encoder.
+
+    Returns:
+      np.ndarray: Embeddings with shape `(n_inputs, n_segments, emb_dim)`.
+    """
     return self._embeddings
 
   @property
   def embeddings_masked(self) -> np.ndarray:
+    """Return the mask that marks relevant segments across files.
+
+    Returns:
+      np.ndarray: Boolean mask of the same shape as `embeddings`.
+    """
     return self._embeddings_masked
 
   @property
-  def emd_dim(self) -> int:
+  def emb_dim(self) -> int:
+    """Return the embedding dimensionality.
+
+    Returns:
+      int: Number of coefficients per embedding vector.
+    """
     return self._embeddings.shape[-1]
 
   @property
   def max_n_segments(self) -> int:
+    """Return the maximum segment count reserved per input.
+
+    Returns:
+      int: Number of overlapping windows available per file.
+    """
     return self._embeddings.shape[1]
 
   def to_structured_array(self) -> np.ndarray:
+    """Convert the embeddings and timing metadata into a structured array.
+
+    Returns:
+      np.ndarray: Array with fields for input path, start/end times, and embedding.
+    """
     valid_mask_per_segment = ~(self._embeddings_masked).all(axis=2)
     valid_file_idx, valid_seg_idx = np.where(valid_mask_per_segment)
     n_embeddings = len(valid_file_idx)
@@ -108,7 +138,7 @@ class AcousticEncodingResultBase(AcousticResultBase):
       (VAR_INPUT, self._input_dtype),
       (VAR_START_TIME, self._input_durations.dtype),
       (VAR_END_TIME, self._input_durations.dtype),
-      (VAR_EMBEDDING, self._embeddings.dtype, self.emd_dim),
+      (VAR_EMBEDDING, self._embeddings.dtype, self.emb_dim),
     ]
 
     structured_array = np.empty(n_embeddings, dtype=dtype)
@@ -154,6 +184,11 @@ class AcousticEncodingResultBase(AcousticResultBase):
     return structured_array
 
   def to_arrow_table(self) -> pa.Table:
+    """Produce a PyArrow table that serializes each embedding with timing metadata.
+
+    Returns:
+      pa.Table: Table containing dictionary-encoded inputs and embeddings lists.
+    """
     import pyarrow as pa
 
     structured = self.to_structured_array()
@@ -194,7 +229,7 @@ class AcousticEncodingResultBase(AcousticResultBase):
       "model_fmax": str(self._model_fmax[0]),
       "model_sr": str(self._model_sr[0]),
       "model_precision": str(self._model_precision[0]),
-      "embedding_dim": str(self.emd_dim),
+      "embedding_dim": str(self.emb_dim),
     }
     schema_with_metadata = pa.schema(fields, metadata=metadata)
     table = pa.table(arrow_arrays, schema=schema_with_metadata)
@@ -208,6 +243,14 @@ class AcousticEncodingResultBase(AcousticResultBase):
     buffer_size_kb: int = 1024,
     silent: bool = False,
   ) -> None:
+    """Dump the structured embeddings to a CSV file for downstream analysis.
+
+    Args:
+      path: File path where the CSV will be written (must end with .csv).
+      encoding: Text encoding for the output file.
+      buffer_size_kb: Buffer size used when writing the file.
+      silent: Suppress progress messages when True.
+    """
     if not silent:
       print("Preparing CSV export...")  # noqa: T201
 
@@ -264,6 +307,11 @@ class AcousticEncodingResultBase(AcousticResultBase):
           f.writelines(block)
 
   def unprocessable_inputs(self) -> np.ndarray:
+    """Return the indices of inputs that could not be processed.
+
+    Returns:
+      np.ndarray: Boolean mask or indices for skipped inputs.
+    """
     return self._unprocessable_inputs
 
   def _get_extra_save_data(self) -> dict[str, np.ndarray]:
@@ -321,9 +369,6 @@ class AcousticFileEncodingResult(AcousticEncodingResultBase):
     # NOTE: use dtype object for paths and species because these strings repeat often
     # -> pointer to python string is more efficient
     return object
-
-  def _format_input_for_csv(self, input_value: str) -> str:
-    return f'"{input_value}"'
 
 
 class AcousticDataEncodingResult(AcousticEncodingResultBase):
