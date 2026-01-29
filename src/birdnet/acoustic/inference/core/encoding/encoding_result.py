@@ -89,9 +89,6 @@ class AcousticEncodingResultBase(AcousticResultBase):
   def max_n_segments(self) -> int:
     return self._embeddings.shape[1]
 
-  def test() -> None:
-    pass
-
   def to_structured_array(self) -> np.ndarray:
     valid_mask_per_segment = ~(self._embeddings_masked).all(axis=2)
     valid_file_idx, valid_seg_idx = np.where(valid_mask_per_segment)
