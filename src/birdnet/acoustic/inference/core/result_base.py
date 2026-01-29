@@ -1,15 +1,22 @@
+from __future__ import annotations
+
+import os
 import time
 from abc import ABC, abstractmethod
 from multiprocessing import current_process
 from pathlib import Path
 from threading import current_thread
-from typing import Self
+from typing import TYPE_CHECKING, Literal, Self
 
 import numpy as np
 from ordered_set import OrderedSet
 
 from birdnet.core.base import ResultBase
 from birdnet.utils.helper import get_float_dtype, get_hash, get_uint_dtype
+
+if TYPE_CHECKING:
+  import pandas as pd
+  import pyarrow as pa
 
 VAR_INPUT = "input"
 VAR_START_TIME = "start_time"
@@ -145,6 +152,66 @@ class AcousticResultBase(ResultBase):
       / 1024**2
     )
 
+  @abstractmethod
+  def to_structured_array(self) -> np.ndarray: ...
+
+  @abstractmethod
+  def to_arrow_table(self) -> pa.Table: ...
+
+  @abstractmethod
+  def to_csv(self) -> None: ...
+
+  def to_dataframe(self) -> pd.DataFrame:
+    import pandas as pd
+
+    structured = self.to_structured_array()
+    df_data: dict[str, object] = {}
+
+    dtype_names = structured.dtype.names
+    if dtype_names is None:
+      return pd.DataFrame(structured, copy=True)
+
+    for name in dtype_names:
+      column = structured[name]
+      df_data[name] = column.tolist() if column.ndim > 1 else column
+
+    return pd.DataFrame(df_data)
+
+  def to_parquet(
+    self,
+    path: os.PathLike | str,
+    *,
+    compression: Literal["none", "snappy", "gzip", "brotli", "lz4", "zstd"] = "snappy",
+    compression_level: int | None = None,
+    silent: bool = False,
+  ) -> None:
+    import pyarrow.parquet as pq
+
+    path = Path(path)
+    if path.suffix != ".parquet":
+      raise ValueError("Output path must have a .parquet suffix")
+
+    if not silent:
+      print("Creating Arrow table...")  # noqa: T201
+
+    table = self.to_arrow_table()
+
+    if not silent:
+      print(f"Writing Parquet to {path.absolute()} ...")  # noqa: T201
+
+    pq.write_table(
+      table,
+      path,
+      compression=compression,
+      compression_level=compression_level,
+    )
+
+    if not silent:
+      file_size = path.stat().st_size / 1024**2
+      original_size = table.nbytes / 1024**2
+      compression_ratio = original_size / file_size if file_size > 0 else 0
+      print(f"Parquet file: {file_size:.1f} MB (compression: {compression_ratio:.1f}x)")  # noqa: T201
+
 
 class SessionBase(ABC):
   def __init__(self) -> None:
@@ -154,10 +221,10 @@ class SessionBase(ABC):
   def __enter__(self) -> Self: ...
 
   @abstractmethod
-  def __exit__(self, *args) -> None: ...
+  def __exit__(self, *args: object) -> None: ...
 
   @abstractmethod
-  def run(self, *args, **kwargs) -> ResultBase: ...
+  def run(self, *args: object, **kwargs: object) -> ResultBase: ...
 
 
 def get_session_id() -> str:

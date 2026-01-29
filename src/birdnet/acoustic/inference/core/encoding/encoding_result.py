@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
+from tqdm import tqdm
 
 from birdnet.acoustic.inference.core.encoding.encoding_tensor import (
   AcousticEncodingTensor,
@@ -15,9 +18,14 @@ from birdnet.acoustic.inference.core.result_base import (
 )
 from birdnet.utils.helper import (
   apply_speed_to_duration,
+  format_input_for_csv,
   get_hop_duration_s,
   get_uint_dtype,
+  hms_centis_fast,
 )
+
+if TYPE_CHECKING:
+  import pyarrow as pa
 
 VAR_EMBEDDING = "embedding"
 
@@ -145,6 +153,116 @@ class AcousticEncodingResultBase(AcousticResultBase):
 
     return structured_array
 
+  def to_arrow_table(self) -> pa.Table:
+    import pyarrow as pa
+
+    structured = self.to_structured_array()
+
+    arrow_arrays: dict[str, pa.Array] = {}
+    arrow_arrays[VAR_INPUT] = pa.array(structured[VAR_INPUT]).dictionary_encode()
+    arrow_arrays[VAR_START_TIME] = pa.array(
+      structured[VAR_START_TIME],
+      type=pa.from_numpy_dtype(structured[VAR_START_TIME].dtype),
+    )
+    arrow_arrays[VAR_END_TIME] = pa.array(
+      structured[VAR_END_TIME],
+      type=pa.from_numpy_dtype(structured[VAR_END_TIME].dtype),
+    )
+
+    embedding_element_type = pa.from_numpy_dtype(self._embeddings.dtype)
+    embedding_type = pa.list_(embedding_element_type)
+    arrow_arrays[VAR_EMBEDDING] = pa.array(
+      structured[VAR_EMBEDDING].tolist(),
+      type=embedding_type,
+    )
+
+    fields = [
+      pa.field(VAR_INPUT, arrow_arrays[VAR_INPUT].type, nullable=False),
+      pa.field(VAR_START_TIME, arrow_arrays[VAR_START_TIME].type, nullable=False),
+      pa.field(VAR_END_TIME, arrow_arrays[VAR_END_TIME].type, nullable=False),
+      pa.field(VAR_EMBEDDING, embedding_type, nullable=False),
+    ]
+
+    metadata: dict[bytes | str, bytes | str] = {
+      "segment_duration_s": str(self._segment_duration_s[0]),
+      "overlap_duration_s": str(self._overlap_duration_s[0]),
+      "speed": str(self._speed[0]),
+      "n_inputs": str(self.n_inputs),
+      "model_path": str(self._model_path[0]),
+      "model_version": str(self._model_version[0]),
+      "model_fmin": str(self._model_fmin[0]),
+      "model_fmax": str(self._model_fmax[0]),
+      "model_sr": str(self._model_sr[0]),
+      "model_precision": str(self._model_precision[0]),
+      "embedding_dim": str(self.emd_dim),
+    }
+    schema_with_metadata = pa.schema(fields, metadata=metadata)
+    table = pa.table(arrow_arrays, schema=schema_with_metadata)
+    return table
+
+  def to_csv(
+    self,
+    path: os.PathLike | str,
+    *,
+    encoding: str = "utf-8",
+    buffer_size_kb: int = 1024,
+    silent: bool = False,
+  ) -> None:
+    if not silent:
+      print("Preparing CSV export...")  # noqa: T201
+
+    structured = self.to_structured_array()
+
+    buffer_bytes = buffer_size_kb * 1024
+    output_path = Path(path)
+
+    if output_path.suffix != ".csv":
+      raise ValueError("Output path must have a .csv suffix")
+
+    with output_path.open("w", encoding=encoding, buffering=buffer_bytes) as f:
+      f.write(f"{VAR_INPUT},{VAR_START_TIME},{VAR_END_TIME},{VAR_EMBEDDING}\n")
+
+      block: list[str] = []
+      block_size_bytes = 0
+      total_size_bytes = 0
+      collected_size_bytes = 0
+      update_size_every = 1024**2 * 100
+
+      with tqdm(
+        total=len(structured),
+        desc="Writing CSV",
+        unit="embeddings",
+        disable=silent,
+      ) as pbar:
+        for record in structured:
+          line = (
+            f"{format_input_for_csv(record[VAR_INPUT])},"
+            f'"{hms_centis_fast(record[VAR_START_TIME])}",'
+            f'"{hms_centis_fast(record[VAR_END_TIME])}",'
+            f"{_format_embedding_for_csv(record[VAR_EMBEDDING])}\n"
+          )
+
+          block.append(line)
+          block_size_bytes += len(line.encode(encoding))
+
+          if block_size_bytes >= buffer_bytes:
+            f.writelines(block)
+            block.clear()
+            collected_size_bytes += block_size_bytes
+            block_size_bytes = 0
+
+          pbar.update(1)
+
+          if collected_size_bytes >= update_size_every or pbar.n == pbar.total:
+            total_size_bytes += collected_size_bytes
+            collected_size_bytes = 0
+
+            if not silent:
+              pbar.set_postfix({"CSV": f"{total_size_bytes / 1024**2:.0f} MB"})
+
+        if block:
+          f.writelines(block)
+
   def unprocessable_inputs(self) -> np.ndarray:
     return self._unprocessable_inputs
 
@@ -240,3 +358,9 @@ class AcousticDataEncodingResult(AcousticEncodingResultBase):
       model_precision=model_precision,
       model_version=model_version,
     )
+
+
+def _format_embedding_for_csv(embedding: np.ndarray, decimals: int = 6) -> str:
+  fmt = f"{{:.{decimals}f}}"
+  formatted = ",".join(fmt.format(value) for value in embedding)
+  return f'"{formatted}"'
