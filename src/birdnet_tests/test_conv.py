@@ -1,4 +1,3 @@
-
 from birdnet.model_loader import load
 from birdnet_tests.test_files import TEST_FILE_LONG
 
@@ -19,7 +18,7 @@ from birdnet_tests.test_files import TEST_FILE_LONG
 #     return result
 
 
-def test_soundscape() -> None:
+def test_soundscape_predict() -> None:
   audio_path = [TEST_FILE_LONG]
 
   model = load("acoustic", "2.4", "tf")
@@ -36,4 +35,19 @@ def test_soundscape() -> None:
     "end_time",
     "species_name",
     "confidence",
+  )
+
+
+def test_soundscape_encode() -> None:
+  audio_path = [TEST_FILE_LONG]
+
+  model = load("acoustic", "2.4", "tf")
+  result = model.encode(audio_path)
+  array = result.to_structured_array()
+  assert array.shape == (40,)
+  assert array.dtype.names == (
+    "input",
+    "start_time",
+    "end_time",
+    "embedding",
   )
