@@ -13,7 +13,12 @@ import numpy as np
 from ordered_set import OrderedSet
 
 from birdnet.core.base import ResultBase
-from birdnet.utils.helper import get_float_dtype, get_hash, get_uint_dtype
+from birdnet.utils.helper import (
+  get_float_dtype,
+  get_hash,
+  get_hop_duration_s,
+  get_uint_dtype,
+)
 
 if TYPE_CHECKING:
   import pandas as pd
@@ -139,6 +144,12 @@ class AcousticResultBase(ResultBase):
   def model_sr(self) -> int:
     """Sampling rate expected by the model."""
     return int(self._model_sr[0])
+
+  @property
+  def hop_duration_s(self) -> float:
+    return get_hop_duration_s(
+      self._segment_duration_s[0], self._overlap_duration_s[0], self._speed[0]
+    )
 
   def _get_extra_save_data(self) -> dict[str, np.ndarray]:
     return {

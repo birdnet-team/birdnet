@@ -19,7 +19,6 @@ from birdnet.acoustic.inference.core.result_base import (
 from birdnet.utils.helper import (
   apply_speed_to_duration,
   format_input_for_csv,
-  get_hop_duration_s,
   get_uint_dtype,
   hms_centis_fast,
 )
@@ -161,9 +160,7 @@ class AcousticEncodingResultBase(AcousticResultBase):
     del embeddings_selected
     del sort_indices
 
-    hop_duration_s = get_hop_duration_s(
-      self._segment_duration_s[0], self._overlap_duration_s[0], self._speed[0]
-    )
+    hop_duration_s = self.hop_duration_s
     start_times = chunk_idx_flat.astype(self._input_durations.dtype) * hop_duration_s
     del hop_duration_s
     del chunk_idx_flat
