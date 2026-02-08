@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added convenience functions to export embeddings by @Josef-Haupt
+- Added some code documentation
+
+### Bugfixes
+
+- Fixed issue with one test on Python 3.11 & 3.12
+- Fixed issue with building package in tox environments
+
 ## [0.2.11] - 2025-12-09
 
 ### Added

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from ordered_set import OrderedSet
@@ -11,20 +11,22 @@ from tqdm import tqdm
 from birdnet.acoustic.inference.core.prediction.prediction_tensor import (
   AcousticPredictionTensor,
 )
-from birdnet.acoustic.inference.core.result_base import AcousticResultBase
+from birdnet.acoustic.inference.core.result_base import (
+  VAR_END_TIME,
+  VAR_INPUT,
+  VAR_START_TIME,
+  AcousticResultBase,
+)
 from birdnet.utils.helper import (
   apply_speed_to_duration,
-  get_hop_duration_s,
+  format_input_for_csv,
   get_uint_dtype,
+  hms_centis_fast,
 )
 
 if TYPE_CHECKING:
-  import pandas as pd
   import pyarrow as pa
 
-VAR_INPUT = "input"
-VAR_START_TIME = "start_time"
-VAR_END_TIME = "end_time"
 VAR_SPECIES_NAME = "species_name"
 VAR_CONFIDENCE = "confidence"
 
@@ -145,10 +147,6 @@ class AcousticPredictionResultBase(AcousticResultBase):
     cls._species_list = data[NP_SPECIES_LIST_KEY]
     cls._unprocessable_inputs = data[NP_UNPROCESSABLE_INPUTS_KEY]
 
-  @property
-  def _input_dtype(self) -> type:
-    return self._inputs.dtype
-
   def to_structured_array(self) -> np.ndarray:
     valid_mask = ~self._species_masked
     valid_indices = np.where(valid_mask)
@@ -192,9 +190,7 @@ class AcousticPredictionResultBase(AcousticResultBase):
     )
     del sort_indices
 
-    hop_duration_s = get_hop_duration_s(
-      self._segment_duration_s[0], self._overlap_duration_s[0], self._speed[0]
-    )
+    hop_duration_s = self.hop_duration_s
     start_times = chunk_idx_flat.astype(self._input_durations.dtype) * hop_duration_s
     del hop_duration_s
     del chunk_idx_flat
@@ -221,7 +217,7 @@ class AcousticPredictionResultBase(AcousticResultBase):
 
     structured = self.to_structured_array()
 
-    arrow_arrays = {}
+    arrow_arrays: dict[str, pa.Array] = {}
     arrow_arrays[VAR_INPUT] = pa.array(structured[VAR_INPUT]).dictionary_encode()
     arrow_arrays[VAR_START_TIME] = pa.array(
       structured[VAR_START_TIME],
@@ -263,9 +259,6 @@ class AcousticPredictionResultBase(AcousticResultBase):
     table = pa.table(arrow_arrays, schema=schema_with_metadata)
     return table
 
-  def _format_input_for_csv(self, input_value: Any) -> str:  # noqa: ANN401
-    return f'"{input_value}"'
-
   def to_csv(
     self,
     path: os.PathLike | str,
@@ -275,13 +268,13 @@ class AcousticPredictionResultBase(AcousticResultBase):
     silent: bool = False,
   ) -> None:
     if not silent:
-      print("Preparing CSV export...")
+      print("Preparing CSV export...")  # noqa: T201
 
     structured = self.to_structured_array()
 
     buffer_bytes = buffer_size_kb * 1024
-
     output_path = Path(path)
+
     if output_path.suffix != ".csv":
       raise ValueError("Output path must have a .csv suffix")
 
@@ -291,7 +284,7 @@ class AcousticPredictionResultBase(AcousticResultBase):
         f"{VAR_INPUT},{VAR_START_TIME},{VAR_END_TIME},{VAR_SPECIES_NAME},{VAR_CONFIDENCE}\n"
       )
 
-      block = []
+      block: list[str] = []
       block_size_bytes = 0
       total_size_bytes = 0
       collected_size_bytes = 0
@@ -304,7 +297,13 @@ class AcousticPredictionResultBase(AcousticResultBase):
         disable=silent,
       ) as pbar:
         for record in structured:
-          line = f'{self._format_input_for_csv(record[VAR_INPUT])},"{hms_centis_fast(record[VAR_START_TIME])}","{hms_centis_fast(record[VAR_END_TIME])}","{record[VAR_SPECIES_NAME]}",{record[VAR_CONFIDENCE]:.6f}\n'
+          line = (
+            f"{format_input_for_csv(record[VAR_INPUT])},"
+            f'"{hms_centis_fast(record[VAR_START_TIME])}",'
+            f'"{hms_centis_fast(record[VAR_END_TIME])}",'
+            f'"{record[VAR_SPECIES_NAME]}",'
+            f"{record[VAR_CONFIDENCE]:.6f}\n"
+          )
 
           block.append(line)
           block_size_bytes += len(line.encode(encoding))
@@ -321,53 +320,13 @@ class AcousticPredictionResultBase(AcousticResultBase):
           if collected_size_bytes >= update_size_every or pbar.n == pbar.total:
             total_size_bytes += collected_size_bytes
             collected_size_bytes = 0
+
             if not silent:
               pbar.set_postfix({"CSV": f"{total_size_bytes / 1024**2:.0f} MB"})
 
         # Final flush
         if block:
           f.writelines(block)
-
-  def to_dataframe(self) -> pd.DataFrame:
-    import pandas as pd
-
-    df = pd.DataFrame(self.to_structured_array(), copy=True)
-    return df
-
-  def to_parquet(
-    self,
-    path: os.PathLike | str,
-    *,
-    compression: Literal["none", "snappy", "gzip", "brotli", "lz4", "zstd"] = "snappy",
-    compression_level: int | None = None,
-    silent: bool = False,
-  ) -> None:
-    import pyarrow.parquet as pq
-
-    path = Path(path)
-    if path.suffix != ".parquet":
-      raise ValueError("Output path must have a .parquet suffix")
-
-    if not silent:
-      print("Creating Arrow table...")
-
-    table = self.to_arrow_table()
-
-    if not silent:
-      print(f"Writing Parquet to {path.absolute()} ...")
-
-    pq.write_table(
-      table,
-      path,
-      compression=compression,
-      compression_level=compression_level,
-    )
-
-    if not silent:
-      file_size = path.stat().st_size / 1024**2
-      original_size = table.nbytes / 1024**2
-      compression_ratio = original_size / file_size if file_size > 0 else 0
-      print(f"Parquet file: {file_size:.1f} MB (compression: {compression_ratio:.1f}x)")
 
 
 class AcousticFilePredictionResult(AcousticPredictionResultBase):
@@ -418,9 +377,6 @@ class AcousticFilePredictionResult(AcousticPredictionResultBase):
     # -> pointer to python string is more efficient
     return object
 
-  def _format_input_for_csv(self, input_value: str) -> str:
-    return f'"{input_value}"'
-
 
 class AcousticDataPredictionResult(AcousticPredictionResultBase):
   def __init__(
@@ -456,13 +412,3 @@ class AcousticDataPredictionResult(AcousticPredictionResultBase):
       model_precision=model_precision,
       model_version=model_version,
     )
-
-  def _format_input_for_csv(self, input_value: Any) -> str:
-    return f"{input_value}"
-
-
-def hms_centis_fast(v: float) -> str:
-  h, rem = divmod(v, 3600)
-  m, s = divmod(rem, 60)
-  result = f"{int(h):02}:{int(m):02}:{s:05.2f}"
-  return result

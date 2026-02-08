@@ -13,6 +13,7 @@ import numpy as np
 from numpy.typing import DTypeLike
 
 import birdnet.acoustic.inference.core.logs as bn_logging
+from birdnet.acoustic.inference.core.shm import RingField
 from birdnet.core.backends import BackendLoader, BatchT, VersionedBackendProtocol
 from birdnet.globals import (
   READABLE_FLAG,
@@ -20,7 +21,6 @@ from birdnet.globals import (
   WRITABLE_FLAG,
   WRITING_FLAG,
 )
-from birdnet.acoustic.inference.core.shm import RingField
 
 if TYPE_CHECKING:
   pass
