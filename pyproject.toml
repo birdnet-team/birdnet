@@ -230,7 +230,7 @@ isolated_build = True
 
 [testenv]
 package = wheel
-allowlist_externals = uv
+allowlist_externals = uv, pyproject-build
 install_command = uv pip install {opts} {packages}
 skip_missing_interpreters = true
 
@@ -244,7 +244,10 @@ commands =
   pytest -m "not repro and not load_model and (not litert and not gpu)" -n auto
   pytest -m "not repro and not load_model and litert" -n auto
   pytest -m "not repro and not load_model and gpu" -n 1
-  python -m build -o dist/
+  # build and check package
+  # note `python -m build` uses the isolated build folder which results in import error:
+  # 'No module named build.__main__; 'build' is a package and cannot be directly executed'
+  pyproject-build -o dist/
   python -m twine check dist/*
 
 [testenv:py312-repro]
@@ -257,7 +260,7 @@ commands =
   # run litert tests including repro tests
   pytest -m "not load_model and litert" -n auto
   # gpu tests are not supported to be run with repro environment
-  python -m build -o dist/
+  pyproject-build -o dist/
   python -m twine check dist/*
   
 [testenv:py312-coverage]

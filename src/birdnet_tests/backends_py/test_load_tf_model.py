@@ -24,8 +24,14 @@ def test_load_tf_and_litert_after_each_other_is_not_possible() -> None:
 
   # Loading Litert model after TF fails
   # Error message differs between platforms
-  with pytest.raises(ImportError):
-    load_tf_model(model_path, library="litert", allocate_tensors=False)
+  # only on Python 3.13
+  is_python_313 = ("3", "13") <= platform.python_version_tuple() < ("3", "14")
+
+  if is_python_313:
+    with pytest.raises(ImportError):
+      load_tf_model(model_path, library="litert", allocate_tensors=False)
+  else:
+    pytest.skip("Loading Litert model after TF fails only on Python 3.13")
 
 
 @pytest.mark.litert
