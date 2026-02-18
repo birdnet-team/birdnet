@@ -316,9 +316,10 @@ def fillup_with_silence(
 
 
 def flat_sigmoid_logaddexp_fast(
-  x: npt.NDArray, sensitivity: float, clip_val: float = 15.0
+  x: npt.NDArray, sensitivity: float, clip_val: float = 15.0, bias: float = 1.0
 ) -> npt.NDArray:
-  y = sensitivity * np.clip(x, -clip_val, clip_val)
+  transformed_bias = (bias - 1.0) * 10.0
+  y = sensitivity * np.clip(x + transformed_bias, -clip_val, clip_val)
 
   positive_mask = y >= 0
   abs_y = np.abs(y)
