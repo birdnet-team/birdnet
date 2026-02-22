@@ -193,7 +193,7 @@ To build and deploy the package to PyPI, use the following commands:
 .. code-block:: bash
   
   # requirement 1: ensure code is autoformatted and all tests pass
-  # requirement 2: bump version in pyproject.toml and changelog
+  # requirement 2: bump version in pyproject.toml, changelog and docs/conf.py
   
   # upgrade build and twine
   python3.12 -m uv pip install --upgrade build twine

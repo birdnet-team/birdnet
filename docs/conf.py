@@ -7,9 +7,9 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "birdnet"
-copyright = "2025, Stefan Taubert"
+copyright = "2026, Stefan Taubert"
 author = "Stefan Taubert"
-release = "0.2.11"
+release = "0.2.12"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
