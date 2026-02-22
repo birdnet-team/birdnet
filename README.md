@@ -34,7 +34,7 @@ The package is also available as an R package at: [birdnetR](https://github.com/
 
 ## Speed benchmarks
 
-| Device             | Specs       | Disk | OS      | Recordings/s | → 1 h of recording |
+| Device             | Specs       | Disk | OS      | Throughput per second | → predicting 1 h of recording |
 |--------------------|-------------|------|---------|--------------|---|
 | Intel i7 8th Gen   | 4 cores     | NVMe | Windows | 50 s         | 72 s
 | Ryzen 7 3800X      | 8 cores     | NVMe | Linux   | 7 min        | 8.5 s

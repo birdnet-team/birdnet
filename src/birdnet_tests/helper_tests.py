@@ -3,7 +3,7 @@ import numpy as np
 from birdnet_tests.helper import worst_decimal_precision
 
 
-def test_worst_decimal_precision_component():
+def test_worst_decimal_precision_component() -> None:
   a = np.array([0.12345678, 0.5, 0.003])
   b = np.array([0.12345670, 0.5, 0.0012])  # diff = 8e-08 → matches 7 decimals
 
@@ -14,7 +14,7 @@ def test_worst_decimal_precision_component():
     raise Exception(f"Expected precision {expected}, got {result}")
 
 
-def test_worst_decimal_precision_basic():
+def test_worst_decimal_precision_basic() -> None:
   a = np.array([0.12345678, 0.5])
   b = np.array([0.12345670, 0.5])  # diff = 8e-08 → matches 7 decimals
 
@@ -25,7 +25,7 @@ def test_worst_decimal_precision_basic():
     raise Exception(f"Expected precision {expected}, got {result}")
 
 
-def test_worst_decimal_precision_medium_error():
+def test_worst_decimal_precision_medium_error() -> None:
   a = np.array([0.12])
   b = np.array([0.123])  # diff = 0.003 → matches only 2 decimals
 
@@ -36,7 +36,7 @@ def test_worst_decimal_precision_medium_error():
     raise Exception(f"Expected precision {expected}, got {result}")
 
 
-def test_worst_decimal_precision_zero_match():
+def test_worst_decimal_precision_zero_match() -> None:
   a = np.array([1.0])
   b = np.array([1.2])  # diff = 0.2 → matches 0 decimals
 

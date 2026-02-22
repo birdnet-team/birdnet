@@ -5,8 +5,8 @@ from birdnet.utils.logging_utils import get_package_logger
 
 def pytest_configure() -> None:
   loggers = {"tensorflow", "absl", "urllib3"}
-  for l in loggers:
-    logger = logging.getLogger(l)
+  for l_name in loggers:
+    logger = logging.getLogger(l_name)
     logger.disabled = True
     logger.propagate = False
 

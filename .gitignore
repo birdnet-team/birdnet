@@ -18,6 +18,7 @@ src/birdnet_debug
 src/birdnet_v1
 src/birdnet_v1_tests
 src/birdnet_v2_old
+playground.*
 
 # VSCode
 .vscode

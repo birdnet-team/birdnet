@@ -145,7 +145,7 @@ class AcousticSessionBase(
       self._resources.producer_resources.unprocessed_inputs
     )
 
-    if is_file_input := any(isinstance(inp, Path) for inp in inputs):
+    if any(isinstance(inp, Path) for inp in inputs):
       assert all(isinstance(inp, Path) for inp in inputs)
       inputs = cast(list[Path], inputs)
       result = self._strategy.create_files_result(
@@ -183,7 +183,7 @@ class AcousticSessionBase(
     assert self._resources is not None
     self._resources.processing_resources.end_event.set()
 
-  def __exit__(self, *args) -> None:
+  def __exit__(self, *args) -> None:  # noqa: ANN002
     assert self._is_initialized
 
     assert self._resources is not None

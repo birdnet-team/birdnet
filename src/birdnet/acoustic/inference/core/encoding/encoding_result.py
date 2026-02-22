@@ -1,14 +1,32 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
+from tqdm import tqdm
 
 from birdnet.acoustic.inference.core.encoding.encoding_tensor import (
   AcousticEncodingTensor,
 )
-from birdnet.acoustic.inference.core.result_base import AcousticResultBase
-from birdnet.utils.helper import get_uint_dtype
+from birdnet.acoustic.inference.core.result_base import (
+  VAR_END_TIME,
+  VAR_INPUT,
+  VAR_START_TIME,
+  AcousticResultBase,
+)
+from birdnet.utils.helper import (
+  apply_speed_to_duration,
+  format_input_for_csv,
+  get_uint_dtype,
+  hms_centis_fast,
+)
+
+if TYPE_CHECKING:
+  import pyarrow as pa
+
+VAR_EMBEDDING = "embedding"
 
 NP_EMB_KEY = "embeddings"
 NP_EMB_MASKED_KEY = "embeddings_masked"
@@ -53,7 +71,12 @@ class AcousticEncodingResultBase(AcousticResultBase):
 
   @property
   def memory_size_MiB(self) -> float:
-    return super().memory_size_MiB + (
+    """Return the total result memory usage including embeddings buffers.
+
+    Returns:
+      float: Memory size in megabytes.
+    """
+    return super().memory_size_mb + (
       (
         self._embeddings.nbytes
         + self._embeddings_masked.nbytes
@@ -64,21 +87,228 @@ class AcousticEncodingResultBase(AcousticResultBase):
 
   @property
   def embeddings(self) -> np.ndarray:
+    """Return the raw embedding tensor produced by the encoder.
+
+    Returns:
+      np.ndarray: Embeddings with shape `(n_inputs, n_segments, emb_dim)`.
+    """
     return self._embeddings
 
   @property
   def embeddings_masked(self) -> np.ndarray:
+    """Return the mask that marks relevant segments across files.
+
+    Returns:
+      np.ndarray: Boolean mask of the same shape as `embeddings`.
+    """
     return self._embeddings_masked
 
   @property
-  def emd_dim(self) -> int:
+  def emb_dim(self) -> int:
+    """Return the embedding dimensionality.
+
+    Returns:
+      int: Number of coefficients per embedding vector.
+    """
     return self._embeddings.shape[-1]
 
   @property
   def max_n_segments(self) -> int:
+    """Return the maximum segment count reserved per input.
+
+    Returns:
+      int: Number of overlapping windows available per file.
+    """
     return self._embeddings.shape[1]
 
+  def to_structured_array(self) -> np.ndarray:
+    """Convert the embeddings and timing metadata into a structured array.
+
+    Returns:
+      np.ndarray: Array with fields for input path, start/end times, and embedding.
+    """
+    valid_mask_per_segment = ~(self._embeddings_masked).all(axis=2)
+    valid_file_idx, valid_seg_idx = np.where(valid_mask_per_segment)
+    n_embeddings = len(valid_file_idx)
+
+    embeddings_selected = self.embeddings[valid_file_idx, valid_seg_idx]
+
+    dtype = [
+      (VAR_INPUT, self._input_dtype),
+      (VAR_START_TIME, self._input_durations.dtype),
+      (VAR_END_TIME, self._input_durations.dtype),
+      (VAR_EMBEDDING, self._embeddings.dtype, self.emb_dim),
+    ]
+
+    structured_array = np.empty(n_embeddings, dtype=dtype)
+    del dtype
+
+    if n_embeddings == 0:
+      return structured_array
+    del n_embeddings
+
+    sort_keys = (
+      valid_seg_idx,
+      valid_file_idx,
+    )
+    sort_indices = np.lexsort(sort_keys)
+    del sort_keys
+
+    file_idx_flat = valid_file_idx[sort_indices]
+    chunk_idx_flat = valid_seg_idx[sort_indices]
+    emb_flat = embeddings_selected[sort_indices]
+    del embeddings_selected
+    del sort_indices
+
+    hop_duration_s = self.hop_duration_s
+    start_times = chunk_idx_flat.astype(self._input_durations.dtype) * hop_duration_s
+    del hop_duration_s
+    del chunk_idx_flat
+
+    structured_array[VAR_START_TIME] = start_times
+    structured_array[VAR_END_TIME] = np.minimum(
+      start_times
+      + apply_speed_to_duration(self._segment_duration_s[0], self._speed[0]),
+      self._input_durations[file_idx_flat],
+    )
+    del start_times
+    structured_array[VAR_INPUT] = self._inputs[file_idx_flat]
+    del file_idx_flat
+
+    structured_array[VAR_EMBEDDING] = emb_flat
+    del emb_flat
+
+    return structured_array
+
+  def to_arrow_table(self) -> pa.Table:
+    """Produce a PyArrow table that serializes each embedding with timing metadata.
+
+    Returns:
+      pa.Table: Table containing dictionary-encoded inputs and embeddings lists.
+    """
+    import pyarrow as pa
+
+    structured = self.to_structured_array()
+
+    arrow_arrays: dict[str, pa.Array] = {}
+    arrow_arrays[VAR_INPUT] = pa.array(structured[VAR_INPUT]).dictionary_encode()
+    arrow_arrays[VAR_START_TIME] = pa.array(
+      structured[VAR_START_TIME],
+      type=pa.from_numpy_dtype(structured[VAR_START_TIME].dtype),
+    )
+    arrow_arrays[VAR_END_TIME] = pa.array(
+      structured[VAR_END_TIME],
+      type=pa.from_numpy_dtype(structured[VAR_END_TIME].dtype),
+    )
+
+    embedding_element_type = pa.from_numpy_dtype(self._embeddings.dtype)
+    embedding_type = pa.list_(embedding_element_type)
+    arrow_arrays[VAR_EMBEDDING] = pa.array(
+      structured[VAR_EMBEDDING].tolist(),
+      type=embedding_type,
+    )
+
+    fields = [
+      pa.field(VAR_INPUT, arrow_arrays[VAR_INPUT].type, nullable=False),
+      pa.field(VAR_START_TIME, arrow_arrays[VAR_START_TIME].type, nullable=False),
+      pa.field(VAR_END_TIME, arrow_arrays[VAR_END_TIME].type, nullable=False),
+      pa.field(VAR_EMBEDDING, embedding_type, nullable=False),
+    ]
+
+    metadata: dict[bytes | str, bytes | str] = {
+      "segment_duration_s": str(self._segment_duration_s[0]),
+      "overlap_duration_s": str(self._overlap_duration_s[0]),
+      "speed": str(self._speed[0]),
+      "n_inputs": str(self.n_inputs),
+      "model_path": str(self._model_path[0]),
+      "model_version": str(self._model_version[0]),
+      "model_fmin": str(self._model_fmin[0]),
+      "model_fmax": str(self._model_fmax[0]),
+      "model_sr": str(self._model_sr[0]),
+      "model_precision": str(self._model_precision[0]),
+      "embedding_dim": str(self.emb_dim),
+    }
+    schema_with_metadata = pa.schema(fields, metadata=metadata)
+    table = pa.table(arrow_arrays, schema=schema_with_metadata)
+    return table
+
+  def to_csv(
+    self,
+    path: os.PathLike | str,
+    *,
+    encoding: str = "utf-8",
+    buffer_size_kb: int = 1024,
+    silent: bool = False,
+  ) -> None:
+    """Dump the structured embeddings to a CSV file for downstream analysis.
+
+    Args:
+      path: File path where the CSV will be written (must end with .csv).
+      encoding: Text encoding for the output file.
+      buffer_size_kb: Buffer size used when writing the file.
+      silent: Suppress progress messages when True.
+    """
+    if not silent:
+      print("Preparing CSV export...")  # noqa: T201
+
+    structured = self.to_structured_array()
+
+    buffer_bytes = buffer_size_kb * 1024
+    output_path = Path(path)
+
+    if output_path.suffix != ".csv":
+      raise ValueError("Output path must have a .csv suffix")
+
+    with output_path.open("w", encoding=encoding, buffering=buffer_bytes) as f:
+      f.write(f"{VAR_INPUT},{VAR_START_TIME},{VAR_END_TIME},{VAR_EMBEDDING}\n")
+
+      block: list[str] = []
+      block_size_bytes = 0
+      total_size_bytes = 0
+      collected_size_bytes = 0
+      update_size_every = 1024**2 * 100
+
+      with tqdm(
+        total=len(structured),
+        desc="Writing CSV",
+        unit="embeddings",
+        disable=silent,
+      ) as pbar:
+        for record in structured:
+          line = (
+            f"{format_input_for_csv(record[VAR_INPUT])},"
+            f'"{hms_centis_fast(record[VAR_START_TIME])}",'
+            f'"{hms_centis_fast(record[VAR_END_TIME])}",'
+            f"{_format_embedding_for_csv(record[VAR_EMBEDDING])}\n"
+          )
+
+          block.append(line)
+          block_size_bytes += len(line.encode(encoding))
+
+          if block_size_bytes >= buffer_bytes:
+            f.writelines(block)
+            block.clear()
+            collected_size_bytes += block_size_bytes
+            block_size_bytes = 0
+
+          pbar.update(1)
+
+          if collected_size_bytes >= update_size_every or pbar.n == pbar.total:
+            total_size_bytes += collected_size_bytes
+            collected_size_bytes = 0
+
+            if not silent:
+              pbar.set_postfix({"CSV": f"{total_size_bytes / 1024**2:.0f} MB"})
+
+        if block:
+          f.writelines(block)
+
   def unprocessable_inputs(self) -> np.ndarray:
+    """Return the indices of inputs that could not be processed.
+
+    Returns:
+      np.ndarray: Boolean mask or indices for skipped inputs.
+    """
     return self._unprocessable_inputs
 
   def _get_extra_save_data(self) -> dict[str, np.ndarray]:
@@ -137,9 +367,6 @@ class AcousticFileEncodingResult(AcousticEncodingResultBase):
     # -> pointer to python string is more efficient
     return object
 
-  def _format_input_for_csv(self, input_value: str) -> str:
-    return f'"{input_value}"'
-
 
 class AcousticDataEncodingResult(AcousticEncodingResultBase):
   def __init__(
@@ -173,3 +400,9 @@ class AcousticDataEncodingResult(AcousticEncodingResultBase):
       model_precision=model_precision,
       model_version=model_version,
     )
+
+
+def _format_embedding_for_csv(embedding: np.ndarray, decimals: int = 6) -> str:
+  fmt = f"{{:.{decimals}f}}"
+  formatted = ",".join(fmt.format(value) for value in embedding)
+  return f'"{formatted}"'

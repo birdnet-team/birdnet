@@ -8,12 +8,14 @@ from birdnet.acoustic.inference.core.prediction.prediction_result import (
   AcousticFilePredictionResult,
   AcousticPredictionResultBase,
 )
-from birdnet.acoustic.inference.core.prediction.prediction_tensor import AcousticPredictionTensor
+from birdnet.acoustic.inference.core.prediction.prediction_tensor import (
+  AcousticPredictionTensor,
+)
+from birdnet.model_loader import load
 from birdnet.utils.helper import (
   get_float_dtype,
   get_n_segments_speed,
 )
-from birdnet.model_loader import load
 from birdnet_tests.test_files import TEST_FILE_LONG
 
 

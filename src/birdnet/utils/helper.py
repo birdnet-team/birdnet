@@ -20,6 +20,17 @@ from tqdm import tqdm
 from birdnet.globals import Float32Array
 
 
+def format_input_for_csv(input_value: Any) -> str:  # noqa: ANN401
+  return f'"{input_value}"'
+
+
+def hms_centis_fast(v: float) -> str:
+  h, rem = divmod(v, 3600)
+  m, s = divmod(rem, 60)
+  result = f"{int(h):02}:{int(m):02}:{s:05.2f}"
+  return result
+
+
 def check_is_intel_macos() -> bool:
   import platform
 
@@ -311,9 +322,10 @@ def fillup_with_silence(
 
 
 def flat_sigmoid_logaddexp_fast(
-  x: npt.NDArray, sensitivity: float, clip_val: float = 15.0
+  x: npt.NDArray, sensitivity: float, clip_val: float = 15.0, bias: float = 1.0
 ) -> npt.NDArray:
-  y = sensitivity * np.clip(x, -clip_val, clip_val)
+  transformed_bias = (bias - 1.0) * 10.0
+  y = sensitivity * np.clip(x + transformed_bias, -clip_val, clip_val)
 
   positive_mask = y >= 0
   abs_y = np.abs(y)

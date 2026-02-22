@@ -1,15 +1,32 @@
+from __future__ import annotations
+
+import os
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from multiprocessing import current_process
 from pathlib import Path
 from threading import current_thread
-from typing import Self
+from typing import TYPE_CHECKING, Literal, Self
 
 import numpy as np
 from ordered_set import OrderedSet
 
 from birdnet.core.base import ResultBase
-from birdnet.utils.helper import get_float_dtype, get_hash, get_uint_dtype
+from birdnet.utils.helper import (
+  get_float_dtype,
+  get_hash,
+  get_hop_duration_s,
+  get_uint_dtype,
+)
+
+if TYPE_CHECKING:
+  import pandas as pd
+  import pyarrow as pa
+
+VAR_INPUT = "input"
+VAR_START_TIME = "start_time"
+VAR_END_TIME = "end_time"
 
 NP_INPUTS_KEY = "inputs"
 NP_INPUT_DURATIONS_KEY = "input_durations"
@@ -25,6 +42,8 @@ NP_MODEL_VERSION_KEY = "model_version"
 
 
 class AcousticResultBase(ResultBase):
+  """Base container for shared acoustic model result metadata and helpers."""
+
   def __init__(
     self,
     model_path: Path,
@@ -39,6 +58,21 @@ class AcousticResultBase(ResultBase):
     model_fmax: int,
     model_sr: int,
   ) -> None:
+    """Capture model metadata plus per-input timing information.
+
+    Args:
+      model_path: Path to the acoustic model binary used for inference.
+      model_version: Version identifier of the model.
+      model_precision: Precision string (float16/float32) backed by the model.
+      inputs: Typed array of inputs (paths or indices) that were encoded/predicted.
+      input_durations: Duration of each input in seconds.
+      segment_duration_s: Segment length used by the inference pipeline.
+      overlap_duration_s: Overlap between consecutive segments.
+      speed: Speed multiplier applied to the inputs during preprocessing.
+      model_fmin: Lower frequency bound used by the model.
+      model_fmax: Upper frequency bound used by the model.
+      model_sr: Sampling rate that the model expects.
+    """
     super().__init__(
       model_path=model_path,
       model_version=model_version,
@@ -63,40 +97,59 @@ class AcousticResultBase(ResultBase):
     self._model_sr = np.array([model_sr], dtype=get_uint_dtype(model_sr))
 
   @property
+  def _input_dtype(self) -> type:
+    return self._inputs.dtype
+
+  @property
   def segment_duration_s(self) -> float:
+    """Segment duration as configured on the inference pipeline."""
     return float(self._segment_duration_s[0])
 
   @property
   def overlap_duration_s(self) -> float:
+    """Overlap duration between sliding windows in seconds."""
     return float(self._overlap_duration_s[0])
 
   @property
   def speed(self) -> float:
+    """Speed multiplier that was applied to the inputs."""
     return float(self._speed[0])
 
   @property
   def inputs(self) -> np.ndarray:
+    """Identifiers for each input processed by the result."""
     return self._inputs
 
   @property
   def n_inputs(self) -> int:
+    """Number of inputs in the result payload."""
     return self._inputs.shape[0]
 
   @property
   def input_durations(self) -> np.ndarray:
+    """Durations of each input in seconds."""
     return self._input_durations
 
   @property
   def model_fmin(self) -> int:
+    """Lower bound of the model's bandpass filter."""
     return int(self._model_fmin[0])
 
   @property
   def model_fmax(self) -> int:
+    """Upper bound of the model's bandpass filter."""
     return int(self._model_fmax[0])
 
   @property
   def model_sr(self) -> int:
+    """Sampling rate expected by the model."""
     return int(self._model_sr[0])
+
+  @property
+  def hop_duration_s(self) -> float:
+    return get_hop_duration_s(
+      self._segment_duration_s[0], self._overlap_duration_s[0], self._speed[0]
+    )
 
   def _get_extra_save_data(self) -> dict[str, np.ndarray]:
     return {
@@ -123,7 +176,12 @@ class AcousticResultBase(ResultBase):
 
   @property
   def memory_size_MiB(self) -> float:
-    return super().memory_size_MiB + (
+    """Memory usage for the base result metadata.
+
+    Returns:
+      float: Memory used by metadata buffers in megabytes.
+    """
+    return super().memory_size_mb + (
       (
         self._inputs.nbytes
         + self._input_durations.nbytes
@@ -137,6 +195,79 @@ class AcousticResultBase(ResultBase):
       / 1024**2
     )
 
+  @abstractmethod
+  def to_structured_array(self) -> np.ndarray: ...
+
+  @abstractmethod
+  def to_arrow_table(self) -> pa.Table: ...
+
+  @abstractmethod
+  def to_csv(
+    self,
+    path: os.PathLike | str,
+    *,
+    encoding: str = "utf-8",
+    buffer_size_kb: int = 1024,
+    silent: bool = False,
+  ) -> None: ...
+
+  def to_dataframe(self) -> pd.DataFrame:
+    """Convert the structured array into a pandas DataFrame."""
+    import pandas as pd
+
+    structured = self.to_structured_array()
+    df_data: dict[str, object] = {}
+
+    dtype_names = structured.dtype.names
+    if dtype_names is None:
+      return pd.DataFrame(structured, copy=True)
+
+    for name in dtype_names:
+      column = structured[name]
+      df_data[name] = column.tolist() if column.ndim > 1 else column
+
+    return pd.DataFrame(df_data)
+
+  def to_parquet(
+    self,
+    path: os.PathLike | str,
+    *,
+    compression: Literal["none", "snappy", "gzip", "brotli", "lz4", "zstd"] = "snappy",
+    compression_level: int | None = None,
+    silent: bool = False,
+  ) -> None:
+    """Write the contents to disk as an Arrow Parquet file."""
+    import pyarrow.parquet as pq
+
+    path = Path(path)
+    if path.suffix != ".parquet":
+      raise ValueError("Output path must have a .parquet suffix")
+
+    if not silent:
+      print("Creating Arrow table...")  # noqa: T201
+
+    table = self.to_arrow_table()
+
+    if not silent:
+      print(f"Writing Parquet to {path.absolute()} ...")  # noqa: T201
+
+    pq.write_table(
+      table,
+      path,
+      compression=compression,
+      compression_level=compression_level,
+    )
+
+    if not silent:
+      file_size = path.stat().st_size / 1024**2
+      original_size = table.nbytes / 1024**2
+      compression_ratio = original_size / file_size if file_size > 0 else 0
+      print(f"Parquet file: {file_size:.1f} MB (compression: {compression_ratio:.1f}x)")  # noqa: T201
+
+  def __iter__(self) -> Iterable[np.ndarray]:
+    """Iterate over the structured records via the iterator protocol."""
+    yield from self.to_structured_array()
+
 
 class SessionBase(ABC):
   def __init__(self) -> None:
@@ -146,10 +277,10 @@ class SessionBase(ABC):
   def __enter__(self) -> Self: ...
 
   @abstractmethod
-  def __exit__(self, *args): ...
+  def __exit__(self, *args: object) -> None: ...
 
   @abstractmethod
-  def run(self, *args, **kwargs) -> ResultBase: ...
+  def run(self, *args: object, **kwargs: object) -> ResultBase: ...
 
 
 def get_session_id() -> str:

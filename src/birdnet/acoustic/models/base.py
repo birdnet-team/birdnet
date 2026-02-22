@@ -42,7 +42,13 @@ class AcousticModelBase(ModelBase, ABC):
 
   @classmethod
   @abstractmethod
-  def get_version(cls) -> ACOUSTIC_MODEL_VERSIONS: ...
+  def get_version(cls) -> ACOUSTIC_MODEL_VERSIONS:  # noqa: ANN002
+    """Return the string label that identifies the acoustic model version.
+
+    Returns:
+      ACOUSTIC_MODEL_VERSIONS: Registered enum constant for the supported version.
+    """
+    ...
 
   @classmethod
   @abstractmethod
@@ -69,11 +75,19 @@ class AcousticModelBase(ModelBase, ABC):
     ...
 
   @abstractmethod
+  def predict_arrays(self, *args, **kwargs) -> AcousticPredictionResultBase:  # noqa: ANN002, ANN003
+    ...
+
+  @abstractmethod
   def predict_session(self, *args, **kwargs) -> AcousticPredictionSession:  # noqa: ANN002, ANN003
     ...
 
   @abstractmethod
   def encode(self, *args, **kwargs) -> AcousticEncodingResultBase:  # noqa: ANN002, ANN003
+    ...
+
+  @abstractmethod
+  def encode_arrays(self, *args, **kwargs) -> AcousticEncodingResultBase:  # noqa: ANN002, ANN003
     ...
 
   @abstractmethod
