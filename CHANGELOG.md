@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.12] - 2026-02-22
+
 ### Added
 
 - Added convenience functions to export embeddings by @Josef-Haupt
@@ -240,7 +242,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release
 
-[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v0.2.11...HEAD
+[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v0.2.12...HEAD
+[0.2.12]: https://github.com/birdnet-team/birdnet/compare/v0.2.11...v0.2.12
 [0.2.11]: https://github.com/birdnet-team/birdnet/compare/v0.2.10...v0.2.11
 [0.2.10]: https://github.com/birdnet-team/birdnet/compare/v0.2.9...v0.2.10
 [0.2.9]: https://github.com/birdnet-team/birdnet/compare/v0.2.8...v0.2.9
