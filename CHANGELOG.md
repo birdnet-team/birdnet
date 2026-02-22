@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added convenience functions to export embeddings by @Josef-Haupt
 - Added some code documentation
 
+### Changed
+
+- Updated flat sigmoid to match birdnet_analyzer by @Josef-Haupt
+
 ### Bugfixes
 
 - Fixed issue with one test on Python 3.11 & 3.12
