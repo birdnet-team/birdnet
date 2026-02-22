@@ -3,7 +3,7 @@ name = "birdnet"
 version = "0.2.11"
 description = "A Python library for identifying bird species by their sounds."
 readme = "README.md"
-requires-python = ">=3.11, <3.14"
+requires-python = ">=3.11, <3.15"
 license = { text = "MIT" }
 authors = [{ name = "Stefan Taubert" }]
 maintainers = [{ name = "Stefan Taubert" }]
@@ -31,23 +31,23 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
 ]
 dependencies = [
-  "soundfile >= 0.11.0",                                                                    # 2022/09/27
-  "scipy >= 1.8.0",                                                                         # 2022/02/05
-  "ordered-set >= 4.1.0",                                                                   # 2022/01/26
-  "tqdm >= 4.64.0",                                                                         # 2022/04/04
-  "numpy >= 1.22.0",                                                                        # 2021/12/31
-  "pandas >= 1.4.0",                                                                        # 2022/02/22
-  "psutil >= 5.9.0",                                                                        # 2021/12/29
-  "pyarrow >= 7.0.0",                                                                       # 2022/02/03
-  "kagglehub >= 0.3.13",                                                                    # 2025/08/26; needed for downloading PERCH models
-  "tensorflow >= 2.8.0 ; sys_platform != 'darwin' or platform_machine != 'x86_64'",         # 2022/02/02
-  "tensorflow >= 2.8.0, <2.17 ; sys_platform == 'darwin' and platform_machine == 'x86_64'",
-  "ai-edge-litert >= 2.0.2 ; python_version < '3.13' and sys_platform == 'linux'",          # 2025/09/17
+  "soundfile >= 0.11.0",                                                                                                  # 2022/09/27
+  "scipy >= 1.8.0",                                                                                                       # 2022/02/05
+  "ordered-set >= 4.1.0",                                                                                                 # 2022/01/26
+  "tqdm >= 4.64.0",                                                                                                       # 2022/04/04
+  "numpy >= 1.22.0",                                                                                                      # 2021/12/31
+  "pandas >= 1.4.0",                                                                                                      # 2022/02/22
+  "psutil >= 5.9.0",                                                                                                      # 2021/12/29
+  "pyarrow >= 7.0.0",                                                                                                     # 2022/02/03
+  "kagglehub >= 0.3.13",                                                                                                  # 2025/08/26; needed for downloading PERCH models
+  "tensorflow >= 2.8.0 ; (sys_platform != 'darwin' or platform_machine != 'x86_64') and python_version < '3.14'",         # 2022/02/02
+  "tensorflow >= 2.8.0, <2.17 ; (sys_platform == 'darwin' and platform_machine == 'x86_64') and python_version < '3.14'",
+  "ai-edge-litert >= 2.0.2 ; python_version < '3.13' and sys_platform == 'linux'",                                        # 2025/09/17
 ]
 
 [project.optional-dependencies]
 and-cuda = [
-  "tensorflow[and-cuda] >= 2.8.0 ; sys_platform == 'linux'", # 2022/02/02
+  "tensorflow[and-cuda] >= 2.8.0 ; sys_platform == 'linux' and python_version < '3.14'", # 2022/02/02
 ]
 repro = [
   # Reproducible results only with Python 3.12 and on CPU and not on macOS Intel
@@ -225,7 +225,7 @@ exclude_lines = ["if __name__ == .__main__.:"]
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-envlist = py{311,312,313}, py312-repro
+envlist = py{311,312,313,314}, py312-repro
 isolated_build = True
 
 [testenv]
