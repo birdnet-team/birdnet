@@ -74,9 +74,9 @@ class AcousticEncodingResultBase(AcousticResultBase):
     """Return the total result memory usage including embeddings buffers.
 
     Returns:
-      float: Memory size in megabytes.
+      float: Memory size in mebibytes.
     """
-    return super().memory_size_mb + (
+    return super().memory_size_MiB + (
       (
         self._embeddings.nbytes
         + self._embeddings_masked.nbytes

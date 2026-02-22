@@ -49,7 +49,7 @@ def test_save_and_load_is_equal() -> None:
   )
 
 
-def test_memory_size_mb() -> None:
+def test_memory_size_MiB() -> None:
   res = create_file_prediction_result(
     n_files=3,
     duration_s=54,

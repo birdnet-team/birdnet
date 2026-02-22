@@ -95,7 +95,7 @@ def test_save_and_load_is_equal() -> None:
   )
 
 
-def test_memory_size_mb() -> None:
+def test_memory_size_MiB() -> None:
   res = create_dummy_result()
 
   expected_size = (

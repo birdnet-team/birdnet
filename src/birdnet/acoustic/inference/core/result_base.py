@@ -179,9 +179,9 @@ class AcousticResultBase(ResultBase):
     """Memory usage for the base result metadata.
 
     Returns:
-      float: Memory used by metadata buffers in megabytes.
+      float: Memory used by metadata buffers in mebibytes.
     """
-    return super().memory_size_mb + (
+    return super().memory_size_MiB + (
       (
         self._inputs.nbytes
         + self._input_durations.nbytes

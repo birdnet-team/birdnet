@@ -23,7 +23,7 @@ def get_dummy_result() -> GeoPredictionResult:
   return res
 
 
-def test_memory_size_mb() -> None:
+def test_memory_size_MiB() -> None:
   res = get_dummy_result()
 
   expected_size = (
