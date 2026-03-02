@@ -116,7 +116,8 @@ class PredictionWorker(WorkerBase):
       assert self._sigmoid_sensitivity is not None
       infer_result = flat_sigmoid_logaddexp_fast(
         infer_result,
-        sensitivity=-self._sigmoid_sensitivity,
+        sensitivity=-1.0,
+        bias=self._sigmoid_sensitivity,
       )
 
     invalid_mask = (infer_result < self._thresholds) | self._blacklist
