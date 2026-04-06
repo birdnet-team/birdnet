@@ -367,6 +367,7 @@ class ProcessManager:
       self._perf_tracker_process = None
       logger.debug("Performance tracker finished.")
 
+    if self._res.stats_resources.use_callback:
       logger.debug("Joining dispatcher thread...")
       assert self._progress_dispatcher_thread is not None
       self._progress_dispatcher_thread.join()
