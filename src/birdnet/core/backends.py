@@ -6,7 +6,7 @@ import os
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, TimeoutError
 from pathlib import Path
 from typing import (
   TYPE_CHECKING,
@@ -482,7 +482,7 @@ class BackendLoader:
       if n_species_in_model is None:
         raise ValueError("Failed to load model.")
       return n_species_in_model
-    except multiprocessing.TimeoutError as e:
+    except (multiprocessing.TimeoutError, TimeoutError) as e:
       get_logger_for_package(__name__).error(
         "Timeout while loading model in subprocess (3 min). "
         "Could not check if model can be loaded."
@@ -517,7 +517,7 @@ class BackendLoader:
       if result is None:
         raise ValueError("Failed to detect custom classifier type.")
       return result
-    except multiprocessing.TimeoutError as e:
+    except (multiprocessing.TimeoutError, TimeoutError) as e:
       get_logger_for_package(__name__).error(
         "Timeout while loading model in subprocess (3 min). "
         "Could not check if model can be loaded."
