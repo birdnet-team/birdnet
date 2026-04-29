@@ -110,7 +110,7 @@ def load_custom(
   precision: MODEL_PRECISIONS = MODEL_PRECISION_FP32,
   check_validity: bool = True,
   library: LIBRARY_TYPES = LIBRARY_TF_DEFAULT,
-  classifier_type: CUSTOM_CLASSIFIER_TYPES | None = None,
+  classifier_type: CUSTOM_CLASSIFIER_TYPES = "replace",
 ) -> AcousticModelV2_4: ...
 @overload
 def load_custom(

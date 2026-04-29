@@ -21,6 +21,7 @@ from birdnet.acoustic.models.v2_4.pb import (
   AcousticRavenBackendFP32V2_4,
 )
 from birdnet.acoustic.models.v2_4.tf import (
+  CUSTOM_TF_CLASSIFIER_INDICES,
   AcousticTFBackendFP16V2_4,
   AcousticTFBackendFP32CustomAppendHiddenV2_4,
   AcousticTFBackendFP32CustomAppendV2_4,
@@ -28,7 +29,6 @@ from birdnet.acoustic.models.v2_4.tf import (
   AcousticTFBackendFP32V2_4,
   AcousticTFBackendInt8V2_4,
   AcousticTFDownloaderV2_4,
-  CUSTOM_TF_CLASSIFIER_INDICES,
 )
 from birdnet.core.backends import (
   TF_BACKEND_LIB_ARG,
@@ -50,12 +50,12 @@ from birdnet.geo.models.v2_4.tf import (
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V2_4,
   ACOUSTIC_MODEL_VERSIONS,
-  CUSTOM_CLASSIFIER_TF_TYPE_PARAM,
-  CUSTOM_CLASSIFIER_TYPES,
   CUSTOM_CLASSIFIER_APPEND,
   CUSTOM_CLASSIFIER_APPEND_HIDDEN,
   CUSTOM_CLASSIFIER_REPLACE,
   CUSTOM_CLASSIFIER_REPLACE_HIDDEN,
+  CUSTOM_CLASSIFIER_TF_TYPE_PARAM,
+  CUSTOM_CLASSIFIER_TYPES,
   CUSTOM_PB_IS_RAVEN_DEFAULT,
   CUSTOM_PB_IS_RAVEN_PARAM,
   GEO_MODEL_VERSION_V2_4,
@@ -86,8 +86,11 @@ from birdnet.globals import (
   VALID_MODEL_PRECISIONS,
   VALID_MODEL_TYPES,
 )
-from birdnet.utils.helper import check_is_intel_macos, check_protobuf_model_files_exist, validate_species_list
-
+from birdnet.utils.helper import (
+  check_is_intel_macos,
+  check_protobuf_model_files_exist,
+  validate_species_list,
+)
 
 _CUSTOM_TF_TYPE_TO_BACKEND: dict[str, type[VersionedAcousticBackendProtocol]] = {
   CUSTOM_CLASSIFIER_REPLACE: AcousticTFBackendFP32V2_4,
