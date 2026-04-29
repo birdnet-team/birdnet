@@ -576,14 +576,9 @@ def _load_custom_acoustic_model_V2_4(
           check_validity=False,
         )
       else:
-        raw_classifier_type = model_kwargs.get(CUSTOM_CLASSIFIER_TF_TYPE_PARAM)
-        if raw_classifier_type is None:
-          raise ValueError(
-            f"Parameter '{CUSTOM_CLASSIFIER_TF_TYPE_PARAM}' is required when "
-            f"check_validity=False. "
-            f"Supported types are: {', '.join(VALID_CUSTOM_CLASSIFIER_TYPES)}."
-          )
-        classifier_type = _validate_custom_classifier_type(raw_classifier_type)
+        classifier_type = _validate_custom_classifier_type(
+          model_kwargs.get(CUSTOM_CLASSIFIER_TF_TYPE_PARAM, CUSTOM_CLASSIFIER_REPLACE)
+        )
         backend_type = _CUSTOM_TF_TYPE_TO_BACKEND[classifier_type]
         return AcousticModelV2_4.load_custom(
           model,

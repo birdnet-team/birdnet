@@ -73,8 +73,8 @@ def test_custom_from_analyzer_v2_4_litert_fp32() -> None:
     "acoustic",
     "2.4",
     "tf",
-    TEST_FILES_DIR / "custom_models/tf/CustomClassifier.tflite",
-    TEST_FILES_DIR / "custom_models/tf/CustomClassifier_Labels.txt",
+    TEST_FILES_DIR / "custom_models/tf/replace.tflite",
+    TEST_FILES_DIR / "custom_models/tf/replace_Labels.txt",
     library="litert",
     check_validity=False,
   )

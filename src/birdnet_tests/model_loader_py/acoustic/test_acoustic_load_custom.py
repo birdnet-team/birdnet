@@ -268,11 +268,12 @@ def test_custom_from_analyzer_v2_4_litert_fp32() -> None:
     "acoustic",
     "2.4",
     "tf",
-    TEST_FILES_DIR / "custom_models/tf/CustomClassifier.tflite",
-    TEST_FILES_DIR / "custom_models/tf/CustomClassifier_Labels.txt",
+    TEST_FILES_DIR / "custom_models/tf/replace.tflite",
+    TEST_FILES_DIR / "custom_models/tf/replace_Labels.txt",
     library="litert",
     check_validity=True,
     precision="fp32",
+    classifier_type="replace",
   )
   assert isinstance(model, AcousticModelV2_4)
 
@@ -282,8 +283,8 @@ def test_custom_from_analyzer_v2_4_tf_fp32() -> None:
     "acoustic",
     "2.4",
     "tf",
-    TEST_FILES_DIR / "custom_models/tf/CustomClassifier.tflite",
-    TEST_FILES_DIR / "custom_models/tf/CustomClassifier_Labels.txt",
+    TEST_FILES_DIR / "custom_models/tf/replace.tflite",
+    TEST_FILES_DIR / "custom_models/tf/replace_Labels.txt",
     library="tflite",
     check_validity=check_validity(),
     precision="fp32",
@@ -324,5 +325,6 @@ def test_custom_from_analyzer_v2_4_as_no_raven_fp32_raises_exception() -> None:
       check_validity=True,
       is_raven=False,
       precision="fp32",
+      classifier_type="replace",
     )
     assert isinstance(model, AcousticModelV2_4)
