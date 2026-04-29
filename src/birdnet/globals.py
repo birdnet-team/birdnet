@@ -21,6 +21,20 @@ LIBRARY_TF_DEFAULT = LIBRARY_TFLITE
 CUSTOM_PB_IS_RAVEN_PARAM = "is_raven"
 CUSTOM_PB_IS_RAVEN_DEFAULT = True
 
+CUSTOM_CLASSIFIER_REPLACE = "replace"
+CUSTOM_CLASSIFIER_APPEND = "append"
+CUSTOM_CLASSIFIER_REPLACE_HIDDEN = "replace_hidden"
+CUSTOM_CLASSIFIER_APPEND_HIDDEN = "append_hidden"
+CUSTOM_CLASSIFIER_TYPES = Literal["replace", "append", "replace_hidden", "append_hidden"]
+VALID_CUSTOM_CLASSIFIER_TYPES = [
+  CUSTOM_CLASSIFIER_REPLACE,
+  CUSTOM_CLASSIFIER_APPEND,
+  CUSTOM_CLASSIFIER_REPLACE_HIDDEN,
+  CUSTOM_CLASSIFIER_APPEND_HIDDEN,
+]
+# name of the parameter to specify the classifier type for custom TFLite models
+CUSTOM_CLASSIFIER_TF_TYPE_PARAM = "classifier_type"
+
 MODEL_FAMILY_BIRDNET = "birdnet"
 MODEL_FAMILY_PERCH = "perch"
 MODEL_FAMILIES = Literal["birdnet", "perch"]

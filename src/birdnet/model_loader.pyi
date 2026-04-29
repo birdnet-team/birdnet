@@ -5,6 +5,7 @@ from birdnet.acoustic.models.perch_v2.model import AcousticModelPerchV2
 from birdnet.acoustic.models.v2_4.model import AcousticModelV2_4
 from birdnet.geo.models.v2_4.model import GeoModelV2_4
 from birdnet.globals import (
+  CUSTOM_CLASSIFIER_TYPES,
   CUSTOM_PB_IS_RAVEN_DEFAULT,
   LIBRARY_TF_DEFAULT,
   LIBRARY_TYPES,
@@ -109,6 +110,7 @@ def load_custom(
   precision: MODEL_PRECISIONS = MODEL_PRECISION_FP32,
   check_validity: bool = True,
   library: LIBRARY_TYPES = LIBRARY_TF_DEFAULT,
+  classifier_type: CUSTOM_CLASSIFIER_TYPES | None = None,
 ) -> AcousticModelV2_4: ...
 @overload
 def load_custom(

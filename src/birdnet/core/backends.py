@@ -482,15 +482,75 @@ class BackendLoader:
       if n_species_in_model is None:
         raise ValueError("Failed to load model.")
       return n_species_in_model
-    except multiprocessing.TimeoutError:
+    except multiprocessing.TimeoutError as e:
       get_logger_for_package(__name__).error(
-        "Timeout while loading model in subprocess (3 min). Could not check if model can be loaded."
+        "Timeout while loading model in subprocess (3 min). "
+        "Could not check if model can be loaded."
       )
-      # Note: on Intel macOS python 3.12 the model could not be loaded for unknown reasons
+      # Note: on Intel macOS python 3.12 the model could not be loaded
+      # for unknown reasons
       raise ValueError("Failed to load model due to timeout.") from e
     except Exception as e:
       get_logger_for_package(__name__).error(f"Failed to load model in subprocess: {e}")
       raise ValueError("Failed to load model.") from e
+
+  @classmethod
+  def check_custom_tflite_model(
+    cls,
+    model_path: Path,
+    library: LIBRARY_TYPES,
+    prediction_to_type: dict[int, tuple[str, int]],
+  ) -> tuple[int, str]:
+    """
+    Detect the custom TFLite classifier type and number of output species in a
+    subprocess to avoid loading TensorFlow in the main process.
+
+    Returns (n_species, classifier_type) if successful.
+    """
+    try:
+      result: tuple[int, str] | None = None
+      with ProcessPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(
+          _detect_tflite_custom_classifier, model_path, library, prediction_to_type
+        )
+        result = future.result(timeout=180)
+      if result is None:
+        raise ValueError("Failed to detect custom classifier type.")
+      return result
+    except multiprocessing.TimeoutError as e:
+      get_logger_for_package(__name__).error(
+        "Timeout while loading model in subprocess (3 min). "
+        "Could not check if model can be loaded."
+      )
+      raise ValueError("Failed to load model due to timeout.") from e
+    except Exception as e:
+      get_logger_for_package(__name__).error(
+        f"Failed to detect custom classifier type in subprocess: {e}"
+      )
+      raise ValueError("Failed to detect custom classifier type.") from e
+
+
+def _detect_tflite_custom_classifier(
+  model_path: Path,
+  library: LIBRARY_TYPES,
+  prediction_to_type: dict[int, tuple[str, int]],
+) -> tuple[int, str] | None:
+  try:
+    interp = load_tf_model(model_path, library, allocate_tensors=True)
+    output_details = interp.get_output_details()
+    output_indices = {int(detail["index"]) for detail in output_details}
+    for pred_idx, (type_name, _enc_idx) in prediction_to_type.items():
+      if pred_idx in output_indices:
+        for detail in output_details:
+          if int(detail["index"]) == pred_idx:
+            n_species = int(detail["shape"][1])
+            return n_species, type_name
+    return None
+  except Exception as ex:
+    get_logger_for_package(__name__).error(
+      f"Error detecting custom classifier type: {ex}"
+    )
+    return None
 
 
 def import_tf() -> None:

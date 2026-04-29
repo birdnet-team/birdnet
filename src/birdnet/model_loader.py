@@ -22,12 +22,17 @@ from birdnet.acoustic.models.v2_4.pb import (
 )
 from birdnet.acoustic.models.v2_4.tf import (
   AcousticTFBackendFP16V2_4,
+  AcousticTFBackendFP32CustomAppendHiddenV2_4,
+  AcousticTFBackendFP32CustomAppendV2_4,
+  AcousticTFBackendFP32CustomReplaceHiddenV2_4,
   AcousticTFBackendFP32V2_4,
   AcousticTFBackendInt8V2_4,
   AcousticTFDownloaderV2_4,
+  CUSTOM_TF_CLASSIFIER_INDICES,
 )
 from birdnet.core.backends import (
   TF_BACKEND_LIB_ARG,
+  BackendLoader,
   VersionedAcousticBackendProtocol,
   litert_installed,
   tf_installed,
@@ -45,6 +50,12 @@ from birdnet.geo.models.v2_4.tf import (
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V2_4,
   ACOUSTIC_MODEL_VERSIONS,
+  CUSTOM_CLASSIFIER_TF_TYPE_PARAM,
+  CUSTOM_CLASSIFIER_TYPES,
+  CUSTOM_CLASSIFIER_APPEND,
+  CUSTOM_CLASSIFIER_APPEND_HIDDEN,
+  CUSTOM_CLASSIFIER_REPLACE,
+  CUSTOM_CLASSIFIER_REPLACE_HIDDEN,
   CUSTOM_PB_IS_RAVEN_DEFAULT,
   CUSTOM_PB_IS_RAVEN_PARAM,
   GEO_MODEL_VERSION_V2_4,
@@ -67,6 +78,7 @@ from birdnet.globals import (
   MODEL_TYPE_GEO,
   MODEL_TYPES,
   VALID_ACOUSTIC_MODEL_VERSIONS,
+  VALID_CUSTOM_CLASSIFIER_TYPES,
   VALID_GEO_MODEL_VERSIONS,
   VALID_LIBRARY_TYPES,
   VALID_MODEL_BACKENDS,
@@ -74,7 +86,15 @@ from birdnet.globals import (
   VALID_MODEL_PRECISIONS,
   VALID_MODEL_TYPES,
 )
-from birdnet.utils.helper import check_is_intel_macos, check_protobuf_model_files_exist
+from birdnet.utils.helper import check_is_intel_macos, check_protobuf_model_files_exist, validate_species_list
+
+
+_CUSTOM_TF_TYPE_TO_BACKEND: dict[str, type[VersionedAcousticBackendProtocol]] = {
+  CUSTOM_CLASSIFIER_REPLACE: AcousticTFBackendFP32V2_4,
+  CUSTOM_CLASSIFIER_APPEND: AcousticTFBackendFP32CustomAppendV2_4,
+  CUSTOM_CLASSIFIER_REPLACE_HIDDEN: AcousticTFBackendFP32CustomReplaceHiddenV2_4,
+  CUSTOM_CLASSIFIER_APPEND_HIDDEN: AcousticTFBackendFP32CustomAppendHiddenV2_4,
+}
 
 
 def _validate_model_type(model_type: Any) -> MODEL_TYPES:  # noqa: ANN401
@@ -184,6 +204,15 @@ def _validate_library(library: Any) -> LIBRARY_TYPES:  # noqa: ANN401
   else:
     raise AssertionError()
   return cast(LIBRARY_TYPES, library)
+
+
+def _validate_custom_classifier_type(classifier_type: Any) -> CUSTOM_CLASSIFIER_TYPES:  # noqa: ANN401
+  if classifier_type not in VALID_CUSTOM_CLASSIFIER_TYPES:
+    raise ValueError(
+      f"Unknown classifier type: '{classifier_type}'. "
+      f"Supported types are: {', '.join(VALID_CUSTOM_CLASSIFIER_TYPES)}."
+    )
+  return cast(CUSTOM_CLASSIFIER_TYPES, classifier_type)
 
 
 def _validate_custom_pb_is_raven(is_raven: Any) -> bool:  # noqa: ANN401
@@ -496,27 +525,68 @@ def _load_custom_acoustic_model_V2_4(
 ) -> AcousticModelV2_4:
   if backend == MODEL_BACKEND_TF:
     model = _validate_tf_file(model)
-    model_kwargs = _validate_kwargs_allowed(model_kwargs, {LIBRARY_TF_PARAM})
+    model_kwargs = _validate_kwargs_allowed(
+      model_kwargs, {LIBRARY_TF_PARAM, CUSTOM_CLASSIFIER_TF_TYPE_PARAM}
+    )
     library = _validate_library(model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT))
 
     backend_type: type[VersionedAcousticBackendProtocol]
     if precision == MODEL_PRECISION_INT8:
       backend_type = AcousticTFBackendInt8V2_4
+      return AcousticModelV2_4.load_custom(
+        model,
+        species_list,
+        backend_type=backend_type,
+        backend_kwargs={TF_BACKEND_LIB_ARG: library},
+        check_validity=check_validity,
+      )
     elif precision == MODEL_PRECISION_FP16:
       backend_type = AcousticTFBackendFP16V2_4
+      return AcousticModelV2_4.load_custom(
+        model,
+        species_list,
+        backend_type=backend_type,
+        backend_kwargs={TF_BACKEND_LIB_ARG: library},
+        check_validity=check_validity,
+      )
     else:
       assert precision == MODEL_PRECISION_FP32
-      backend_type = AcousticTFBackendFP32V2_4
-
-    return AcousticModelV2_4.load_custom(
-      model,
-      species_list,
-      backend_type=backend_type,
-      backend_kwargs={
-        TF_BACKEND_LIB_ARG: library,
-      },
-      check_validity=check_validity,
-    )
+      if check_validity:
+        n_species, auto_type = BackendLoader.check_custom_tflite_model(
+          model, library, CUSTOM_TF_CLASSIFIER_INDICES
+        )
+        loaded_species = validate_species_list(species_list)
+        if n_species != len(loaded_species):
+          raise ValueError(
+            f"Model '{model.absolute()}' has {n_species} outputs, but "
+            f"species list '{species_list.absolute()}' has "
+            f"{len(loaded_species)} species!"
+          )
+        backend_type = _CUSTOM_TF_TYPE_TO_BACKEND[auto_type]
+        return AcousticModelV2_4.load_custom(
+          model,
+          species_list,
+          backend_type=backend_type,
+          backend_kwargs={TF_BACKEND_LIB_ARG: library},
+          check_validity=False,
+        )
+      else:
+        raw_classifier_type = model_kwargs.get(CUSTOM_CLASSIFIER_TF_TYPE_PARAM)
+        if raw_classifier_type is None:
+          raise ValueError(
+            f"Parameter '{CUSTOM_CLASSIFIER_TF_TYPE_PARAM}' is required when "
+            f"check_validity=False. "
+            f"Supported types are: {', '.join(VALID_CUSTOM_CLASSIFIER_TYPES)}."
+          )
+        classifier_type = _validate_custom_classifier_type(raw_classifier_type)
+        backend_type = _CUSTOM_TF_TYPE_TO_BACKEND[classifier_type]
+        return AcousticModelV2_4.load_custom(
+          model,
+          species_list,
+          backend_type=backend_type,
+          backend_kwargs={TF_BACKEND_LIB_ARG: library},
+          check_validity=False,
+        )
   elif backend == MODEL_BACKEND_PB:
     if precision != MODEL_PRECISION_FP32:
       raise ValueError(
