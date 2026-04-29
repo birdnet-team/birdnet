@@ -92,7 +92,9 @@ from birdnet.utils.helper import (
   validate_species_list,
 )
 
-_CUSTOM_TF_TYPE_TO_BACKEND: dict[str, type[VersionedAcousticBackendProtocol]] = {
+_CUSTOM_TF_TYPE_TO_BACKEND: dict[
+  CUSTOM_CLASSIFIER_TYPES, type[VersionedAcousticBackendProtocol]
+] = {
   CUSTOM_CLASSIFIER_REPLACE: AcousticTFBackendFP32V2_4,
   CUSTOM_CLASSIFIER_APPEND: AcousticTFBackendFP32CustomAppendV2_4,
   CUSTOM_CLASSIFIER_REPLACE_HIDDEN: AcousticTFBackendFP32CustomReplaceHiddenV2_4,
