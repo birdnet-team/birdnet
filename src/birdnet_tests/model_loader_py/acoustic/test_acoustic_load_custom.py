@@ -4,7 +4,13 @@ import pytest
 
 from birdnet.acoustic.models.v2_4.model import AcousticModelV2_4
 from birdnet.acoustic.models.v2_4.pb import AcousticPBDownloaderV2_4
-from birdnet.acoustic.models.v2_4.tf import AcousticTFDownloaderV2_4
+from birdnet.acoustic.models.v2_4.tf import (
+  AcousticTFBackendFP32CustomAppendHiddenV2_4,
+  AcousticTFBackendFP32CustomAppendV2_4,
+  AcousticTFBackendFP32CustomReplaceHiddenV2_4,
+  AcousticTFBackendFP32V2_4,
+  AcousticTFDownloaderV2_4,
+)
 from birdnet.globals import MODEL_PRECISIONS
 from birdnet.model_loader import load_custom
 from birdnet.utils.helper import check_is_intel_macos, check_is_python_312
@@ -268,11 +274,12 @@ def test_custom_from_analyzer_v2_4_litert_fp32() -> None:
     "acoustic",
     "2.4",
     "tf",
-    TEST_FILES_DIR / "custom_models/tf/CustomClassifier.tflite",
-    TEST_FILES_DIR / "custom_models/tf/CustomClassifier_Labels.txt",
+    TEST_FILES_DIR / "custom_models/tf/replace.tflite",
+    TEST_FILES_DIR / "custom_models/tf/replace_Labels.txt",
     library="litert",
     check_validity=True,
     precision="fp32",
+    classifier_type="replace",
   )
   assert isinstance(model, AcousticModelV2_4)
 
@@ -282,8 +289,8 @@ def test_custom_from_analyzer_v2_4_tf_fp32() -> None:
     "acoustic",
     "2.4",
     "tf",
-    TEST_FILES_DIR / "custom_models/tf/CustomClassifier.tflite",
-    TEST_FILES_DIR / "custom_models/tf/CustomClassifier_Labels.txt",
+    TEST_FILES_DIR / "custom_models/tf/replace.tflite",
+    TEST_FILES_DIR / "custom_models/tf/replace_Labels.txt",
     library="tflite",
     check_validity=check_validity(),
     precision="fp32",
@@ -326,3 +333,181 @@ def test_custom_from_analyzer_v2_4_as_no_raven_fp32_raises_exception() -> None:
       precision="fp32",
     )
     assert isinstance(model, AcousticModelV2_4)
+
+
+def test_custom_from_analyzer_v2_4_append_tf_fp32() -> None:
+  model = load_custom(
+    "acoustic",
+    "2.4",
+    "tf",
+    TEST_FILES_DIR / "custom_models/tf/append.tflite",
+    TEST_FILES_DIR / "custom_models/tf/append_Labels.txt",
+    library="tflite",
+    check_validity=check_validity(),
+    precision="fp32",
+  )
+  assert isinstance(model, AcousticModelV2_4)
+  if check_validity():
+    assert model.backend_type is AcousticTFBackendFP32CustomAppendV2_4
+
+
+@pytest.mark.litert
+def test_custom_from_analyzer_v2_4_append_litert_fp32() -> None:
+  ensure_litert_or_skip()
+
+  model = load_custom(
+    "acoustic",
+    "2.4",
+    "tf",
+    TEST_FILES_DIR / "custom_models/tf/append.tflite",
+    TEST_FILES_DIR / "custom_models/tf/append_Labels.txt",
+    library="litert",
+    check_validity=True,
+    precision="fp32",
+  )
+  assert isinstance(model, AcousticModelV2_4)
+  assert model.backend_type is AcousticTFBackendFP32CustomAppendV2_4
+
+
+def test_custom_from_analyzer_v2_4_replace_hidden_tf_fp32() -> None:
+  model = load_custom(
+    "acoustic",
+    "2.4",
+    "tf",
+    TEST_FILES_DIR / "custom_models/tf/replace+hidden1024.tflite",
+    TEST_FILES_DIR / "custom_models/tf/replace+hidden1024_Labels.txt",
+    library="tflite",
+    check_validity=check_validity(),
+    precision="fp32",
+  )
+  assert isinstance(model, AcousticModelV2_4)
+  if check_validity():
+    assert model.backend_type is AcousticTFBackendFP32CustomReplaceHiddenV2_4
+
+
+@pytest.mark.litert
+def test_custom_from_analyzer_v2_4_replace_hidden_litert_fp32() -> None:
+  ensure_litert_or_skip()
+
+  model = load_custom(
+    "acoustic",
+    "2.4",
+    "tf",
+    TEST_FILES_DIR / "custom_models/tf/replace+hidden1024.tflite",
+    TEST_FILES_DIR / "custom_models/tf/replace+hidden1024_Labels.txt",
+    library="litert",
+    check_validity=True,
+    precision="fp32",
+  )
+  assert isinstance(model, AcousticModelV2_4)
+  assert model.backend_type is AcousticTFBackendFP32CustomReplaceHiddenV2_4
+
+
+def test_custom_from_analyzer_v2_4_append_hidden_tf_fp32() -> None:
+  model = load_custom(
+    "acoustic",
+    "2.4",
+    "tf",
+    TEST_FILES_DIR / "custom_models/tf/append+hidden1024.tflite",
+    TEST_FILES_DIR / "custom_models/tf/append+hidden1024_Labels.txt",
+    library="tflite",
+    check_validity=check_validity(),
+    precision="fp32",
+  )
+  assert isinstance(model, AcousticModelV2_4)
+  if check_validity():
+    assert model.backend_type is AcousticTFBackendFP32CustomAppendHiddenV2_4
+
+
+@pytest.mark.litert
+def test_custom_from_analyzer_v2_4_append_hidden_litert_fp32() -> None:
+  ensure_litert_or_skip()
+
+  model = load_custom(
+    "acoustic",
+    "2.4",
+    "tf",
+    TEST_FILES_DIR / "custom_models/tf/append+hidden1024.tflite",
+    TEST_FILES_DIR / "custom_models/tf/append+hidden1024_Labels.txt",
+    library="litert",
+    check_validity=True,
+    precision="fp32",
+  )
+  assert isinstance(model, AcousticModelV2_4)
+  assert model.backend_type is AcousticTFBackendFP32CustomAppendHiddenV2_4
+
+
+def test_custom_classifier_types_explicit_no_check_validity() -> None:
+  cases = [
+    (
+      "custom_models/tf/append.tflite",
+      "custom_models/tf/append_Labels.txt",
+      "append",
+      AcousticTFBackendFP32CustomAppendV2_4,
+    ),
+    (
+      "custom_models/tf/replace+hidden1024.tflite",
+      "custom_models/tf/replace+hidden1024_Labels.txt",
+      "replace_hidden",
+      AcousticTFBackendFP32CustomReplaceHiddenV2_4,
+    ),
+    (
+      "custom_models/tf/append+hidden1024.tflite",
+      "custom_models/tf/append+hidden1024_Labels.txt",
+      "append_hidden",
+      AcousticTFBackendFP32CustomAppendHiddenV2_4,
+    ),
+  ]
+  for model_file, labels_file, classifier_type, expected_backend in cases:
+    model = load_custom(
+      "acoustic",
+      "2.4",
+      "tf",
+      TEST_FILES_DIR / model_file,
+      TEST_FILES_DIR / labels_file,
+      library="tflite",
+      check_validity=False,
+      precision="fp32",
+      classifier_type=classifier_type,
+    )
+    assert isinstance(model, AcousticModelV2_4)
+    assert model.backend_type is expected_backend
+
+
+def test_custom_replace_explicit_no_check_validity() -> None:
+  model = load_custom(
+    "acoustic",
+    "2.4",
+    "tf",
+    TEST_FILES_DIR / "custom_models/tf/replace.tflite",
+    TEST_FILES_DIR / "custom_models/tf/replace_Labels.txt",
+    library="tflite",
+    check_validity=False,
+    precision="fp32",
+    classifier_type="replace",
+  )
+  assert isinstance(model, AcousticModelV2_4)
+  assert model.backend_type is AcousticTFBackendFP32V2_4
+
+
+def test_custom_species_mismatch_raises_error() -> None:
+  if not check_validity():
+    pytest.skip(
+      "Skipping test on Intel macOS Python 3.12 where model loading fails unexpectedly."
+    )
+
+  with pytest.raises(
+    ValueError,
+    match=r"species",
+  ):
+    load_custom(
+      "acoustic",
+      "2.4",
+      "tf",
+      TEST_FILES_DIR / "custom_models/tf/append.tflite",
+      # intentionally wrong labels file (replace has a different species count)
+      TEST_FILES_DIR / "custom_models/tf/replace_Labels.txt",
+      library="tflite",
+      check_validity=True,
+      precision="fp32",
+    )

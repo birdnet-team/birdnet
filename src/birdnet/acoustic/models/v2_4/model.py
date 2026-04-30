@@ -268,9 +268,13 @@ class AcousticModelV2_4(AcousticModelBase):
       bandpass_fmin: Lower bound for the bandpass filter in Hz.
       bandpass_fmax: Upper bound for the bandpass filter in Hz.
       speed: Resampling multiplier to accommodate different recording speeds.
-      apply_sigmoid: Whether to transform logits with a sigmoid.
+      apply_sigmoid: Whether to transform logits with a sigmoid. When False,
+        output scores are raw logits; thresholds are then interpreted in logit
+        space rather than as probabilities.
       sigmoid_sensitivity: Optional scale for the sigmoid function.
-      default_confidence_threshold: Base threshold to emit a detection.
+      default_confidence_threshold: Base threshold to emit a detection. When
+        apply_sigmoid=True this is a probability (typical range 0 to 1); when
+        apply_sigmoid=False it is a logit value.
       custom_confidence_thresholds: Species-specific override thresholds.
       custom_species_list: Path or iterable defining a subset of species.
       half_precision: Use float16 where supported for inference.
@@ -477,9 +481,13 @@ class AcousticModelV2_4(AcousticModelBase):
       bandpass_fmin: Lower bound for the bandpass filter in Hz.
       bandpass_fmax: Upper bound for the bandpass filter in Hz.
       speed: Resampling multiplier to accommodate different recording speeds.
-      apply_sigmoid: Whether to transform logits with a sigmoid.
+      apply_sigmoid: Whether to transform logits with a sigmoid. When False,
+        output scores are raw logits; thresholds are then interpreted in logit
+        space rather than as probabilities.
       sigmoid_sensitivity: Optional scale for the sigmoid function.
-      default_confidence_threshold: Base threshold to emit a detection.
+      default_confidence_threshold: Base threshold to emit a detection. When
+        apply_sigmoid=True this is a probability (typical range 0 to 1); when
+        apply_sigmoid=False it is a logit value.
       custom_confidence_thresholds: Species-specific override thresholds.
       custom_species_list: Path or iterable defining a subset of species.
       half_precision: Use float16 where supported for inference.
@@ -557,9 +565,13 @@ class AcousticModelV2_4(AcousticModelBase):
       bandpass_fmin: Lower bound for the bandpass filter in Hz.
       bandpass_fmax: Upper bound for the bandpass filter in Hz.
       speed: Resampling multiplier to accommodate different recording speeds.
-      apply_sigmoid: Whether to transform logits with a sigmoid.
+      apply_sigmoid: Whether to transform logits with a sigmoid. When False,
+        output scores are raw logits; thresholds are then interpreted in logit
+        space rather than as probabilities.
       sigmoid_sensitivity: Optional scale for the sigmoid function.
-      default_confidence_threshold: Base threshold to emit a detection.
+      default_confidence_threshold: Base threshold to emit a detection. When
+        apply_sigmoid=True this is a probability (typical range 0 to 1); when
+        apply_sigmoid=False it is a logit value.
       custom_confidence_thresholds: Species-specific override thresholds.
       custom_species_list: Path or iterable defining a subset of species.
       half_precision: Use float16 where supported for inference.

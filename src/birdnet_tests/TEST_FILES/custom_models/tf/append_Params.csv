@@ -1,0 +1,2 @@
+Hidden units,Dropout,Batchsize,Learning rate,Weight decay,Crop mode,Crop overlap,Audio speed,Upsampling mode,Upsampling ratio,use mixup,use label smoothing,use focal loss,focal loss alpha,focal loss gamma,BirdNET Model version
+0,0.0,32,0.0001,0.004,center,0.0,1.0,repeat,0,False,False,False,0.25,2.0,2.4

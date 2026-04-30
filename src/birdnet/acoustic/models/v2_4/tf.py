@@ -16,6 +16,10 @@ from birdnet.core.backends import (
   VersionedAcousticBackendProtocol,
 )
 from birdnet.globals import (
+  CUSTOM_CLASSIFIER_APPEND,
+  CUSTOM_CLASSIFIER_APPEND_HIDDEN,
+  CUSTOM_CLASSIFIER_REPLACE,
+  CUSTOM_CLASSIFIER_REPLACE_HIDDEN,
   MODEL_BACKEND_TF,
   MODEL_PRECISION_FP16,
   MODEL_PRECISION_FP32,
@@ -24,6 +28,14 @@ from birdnet.globals import (
 )
 from birdnet.utils.helper import ModelInfo, download_file_tqdm, get_species_from_file
 from birdnet.utils.local_data import get_lang_dir, get_model_path
+
+# Mapping: TFLite prediction output tensor index -> (classifier_type, encoding_out_idx)
+CUSTOM_TF_CLASSIFIER_INDICES: dict[int, tuple[str, int]] = {
+  546: (CUSTOM_CLASSIFIER_REPLACE, 545),
+  550: (CUSTOM_CLASSIFIER_APPEND, 547),
+  549: (CUSTOM_CLASSIFIER_REPLACE_HIDDEN, 547),
+  553: (CUSTOM_CLASSIFIER_APPEND_HIDDEN, 549),
+}
 
 models = {
   MODEL_PRECISION_INT8: ModelInfo(
@@ -201,6 +213,93 @@ class AcousticTFBackendFP32V2_4(TFBackend, VersionedAcousticBackendProtocol):
   @classmethod
   def encoding_out_idx(cls) -> int | None:
     return 545
+
+  @classmethod
+  def precision(cls) -> MODEL_PRECISIONS:
+    return MODEL_PRECISION_FP32
+
+
+class AcousticTFBackendFP32CustomAppendV2_4(
+  TFBackend, VersionedAcousticBackendProtocol
+):
+  def __init__(
+    self, model_path: Path, device_name: str, half_precision: bool, **kwargs: dict
+  ) -> None:
+    super().__init__(model_path, device_name, half_precision, **kwargs)
+
+  @classmethod
+  def in_idx(cls) -> int:
+    return 0
+
+  @classmethod
+  def prediction_out_idx(cls) -> int:
+    return 550
+
+  @classmethod
+  def supports_encoding(cls) -> bool:
+    return True
+
+  @classmethod
+  def encoding_out_idx(cls) -> int | None:
+    return 547
+
+  @classmethod
+  def precision(cls) -> MODEL_PRECISIONS:
+    return MODEL_PRECISION_FP32
+
+
+class AcousticTFBackendFP32CustomReplaceHiddenV2_4(
+  TFBackend, VersionedAcousticBackendProtocol
+):
+  def __init__(
+    self, model_path: Path, device_name: str, half_precision: bool, **kwargs: dict
+  ) -> None:
+    super().__init__(model_path, device_name, half_precision, **kwargs)
+
+  @classmethod
+  def in_idx(cls) -> int:
+    return 0
+
+  @classmethod
+  def prediction_out_idx(cls) -> int:
+    return 549
+
+  @classmethod
+  def supports_encoding(cls) -> bool:
+    return True
+
+  @classmethod
+  def encoding_out_idx(cls) -> int | None:
+    return 547
+
+  @classmethod
+  def precision(cls) -> MODEL_PRECISIONS:
+    return MODEL_PRECISION_FP32
+
+
+class AcousticTFBackendFP32CustomAppendHiddenV2_4(
+  TFBackend, VersionedAcousticBackendProtocol
+):
+  def __init__(
+    self, model_path: Path, device_name: str, half_precision: bool, **kwargs: dict
+  ) -> None:
+    super().__init__(model_path, device_name, half_precision, **kwargs)
+
+  @classmethod
+  def in_idx(cls) -> int:
+    return 0
+
+  @classmethod
+  def prediction_out_idx(cls) -> int:
+    return 553
+
+  @classmethod
+  def supports_encoding(cls) -> bool:
+    return True
+
+  @classmethod
+  def encoding_out_idx(cls) -> int | None:
+    return 549
 
   @classmethod
   def precision(cls) -> MODEL_PRECISIONS:
