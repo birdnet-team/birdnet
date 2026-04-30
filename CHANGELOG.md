@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Bugfixes
+
+- Allow classifiers trained with hidden units and with append mode(#33, #22)
+
 ## [0.2.13] - 2026-04-06
 
 ### Changed
