@@ -1,0 +1,34 @@
+{
+  "specVersion": 1,
+  "modelDescription": "Custom classifier trained with BirdNET V2.4 embeddings.\nBirdNET was developed by the K. Lisa Yang Center for Conservation Bioacousticsat the Cornell Lab of Ornithology in collaboration with Chemnitz University of Technology.\n\nhttps://birdnet.cornell.edu",
+  "modelTypeConfig": {
+    "modelType": "RECOGNITION"
+  },
+  "signatures": [
+    {
+      "signatureName": "basic",
+      "modelInputs": [
+        {
+          "inputName": "inputs",
+          "sampleRate": 48000.0,
+          "inputConfig": [
+            "batch",
+            "samples"
+          ]
+        }
+      ],
+      "modelOutputs": [
+        {
+          "outputName": "scores",
+          "outputType": "SCORES"
+        }
+      ]
+    }
+  ],
+  "globalSemanticKeys": [
+    "Card1",
+    "Cyan2",
+    "Junc3",
+    "Poec4"
+  ]
+}
