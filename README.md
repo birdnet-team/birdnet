@@ -91,14 +91,14 @@ If you encounter issues with audio file reading, please ensure that `libsndfile`
 
 ### Perch V2
 
-| **Model** | Acoustic | Geo
+| **Model** | Acoustic | Geo |
 |---|---|---|
-| **Backend** | ProtoBuf | ❌
-| `predict(..)` | ✅ | ❌
-| `encode(..)` | ✅ | ❌
-| **INT8** | ❌ | ❌
-| **FP16** | ❌ | ❌
-| **FP32** | CPU/GPU | ❌
+| **Backend** | ProtoBuf | ❌ |
+| `predict(..)` | ✅ | ❌ |
+| `encode(..)` | ✅ | ❌ |
+| **INT8** | ❌ | ❌ |
+| **FP16** | ❌ | ❌ |
+| **FP32** | CPU/GPU | ❌ |
 
 Note: Perch can **not** be run on Intel macOS systems due to compatibility issues with TensorFlow.
 
