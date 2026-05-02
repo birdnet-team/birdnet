@@ -228,9 +228,7 @@ def test_time_calculations_speedup_halftime_no_overlap() -> None:
   structured = result.to_structured_array()
   hop = get_hop_duration_s(3.0, 0.0, 0.5)
   expected_starts = np.arange(len(structured)) * hop
-  expected_ends = np.minimum(
-    expected_starts + 3.0 * 0.5, result.input_durations[0]
-  )
+  expected_ends = np.minimum(expected_starts + 3.0 * 0.5, result.input_durations[0])
 
   np.testing.assert_allclose(structured["start_time"], expected_starts)
   np.testing.assert_allclose(structured["end_time"], expected_ends)
@@ -249,8 +247,46 @@ def test_time_calculations_speedup_doubletime_no_overlap() -> None:
   structured = result.to_structured_array()
   hop = get_hop_duration_s(3.0, 0.0, 2.0)
   expected_starts = np.arange(len(structured)) * hop
+  expected_ends = np.minimum(expected_starts + 3.0 * 2.0, result.input_durations[0])
+
+  np.testing.assert_allclose(structured["start_time"], expected_starts)
+  np.testing.assert_allclose(structured["end_time"], expected_ends)
+
+
+def test_time_calculations_speedup_one_tenth_no_overlap() -> None:
+  duration = 6.0
+  result = create_file_encoding_result(
+    n_files=1,
+    duration_s=duration,
+    segment_duration_s=3.0,
+    overlap_duration_s=0.0,
+    speed=0.1,
+  )
+
+  structured = result.to_structured_array()
+  hop = get_hop_duration_s(3.0, 0.0, 0.1)
+  expected_starts = np.arange(len(structured)) * hop
+  expected_ends = np.minimum(expected_starts + 3.0 * 0.1, result.input_durations[0])
+
+  np.testing.assert_allclose(structured["start_time"], expected_starts)
+  np.testing.assert_allclose(structured["end_time"], expected_ends)
+
+
+def test_time_calculations_speedup_decimal_no_overlap() -> None:
+  duration = 6.0
+  result = create_file_encoding_result(
+    n_files=1,
+    duration_s=duration,
+    segment_duration_s=3.0,
+    overlap_duration_s=0.0,
+    speed=0.1387434856,
+  )
+
+  structured = result.to_structured_array()
+  hop = get_hop_duration_s(3.0, 0.0, 0.1387434856)
+  expected_starts = np.arange(len(structured)) * hop
   expected_ends = np.minimum(
-    expected_starts + 3.0 * 2.0, result.input_durations[0]
+    expected_starts + 3.0 * 0.1387434856, result.input_durations[0]
   )
 
   np.testing.assert_allclose(structured["start_time"], expected_starts)
