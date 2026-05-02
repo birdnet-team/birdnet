@@ -14,9 +14,9 @@ from ordered_set import OrderedSet
 
 from birdnet.core.base import ResultBase
 from birdnet.utils.helper import (
-  get_float_dtype,
   get_hash,
   get_hop_duration_s,
+  get_lossless_float_dtype,
   get_uint_dtype,
 )
 
@@ -82,15 +82,18 @@ class AcousticResultBase(ResultBase):
     assert input_durations.dtype in (np.float16, np.float32, np.float64)
 
     self._inputs = inputs
-    self._input_durations = input_durations
 
+    # Scalar config: lossless dtype, since these feed hop_duration_s and any
+    # rounding here accumulates across all segments.
     self._segment_duration_s = np.array(
-      [segment_duration_s], dtype=get_float_dtype(segment_duration_s)
+      [segment_duration_s], dtype=get_lossless_float_dtype(segment_duration_s)
     )
     self._overlap_duration_s = np.array(
-      [overlap_duration_s], dtype=get_float_dtype(overlap_duration_s)
+      [overlap_duration_s], dtype=get_lossless_float_dtype(overlap_duration_s)
     )
-    self._speed = np.array([speed], dtype=get_float_dtype(speed))
+    self._speed = np.array([speed], dtype=get_lossless_float_dtype(speed))
+
+    self._input_durations = input_durations
 
     self._model_fmin = np.array([model_fmin], dtype=get_uint_dtype(model_fmin))
     self._model_fmax = np.array([model_fmax], dtype=get_uint_dtype(model_fmax))

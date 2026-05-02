@@ -9,7 +9,7 @@
 project = "birdnet"
 copyright = "2026, Stefan Taubert"
 author = "Stefan Taubert"
-release = "0.2.14"
+release = "0.2.15"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

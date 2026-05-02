@@ -244,12 +244,32 @@ def get_uint_dtype(max_value: int) -> np.dtype:
 
 
 def get_float_dtype(max_value: float) -> DTypeLike:
+  """
+  Magnitude-based: returns the smallest float dtype whose range covers max_value.
+  Use for bulk arrays where memory matters and per-element
+  rounding is acceptable (e.g. lists of file durations).
+  """
   if max_value <= 2**11:
     return np.float16
   elif max_value <= 2**24:
     return np.float32
   else:
     return np.float64
+
+
+def upgrade_float_dtype_for_value(dtype: np.dtype, value: float) -> np.dtype:
+  if dtype == np.float16 and float(np.float16(value)) != float(value):
+    dtype = np.dtype(np.float32)
+  if dtype == np.float32 and float(np.float32(value)) != float(value):
+    dtype = np.dtype(np.float64)
+  return dtype
+
+
+# Lossless: smallest float dtype that represents value exactly. Use for scalar
+# configuration parameters (speed, segment/overlap duration) where the value
+# feeds into derived computations and rounding accumulates over many segments.
+def get_lossless_float_dtype(value: float) -> np.dtype:
+  return upgrade_float_dtype_for_value(np.dtype(get_float_dtype(value)), value)
 
 
 def get_file_formats(file_paths: set[Path]) -> str:

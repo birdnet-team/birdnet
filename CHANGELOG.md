@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.15] - 2026-05-02
+
+### Bugfixes
+
+- Fix issue with float16 input durations and hop duration not being exactly representable, which caused rounding errors to accumulate across segments and thus wrong segment times in the output (#32)
+
 ## [0.2.14] - 2026-04-30
 
 ### Bugfixes
@@ -258,7 +264,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release
 
-[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v0.2.14...HEAD
+[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v0.2.15...HEAD
+[0.2.15]: https://github.com/birdnet-team/birdnet/compare/v0.2.14...v0.2.15
 [0.2.14]: https://github.com/birdnet-team/birdnet/compare/v0.2.13...v0.2.14
 [0.2.13]: https://github.com/birdnet-team/birdnet/compare/v0.2.12...v0.2.13
 [0.2.12]: https://github.com/birdnet-team/birdnet/compare/v0.2.11...v0.2.12

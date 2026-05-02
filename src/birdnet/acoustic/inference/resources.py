@@ -361,6 +361,9 @@ class InputAnalyzerResources:
 
   def collect_input_durations(self) -> None:
     durations: list[float] = self.analyzer_queue.get(block=True, timeout=None)
+    # Bulk array: magnitude-based dtype for memory efficiency on large file sets.
+    # Per-file rounding is acceptable here; precision-sensitive output paths
+    # (e.g. structured-array export) upgrade the dtype as needed.
     dtype = get_float_dtype(max(durations))
     file_durations = np.array(durations, dtype=dtype)
     object.__setattr__(self, "_input_durations", file_durations)

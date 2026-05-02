@@ -21,6 +21,7 @@ from birdnet.utils.helper import (
   format_input_for_csv,
   get_uint_dtype,
   hms_centis_fast,
+  upgrade_float_dtype_for_value,
 )
 
 if TYPE_CHECKING:
@@ -133,10 +134,17 @@ class AcousticEncodingResultBase(AcousticResultBase):
 
     embeddings_selected = self.embeddings[valid_file_idx, valid_seg_idx]
 
+    hop_duration_s = self.hop_duration_s
+    # Upgrade the storage dtype for the output if it cannot represent hop
+    # exactly, otherwise rounding accumulates across segments.
+    time_dtype = upgrade_float_dtype_for_value(
+      self._input_durations.dtype, hop_duration_s
+    )
+
     dtype = [
       (VAR_INPUT, self._input_dtype),
-      (VAR_START_TIME, self._input_durations.dtype),
-      (VAR_END_TIME, self._input_durations.dtype),
+      (VAR_START_TIME, time_dtype),
+      (VAR_END_TIME, time_dtype),
       (VAR_EMBEDDING, self._embeddings.dtype, self.emb_dim),
     ]
 
@@ -160,8 +168,7 @@ class AcousticEncodingResultBase(AcousticResultBase):
     del embeddings_selected
     del sort_indices
 
-    hop_duration_s = self.hop_duration_s
-    start_times = chunk_idx_flat.astype(self._input_durations.dtype) * hop_duration_s
+    start_times = chunk_idx_flat.astype(time_dtype) * hop_duration_s
     del hop_duration_s
     del chunk_idx_flat
 
@@ -169,7 +176,7 @@ class AcousticEncodingResultBase(AcousticResultBase):
     structured_array[VAR_END_TIME] = np.minimum(
       start_times
       + apply_speed_to_duration(self._segment_duration_s[0], self._speed[0]),
-      self._input_durations[file_idx_flat],
+      self._input_durations[file_idx_flat].astype(time_dtype),
     )
     del start_times
     structured_array[VAR_INPUT] = self._inputs[file_idx_flat]
