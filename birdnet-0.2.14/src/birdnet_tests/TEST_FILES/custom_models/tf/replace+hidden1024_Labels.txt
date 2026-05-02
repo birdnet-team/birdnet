@@ -1,3 +1,0 @@
-gibbon.female
-hornbill.helmeted
-hornbill.rhino
