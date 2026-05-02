@@ -1,0 +1,193 @@
+start_time,end_time,species_name
+00:00:00.00,00:00:01.50,Camptostoma imberbe_Northern Beardless-Tyrannulet
+00:00:00.00,00:00:01.50,Luscinia megarhynchos_Common Nightingale
+00:00:01.25,00:00:02.75,Cyclarhis gujanensis_Rufous-browed Peppershrike
+00:00:01.25,00:00:02.75,Turdus rufiventris_Rufous-bellied Thrush
+00:00:02.50,00:00:04.00,Dromococcyx phasianellus_Pheasant Cuckoo
+00:00:02.50,00:00:04.00,Mareca penelope_Eurasian Wigeon
+00:00:03.75,00:00:05.25,Formicivora grisea_White-fringed Antwren
+00:00:03.75,00:00:05.25,Myrmotherula multostriata_Amazonian Streaked-Antwren
+00:00:05.00,00:00:06.50,Melozone aberti_Abert's Towhee
+00:00:05.00,00:00:06.50,Cormobates leucophaea_White-throated Treecreeper
+00:00:06.25,00:00:07.75,Turdus merula_Eurasian Blackbird
+00:00:06.25,00:00:07.75,Poecile gambeli_Mountain Chickadee
+00:00:07.50,00:00:09.00,Gymnorhinus cyanocephalus_Pinyon Jay
+00:00:07.50,00:00:09.00,Turdus merula_Eurasian Blackbird
+00:00:08.75,00:00:10.25,Merops apiaster_European Bee-eater
+00:00:08.75,00:00:10.25,Mareca penelope_Eurasian Wigeon
+00:00:10.00,00:00:11.50,Herpsilochmus rufimarginatus_Rufous-margined Antwren
+00:00:10.00,00:00:11.50,Mareca penelope_Eurasian Wigeon
+00:00:11.25,00:00:12.75,Mareca penelope_Eurasian Wigeon
+00:00:11.25,00:00:12.75,Antrostomus arizonae_Mexican Whip-poor-will
+00:00:12.50,00:00:14.00,Engine_Engine
+00:00:12.50,00:00:14.00,Lanius borealis_Northern Shrike
+00:00:13.75,00:00:15.25,Thryophilus pleurostictus_Banded Wren
+00:00:13.75,00:00:15.25,Campylorhynchus rufinucha_Rufous-naped Wren
+00:00:15.00,00:00:16.50,Turdus merula_Eurasian Blackbird
+00:00:15.00,00:00:16.50,Dromococcyx phasianellus_Pheasant Cuckoo
+00:00:16.25,00:00:17.75,Callaeas wilsoni_North Island Kokako
+00:00:16.25,00:00:17.75,Numenius arquata_Eurasian Curlew
+00:00:17.50,00:00:19.00,Turdus merula_Eurasian Blackbird
+00:00:17.50,00:00:19.00,Fulica atra_Eurasian Coot
+00:00:18.75,00:00:20.25,Buteo buteo_Common Buzzard
+00:00:18.75,00:00:20.25,Callaeas wilsoni_North Island Kokako
+00:00:20.00,00:00:21.50,Chroicocephalus ridibundus_Black-headed Gull
+00:00:20.00,00:00:21.50,Anas platyrhynchos_Mallard
+00:00:21.25,00:00:22.75,Fulica atra_Eurasian Coot
+00:00:21.25,00:00:22.75,Callaeas wilsoni_North Island Kokako
+00:00:22.50,00:00:24.00,Callaeas wilsoni_North Island Kokako
+00:00:22.50,00:00:24.00,Larus argentatus_Herring Gull
+00:00:23.75,00:00:25.25,Mareca penelope_Eurasian Wigeon
+00:00:23.75,00:00:25.25,Gallinago gallinago_Common Snipe
+00:00:25.00,00:00:26.50,Turdus merula_Eurasian Blackbird
+00:00:25.00,00:00:26.50,Fulica atra_Eurasian Coot
+00:00:26.25,00:00:27.75,Phasianus colchicus_Ring-necked Pheasant
+00:00:26.25,00:00:27.75,Ptilonorhynchus violaceus_Satin Bowerbird
+00:00:27.50,00:00:29.00,Loxia leucoptera_White-winged Crossbill
+00:00:27.50,00:00:29.00,Loxia curvirostra_Red Crossbill
+00:00:28.75,00:00:30.25,Buteo buteo_Common Buzzard
+00:00:28.75,00:00:30.25,Larus argentatus_Herring Gull
+00:00:30.00,00:00:31.50,Phasianus colchicus_Ring-necked Pheasant
+00:00:30.00,00:00:31.50,Melanitta nigra_Common Scoter
+00:00:31.25,00:00:32.75,Turdus merula_Eurasian Blackbird
+00:00:31.25,00:00:32.75,Turdus rufiventris_Rufous-bellied Thrush
+00:00:32.50,00:00:34.00,Ptilonorhynchus violaceus_Satin Bowerbird
+00:00:32.50,00:00:34.00,Prosthemadera novaeseelandiae_Tui
+00:00:33.75,00:00:35.25,Phasianus colchicus_Ring-necked Pheasant
+00:00:33.75,00:00:35.25,Callaeas wilsoni_North Island Kokako
+00:00:35.00,00:00:36.50,Empidonax wrightii_Gray Flycatcher
+00:00:35.00,00:00:36.50,Empidonax oberholseri_Dusky Flycatcher
+00:00:36.25,00:00:37.75,Empidonax wrightii_Gray Flycatcher
+00:00:36.25,00:00:37.75,Empidonax oberholseri_Dusky Flycatcher
+00:00:37.50,00:00:39.00,Callaeas wilsoni_North Island Kokako
+00:00:37.50,00:00:39.00,Ptilonorhynchus violaceus_Satin Bowerbird
+00:00:38.75,00:00:40.25,Trochalopteron chrysopterum_Assam Laughingthrush
+00:00:38.75,00:00:40.25,Trochalopteron erythrocephalum_Chestnut-crowned Laughingthrush
+00:00:40.00,00:00:41.50,Telophorus dohertyi_Doherty's Bushshrike
+00:00:40.00,00:00:41.50,Copsychus malabaricus_White-rumped Shama
+00:00:41.25,00:00:42.75,Dendrortyx macroura_Long-tailed Wood-Partridge
+00:00:41.25,00:00:42.75,Ptilonorhynchus violaceus_Satin Bowerbird
+00:00:42.50,00:00:44.00,Loxia leucoptera_White-winged Crossbill
+00:00:42.50,00:00:44.00,Acanthis flammea_Common Redpoll
+00:00:43.75,00:00:45.25,Empidonax oberholseri_Dusky Flycatcher
+00:00:43.75,00:00:45.25,Empidonax wrightii_Gray Flycatcher
+00:00:45.00,00:00:46.50,Ptilonorhynchus violaceus_Satin Bowerbird
+00:00:45.00,00:00:46.50,Empidonax wrightii_Gray Flycatcher
+00:00:46.25,00:00:47.75,Empidonax oberholseri_Dusky Flycatcher
+00:00:46.25,00:00:47.75,Empidonax wrightii_Gray Flycatcher
+00:00:47.50,00:00:49.00,Turdus merula_Eurasian Blackbird
+00:00:47.50,00:00:49.00,Turdus philomelos_Song Thrush
+00:00:48.75,00:00:50.25,Dendrortyx macroura_Long-tailed Wood-Partridge
+00:00:48.75,00:00:50.25,Thamnophilus caerulescens_Variable Antshrike
+00:00:50.00,00:00:51.50,Phasianus colchicus_Ring-necked Pheasant
+00:00:50.00,00:00:51.50,Callaeas wilsoni_North Island Kokako
+00:00:51.25,00:00:52.75,Spizaetus ornatus_Ornate Hawk-Eagle
+00:00:51.25,00:00:52.75,Myiarchus tyrannulus_Brown-crested Flycatcher
+00:00:52.50,00:00:54.00,Corvus ossifragus_Fish Crow
+00:00:52.50,00:00:54.00,Branta leucopsis_Barnacle Goose
+00:00:53.75,00:00:55.25,Turdus pilaris_Fieldfare
+00:00:53.75,00:00:55.25,Turdus migratorius_American Robin
+00:00:55.00,00:00:56.50,Turdus leucomelas_Pale-breasted Thrush
+00:00:55.00,00:00:56.50,Turdus pilaris_Fieldfare
+00:00:56.25,00:00:57.75,Turdus merula_Eurasian Blackbird
+00:00:56.25,00:00:57.75,Icterus chrysater_Yellow-backed Oriole
+00:00:57.50,00:00:59.00,Ptilonorhynchus violaceus_Satin Bowerbird
+00:00:57.50,00:00:59.00,Dromococcyx phasianellus_Pheasant Cuckoo
+00:00:58.75,00:01:00.25,Icterus chrysater_Yellow-backed Oriole
+00:00:58.75,00:01:00.25,Turdus merula_Eurasian Blackbird
+00:01:00.00,00:01:01.50,Turdus merula_Eurasian Blackbird
+00:01:00.00,00:01:01.50,Columba oenas_Stock Dove
+00:01:01.25,00:01:02.75,Dromococcyx phasianellus_Pheasant Cuckoo
+00:01:01.25,00:01:02.75,Loxia curvirostra_Red Crossbill
+00:01:02.50,00:01:04.00,Loxia curvirostra_Red Crossbill
+00:01:02.50,00:01:04.00,Carduelis carduelis_European Goldfinch
+00:01:03.75,00:01:05.25,Mareca penelope_Eurasian Wigeon
+00:01:03.75,00:01:05.25,Dryocopus martius_Black Woodpecker
+00:01:05.00,00:01:06.50,Turdus merula_Eurasian Blackbird
+00:01:05.00,00:01:06.50,Hierococcyx varius_Common Hawk-Cuckoo
+00:01:06.25,00:01:07.75,Turdus merula_Eurasian Blackbird
+00:01:06.25,00:01:07.75,Turdus rufiventris_Rufous-bellied Thrush
+00:01:07.50,00:01:09.00,Fulica atra_Eurasian Coot
+00:01:07.50,00:01:09.00,Mareca penelope_Eurasian Wigeon
+00:01:08.75,00:01:10.25,Melanerpes erythrocephalus_Red-headed Woodpecker
+00:01:08.75,00:01:10.25,Mareca penelope_Eurasian Wigeon
+00:01:10.00,00:01:11.50,Mareca penelope_Eurasian Wigeon
+00:01:10.00,00:01:11.50,Turdus philomelos_Song Thrush
+00:01:11.25,00:01:12.75,Turdus merula_Eurasian Blackbird
+00:01:11.25,00:01:12.75,Mareca penelope_Eurasian Wigeon
+00:01:12.50,00:01:14.00,Turdus merula_Eurasian Blackbird
+00:01:12.50,00:01:14.00,Dromococcyx phasianellus_Pheasant Cuckoo
+00:01:13.75,00:01:15.25,Pitta nympha_Fairy Pitta
+00:01:13.75,00:01:15.25,Turdus merula_Eurasian Blackbird
+00:01:15.00,00:01:16.50,Turdus merula_Eurasian Blackbird
+00:01:15.00,00:01:16.50,Numenius arquata_Eurasian Curlew
+00:01:16.25,00:01:17.75,Turdus merula_Eurasian Blackbird
+00:01:16.25,00:01:17.75,Dendrocopos major_Great Spotted Woodpecker
+00:01:17.50,00:01:19.00,Horornis diphone_Japanese Bush Warbler
+00:01:17.50,00:01:19.00,Bubo scandiacus_Snowy Owl
+00:01:18.75,00:01:20.25,Turdus merula_Eurasian Blackbird
+00:01:18.75,00:01:20.25,Pyrrhula pyrrhula_Eurasian Bullfinch
+00:01:20.00,00:01:21.50,Mareca penelope_Eurasian Wigeon
+00:01:20.00,00:01:21.50,Merops apiaster_European Bee-eater
+00:01:21.25,00:01:22.75,Empidonax hammondii_Hammond's Flycatcher
+00:01:21.25,00:01:22.75,Icterus pustulatus_Streak-backed Oriole
+00:01:22.50,00:01:24.00,Turdus merula_Eurasian Blackbird
+00:01:22.50,00:01:24.00,Oriolus oriolus_Eurasian Golden Oriole
+00:01:23.75,00:01:25.25,Gymnorhinus cyanocephalus_Pinyon Jay
+00:01:23.75,00:01:25.25,Toxostoma curvirostre_Curve-billed Thrasher
+00:01:25.00,00:01:26.50,Caprimulgus europaeus_Eurasian Nightjar
+00:01:25.00,00:01:26.50,Pyrrhula pyrrhula_Eurasian Bullfinch
+00:01:26.25,00:01:27.75,Corvus ossifragus_Fish Crow
+00:01:26.25,00:01:27.75,Puffinus puffinus_Manx Shearwater
+00:01:27.50,00:01:29.00,Fulica atra_Eurasian Coot
+00:01:27.50,00:01:29.00,Corvus ossifragus_Fish Crow
+00:01:28.75,00:01:30.25,Dendrocopos major_Great Spotted Woodpecker
+00:01:28.75,00:01:30.25,Troglodytes troglodytes_Eurasian Wren
+00:01:30.00,00:01:31.50,Phasianus colchicus_Ring-necked Pheasant
+00:01:30.00,00:01:31.50,Fulica atra_Eurasian Coot
+00:01:31.25,00:01:32.75,Picus viridis_Eurasian Green Woodpecker
+00:01:31.25,00:01:32.75,Batara cinerea_Giant Antshrike
+00:01:32.50,00:01:34.00,Corvus ossifragus_Fish Crow
+00:01:32.50,00:01:34.00,Garrulus glandarius_Eurasian Jay
+00:01:33.75,00:01:35.25,Fulica atra_Eurasian Coot
+00:01:33.75,00:01:35.25,Branta leucopsis_Barnacle Goose
+00:01:35.00,00:01:36.50,Batara cinerea_Giant Antshrike
+00:01:35.00,00:01:36.50,Cacicus uropygialis_Scarlet-rumped Cacique
+00:01:36.25,00:01:37.75,Puffinus puffinus_Manx Shearwater
+00:01:36.25,00:01:37.75,Crax fasciolata_Bare-faced Curassow
+00:01:37.50,00:01:39.00,Gymnorhinus cyanocephalus_Pinyon Jay
+00:01:37.50,00:01:39.00,Chroicocephalus ridibundus_Black-headed Gull
+00:01:38.75,00:01:40.25,Gymnorhinus cyanocephalus_Pinyon Jay
+00:01:38.75,00:01:40.25,Numenius arquata_Eurasian Curlew
+00:01:40.00,00:01:41.50,Pyrrhocorax pyrrhocorax_Red-billed Chough
+00:01:40.00,00:01:41.50,Pica pica_Eurasian Magpie
+00:01:41.25,00:01:42.75,Mareca penelope_Eurasian Wigeon
+00:01:41.25,00:01:42.75,Pternistis erckelii_Erckel's Francolin
+00:01:42.50,00:01:44.00,Schiffornis virescens_Greenish Schiffornis
+00:01:42.50,00:01:44.00,Horornis diphone_Japanese Bush Warbler
+00:01:43.75,00:01:45.25,Anas platyrhynchos_Mallard
+00:01:43.75,00:01:45.25,Branta leucopsis_Barnacle Goose
+00:01:45.00,00:01:46.50,Horornis diphone_Japanese Bush Warbler
+00:01:45.00,00:01:46.50,Numenius arquata_Eurasian Curlew
+00:01:46.25,00:01:47.75,Numenius arquata_Eurasian Curlew
+00:01:46.25,00:01:47.75,Zoothera aurea_White's Thrush
+00:01:47.50,00:01:49.00,Engine_Engine
+00:01:47.50,00:01:49.00,Phylloscopus tenellipes_Pale-legged Leaf Warbler
+00:01:48.75,00:01:50.25,Turdus merula_Eurasian Blackbird
+00:01:48.75,00:01:50.25,Parus major_Great Tit
+00:01:50.00,00:01:51.50,Melanerpes erythrocephalus_Red-headed Woodpecker
+00:01:50.00,00:01:51.50,Gymnorhinus cyanocephalus_Pinyon Jay
+00:01:51.25,00:01:52.75,Engine_Engine
+00:01:51.25,00:01:52.75,Dryobates pubescens_Downy Woodpecker
+00:01:52.50,00:01:54.00,Engine_Engine
+00:01:52.50,00:01:54.00,Horornis diphone_Japanese Bush Warbler
+00:01:53.75,00:01:55.25,Myiarchus tyrannulus_Brown-crested Flycatcher
+00:01:53.75,00:01:55.25,Engine_Engine
+00:01:55.00,00:01:56.50,Icterus gularis_Altamira Oriole
+00:01:55.00,00:01:56.50,Icterus parisorum_Scott's Oriole
+00:01:56.25,00:01:57.75,Grallaria varia_Variegated Antpitta
+00:01:56.25,00:01:57.75,Schiffornis virescens_Greenish Schiffornis
+00:01:57.50,00:01:59.00,Turdus merula_Eurasian Blackbird
+00:01:57.50,00:01:59.00,Mareca penelope_Eurasian Wigeon
+00:01:58.75,00:02:00.00,Pachyramphus polychopterus_White-winged Becard
+00:01:58.75,00:02:00.00,Cardinalis cardinalis_Northern Cardinal
