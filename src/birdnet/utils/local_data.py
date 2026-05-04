@@ -41,7 +41,7 @@ def get_app_data_path() -> Path:
 def get_birdnet_app_data_folder() -> Path:
   override = os.getenv(ENV_VAR_APP_DATA)
   if override is not None:
-    return Path(override)
+    return Path(override).expanduser().resolve()
   app_data = get_app_data_path()
   result = app_data / PKG_NAME
   return result
