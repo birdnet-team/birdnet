@@ -145,6 +145,8 @@ VALID_MODEL_LANGUAGES = [
 
 PKG_NAME = "birdnet"
 
+ENV_VAR_APP_DATA = "BIRDNET_APP_DATA"
+
 # flag for "can be written to" = free
 WRITABLE_FLAG = np.uint8(0)
 
