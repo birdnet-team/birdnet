@@ -278,14 +278,20 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
   def _track_memory_usage(self) -> None:
     if self._parent_process is None:
       self._parent_process = psutil.Process(self._parent_process_id)
-    memory_usage: float = self._parent_process.memory_full_info().uss
+    try:
+      memory_usage: float = self._parent_process.memory_full_info().uss
+    except (psutil.AccessDenied, PermissionError):
+      memory_usage = float(self._parent_process.memory_info().rss)
     for child in self._parent_process.children(recursive=True):
       try:
         memory_usage += child.memory_full_info().uss
       except psutil.NoSuchProcess:
         continue
-      except psutil.AccessDenied:
-        continue
+      except (psutil.AccessDenied, PermissionError):
+        try:
+          memory_usage += child.memory_info().rss
+        except (psutil.NoSuchProcess, psutil.AccessDenied, PermissionError):
+          continue
 
     mem_usage_MiB = memory_usage / 1024**2
     self._memory_usage_MiB_tracker.add_value(mem_usage_MiB)
@@ -374,8 +380,11 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._track_worker_speed()
 
   def _track_semaphore_stats(self) -> None:
-    self._wkr_busy_tracker.add_value(self._sem_active_workers.get_value())
-    self._sem_filled_tracker.add_value(self._sem_filled_slots.get_value())
+    try:
+      self._wkr_busy_tracker.add_value(self._sem_active_workers.get_value())
+      self._sem_filled_tracker.add_value(self._sem_filled_slots.get_value())
+    except NotImplementedError:
+      pass  # Semaphore.get_value() is not supported on macOS
 
   def _track_ring_buffer_stats(self) -> None:
     c = Counter(self._ring_flags)
