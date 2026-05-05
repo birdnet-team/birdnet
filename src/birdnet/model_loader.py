@@ -34,6 +34,7 @@ from birdnet.core.backends import (
   TF_BACKEND_LIB_ARG,
   BackendLoader,
   VersionedAcousticBackendProtocol,
+  VersionedGeoBackendProtocol,
   litert_installed,
   tf_installed,
 )
@@ -47,6 +48,15 @@ from birdnet.geo.models.v2_4.tf import (
   GeoTFBackendFP32V2_4,
   GeoTFDownloaderV2_4,
 )
+from birdnet.geo.models.v3_0.model import (
+  GeoModelV3_0,
+)
+from birdnet.geo.models.v3_0.tf import (
+  GeoTFBackendFP16V3_0,
+  GeoTFBackendFP32V3_0,
+  GeoTFBackendInt8V3_0,
+  GeoTFDownloaderV3_0,
+)
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V2_4,
   ACOUSTIC_MODEL_VERSIONS,
@@ -59,6 +69,7 @@ from birdnet.globals import (
   CUSTOM_PB_IS_RAVEN_DEFAULT,
   CUSTOM_PB_IS_RAVEN_PARAM,
   GEO_MODEL_VERSION_V2_4,
+  GEO_MODEL_VERSION_V3_0,
   GEO_MODEL_VERSIONS,
   LIBRARY_LITERT,
   LIBRARY_TF_DEFAULT,
@@ -337,6 +348,8 @@ def _load_geo_model(
 ) -> GeoModelBase:
   if version == GEO_MODEL_VERSION_V2_4:
     return _load_geo_model_V2_4(backend, precision, lang, **model_kwargs)
+  elif version == GEO_MODEL_VERSION_V3_0:
+    return _load_geo_model_V3_0(backend, precision, lang, **model_kwargs)
   else:
     raise AssertionError()
 
@@ -516,6 +529,10 @@ def _load_custom_geo_model(
     return _load_custom_geo_model_V2_4(
       backend, model, precision, species_list, check_validity, **model_kwargs
     )
+  elif version == GEO_MODEL_VERSION_V3_0:
+    return _load_custom_geo_model_V3_0(
+      backend, model, precision, species_list, check_validity, **model_kwargs
+    )
   else:
     raise AssertionError()
 
@@ -661,6 +678,86 @@ def _load_custom_geo_model_V2_4(
       backend_type=GeoPBBackendFP32V2_4,
       backend_kwargs={},
       check_validity=check_validity,
+    )
+  else:
+    raise AssertionError()
+
+
+def _load_geo_model_V3_0(
+  backend: MODEL_BACKENDS,
+  precision: MODEL_PRECISIONS,
+  lang: MODEL_LANGUAGES,
+  **model_kwargs: object,
+) -> GeoModelV3_0:
+  if backend == MODEL_BACKEND_TF:
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, {LIBRARY_TF_PARAM})
+    library = _validate_library(model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT))
+
+    model_path, species_list = GeoTFDownloaderV3_0.get_model_path_and_labels(
+      lang, precision
+    )
+
+    backend_type: type[VersionedGeoBackendProtocol]
+    if precision == MODEL_PRECISION_INT8:
+      backend_type = GeoTFBackendInt8V3_0
+    elif precision == MODEL_PRECISION_FP16:
+      backend_type = GeoTFBackendFP16V3_0
+    else:
+      assert precision == MODEL_PRECISION_FP32
+      backend_type = GeoTFBackendFP32V3_0
+
+    return GeoModelV3_0.load(
+      model_path,
+      species_list,
+      backend_type=backend_type,
+      backend_kwargs={
+        TF_BACKEND_LIB_ARG: library,
+      },
+    )
+  elif backend == MODEL_BACKEND_PB:
+    raise ValueError(
+      "The geo model v3.0 does not support the 'pb' backend. "
+      "Use 'tf' instead."
+    )
+  else:
+    raise AssertionError()
+
+
+def _load_custom_geo_model_V3_0(
+  backend: MODEL_BACKENDS,
+  model: Path,
+  precision: MODEL_PRECISIONS,
+  species_list: Path,
+  check_validity: bool,
+  **model_kwargs: object,
+) -> GeoModelV3_0:
+  if backend == MODEL_BACKEND_TF:
+    model = _validate_tf_file(model)
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, {LIBRARY_TF_PARAM})
+    library = _validate_library(model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT))
+
+    backend_type: type[VersionedGeoBackendProtocol]
+    if precision == MODEL_PRECISION_INT8:
+      backend_type = GeoTFBackendInt8V3_0
+    elif precision == MODEL_PRECISION_FP16:
+      backend_type = GeoTFBackendFP16V3_0
+    else:
+      assert precision == MODEL_PRECISION_FP32
+      backend_type = GeoTFBackendFP32V3_0
+
+    return GeoModelV3_0.load_custom(
+      model,
+      species_list,
+      backend_type=backend_type,
+      backend_kwargs={
+        TF_BACKEND_LIB_ARG: library,
+      },
+      check_validity=check_validity,
+    )
+  elif backend == MODEL_BACKEND_PB:
+    raise ValueError(
+      "The geo model v3.0 does not support the 'pb' backend. "
+      "Use 'tf' instead."
     )
   else:
     raise AssertionError()
