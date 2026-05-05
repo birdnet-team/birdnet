@@ -51,6 +51,7 @@ from birdnet.geo.models.v2_4.tf import (
 from birdnet.geo.models.v3_0.model import (
   GeoModelV3_0,
 )
+from birdnet.geo.models.v3_0.pb import GeoPBBackendFP32V3_0, GeoPBDownloaderV3_0
 from birdnet.geo.models.v3_0.tf import (
   GeoTFBackendFP16V3_0,
   GeoTFBackendFP32V3_0,
@@ -715,9 +716,20 @@ def _load_geo_model_V3_0(
       },
     )
   elif backend == MODEL_BACKEND_PB:
-    raise ValueError(
-      "The geo model v3.0 does not support the 'pb' backend. "
-      "Use 'tf' instead."
+    if precision != MODEL_PRECISION_FP32:
+      raise ValueError(
+        f"Unsupported model precision for geo model: {precision}. "
+        f"Currently supported precision is: {MODEL_PRECISION_FP32}."
+      )
+
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, None)
+
+    model_path, species_list = GeoPBDownloaderV3_0.get_model_path_and_labels(lang)
+    return GeoModelV3_0.load(
+      model_path,
+      species_list,
+      backend_type=GeoPBBackendFP32V3_0,
+      backend_kwargs={},
     )
   else:
     raise AssertionError()
@@ -755,9 +767,21 @@ def _load_custom_geo_model_V3_0(
       check_validity=check_validity,
     )
   elif backend == MODEL_BACKEND_PB:
-    raise ValueError(
-      "The geo model v3.0 does not support the 'pb' backend. "
-      "Use 'tf' instead."
+    if precision != MODEL_PRECISION_FP32:
+      raise ValueError(
+        f"Unsupported model precision for geo model: {precision}. "
+        f"Currently supported precision is: {MODEL_PRECISION_FP32}."
+      )
+
+    model = _validate_pb_model_folder(model)
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, None)
+
+    return GeoModelV3_0.load_custom(
+      model,
+      species_list,
+      backend_type=GeoPBBackendFP32V3_0,
+      backend_kwargs={},
+      check_validity=check_validity,
     )
   else:
     raise AssertionError()

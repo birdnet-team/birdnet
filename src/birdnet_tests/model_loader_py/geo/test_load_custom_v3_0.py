@@ -3,6 +3,7 @@ from typing import Literal, cast
 import pytest
 
 from birdnet.geo.models.v3_0.model import GeoModelV3_0
+from birdnet.geo.models.v3_0.pb import GeoPBDownloaderV3_0
 from birdnet.geo.models.v3_0.tf import GeoTFDownloaderV3_0
 from birdnet.model_loader import load_custom
 from birdnet.utils.local_data import get_lang_dir, get_model_path
@@ -108,3 +109,53 @@ def test_tf_type_with_precisions_is_correct() -> None:
     )
     is GeoModelV3_0
   )
+
+
+def test_load_custom_geo_model_v3_0_pb_fp32() -> None:
+  GeoPBDownloaderV3_0.get_model_path_and_labels("en_us")
+  model = load_custom(
+    "geo",
+    "3.0",
+    "pb",
+    get_model_path("geo", "3.0", "pb", "fp32"),
+    get_lang_dir("geo", "3.0", "pb") / "en_us.txt",
+    precision="fp32",
+    check_validity=check_validity(),
+  )
+  assert isinstance(model, GeoModelV3_0)
+
+
+def test_pb_type_is_correct() -> None:
+  GeoPBDownloaderV3_0.get_model_path_and_labels("en_us")
+  assert (
+    type(
+      load_custom(
+        "geo",
+        "3.0",
+        "pb",
+        get_model_path("geo", "3.0", "pb", "fp32"),
+        get_lang_dir("geo", "3.0", "pb") / "en_us.txt",
+        check_validity=False,
+      )
+    )
+    is GeoModelV3_0
+  )
+
+
+def test_load_pb_with_custom_library_raises_error() -> None:
+  ensure_litert_or_skip()
+
+  with pytest.raises(
+    ValueError,
+    match=r"Unexpected keyword arguments: library.",
+  ):
+    GeoPBDownloaderV3_0.get_model_path_and_labels("en_us")
+    load_custom(
+      "geo",
+      "3.0",
+      "pb",  # type: ignore
+      get_model_path("geo", "3.0", "pb", "fp32"),
+      get_lang_dir("geo", "3.0", "pb") / "en_us.txt",
+      library="litert",
+      check_validity=check_validity(),
+    )  # type: ignore

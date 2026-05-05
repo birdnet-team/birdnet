@@ -12,8 +12,20 @@ from birdnet_tests.helper import ensure_litert_or_skip
 def test_pb_v3_0_with_library_raises_error() -> None:
   ensure_litert_or_skip()
 
-  with pytest.raises(ValueError):
-    load("geo", "3.0", "pb", precision="fp32")
+  with pytest.raises(
+    ValueError,
+    match=r"Unexpected keyword arguments: library.",
+  ):
+    load("geo", "3.0", "pb", precision="fp32", library="litert")  # type: ignore
+
+
+@pytest.mark.load_model
+def test_v3_0_pb() -> None:
+  try:
+    model = load("geo", "3.0", "pb", precision="fp32")
+  except ReadTimeout as e:
+    pytest.fail(f"Model download timed out: {e}. Try again later.")
+  assert isinstance(model, GeoModelV3_0)
 
 
 @pytest.mark.load_model
@@ -89,5 +101,16 @@ def test_types_with_precisions_are_correct() -> None:
   )
   assert (
     type(load("geo", "3.0", "tf", precision=cast(Literal["int8"], f"int{8}")))
+    is GeoModelV3_0
+  )
+
+
+def test_pb_type_is_correct() -> None:
+  assert type(load("geo", "3.0", "pb")) is GeoModelV3_0
+
+
+def test_pb_type_with_precision_is_correct() -> None:
+  assert (
+    type(load("geo", "3.0", "pb", precision=cast(Literal["fp32"], f"fp{32}")))
     is GeoModelV3_0
   )
