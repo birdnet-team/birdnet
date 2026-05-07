@@ -38,8 +38,8 @@ class GeoPBDownloaderV2_4(GeoDownloaderBaseV2_4):
     model_is_downloaded = True
     model_is_downloaded &= model_path.is_dir()
     model_is_downloaded &= check_protobuf_model_files_exist(model_path)
-
     model_is_downloaded &= lang_dir.is_dir()
+
     for lang in cls.AVAILABLE_LANGUAGES:
       model_is_downloaded &= (lang_dir / f"{lang}.txt").is_file()
 

@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-import os
-import shutil
-import tempfile
-import zipfile
 from pathlib import Path
 
 from ordered_set import OrderedSet
@@ -26,97 +22,78 @@ from birdnet.utils.helper import (
 )
 from birdnet.utils.local_data import get_lang_dir, get_model_path
 
-# TODO: update with real zenodo URLs and file sizes once published
 models = {
   MODEL_PRECISION_INT8: ModelInfo(
-    dl_url="TODO",
-    dl_file_name="TODO",
-    dl_size=0,
-    file_size=0,
+    dl_url="https://github.com/birdnet-team/geomodel/releases/download/v3.0.2/BirdNET+_Geomodel_V3.0.2_Global_12K_INT8.tflite",
+    dl_file_name="BirdNET+_Geomodel_V3.0.2_Global_12K_INT8.tflite",
+    dl_size=4011888,
+    file_size=4011888,
   ),
   MODEL_PRECISION_FP16: ModelInfo(
-    dl_url="TODO",
-    dl_file_name="TODO",
-    dl_size=0,
-    file_size=0,
+    dl_url="https://github.com/birdnet-team/geomodel/releases/download/v3.0.2/BirdNET+_Geomodel_V3.0.2_Global_12K_FP16.tflite",
+    dl_file_name="BirdNET+_Geomodel_V3.0.2_Global_12K_FP16.tflite",
+    dl_size=7303476,
+    file_size=7303476,
   ),
   MODEL_PRECISION_FP32: ModelInfo(
-    dl_url="TODO",
-    dl_file_name="TODO",
-    dl_size=0,
-    file_size=0,
+    dl_url="https://github.com/birdnet-team/geomodel/releases/download/v3.0.2/BirdNET+_Geomodel_V3.0.2_Global_12K_FP32.tflite",
+    dl_file_name="BirdNET+_Geomodel_V3.0.2_Global_12K_FP32.tflite",
+    dl_size=14512340,
+    file_size=14512340,
   ),
 }
 
 
 class GeoTFDownloaderV3_0(GeoDownloaderBaseV3_0):
   @classmethod
-  def _get_paths(cls, precision: MODEL_PRECISIONS) -> tuple[Path, Path]:
-    model_path = get_model_path("geo", "3.0", "tf", precision)
-    lang_dir = get_lang_dir("geo", "3.0", "tf")
-    return model_path, lang_dir
+  def _get_lang_dir(cls) -> Path:
+    return get_lang_dir("geo", "3.0", "tf")
+
+  @classmethod
+  def _get_model_path(cls, precision: MODEL_PRECISIONS) -> Path:
+    return get_model_path("geo", "3.0", "tf", precision)
 
   @classmethod
   def _check_geo_model_available(cls, precision: MODEL_PRECISIONS) -> bool:
-    model_path, lang_dir = cls._get_paths(precision)
+    model_path = cls._get_model_path(precision)
 
     if not model_path.is_file():
       return False
 
-    file_stats = os.stat(model_path)
-    is_newest_version = file_stats.st_size == models[precision].file_size
-    if not is_newest_version:
+    if model_path.stat().st_size != models[precision].file_size:
       return False
 
-    if not lang_dir.is_dir():
-      return False
-
-    return all((lang_dir / f"{lang}.txt").is_file() for lang in cls.AVAILABLE_LANGUAGES)
+    return cls._check_labels_available()
 
   @classmethod
   def _download_model(cls, precision: MODEL_PRECISIONS) -> None:
-    with tempfile.TemporaryDirectory(prefix="birdnet_download") as temp_dir:
-      zip_download_path = Path(temp_dir) / "download.zip"
-      download_file_tqdm(
-        models[precision].dl_url,
-        zip_download_path,
-        download_size=models[precision].dl_size,
-        description=f"Downloading geo model v3.0 (tf, {precision})",
-      )
-
-      extract_dir = Path(temp_dir) / "extracted"
-
-      with zipfile.ZipFile(zip_download_path, "r") as zip_ref:
-        zip_ref.extractall(extract_dir)
-
-      geo_model_dl_path = extract_dir / models[precision].dl_file_name
-      species_dl_dir = extract_dir / "labels"
-
-      geo_model_path, geo_lang_dir = cls._get_paths(precision)
-      geo_model_path.parent.mkdir(parents=True, exist_ok=True)
-      shutil.move(geo_model_dl_path, geo_model_path)
-
-      geo_lang_dir.parent.mkdir(parents=True, exist_ok=True)
-      shutil.rmtree(geo_lang_dir, ignore_errors=True)
-      shutil.move(species_dl_dir, geo_lang_dir)
+    model_path = cls._get_model_path(precision)
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    download_file_tqdm(
+      models[precision].dl_url,
+      model_path,
+      download_size=models[precision].dl_size,
+      description=f"Downloading geo model v3.0 (tf, {precision})",
+    )
 
   @classmethod
   def get_model_path_and_labels(
     cls, lang: str, precision: MODEL_PRECISIONS
   ) -> tuple[Path, OrderedSet[str]]:
     assert lang in cls.AVAILABLE_LANGUAGES
+
+    cls.ensure_labels_available()
+
     if not cls._check_geo_model_available(precision):
       cls._download_model(precision)
     assert cls._check_geo_model_available(precision)
 
-    model_path, langs_path = cls._get_paths(precision)
-
-    lang_file = langs_path / f"{lang}.txt"
+    lang_file = cls.get_lang_file(lang)
     if not lang_file.is_file():
       raise ValueError(f"Language does not exist: {lang}")
 
     labels = get_species_from_file(lang_file, encoding="utf8")
-    return model_path, labels
+    return cls._get_model_path(precision), labels
 
 
 class GeoTFBackendFP32V3_0(TFBackend, VersionedGeoBackendProtocol):
@@ -126,12 +103,16 @@ class GeoTFBackendFP32V3_0(TFBackend, VersionedGeoBackendProtocol):
     super().__init__(model_path, device_name, half_precision, **kwargs)
 
   @classmethod
+  def requires_flex_delegate(cls) -> bool:
+    return True
+
+  @classmethod
   def in_idx(cls) -> int:
     return 0
 
   @classmethod
   def prediction_out_idx(cls) -> int:
-    return 0  # TODO: update with real tensor index
+    return 513
 
   @classmethod
   def supports_encoding(cls) -> bool:
@@ -153,12 +134,16 @@ class GeoTFBackendFP16V3_0(TFBackend, VersionedGeoBackendProtocol):
     super().__init__(model_path, device_name, half_precision, **kwargs)
 
   @classmethod
+  def requires_flex_delegate(cls) -> bool:
+    return True
+
+  @classmethod
   def in_idx(cls) -> int:
     return 0
 
   @classmethod
   def prediction_out_idx(cls) -> int:
-    return 0  # TODO: update with real tensor index
+    return 584
 
   @classmethod
   def supports_encoding(cls) -> bool:
@@ -180,12 +165,16 @@ class GeoTFBackendInt8V3_0(TFBackend, VersionedGeoBackendProtocol):
     super().__init__(model_path, device_name, half_precision, **kwargs)
 
   @classmethod
+  def requires_flex_delegate(cls) -> bool:
+    return True
+
+  @classmethod
   def in_idx(cls) -> int:
     return 0
 
   @classmethod
   def prediction_out_idx(cls) -> int:
-    return 0  # TODO: update with real tensor index
+    return 513
 
   @classmethod
   def supports_encoding(cls) -> bool:

@@ -5,7 +5,11 @@ from typing import Any
 from ordered_set import OrderedSet
 
 from birdnet.core.backends import VersionedBackendProtocol
-from birdnet.globals import GEO_MODEL_VERSIONS
+from birdnet.globals import (
+  GEO_MODEL_VERSIONS,
+  GEO_YEAR_ROUND_AGGREGATIONS,
+  VALID_GEO_YEAR_ROUND_AGGREGATIONS,
+)
 
 
 @dataclass(frozen=True)
@@ -63,7 +67,8 @@ class PredictionConfig:
 class RunConfig:
   latitude: float
   longitude: float
-  week: int
+  week: int | None
+  year_round_aggregation: GEO_YEAR_ROUND_AGGREGATIONS
 
   @classmethod
   def validate_latitude(cls, latitude: Any) -> float:  # noqa: ANN401
@@ -86,19 +91,31 @@ class RunConfig:
     return float(longitude)
 
   @classmethod
-  def validate_week(cls, week: Any) -> int:  # noqa: ANN401
+  def validate_week(cls, week: Any) -> int | None:  # noqa: ANN401
     if week is None:
-      return -1
+      return None
 
     if not isinstance(week, int):
       raise TypeError("Value for 'week' is invalid! It must be an integer.")
 
-    if week is not None and not (1 <= week <= 48):
+    if not (1 <= week <= 48):
       raise ValueError(
-        "Value for 'week' is invalid! It needs to be either None or in interval [1, 48]."
+        "Value for 'week' is invalid! It needs to be either None or in"
+        " interval [1, 48]."
       )
 
     return week
+
+  @classmethod
+  def validate_year_round_aggregation(
+    cls, year_round_aggregation: Any  # noqa: ANN401
+  ) -> GEO_YEAR_ROUND_AGGREGATIONS:
+    if year_round_aggregation not in VALID_GEO_YEAR_ROUND_AGGREGATIONS:
+      raise ValueError(
+        "Value for 'year_round_aggregation' is invalid!"
+        " It must be either 'max' or 'average'."
+      )
+    return year_round_aggregation
 
 
 @dataclass(frozen=True)

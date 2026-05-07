@@ -26,29 +26,28 @@ from birdnet.utils.local_data import get_lang_dir, get_model_path
 
 class GeoPBDownloaderV3_0(GeoDownloaderBaseV3_0):
   @classmethod
-  def _get_paths(cls) -> tuple[Path, Path]:
-    model_path = get_model_path("geo", "3.0", "pb", MODEL_PRECISION_FP32)
-    lang_dir = get_lang_dir("geo", "3.0", "pb")
-    return model_path, lang_dir
+  def _get_lang_dir(cls) -> Path:
+    return get_lang_dir("geo", "3.0", "pb")
+
+  @classmethod
+  def _get_model_path(cls) -> Path:
+    return get_model_path("geo", "3.0", "pb", MODEL_PRECISION_FP32)
 
   @classmethod
   def _check_geo_model_available(cls) -> bool:
-    model_path, lang_dir = cls._get_paths()
+    model_path = cls._get_model_path()
 
-    model_is_downloaded = True
-    model_is_downloaded &= model_path.is_dir()
-    model_is_downloaded &= check_protobuf_model_files_exist(model_path)
+    if not model_path.is_dir():
+      return False
+    if not check_protobuf_model_files_exist(model_path):
+      return False
 
-    model_is_downloaded &= lang_dir.is_dir()
-    for lang in cls.AVAILABLE_LANGUAGES:
-      model_is_downloaded &= (lang_dir / f"{lang}.txt").is_file()
-
-    return model_is_downloaded
+    return cls._check_labels_available()
 
   @classmethod
   def _download_model(cls) -> None:
-    dl_url = "TODO"  # TODO: update with real zenodo URL once published
-    dl_size = 0  # TODO: update with real download size once published
+    dl_url = "https://github.com/birdnet-team/geomodel/releases/download/v3.0.2/BirdNET+_Geomodel_V3.0.2_Global_12K_FP32_TF.zip"
+    dl_size = 13466042
 
     with tempfile.TemporaryDirectory(prefix="birdnet_download") as temp_dir:
       zip_download_path = Path(temp_dir) / "download.zip"
@@ -65,17 +64,11 @@ class GeoPBDownloaderV3_0(GeoDownloaderBaseV3_0):
       with zipfile.ZipFile(zip_download_path, "r") as zip_ref:
         zip_ref.extractall(extract_dir)
 
-      geo_model_dl_dir = extract_dir / "meta-model"  # TODO: update folder name if different
-      species_dl_dir = extract_dir / "labels"
-
-      geo_model_dir, geo_lang_dir = cls._get_paths()
+      geo_model_dl_dir = extract_dir / "BirdNET+_Geomodel_V3.0.2_Global_12K_FP32_TF"
+      geo_model_dir = cls._get_model_path()
       geo_model_dir.parent.mkdir(parents=True, exist_ok=True)
       shutil.rmtree(geo_model_dir, ignore_errors=True)
       shutil.move(geo_model_dl_dir, geo_model_dir)
-
-      geo_lang_dir.parent.mkdir(parents=True, exist_ok=True)
-      shutil.rmtree(geo_lang_dir, ignore_errors=True)
-      shutil.move(species_dl_dir, geo_lang_dir)
       print("Extracted.")
 
   @classmethod
@@ -83,18 +76,20 @@ class GeoPBDownloaderV3_0(GeoDownloaderBaseV3_0):
     cls,
     lang: str,
   ) -> tuple[Path, OrderedSet[str]]:
+    assert lang in cls.AVAILABLE_LANGUAGES
+
+    cls.ensure_labels_available()
+
     if not cls._check_geo_model_available():
       cls._download_model()
     assert cls._check_geo_model_available()
 
-    model_dir, langs_path = cls._get_paths()
-
-    lang_file = langs_path / f"{lang}.txt"
+    lang_file = cls.get_lang_file(lang)
     if not lang_file.is_file():
       raise ValueError(f"Language does not exist: {lang}")
 
     labels = get_species_from_file(lang_file, encoding="utf8")
-    return model_dir, labels
+    return cls._get_model_path(), labels
 
 
 class GeoPBBackendFP32V3_0(PBBackend, VersionedGeoBackendProtocol):
@@ -108,7 +103,7 @@ class GeoPBBackendFP32V3_0(PBBackend, VersionedGeoBackendProtocol):
 
   @classmethod
   def input_key(cls) -> str:
-    return "MNET_INPUT"  # TODO: update if key name differs in v3.0
+    return "input"
 
   @classmethod
   def prediction_signature_name(cls) -> str:
@@ -116,7 +111,7 @@ class GeoPBBackendFP32V3_0(PBBackend, VersionedGeoBackendProtocol):
 
   @classmethod
   def prediction_key(cls) -> str:
-    return "MNET_CLASS_ACTIVATION"  # TODO: update if key name differs in v3.0
+    return "probabilities"
 
   @classmethod
   def supports_encoding(cls) -> bool:

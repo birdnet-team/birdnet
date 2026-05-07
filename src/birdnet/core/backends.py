@@ -181,10 +181,21 @@ class TFBackend(Backend, ABC):
   @abstractmethod
   def encoding_out_idx(cls) -> int | None: ...
 
+  @classmethod
+  def requires_flex_delegate(cls) -> bool:
+    return False
+
   def load(self) -> None:
     assert self._interp is None
+    if self.requires_flex_delegate():
+      # Flex ops (Select TF ops) need the full TF op registry to be populated
+      # before the interpreter tries to prepare flex kernels.
+      import_tf()
     self._interp = load_tf_model(
-      self._model_path, self._inference_library, allocate_tensors=True
+      self._model_path,
+      self._inference_library,
+      allocate_tensors=True,
+      use_flex_delegate=self.requires_flex_delegate(),
     )
 
   def unload(self) -> None:
@@ -709,12 +720,14 @@ def load_tf_model(
   model_path: Path,
   library: Literal["tflite"],
   allocate_tensors: bool = False,
+  use_flex_delegate: bool = False,
 ) -> TFInterpreter: ...
 @overload
 def load_tf_model(
   model_path: Path,
   library: Literal["litert"],
   allocate_tensors: bool = False,
+  use_flex_delegate: bool = False,
 ) -> LiteRTInterpreter: ...
 
 
@@ -722,11 +735,16 @@ def load_tf_model(
   model_path: Path,
   library: LIBRARY_TYPES,
   allocate_tensors: bool = False,
+  use_flex_delegate: bool = False,
 ):
   if library == LIBRARY_TFLITE:
-    return load_lib_tf_model(model_path, allocate_tensors=allocate_tensors)
+    return load_lib_tf_model(
+      model_path, allocate_tensors=allocate_tensors, use_flex_delegate=use_flex_delegate
+    )
   elif library == LIBRARY_LITERT:
-    return load_lib_litert_model(model_path, allocate_tensors=allocate_tensors)
+    return load_lib_litert_model(
+      model_path, allocate_tensors=allocate_tensors, use_flex_delegate=use_flex_delegate
+    )
   else:
     raise AssertionError()
 
@@ -734,6 +752,7 @@ def load_tf_model(
 def load_lib_tf_model(
   model_path: Path,
   allocate_tensors: bool = False,
+  use_flex_delegate: bool = False,
 ) -> TFInterpreter:
   assert model_path.is_file()
   assert tf_installed()
@@ -781,12 +800,18 @@ def load_lib_tf_model(
       module="tensorflow.lite.python.interpreter",
     )
     try:
-      interp = tflite.Interpreter(
-        str(model_path.absolute()),
-        num_threads=1,
-        experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,
-        # tensor#187 is a dynamic-sized tensor # type: ignore
-      )
+      if use_flex_delegate:
+        interp = tflite.Interpreter(
+          str(model_path.absolute()),
+          num_threads=1,
+        )
+      else:
+        interp = tflite.Interpreter(
+          str(model_path.absolute()),
+          num_threads=1,
+          experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,
+          # tensor#187 is a dynamic-sized tensor # type: ignore
+        )
     except ValueError as e:
       raise ValueError(
         f"Failed to load model '{model_path.absolute()}' using 'tensorflow'. "
@@ -816,6 +841,7 @@ def load_lib_tf_model(
 def load_lib_litert_model(
   model_path: Path,
   allocate_tensors: bool = False,
+  use_flex_delegate: bool = False,
 ) -> LiteRTInterpreter:
   assert model_path.is_file()
   assert litert_installed()
@@ -824,12 +850,18 @@ def load_lib_litert_model(
 
   start = time.perf_counter()
   try:
-    interp = tflite.Interpreter(
-      str(model_path.absolute()),
-      num_threads=1,
-      experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,
-      # tensor#187 is a dynamic-sized tensor # type: ignore
-    )
+    if use_flex_delegate:
+      interp = tflite.Interpreter(
+        str(model_path.absolute()),
+        num_threads=1,
+      )
+    else:
+      interp = tflite.Interpreter(
+        str(model_path.absolute()),
+        num_threads=1,
+        experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,
+        # tensor#187 is a dynamic-sized tensor # type: ignore
+      )
   except ValueError as e:
     raise ValueError(
       f"Failed to load model '{model_path.absolute()}' using 'ai_edge_litert'. "

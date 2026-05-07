@@ -15,6 +15,8 @@ from birdnet.geo.models.base import GeoModelBase
 from birdnet.globals import (
   GEO_MODEL_VERSION_V2_4,
   GEO_MODEL_VERSIONS,
+  GEO_YEAR_ROUND_AGGREGATION_MAX,
+  GEO_YEAR_ROUND_AGGREGATIONS,
   MODEL_TYPE_GEO,
   MODEL_TYPES,
 )
@@ -157,6 +159,7 @@ class GeoModelV2_4(GeoModelBase):
     /,
     *,
     week: int | None = None,
+    year_round_aggregation: GEO_YEAR_ROUND_AGGREGATIONS = GEO_YEAR_ROUND_AGGREGATION_MAX,  # noqa: E501
     min_confidence: float = 0.03,
     half_precision: bool = False,
     device: str = "CPU",
@@ -170,4 +173,5 @@ class GeoModelV2_4(GeoModelBase):
         latitude,
         longitude,
         week=week,
+        year_round_aggregation=year_round_aggregation,
       )

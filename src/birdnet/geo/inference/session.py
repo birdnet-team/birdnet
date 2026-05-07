@@ -20,7 +20,12 @@ from birdnet.geo.inference.configs import (
   RunConfig,
 )
 from birdnet.geo.inference.prediction_result import GeoPredictionResult
-from birdnet.globals import GEO_MODEL_VERSIONS
+from birdnet.globals import (
+  GEO_MODEL_VERSION_V2_4,
+  GEO_MODEL_VERSIONS,
+  GEO_YEAR_ROUND_AGGREGATION_MAX,
+  GEO_YEAR_ROUND_AGGREGATIONS,
+)
 from birdnet.utils.helper import get_uint_dtype
 
 
@@ -56,17 +61,44 @@ class GeoSessionBase(SessionBase, ABC):
     assert self._is_initialized
     assert self._backend is not None
 
-    sample = np.expand_dims(
-      np.array(
-        [run_config.latitude, run_config.longitude, run_config.week],
-        dtype=np.float32,
-      ),
-      0,
-    )
-
-    res = self._backend.predict(sample)
-
-    res = np.squeeze(res, axis=0)
+    if run_config.week is None:
+      if self._conf.model_conf.version == GEO_MODEL_VERSION_V2_4:
+        # v2.4 was trained with -1 as the year-round sentinel
+        sample = np.expand_dims(
+          np.array(
+            [run_config.latitude, run_config.longitude, -1.0],
+            dtype=np.float32,
+          ),
+          0,
+        )
+        res = self._backend.predict(sample)
+        res = np.squeeze(res, axis=0)
+      else:
+        # v3.0+: feed all 48 weeks as a batch and aggregate
+        samples = np.array(
+          [
+            [run_config.latitude, run_config.longitude, float(w)]
+            for w in range(1, 49)
+          ],
+          dtype=np.float32,
+        )  # shape: (48, 3)
+        res_batch = self._backend.predict(samples)  # shape: (48, n_species)
+        if run_config.year_round_aggregation == GEO_YEAR_ROUND_AGGREGATION_MAX:
+          res = np.max(res_batch, axis=0)
+        else:
+          res = np.mean(res_batch, axis=0)
+      result_week = -1
+    else:
+      sample = np.expand_dims(
+        np.array(
+          [run_config.latitude, run_config.longitude, run_config.week],
+          dtype=np.float32,
+        ),
+        0,
+      )
+      res = self._backend.predict(sample)
+      res = np.squeeze(res, axis=0)
+      result_week = run_config.week
 
     n_species = self._conf.model_conf.n_species
     species_ids = np.arange(
@@ -83,7 +115,7 @@ class GeoSessionBase(SessionBase, ABC):
       model_precision=self._backend.precision(),
       latitude=run_config.latitude,
       longitude=run_config.longitude,
-      week=run_config.week,
+      week=result_week,
       species_list=self._conf.model_conf.species_list,
       species_probs=res,
       species_ids=species_ids,
@@ -150,15 +182,20 @@ class GeoPredictionSession(GeoSessionBase):
     /,
     *,
     week: int | None = None,
+    year_round_aggregation: GEO_YEAR_ROUND_AGGREGATIONS = GEO_YEAR_ROUND_AGGREGATION_MAX,  # noqa: E501
   ) -> GeoPredictionResult:
     latitude = RunConfig.validate_latitude(latitude)
     longitude = RunConfig.validate_longitude(longitude)
     week = RunConfig.validate_week(week)
+    year_round_aggregation = RunConfig.validate_year_round_aggregation(
+      year_round_aggregation
+    )
 
     return self._run(
       RunConfig(
         latitude=latitude,
         longitude=longitude,
         week=week,
+        year_round_aggregation=year_round_aggregation,
       ),
     )

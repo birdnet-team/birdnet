@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 from typing import Any, final
 
@@ -15,44 +16,152 @@ from birdnet.geo.models.base import GeoModelBase
 from birdnet.globals import (
   GEO_MODEL_VERSION_V3_0,
   GEO_MODEL_VERSIONS,
+  GEO_YEAR_ROUND_AGGREGATION_MAX,
+  GEO_YEAR_ROUND_AGGREGATIONS,
   MODEL_TYPE_GEO,
   MODEL_TYPES,
 )
-from birdnet.utils.helper import validate_species_list
+from birdnet.utils.helper import download_file_tqdm, validate_species_list
+from birdnet.utils.local_data import APP_DIR
+
+_LABELS_DL_URL = "https://github.com/birdnet-team/geomodel/releases/download/v3.0.2/BirdNET+_Geomodel_V3.0.2_Global_12K_Labels.txt"
+_LABELS_DL_SIZE = 571793
+_TAXONOMY_DL_URL = (
+  "https://github.com/birdnet-team/geomodel/raw/refs/heads/main/taxonomy.csv"
+)
+_TAXONOMY_DL_SIZE = 9162669
+
+_LANGUAGE_TO_COLUMN: dict[str, str] = {
+  "en_us": "com_name",
+  "de": "common_name_de",
+  "es": "common_name_es",
+  "pl": "common_name_pl",
+  "fr": "common_name_fr",
+  "nl": "common_name_nl",
+  "ru": "common_name_ru",
+  "ja": "common_name_ja",
+  "cs": "common_name_cs",
+  "ca": "common_name_ca",
+  "pt": "common_name_pt",
+  "no": "common_name_no",
+  "bg": "common_name_bg",
+  "sv": "common_name_sv",
+  "da": "common_name_da",
+  "tr": "common_name_tr",
+  "sk": "common_name_sk",
+  "sr": "common_name_sr",
+  "uk": "common_name_uk",
+  "zh": "common_name_zh-CN",
+  "fi": "common_name_fi",
+  "es_es": "common_name_es_ES",
+  "es_mx": "common_name_es_MX",
+  "es_ec": "common_name_es_EC",
+  "pt_pt": "common_name_pt_PT",
+  "hr": "common_name_hr",
+  "lt": "common_name_lt",
+  "fa": "common_name_fa",
+  "cy": "common_name_cy",
+  "et": "common_name_et",
+}
+
+_GEO_V3_0_BASE_DIR = APP_DIR / "geo-models" / "v3.0"
+_LABELS_RAW_PATH = _GEO_V3_0_BASE_DIR / "labels_raw.txt"
+_TAXONOMY_PATH = APP_DIR / "taxonomy_v3_0.csv"
 
 
 class GeoDownloaderBaseV3_0:
-  AVAILABLE_LANGUAGES: OrderedSet[str] = OrderedSet(
-    (
-      "af",
-      "ar",
-      "cs",
-      "da",
-      "de",
-      "en_uk",
-      "en_us",
-      "es",
-      "fi",
-      "fr",
-      "hu",
-      "it",
-      "ja",
-      "ko",
-      "nl",
-      "no",
-      "pl",
-      "pt",
-      "ro",
-      "ru",
-      "sk",
-      "sl",
-      "sv",
-      "th",
-      "tr",
-      "uk",
-      "zh",
+  AVAILABLE_LANGUAGES: OrderedSet[str] = OrderedSet(_LANGUAGE_TO_COLUMN.keys())
+
+  @classmethod
+  def _get_lang_dir(cls) -> Path:
+    raise NotImplementedError
+
+  @classmethod
+  def _check_labels_available(cls) -> bool:
+    if not _LABELS_RAW_PATH.is_file():
+      return False
+    if _LABELS_RAW_PATH.stat().st_size != _LABELS_DL_SIZE:
+      return False
+    if not _TAXONOMY_PATH.is_file():
+      return False
+    if _TAXONOMY_PATH.stat().st_size != _TAXONOMY_DL_SIZE:
+      return False
+    lang_dir = cls._get_lang_dir()
+    if not lang_dir.is_dir():
+      return False
+    return all(
+      (lang_dir / f"{lang}.txt").is_file() for lang in cls.AVAILABLE_LANGUAGES
     )
-  )
+
+  @classmethod
+  def ensure_labels_available(cls) -> None:
+    needs_regen = False
+
+    labels_stale = not _LABELS_RAW_PATH.is_file() or (
+      _LABELS_RAW_PATH.stat().st_size != _LABELS_DL_SIZE
+    )
+    if labels_stale:
+      _LABELS_RAW_PATH.parent.mkdir(parents=True, exist_ok=True)
+      download_file_tqdm(
+        _LABELS_DL_URL,
+        _LABELS_RAW_PATH,
+        download_size=_LABELS_DL_SIZE,
+        description="Downloading geo model v3.0 labels",
+      )
+      needs_regen = True
+
+    taxonomy_stale = (
+      not _TAXONOMY_PATH.is_file() or _TAXONOMY_PATH.stat().st_size != _TAXONOMY_DL_SIZE
+    )
+    if taxonomy_stale:
+      _TAXONOMY_PATH.parent.mkdir(parents=True, exist_ok=True)
+      download_file_tqdm(
+        _TAXONOMY_DL_URL,
+        _TAXONOMY_PATH,
+        download_size=_TAXONOMY_DL_SIZE,
+        description="Downloading geo model v3.0 taxonomy",
+      )
+      needs_regen = True
+
+    lang_files_missing = not all(
+      (cls._get_lang_dir() / f"{lang}.txt").is_file()
+      for lang in cls.AVAILABLE_LANGUAGES
+    )
+    if needs_regen or lang_files_missing:
+      cls._generate_lang_files()
+
+  @classmethod
+  def _generate_lang_files(cls) -> None:
+    species_order: list[tuple[str, str, str]] = []
+    with open(_LABELS_RAW_PATH, encoding="utf-8") as f:
+      for line in f:
+        parts = line.rstrip("\n").split("\t")
+        species_order.append((parts[0], parts[1], parts[2]))
+
+    taxonomy: dict[str, dict[str, str]] = {}
+    with open(_TAXONOMY_PATH, encoding="utf-8", newline="") as f:
+      reader = csv.DictReader(f)
+      for row in reader:
+        code = row.get("species_code", "").strip()
+        if code:
+          taxonomy[code] = dict(row)
+
+    lang_dir = cls._get_lang_dir()
+    lang_dir.mkdir(parents=True, exist_ok=True)
+    for lang, col in _LANGUAGE_TO_COLUMN.items():
+      lang_file = lang_dir / f"{lang}.txt"
+      lines: list[str] = []
+      for code, sci_name, en_us_name in species_order:
+        tax_row = taxonomy.get(code, {})
+        localized_name = tax_row.get(col, "").strip()
+        if not localized_name:
+          localized_name = en_us_name
+        lines.append(f"{sci_name}_{localized_name}")
+      lang_file.write_text("\n".join(lines), encoding="utf-8")
+
+  @classmethod
+  def get_lang_file(cls, lang: str) -> Path:
+    return cls._get_lang_dir() / f"{lang}.txt"
 
 
 class GeoModelV3_0(GeoModelBase):
@@ -157,6 +266,7 @@ class GeoModelV3_0(GeoModelBase):
     /,
     *,
     week: int | None = None,
+    year_round_aggregation: GEO_YEAR_ROUND_AGGREGATIONS = GEO_YEAR_ROUND_AGGREGATION_MAX,  # noqa: E501
     min_confidence: float = 0.03,
     half_precision: bool = False,
     device: str = "CPU",
@@ -170,4 +280,5 @@ class GeoModelV3_0(GeoModelBase):
         latitude,
         longitude,
         week=week,
+        year_round_aggregation=year_round_aggregation,
       )
