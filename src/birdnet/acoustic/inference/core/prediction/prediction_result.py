@@ -219,12 +219,17 @@ class AcousticPredictionResultBase(AcousticResultBase):
 
     arrow_arrays: dict[str, pa.Array] = {}
     arrow_arrays[VAR_INPUT] = pa.array(structured[VAR_INPUT]).dictionary_encode()
+    # Use at least float32 for timing columns to avoid Arrow halffloat,
+    # which is not interoperable across all Arrow implementations (e.g. R).
+    time_np_dtype = np.result_type(structured[VAR_START_TIME].dtype, np.float32)
+    time_type = pa.from_numpy_dtype(time_np_dtype)
     arrow_arrays[VAR_START_TIME] = pa.array(
-      structured[VAR_START_TIME],
-      type=pa.from_numpy_dtype(structured[VAR_START_TIME].dtype),
+      structured[VAR_START_TIME].astype(time_np_dtype),
+      type=time_type,
     )
     arrow_arrays[VAR_END_TIME] = pa.array(
-      structured[VAR_END_TIME], type=pa.from_numpy_dtype(structured[VAR_END_TIME].dtype)
+      structured[VAR_END_TIME].astype(time_np_dtype),
+      type=time_type,
     )
     arrow_arrays[VAR_SPECIES_NAME] = pa.array(
       structured[VAR_SPECIES_NAME]
