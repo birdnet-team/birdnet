@@ -96,3 +96,15 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: birdnet-team/birdnet
+
+      - name: Extract log path
+        run: |
+          LOG_PATH=$(grep -o '/var/folders[^ ]*\.log' output.log | head -n1)
+          echo "LOG_PATH=$LOG_PATH" >> $GITHUB_ENV
+
+      - name: Upload log file
+        if: failure() && env.LOG_PATH != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: birdnet-log
+          path: ${{ env.LOG_PATH }}

@@ -1,5 +1,9 @@
 from birdnet.geo.models.v3_0.tf import GeoTFDownloaderV3_0
-from birdnet.globals import MODEL_PRECISION_FP16, MODEL_PRECISION_FP32, MODEL_PRECISION_INT8
+from birdnet.globals import (
+  MODEL_PRECISION_FP16,
+  MODEL_PRECISION_FP32,
+  MODEL_PRECISION_INT8,
+)
 
 
 def xtest_double_download_fp32() -> None:

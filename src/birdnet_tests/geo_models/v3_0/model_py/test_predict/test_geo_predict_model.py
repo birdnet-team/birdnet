@@ -1,8 +1,11 @@
 import pytest
 
 from birdnet.model_loader import load
-from birdnet_tests.helper import ensure_gpu_or_skip, ensure_litert_or_skip
-
+from birdnet_tests.helper import (
+  ensure_gpu_or_skip,
+  ensure_litert_or_skip,
+  ensure_tf_2_19,
+)
 
 # --- FP32 ---
 
@@ -23,6 +26,8 @@ def test_litert_fp32() -> None:
 
 
 def test_tf_fp32() -> None:
+  ensure_tf_2_19()
+
   model = load("geo", "3.0", "tf", precision="fp32", library="tflite")
   result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=False)
 
@@ -50,6 +55,8 @@ def test_litert_fp32_half() -> None:
 
 
 def test_tf_fp32_half() -> None:
+  ensure_tf_2_19()
+
   model = load("geo", "3.0", "tf", precision="fp32", library="tflite")
   result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=True)
 
@@ -78,10 +85,10 @@ def test_litert_fp16() -> None:
   assert result.model_version == "3.0"
   assert result.model_precision == "fp16"
 
-@pytest.skip(
-  reason="TF 2.19 required for current geomodel, but TF 2.19 does not support cp313"
-)
+
 def test_tf_fp16() -> None:
+  ensure_tf_2_19()
+
   model = load("geo", "3.0", "tf", precision="fp16", library="tflite")
   result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=False)
 
@@ -111,10 +118,9 @@ def test_litert_int8() -> None:
   assert result.model_precision == "int8"
 
 
-@pytest.skip(
-  reason="TF 2.19 required for current geomodel, but TF 2.19 does not support cp313"
-)
 def test_tf_int8() -> None:
+  ensure_tf_2_19()
+
   model = load("geo", "3.0", "tf", precision="int8", library="tflite")
   result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=False)
 
@@ -132,6 +138,7 @@ def test_tf_int8() -> None:
 @pytest.mark.gpu
 def test_tf_fp32_gpu() -> None:
   ensure_gpu_or_skip()
+  ensure_tf_2_19()
 
   model = load("geo", "3.0", "tf", precision="fp32", library="tflite")
   result = model.predict(
