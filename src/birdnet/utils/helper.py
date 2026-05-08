@@ -366,7 +366,7 @@ def download_file_tqdm(
   assert file_path.parent.is_dir()
   import requests
 
-  response = requests.get(url, stream=True, timeout=120, allow_redirects=False)
+  response = requests.get(url, stream=True, timeout=120)
   total_size = int(response.headers.get("content-length", 0))
   if download_size is not None:
     total_size = download_size
