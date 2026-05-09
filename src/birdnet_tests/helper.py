@@ -198,12 +198,12 @@ def ensure_litert_or_skip() -> None:
     pytest.skip("litert library is not available")
 
 
-def ensure_tf_2_19() -> None:
+def ensure_tf_2_19_or_2_18() -> None:
   import tensorflow as tf
 
   version: str = tf.__version__
-  if not version.startswith("2.19"):
-    pytest.skip("TensorFlow 2.19 is required for this test")
+  if not (version.startswith("2.19") or version.startswith("2.18")):
+    pytest.skip("TensorFlow 2.18 or 2.19 is required for this test")
 
 
 def ensure_not_mac_or_skip() -> None:

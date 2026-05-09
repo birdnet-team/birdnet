@@ -164,7 +164,7 @@ def _validate_precision(precision: Any) -> MODEL_PRECISIONS:  # noqa: ANN401
 def _validate_language_v2_4(lang: Any) -> MODEL_LANGUAGES_V2_4:  # noqa: ANN401
   if lang not in VALID_MODEL_LANGUAGES_V2_4:
     raise ValueError(
-      f"Language '{lang}' is not supported by the geo model v2.4. "
+      f"Language '{lang}' is not supported by model v2.4. "
       f"Available languages are: {', '.join(VALID_MODEL_LANGUAGES_V2_4)}."
     )
   return cast(MODEL_LANGUAGES_V2_4, lang)
@@ -312,22 +312,19 @@ def load(
 
   if model_type == MODEL_TYPE_ACOUSTIC:
     version = _validate_acoustic_model_version(version)
-    validated_lang = _validate_language_v2_4(lang)
     return _load_acoustic_model(
       version=version,
       backend=backend,
       precision=precision,
-      lang=validated_lang,
+      lang=lang,
       **model_kwargs,
     )
   elif model_type == MODEL_TYPE_GEO:
     version = _validate_geo_model_version(version)
     if version == GEO_MODEL_VERSION_V2_4:
-      geo_lang_v2_4 = _validate_language_v2_4(lang)
-      return _load_geo_model_V2_4(backend, precision, geo_lang_v2_4, **model_kwargs)
+      return _load_geo_model_V2_4(backend, precision, lang, **model_kwargs)
     elif version == GEO_MODEL_VERSION_V3_0:
-      geo_lang_v3_0 = _validate_language_v3_0(lang)
-      return _load_geo_model_V3_0(backend, precision, geo_lang_v3_0, **model_kwargs)
+      return _load_geo_model_V3_0(backend, precision, lang, **model_kwargs)
     else:
       raise AssertionError()
   else:
@@ -338,7 +335,7 @@ def _load_acoustic_model(
   version: ACOUSTIC_MODEL_VERSIONS,
   backend: MODEL_BACKENDS,
   precision: MODEL_PRECISIONS,
-  lang: MODEL_LANGUAGES_V2_4,
+  lang: str,
   **model_kwargs: object,
 ) -> AcousticModelBase:
   if version == ACOUSTIC_MODEL_VERSION_V2_4:
@@ -355,9 +352,10 @@ def _load_acoustic_model(
 def _load_acoustic_model_V2_4(
   backend: MODEL_BACKENDS,
   precision: MODEL_PRECISIONS,
-  lang: MODEL_LANGUAGES_V2_4,
+  lang: str,
   **model_kwargs: object,
 ) -> AcousticModelV2_4:
+  lang = _validate_language_v2_4(lang)
   if backend == MODEL_BACKEND_TF:
     model_kwargs = _validate_kwargs_allowed(model_kwargs, {LIBRARY_TF_PARAM})
     library = _validate_library(model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT))
@@ -405,9 +403,10 @@ def _load_acoustic_model_V2_4(
 def _load_geo_model_V2_4(
   backend: MODEL_BACKENDS,
   precision: MODEL_PRECISIONS,
-  lang: MODEL_LANGUAGES_V2_4,
+  lang: str,
   **model_kwargs: object,
 ) -> GeoModelV2_4:
+  lang = _validate_language_v2_4(lang)
   if backend == MODEL_BACKEND_TF:
     if precision != MODEL_PRECISION_FP32:
       raise ValueError(
@@ -684,9 +683,10 @@ def _load_custom_geo_model_V2_4(
 def _load_geo_model_V3_0(
   backend: MODEL_BACKENDS,
   precision: MODEL_PRECISIONS,
-  lang: MODEL_LANGUAGES_V3_0,
+  lang: str,
   **model_kwargs: object,
 ) -> GeoModelV3_0:
+  lang = _validate_language_v3_0(lang)
   if backend == MODEL_BACKEND_TF:
     model_kwargs = _validate_kwargs_allowed(model_kwargs, {LIBRARY_TF_PARAM})
     library = _validate_library(model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT))

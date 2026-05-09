@@ -22,6 +22,21 @@ from birdnet.utils.helper import (
 )
 from birdnet.utils.local_data import get_lang_dir, get_model_path
 
+_SUPPORTED_TF_VERSIONS = ("2.18", "2.19")
+
+
+def _check_tf_version_for_v3_0() -> None:
+  import tensorflow as tf
+
+  version: str = tf.__version__
+  if not any(version.startswith(v) for v in _SUPPORTED_TF_VERSIONS):
+    supported = " or ".join(_SUPPORTED_TF_VERSIONS)
+    raise RuntimeError(
+      f"The geo model v3.0 TF backend requires TensorFlow {supported}, "
+      f"but {version!r} is installed. "
+      "Consider using the PB backend instead: load('geo', '3.0', 'pb', ...)."
+    )
+
 models = {
   MODEL_PRECISION_INT8: ModelInfo(
     dl_url="https://github.com/birdnet-team/geomodel/releases/download/v3.0.2/BirdNET+_Geomodel_V3.0.2_Global_12K_INT8.tflite",
@@ -102,6 +117,10 @@ class GeoTFBackendFP32V3_0(TFBackend, VersionedGeoBackendProtocol):
   ) -> None:
     super().__init__(model_path, device_name, half_precision, **kwargs)
 
+  def load(self) -> None:
+    _check_tf_version_for_v3_0()
+    super().load()
+
   @classmethod
   def requires_flex_delegate(cls) -> bool:
     return True
@@ -133,6 +152,10 @@ class GeoTFBackendFP16V3_0(TFBackend, VersionedGeoBackendProtocol):
   ) -> None:
     super().__init__(model_path, device_name, half_precision, **kwargs)
 
+  def load(self) -> None:
+    _check_tf_version_for_v3_0()
+    super().load()
+
   @classmethod
   def requires_flex_delegate(cls) -> bool:
     return True
@@ -163,6 +186,10 @@ class GeoTFBackendInt8V3_0(TFBackend, VersionedGeoBackendProtocol):
     self, model_path: Path, device_name: str, half_precision: bool, **kwargs: dict
   ) -> None:
     super().__init__(model_path, device_name, half_precision, **kwargs)
+
+  def load(self) -> None:
+    _check_tf_version_for_v3_0()
+    super().load()
 
   @classmethod
   def requires_flex_delegate(cls) -> bool:
