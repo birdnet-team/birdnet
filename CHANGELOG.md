@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.16] - 2026-05-09
+
+### Added
+
+- Add support for overriding BirdNET’s application-data directory via an environment variable `BIRDNET_APP_DATA`, enabling users to place downloaded models/benchmarks in a custom location (useful for deployments with restricted home directories or shared storage).
+
 ### Bugfixes
 
 - Fixed acoustic inference session being aborted on macOS when stats were enabled: hardened parent/child memory tracking against `psutil.AccessDenied`, and replaced the two tracked semaphores with a wrapper that mirrors the count into shared memory so `get_value()` works on macOS (#39)
@@ -269,7 +275,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release
 
-[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v0.2.15...HEAD
+[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v0.2.16...HEAD
+[0.2.16]: https://github.com/birdnet-team/birdnet/compare/v0.2.15...v0.2.16
 [0.2.15]: https://github.com/birdnet-team/birdnet/compare/v0.2.14...v0.2.15
 [0.2.14]: https://github.com/birdnet-team/birdnet/compare/v0.2.13...v0.2.14
 [0.2.13]: https://github.com/birdnet-team/birdnet/compare/v0.2.12...v0.2.13
