@@ -366,7 +366,38 @@ def test_dtype_structure() -> None:
     "embedding",
   )
   assert structured.dtype["input"] == np.dtype("O")
-  assert structured.dtype["start_time"] == result._input_durations.dtype
-  assert structured.dtype["end_time"] == result._input_durations.dtype
+  expected_time_dtype = np.result_type(result._input_durations.dtype, np.float32)
+  assert structured.dtype["start_time"] == expected_time_dtype
+  assert structured.dtype["end_time"] == expected_time_dtype
   assert embedding_dtype.shape == (DEFAULT_EMBEDDING_DIM,)
   assert embedding_dtype.base == np.dtype(np.float32)
+
+
+def test_time_calculations_hop_exact_in_float16_but_products_drift() -> None:
+  # hop=1.5 is exactly representable in float16, but i*1.5 in the 1024..2048
+  # range only has step size 1, so e.g. 1365*1.5 = 2047.5 rounds. The previous
+  # upgrade_float_dtype_for_value heuristic only checked the scalar hop and
+  # missed this; the source fix forces >= float32 unconditionally.
+  duration = 1500.0
+  segment_duration = 3.0
+  overlap_duration = 1.5
+  speed = 1.0
+  result = create_file_encoding_result(
+    n_files=1,
+    duration_s=duration,
+    segment_duration_s=segment_duration,
+    overlap_duration_s=overlap_duration,
+    speed=speed,
+  )
+
+  structured = result.to_structured_array()
+  hop = get_hop_duration_s(segment_duration, overlap_duration, speed)
+  expected_starts = np.arange(len(structured)) * hop
+  expected_ends = np.minimum(
+    expected_starts + segment_duration * speed, result.input_durations[0]
+  )
+
+  np.testing.assert_allclose(structured["start_time"], expected_starts)
+  np.testing.assert_allclose(structured["end_time"], expected_ends)
+  assert structured.dtype["start_time"] != np.float16
+  assert structured.dtype["end_time"] != np.float16
