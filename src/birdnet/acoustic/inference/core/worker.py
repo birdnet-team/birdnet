@@ -14,6 +14,7 @@ from numpy.typing import DTypeLike
 
 import birdnet.acoustic.inference.core.logs as bn_logging
 from birdnet.acoustic.inference.core.shm import RingField
+from birdnet.acoustic.inference.core.sync import CountedSemaphore
 from birdnet.core.backends import BackendLoader, BatchT, VersionedBackendProtocol
 from birdnet.globals import (
   READABLE_FLAG,
@@ -43,8 +44,8 @@ class WorkerBase(bn_logging.LogableProcessBase):
     out_q: Queue,
     wkr_ring_access_lock: multiprocessing.synchronize.Lock,
     sem_free: Semaphore,
-    sem_fill: Semaphore,
-    sem_active_workers: Semaphore | None,
+    sem_fill: CountedSemaphore,
+    sem_active_workers: CountedSemaphore | None,
     half_precision: bool,
     wkr_stats_queue: Queue | None,
     logging_queue: Queue,

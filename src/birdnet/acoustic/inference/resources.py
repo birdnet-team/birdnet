@@ -26,6 +26,7 @@ from birdnet.acoustic.inference.core.perf_tracker import (
   PerformanceTrackingResult,
 )
 from birdnet.acoustic.inference.core.shm import RingField, create_shm_ring
+from birdnet.acoustic.inference.core.sync import CountedSemaphore
 from birdnet.core.backends import BackendLoader
 from birdnet.core.base import get_session_id_hash
 from birdnet.globals import MODEL_TYPE_ACOUSTIC, PKG_NAME, WRITABLE_FLAG
@@ -106,7 +107,7 @@ class RingBufferResources:
   rf_batch_sizes: RingField
   rf_flags: RingField
   sem_free_slots: multiprocessing.synchronize.Semaphore
-  sem_filled_slots: multiprocessing.synchronize.Semaphore
+  sem_filled_slots: CountedSemaphore
 
   _rf_flags_memory: shared_memory.SharedMemory | None = None
 
@@ -172,7 +173,7 @@ class RingBufferResources:
       rf_batch_sizes=rf_batch_sizes,
       rf_flags=rf_flags,
       sem_free_slots=mp.Semaphore(n_slots),
-      sem_filled_slots=mp.Semaphore(0),
+      sem_filled_slots=CountedSemaphore(0),
     )
 
   @classmethod
@@ -478,7 +479,7 @@ class StatisticsResources:
   track_performance: bool
   wkr_stats_queue: Queue | None
   prd_stats_queue: Queue | None
-  sem_active_workers: multiprocessing.synchronize.Semaphore | None
+  sem_active_workers: CountedSemaphore | None
   perf_res_queue: Queue | None
   perf_res_start_signal: multiprocessing.synchronize.Event | None
   perf_res_finish_signal: multiprocessing.synchronize.Event | None
@@ -539,7 +540,7 @@ class StatisticsResources:
       perf_res_finish_signal = mp.Event()
       wkr_stats_queue = Queue()
       prd_stats_queue = Queue()
-      sem_active_workers = mp.Semaphore(0)
+      sem_active_workers = CountedSemaphore(0)
 
     callback_start_signal = None
     callback_finish_signal = None

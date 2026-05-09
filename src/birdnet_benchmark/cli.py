@@ -1,6 +1,5 @@
 import json
 import logging
-import math
 import multiprocessing
 import os
 import platform
@@ -23,7 +22,6 @@ from birdnet.acoustic.inference.core.prediction.prediction_result import (
   AcousticPredictionResultBase,
 )
 from birdnet.acoustic.models.base import AcousticModelBase
-from birdnet.acoustic.models.v2_4.model import AcousticModelV2_4
 from birdnet.core.backends import litert_installed, tf_installed
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V2_4,
