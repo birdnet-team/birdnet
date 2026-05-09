@@ -10,7 +10,7 @@ from collections import Counter, deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from multiprocessing import Queue, shared_memory
-from multiprocessing.synchronize import Event, Semaphore
+from multiprocessing.synchronize import Event
 from queue import Empty
 
 import numpy as np
@@ -18,6 +18,7 @@ import psutil
 
 import birdnet.acoustic.inference.core.logs as bn_logging
 from birdnet.acoustic.inference.core.shm import RingField
+from birdnet.acoustic.inference.core.sync import CountedSemaphore
 from birdnet.globals import READABLE_FLAG, READING_FLAG, WRITABLE_FLAG
 
 
@@ -124,8 +125,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     logging_queue: Queue,
     logging_level: int,
     perf_res: Queue,
-    sem_active_workers: Semaphore,
-    sem_filled_slots: Semaphore,
+    sem_active_workers: CountedSemaphore,
+    sem_filled_slots: CountedSemaphore,
     segment_size_s: float,
     parent_process_id: int,
     rf_flags: RingField,
@@ -275,26 +276,42 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._prd_speed_xrt_tracker.reset()
     self._prd_speed_seg_per_s_tracker.reset()
 
+  @staticmethod
+  def _safe_proc_memory(proc: psutil.Process) -> float | None:
+    try:
+      return float(proc.memory_full_info().uss)
+    except (psutil.AccessDenied, PermissionError):
+      pass
+    except psutil.NoSuchProcess:
+      return None
+    try:
+      return float(proc.memory_info().rss)
+    except (psutil.NoSuchProcess, psutil.AccessDenied, PermissionError):
+      return None
+
   def _track_memory_usage(self) -> None:
     if self._parent_process is None:
-      self._parent_process = psutil.Process(self._parent_process_id)
-    try:
-      memory_usage: float = self._parent_process.memory_full_info().uss
-    except (psutil.AccessDenied, PermissionError):
-      memory_usage = float(self._parent_process.memory_info().rss)
-    for child in self._parent_process.children(recursive=True):
       try:
-        memory_usage += child.memory_full_info().uss
-      except psutil.NoSuchProcess:
-        continue
-      except (psutil.AccessDenied, PermissionError):
-        try:
-          memory_usage += child.memory_info().rss
-        except (psutil.NoSuchProcess, psutil.AccessDenied, PermissionError):
-          continue
+        self._parent_process = psutil.Process(self._parent_process_id)
+      except (psutil.NoSuchProcess, psutil.AccessDenied, PermissionError):
+        return
 
-    mem_usage_MiB = memory_usage / 1024**2
-    self._memory_usage_MiB_tracker.add_value(mem_usage_MiB)
+    parent_mem = self._safe_proc_memory(self._parent_process)
+    if parent_mem is None:
+      return
+
+    total = parent_mem
+    try:
+      children = self._parent_process.children(recursive=True)
+    except (psutil.AccessDenied, PermissionError, psutil.NoSuchProcess):
+      children = []
+
+    for child in children:
+      child_mem = self._safe_proc_memory(child)
+      if child_mem is not None:
+        total += child_mem
+
+    self._memory_usage_MiB_tracker.add_value(total / 1024**2)
 
   @property
   def wall_time(self) -> float:
@@ -380,11 +397,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._track_worker_speed()
 
   def _track_semaphore_stats(self) -> None:
-    try:
-      self._wkr_busy_tracker.add_value(self._sem_active_workers.get_value())
-      self._sem_filled_tracker.add_value(self._sem_filled_slots.get_value())
-    except NotImplementedError:
-      pass  # Semaphore.get_value() is not supported on macOS
+    self._wkr_busy_tracker.add_value(self._sem_active_workers.get_value())
+    self._sem_filled_tracker.add_value(self._sem_filled_slots.get_value())
 
   def _track_ring_buffer_stats(self) -> None:
     c = Counter(self._ring_flags)

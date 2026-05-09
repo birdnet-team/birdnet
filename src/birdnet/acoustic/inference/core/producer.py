@@ -19,6 +19,7 @@ import soundfile
 
 import birdnet.acoustic.inference.core.logs as bn_logging
 from birdnet.acoustic.inference.core.shm import RingField
+from birdnet.acoustic.inference.core.sync import CountedSemaphore
 from birdnet.globals import (
   READABLE_FLAG,
   READING_FLAG,
@@ -54,7 +55,7 @@ class Producer(bn_logging.LogableProcessBase):
     rf_batch_sizes: RingField,
     rf_flags: RingField,
     sem_free_slots: Semaphore,
-    sem_filled_slots: Semaphore,
+    sem_filled_slots: CountedSemaphore,
     max_segment_idx_ptr: ctypes.c_uint8
     | ctypes.c_uint16
     | ctypes.c_uint32
