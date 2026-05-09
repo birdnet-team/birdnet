@@ -21,7 +21,6 @@ from birdnet.utils.helper import (
   format_input_for_csv,
   get_uint_dtype,
   hms_centis_fast,
-  upgrade_float_dtype_for_value,
 )
 
 if TYPE_CHECKING:
@@ -135,11 +134,11 @@ class AcousticEncodingResultBase(AcousticResultBase):
     embeddings_selected = self.embeddings[valid_file_idx, valid_seg_idx]
 
     hop_duration_s = self.hop_duration_s
-    # Upgrade the storage dtype for the output if it cannot represent hop
-    # exactly, otherwise rounding accumulates across segments.
-    time_dtype = upgrade_float_dtype_for_value(
-      self._input_durations.dtype, hop_duration_s
-    )
+    # Force at least float32 for timing columns. The bulk _input_durations
+    # array is stored in a magnitude-based dtype (float16 for files <= 2**11 s),
+    # which is too coarse for accumulated i*hop products and would also produce
+    # Arrow halffloat that some implementations (e.g. R) cannot read.
+    time_dtype = np.result_type(self._input_durations.dtype, np.float32)
 
     dtype = [
       (VAR_INPUT, self._input_dtype),
@@ -199,17 +198,13 @@ class AcousticEncodingResultBase(AcousticResultBase):
 
     arrow_arrays: dict[str, pa.Array] = {}
     arrow_arrays[VAR_INPUT] = pa.array(structured[VAR_INPUT]).dictionary_encode()
-    # Use at least float32 for timing columns to avoid Arrow halffloat,
-    # which is not interoperable across all Arrow implementations (e.g. R).
-    time_np_dtype = np.result_type(structured[VAR_START_TIME].dtype, np.float32)
-    time_type = pa.from_numpy_dtype(time_np_dtype)
     arrow_arrays[VAR_START_TIME] = pa.array(
-      structured[VAR_START_TIME].astype(time_np_dtype),
-      type=time_type,
+      structured[VAR_START_TIME],
+      type=pa.from_numpy_dtype(structured[VAR_START_TIME].dtype),
     )
     arrow_arrays[VAR_END_TIME] = pa.array(
-      structured[VAR_END_TIME].astype(time_np_dtype),
-      type=time_type,
+      structured[VAR_END_TIME],
+      type=pa.from_numpy_dtype(structured[VAR_END_TIME].dtype),
     )
 
     embedding_element_type = pa.from_numpy_dtype(self._embeddings.dtype)

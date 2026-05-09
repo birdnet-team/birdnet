@@ -153,10 +153,15 @@ class AcousticPredictionResultBase(AcousticResultBase):
     del valid_mask
 
     n_predictions = len(valid_indices[0])
+    # Force at least float32 for timing columns. The bulk _input_durations
+    # array is stored in a magnitude-based dtype (float16 for files <= 2**11 s),
+    # which is too coarse for accumulated i*hop products and would also produce
+    # Arrow halffloat that some implementations (e.g. R) cannot read.
+    time_dtype = np.result_type(self._input_durations.dtype, np.float32)
     dtype = [
       (VAR_INPUT, self._input_dtype),
-      (VAR_START_TIME, self._input_durations.dtype),
-      (VAR_END_TIME, self._input_durations.dtype),
+      (VAR_START_TIME, time_dtype),
+      (VAR_END_TIME, time_dtype),
       (VAR_SPECIES_NAME, object),
       (VAR_CONFIDENCE, self._species_probs.dtype),
     ]
@@ -191,7 +196,7 @@ class AcousticPredictionResultBase(AcousticResultBase):
     del sort_indices
 
     hop_duration_s = self.hop_duration_s
-    start_times = chunk_idx_flat.astype(self._input_durations.dtype) * hop_duration_s
+    start_times = chunk_idx_flat.astype(time_dtype) * hop_duration_s
     del hop_duration_s
     del chunk_idx_flat
 
@@ -199,7 +204,7 @@ class AcousticPredictionResultBase(AcousticResultBase):
     structured_array[VAR_END_TIME] = np.minimum(
       start_times
       + apply_speed_to_duration(self._segment_duration_s[0], self._speed[0]),
-      self._input_durations[file_idx_flat],
+      self._input_durations[file_idx_flat].astype(time_dtype),
     )
     del start_times
     structured_array[VAR_INPUT] = self._inputs[file_idx_flat]
@@ -219,17 +224,12 @@ class AcousticPredictionResultBase(AcousticResultBase):
 
     arrow_arrays: dict[str, pa.Array] = {}
     arrow_arrays[VAR_INPUT] = pa.array(structured[VAR_INPUT]).dictionary_encode()
-    # Use at least float32 for timing columns to avoid Arrow halffloat,
-    # which is not interoperable across all Arrow implementations (e.g. R).
-    time_np_dtype = np.result_type(structured[VAR_START_TIME].dtype, np.float32)
-    time_type = pa.from_numpy_dtype(time_np_dtype)
     arrow_arrays[VAR_START_TIME] = pa.array(
-      structured[VAR_START_TIME].astype(time_np_dtype),
-      type=time_type,
+      structured[VAR_START_TIME],
+      type=pa.from_numpy_dtype(structured[VAR_START_TIME].dtype),
     )
     arrow_arrays[VAR_END_TIME] = pa.array(
-      structured[VAR_END_TIME].astype(time_np_dtype),
-      type=time_type,
+      structured[VAR_END_TIME], type=pa.from_numpy_dtype(structured[VAR_END_TIME].dtype)
     )
     arrow_arrays[VAR_SPECIES_NAME] = pa.array(
       structured[VAR_SPECIES_NAME]
