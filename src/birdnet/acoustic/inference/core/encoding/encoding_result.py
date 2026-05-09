@@ -21,7 +21,6 @@ from birdnet.utils.helper import (
   format_input_for_csv,
   get_uint_dtype,
   hms_centis_fast,
-  upgrade_float_dtype_for_value,
 )
 
 if TYPE_CHECKING:
@@ -135,11 +134,11 @@ class AcousticEncodingResultBase(AcousticResultBase):
     embeddings_selected = self.embeddings[valid_file_idx, valid_seg_idx]
 
     hop_duration_s = self.hop_duration_s
-    # Upgrade the storage dtype for the output if it cannot represent hop
-    # exactly, otherwise rounding accumulates across segments.
-    time_dtype = upgrade_float_dtype_for_value(
-      self._input_durations.dtype, hop_duration_s
-    )
+    # Force at least float32 for timing columns. The bulk _input_durations
+    # array is stored in a magnitude-based dtype (float16 for files <= 2**11 s),
+    # which is too coarse for accumulated i*hop products and would also produce
+    # Arrow halffloat that some implementations (e.g. R) cannot read.
+    time_dtype = np.result_type(self._input_durations.dtype, np.float32)
 
     dtype = [
       (VAR_INPUT, self._input_dtype),
