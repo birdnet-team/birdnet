@@ -14,6 +14,7 @@ from birdnet.acoustic.inference.core.prediction.prediction_tensor import (
 from birdnet.model_loader import load
 from birdnet.utils.helper import (
   get_float_dtype,
+  get_hop_duration_s,
   get_n_segments_speed,
 )
 from birdnet_tests.test_files import TEST_FILE_LONG
@@ -481,8 +482,9 @@ def test_dtype_structure() -> None:
   ]
   assert structured.dtype.names == tuple(expected_fields)
   assert structured.dtype["input"] == np.dtype("O")
-  assert structured.dtype["start_time"] == result._input_durations.dtype
-  assert structured.dtype["end_time"] == result._input_durations.dtype
+  expected_time_dtype = np.result_type(result._input_durations.dtype, np.float32)
+  assert structured.dtype["start_time"] == expected_time_dtype
+  assert structured.dtype["end_time"] == expected_time_dtype
   assert structured.dtype["species_name"] == np.dtype("O")
   assert structured.dtype["confidence"] == result._species_probs.dtype
 
@@ -525,3 +527,33 @@ def test_full_pipeline_np() -> None:
     res = session.run_arrays(sf_read)
   structured = res.to_structured_array()
   assert len(structured) == 80
+
+
+def test_time_calculations_issue_38_long_file_with_overlap_and_slowdown() -> None:
+  # Reproduces issue #38: a 120s file with speed=0.3 and overlap=0.7 forces
+  # the float16 input_durations dtype, and accumulated i*hop products were
+  # quantized into ~0.05s drift on later segments before the source-level fix.
+  duration = 120.0
+  segment_duration = 3.0
+  overlap_duration = 0.7
+  speed = 0.3
+  result = create_file_prediction_result(
+    n_files=1,
+    duration_s=duration,
+    top_k=1,
+    segment_duration_s=segment_duration,
+    overlap_duration_s=overlap_duration,
+    speed=speed,
+  )
+
+  structured = result.to_structured_array()
+  hop = get_hop_duration_s(segment_duration, overlap_duration, speed)
+  expected_starts = np.arange(len(structured)) * hop
+  expected_ends = np.minimum(
+    expected_starts + segment_duration * speed, result.input_durations[0]
+  )
+
+  np.testing.assert_allclose(structured["start_time"], expected_starts)
+  np.testing.assert_allclose(structured["end_time"], expected_ends)
+  assert structured.dtype["start_time"] != np.float16
+  assert structured.dtype["end_time"] != np.float16
