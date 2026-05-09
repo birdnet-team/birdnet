@@ -281,6 +281,14 @@ All BirdNET data (models, benchmarks) is stored in the application-data director
 - **macOS:** ``~/Library/Application Support/birdnet``
 - **Windows:** ``%APPDATA%/birdnet``
 
+The default location can be overridden by setting the ``BIRDNET_APP_DATA`` environment variable to any absolute path before the ``birdnet`` package is imported. ::
+
+  # Windows pre-execution script
+  set BIRDNET_APP_DATA=C:\Program Files\BirdNET-Analyzer\birdnet-data
+
+  # Linux / macOS pre-execution script
+  export BIRDNET_APP_DATA=/opt/birdnet-analyzer/birdnet-data
+
 Why is Python 3.10 not supported?
 ^^^^
 
