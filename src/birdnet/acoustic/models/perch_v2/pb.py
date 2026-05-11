@@ -15,6 +15,39 @@ from birdnet.globals import (
 )
 from birdnet.utils.helper import check_protobuf_model_files_exist, get_species_from_file
 
+_MIN_TF_VERSION_PERCH_V2 = (2, 20)
+
+
+def _get_tensorflow_version() -> str:
+  try:
+    import tensorflow as tf
+  except ModuleNotFoundError as e:
+    raise RuntimeError(
+      "The Perch v2 model requires TensorFlow >= 2.20, but TensorFlow is "
+      "not installed."
+    ) from e
+  return tf.__version__
+
+
+def _get_major_minor_version(version: str) -> tuple[int, int]:
+  version_parts = version.split(".")
+  if len(version_parts) < 2:
+    raise RuntimeError(f"Could not parse TensorFlow version {version!r}.")
+
+  try:
+    return int(version_parts[0]), int(version_parts[1])
+  except ValueError as e:
+    raise RuntimeError(f"Could not parse TensorFlow version {version!r}.") from e
+
+
+def check_tf_version_for_perch_v2() -> None:
+  version = _get_tensorflow_version()
+  if _get_major_minor_version(version) < _MIN_TF_VERSION_PERCH_V2:
+    raise RuntimeError(
+      "The Perch v2 model requires TensorFlow >= 2.20, "
+      f"but {version!r} is installed."
+    )
+
 
 class AcousticPBDownloaderPerchV2:
   MODEL_HANDLE_CUDA = "google/bird-vocalization-classifier/tensorFlow2/perch_v2"

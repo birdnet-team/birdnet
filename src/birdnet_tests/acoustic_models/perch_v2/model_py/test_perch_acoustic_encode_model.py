@@ -10,6 +10,7 @@ from birdnet_tests.helper import (
   ensure_gpu_or_skip,
   ensure_not_intel_macos_or_skip,
   ensure_not_mac_or_skip,
+  ensure_tf_2_20_or_skip,
   use_fork_or_skip,
   use_forkserver_or_skip,
   use_spawn_or_skip,
@@ -17,6 +18,11 @@ from birdnet_tests.helper import (
 from birdnet_tests.test_files import (
   TEST_FILE_SHORT,
 )
+
+
+@pytest.fixture(autouse=True)
+def _ensure_supported_tf() -> None:
+  ensure_tf_2_20_or_skip()
 
 
 def test_pb_cpu_fp32() -> None:

@@ -11,6 +11,7 @@ from birdnet.acoustic.models.perch_v2.model import AcousticModelPerchV2
 from birdnet.acoustic.models.perch_v2.pb import (
   AcousticPBBackendFP32PerchV2,
   AcousticPBDownloaderPerchV2,
+  check_tf_version_for_perch_v2,
 )
 from birdnet.acoustic.models.v2_4.model import (
   AcousticModelV2_4,
@@ -281,6 +282,7 @@ def load_perch_v2(device: str) -> AcousticModelPerchV2:
     raise OSError("The Perch v2 model is not supported on Intel macOS systems.")
 
   device = _validate_device(device)
+  check_tf_version_for_perch_v2()
   model_path, species_list = AcousticPBDownloaderPerchV2.get_model_path_and_labels(
     device
   )

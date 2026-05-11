@@ -7,13 +7,14 @@ from birdnet.geo.models.v3_0.pb import GeoPBDownloaderV3_0
 from birdnet.geo.models.v3_0.tf import GeoTFDownloaderV3_0
 from birdnet.model_loader import load_custom
 from birdnet.utils.local_data import get_lang_dir, get_model_path
-from birdnet_tests.helper import ensure_litert_or_skip
+from birdnet_tests.helper import ensure_litert_or_skip, ensure_tf_2_19_or_2_18
 from birdnet_tests.model_loader_py.acoustic.test_acoustic_load_custom import (
   check_validity,
 )
 
 
 def test_load_custom_geo_model_v3_0_tf_fp32() -> None:
+  ensure_tf_2_19_or_2_18()
   GeoTFDownloaderV3_0.get_model_path_and_labels("en_us", "fp32")
   model = load_custom(
     "geo",
@@ -29,6 +30,7 @@ def test_load_custom_geo_model_v3_0_tf_fp32() -> None:
 
 
 def test_load_custom_geo_model_v3_0_tf_fp16() -> None:
+  ensure_tf_2_19_or_2_18()
   GeoTFDownloaderV3_0.get_model_path_and_labels("en_us", "fp16")
   model = load_custom(
     "geo",
@@ -44,6 +46,7 @@ def test_load_custom_geo_model_v3_0_tf_fp16() -> None:
 
 
 def test_load_custom_geo_model_v3_0_tf_int8() -> None:
+  ensure_tf_2_19_or_2_18()
   GeoTFDownloaderV3_0.get_model_path_and_labels("en_us", "int8")
   model = load_custom(
     "geo",

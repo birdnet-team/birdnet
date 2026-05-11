@@ -38,6 +38,7 @@ def _check_tf_version_for_v3_0() -> None:
       "Consider using the PB backend instead: load('geo', '3.0', 'pb', ...)."
     )
 
+
 models = {
   MODEL_PRECISION_INT8: ModelInfo(
     dl_url="https://github.com/birdnet-team/geomodel/releases/download/v3.0.2/BirdNET+_Geomodel_V3.0.2_Global_12K_INT8.tflite",
@@ -123,10 +124,6 @@ class GeoTFBackendFP32V3_0(TFBackend, VersionedGeoBackendProtocol):
     super().load()
 
   @classmethod
-  def requires_flex_delegate(cls) -> bool:
-    return True
-
-  @classmethod
   def in_idx(cls) -> int:
     return 0
 
@@ -162,10 +159,6 @@ class GeoTFBackendFP16V3_0(TFBackend, VersionedGeoBackendProtocol):
     super().load()
 
   @classmethod
-  def requires_flex_delegate(cls) -> bool:
-    return True
-
-  @classmethod
   def in_idx(cls) -> int:
     return 0
 
@@ -199,10 +192,6 @@ class GeoTFBackendInt8V3_0(TFBackend, VersionedGeoBackendProtocol):
   def load(self) -> None:
     _check_tf_version_for_v3_0()
     super().load()
-
-  @classmethod
-  def requires_flex_delegate(cls) -> bool:
-    return True
 
   @classmethod
   def in_idx(cls) -> int:

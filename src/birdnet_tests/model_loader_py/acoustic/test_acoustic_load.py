@@ -25,7 +25,8 @@ def test_v2_4_pb() -> None:
   try:
     model = load("acoustic", "2.4", "pb", precision="fp32")
   except ReadTimeout as e:
-    # HTTPSConnectionPool(host='zenodo.org', port=443): Read timed out. (read timeout=30)
+    # HTTPSConnectionPool(host='zenodo.org', port=443): Read timed out.
+    # (read timeout=30)
     pytest.fail(f"Model download timed out: {e}. Try again later.")
   assert isinstance(model, AcousticModelV2_4)
 

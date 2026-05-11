@@ -206,6 +206,20 @@ def ensure_tf_2_19_or_2_18() -> None:
     pytest.skip("TensorFlow 2.18 or 2.19 is required for this test")
 
 
+def ensure_tf_2_20_or_skip() -> None:
+  import tensorflow as tf
+
+  version: str = tf.__version__
+  version_parts = version.split(".")
+  try:
+    major_minor = int(version_parts[0]), int(version_parts[1])
+  except (IndexError, ValueError):
+    pytest.skip(f"Unsupported TensorFlow version string for this test: {version!r}")
+
+  if major_minor < (2, 20):
+    pytest.skip("TensorFlow >= 2.20 is required for this test")
+
+
 def ensure_not_mac_or_skip() -> None:
   import platform
 
