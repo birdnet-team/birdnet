@@ -13,34 +13,34 @@ Subpackages
 Submodules
 ----------
 
-birdnet.argparse\_helper module
--------------------------------
+birdnet\_benchmark.argparse\_helper module
+-------------------------------------------
 
-.. automodule:: birdnet.argparse_helper
+.. automodule:: birdnet_benchmark.argparse_helper
    :members:
    :show-inheritance:
    :undoc-members:
 
-birdnet.backends module
------------------------
+birdnet.core.backends module
+----------------------------
 
-.. automodule:: birdnet.backends
+.. automodule:: birdnet.core.backends
    :members:
    :show-inheritance:
    :undoc-members:
 
-birdnet.base module
--------------------
+birdnet.core.base module
+------------------------
 
-.. automodule:: birdnet.base
+.. automodule:: birdnet.core.base
    :members:
    :show-inheritance:
    :undoc-members:
 
-birdnet.benchmark\_script module
---------------------------------
+birdnet\_benchmark.cli module
+-----------------------------
 
-.. automodule:: birdnet.benchmark_script
+.. automodule:: birdnet_benchmark.cli
    :members:
    :show-inheritance:
    :undoc-members:
@@ -53,26 +53,26 @@ birdnet.globals module
    :show-inheritance:
    :undoc-members:
 
-birdnet.helper module
----------------------
+birdnet.utils.helper module
+---------------------------
 
-.. automodule:: birdnet.helper
+.. automodule:: birdnet.utils.helper
    :members:
    :show-inheritance:
    :undoc-members:
 
-birdnet.local\_data module
---------------------------
+birdnet.utils.local\_data module
+--------------------------------
 
-.. automodule:: birdnet.local_data
+.. automodule:: birdnet.utils.local_data
    :members:
    :show-inheritance:
    :undoc-members:
 
-birdnet.logging\_utils module
------------------------------
+birdnet.utils.logging\_utils module
+-----------------------------------
 
-.. automodule:: birdnet.logging_utils
+.. automodule:: birdnet.utils.logging_utils
    :members:
    :show-inheritance:
    :undoc-members:
@@ -85,10 +85,10 @@ birdnet.model\_loader module
    :show-inheritance:
    :undoc-members:
 
-birdnet.shm module
-------------------
+birdnet.acoustic.inference.core.shm module
+------------------------------------------
 
-.. automodule:: birdnet.shm
+.. automodule:: birdnet.acoustic.inference.core.shm
    :members:
    :show-inheritance:
    :undoc-members:

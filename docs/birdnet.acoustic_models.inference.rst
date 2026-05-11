@@ -1,5 +1,5 @@
-birdnet.acoustic\_models.inference package
-==========================================
+birdnet.acoustic.inference.core package
+=======================================
 
 Subpackages
 -----------
@@ -13,66 +13,66 @@ Subpackages
 Submodules
 ----------
 
-birdnet.acoustic\_models.inference.benchmarking module
+birdnet.acoustic.inference.core.benchmarking module
+---------------------------------------------------
+
+.. automodule:: birdnet.acoustic.inference.core.benchmarking
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+birdnet.acoustic.inference.core.consumer module
+-----------------------------------------------
+
+.. automodule:: birdnet.acoustic.inference.core.consumer
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+birdnet.acoustic.inference.core.input\_analyzer module
 ------------------------------------------------------
 
-.. automodule:: birdnet.acoustic_models.inference.benchmarking
+.. automodule:: birdnet.acoustic.inference.core.input_analyzer
    :members:
    :show-inheritance:
    :undoc-members:
 
-birdnet.acoustic\_models.inference.consumer module
---------------------------------------------------
+birdnet.acoustic.inference.core.perf\_tracker module
+----------------------------------------------------
 
-.. automodule:: birdnet.acoustic_models.inference.consumer
+.. automodule:: birdnet.acoustic.inference.core.perf_tracker
    :members:
    :show-inheritance:
    :undoc-members:
 
-birdnet.acoustic\_models.inference.files\_analyzer module
----------------------------------------------------------
+birdnet.acoustic.inference.core.producer module
+-----------------------------------------------
 
-.. automodule:: birdnet.acoustic_models.inference.files_analyzer
+.. automodule:: birdnet.acoustic.inference.core.producer
    :members:
    :show-inheritance:
    :undoc-members:
 
-birdnet.acoustic\_models.inference.perf\_tracker module
--------------------------------------------------------
+birdnet.acoustic.inference.core.result\_base module
+---------------------------------------------------
 
-.. automodule:: birdnet.acoustic_models.inference.perf_tracker
+.. automodule:: birdnet.acoustic.inference.core.result_base
    :members:
    :show-inheritance:
    :undoc-members:
 
-birdnet.acoustic\_models.inference.producer module
---------------------------------------------------
+birdnet.acoustic.inference.core.tensor module
+---------------------------------------------
 
-.. automodule:: birdnet.acoustic_models.inference.producer
+.. automodule:: birdnet.acoustic.inference.core.tensor
    :members:
    :show-inheritance:
    :undoc-members:
 
-birdnet.acoustic\_models.inference.result\_base module
-------------------------------------------------------
+birdnet.acoustic.inference.core.worker module
+---------------------------------------------
 
-.. automodule:: birdnet.acoustic_models.inference.result_base
-   :members:
-   :show-inheritance:
-   :undoc-members:
-
-birdnet.acoustic\_models.inference.tensor module
-------------------------------------------------
-
-.. automodule:: birdnet.acoustic_models.inference.tensor
-   :members:
-   :show-inheritance:
-   :undoc-members:
-
-birdnet.acoustic\_models.inference.worker module
-------------------------------------------------
-
-.. automodule:: birdnet.acoustic_models.inference.worker
+.. automodule:: birdnet.acoustic.inference.core.worker
    :members:
    :show-inheritance:
    :undoc-members:
@@ -80,7 +80,7 @@ birdnet.acoustic\_models.inference.worker module
 Module contents
 ---------------
 
-.. automodule:: birdnet.acoustic_models.inference
+.. automodule:: birdnet.acoustic.inference.core
    :members:
    :show-inheritance:
    :undoc-members:

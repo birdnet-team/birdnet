@@ -1,77 +1,77 @@
-birdnet.acoustic\_models.inference\_pipeline package
-====================================================
+birdnet.acoustic.inference package
+==================================
 
 Submodules
 ----------
 
-birdnet.acoustic\_models.inference\_pipeline.api module
--------------------------------------------------------
+birdnet.acoustic.inference.benchmarking module
+----------------------------------------------
 
-.. automodule:: birdnet.acoustic_models.inference_pipeline.api
+.. automodule:: birdnet.acoustic.inference.benchmarking
    :members:
    :show-inheritance:
    :undoc-members:
 
-birdnet.acoustic\_models.inference\_pipeline.configs module
------------------------------------------------------------
+birdnet.acoustic.inference.configs module
+-----------------------------------------
 
-.. automodule:: birdnet.acoustic_models.inference_pipeline.configs
+.. automodule:: birdnet.acoustic.inference.configs
    :members:
    :show-inheritance:
    :undoc-members:
 
-birdnet.acoustic\_models.inference\_pipeline.encoding\_strategy module
-----------------------------------------------------------------------
+birdnet.acoustic.inference.encoding\_strategy module
+----------------------------------------------------
 
-.. automodule:: birdnet.acoustic_models.inference_pipeline.encoding_strategy
+.. automodule:: birdnet.acoustic.inference.encoding_strategy
    :members:
    :show-inheritance:
    :undoc-members:
 
-birdnet.acoustic\_models.inference\_pipeline.logs module
---------------------------------------------------------
+birdnet.acoustic.inference.file\_writer module
+----------------------------------------------
 
-.. automodule:: birdnet.acoustic_models.inference_pipeline.logs
+.. automodule:: birdnet.acoustic.inference.file_writer
    :members:
    :show-inheritance:
    :undoc-members:
 
-birdnet.acoustic\_models.inference\_pipeline.prediction\_strategy module
-------------------------------------------------------------------------
+birdnet.acoustic.inference.prediction\_strategy module
+------------------------------------------------------
 
-.. automodule:: birdnet.acoustic_models.inference_pipeline.prediction_strategy
+.. automodule:: birdnet.acoustic.inference.prediction_strategy
    :members:
    :show-inheritance:
    :undoc-members:
 
-birdnet.acoustic\_models.inference\_pipeline.processes module
--------------------------------------------------------------
+birdnet.acoustic.inference.process\_manager module
+--------------------------------------------------
 
-.. automodule:: birdnet.acoustic_models.inference_pipeline.processes
+.. automodule:: birdnet.acoustic.inference.process_manager
    :members:
    :show-inheritance:
    :undoc-members:
 
-birdnet.acoustic\_models.inference\_pipeline.resources module
--------------------------------------------------------------
+birdnet.acoustic.inference.resources module
+-------------------------------------------
 
-.. automodule:: birdnet.acoustic_models.inference_pipeline.resources
+.. automodule:: birdnet.acoustic.inference.resources
    :members:
    :show-inheritance:
    :undoc-members:
 
-birdnet.acoustic\_models.inference\_pipeline.session module
------------------------------------------------------------
+birdnet.acoustic.inference.session module
+-----------------------------------------
 
-.. automodule:: birdnet.acoustic_models.inference_pipeline.session
+.. automodule:: birdnet.acoustic.inference.session
    :members:
    :show-inheritance:
    :undoc-members:
 
-birdnet.acoustic\_models.inference\_pipeline.strategy module
-------------------------------------------------------------
+birdnet.acoustic.inference.strategy module
+------------------------------------------
 
-.. automodule:: birdnet.acoustic_models.inference_pipeline.strategy
+.. automodule:: birdnet.acoustic.inference.strategy
    :members:
    :show-inheritance:
    :undoc-members:
@@ -79,7 +79,7 @@ birdnet.acoustic\_models.inference\_pipeline.strategy module
 Module contents
 ---------------
 
-.. automodule:: birdnet.acoustic_models.inference_pipeline
+.. automodule:: birdnet.acoustic.inference
    :members:
    :show-inheritance:
    :undoc-members:

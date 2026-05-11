@@ -8,7 +8,6 @@ from birdnet.model_loader import load
 from birdnet_tests.helper import ensure_geo_v3_0_litert_supported_or_skip
 
 
-@pytest.mark.litert
 def test_pb_v3_0_with_library_raises_error() -> None:
   with pytest.raises(
     ValueError,

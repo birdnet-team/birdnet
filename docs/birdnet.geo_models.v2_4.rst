@@ -1,29 +1,29 @@
-birdnet.geo\_models.v2\_4 package
-=================================
+birdnet.geo.models.v2\_4 package
+================================
 
 Submodules
 ----------
 
-birdnet.geo\_models.v2\_4.model module
+birdnet.geo.models.v2\_4.model module
 --------------------------------------
 
-.. automodule:: birdnet.geo_models.v2_4.model
+.. automodule:: birdnet.geo.models.v2_4.model
    :members:
    :show-inheritance:
    :undoc-members:
 
-birdnet.geo\_models.v2\_4.pb module
+birdnet.geo.models.v2\_4.pb module
 -----------------------------------
 
-.. automodule:: birdnet.geo_models.v2_4.pb
+.. automodule:: birdnet.geo.models.v2_4.pb
    :members:
    :show-inheritance:
    :undoc-members:
 
-birdnet.geo\_models.v2\_4.tf module
+birdnet.geo.models.v2\_4.tf module
 -----------------------------------
 
-.. automodule:: birdnet.geo_models.v2_4.tf
+.. automodule:: birdnet.geo.models.v2_4.tf
    :members:
    :show-inheritance:
    :undoc-members:
@@ -31,7 +31,7 @@ birdnet.geo\_models.v2\_4.tf module
 Module contents
 ---------------
 
-.. automodule:: birdnet.geo_models.v2_4
+.. automodule:: birdnet.geo.models.v2_4
    :members:
    :show-inheritance:
    :undoc-members:

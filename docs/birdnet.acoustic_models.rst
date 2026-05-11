@@ -1,5 +1,5 @@
-birdnet.acoustic\_models package
-================================
+birdnet.acoustic.models package
+===============================
 
 Subpackages
 -----------
@@ -15,10 +15,10 @@ Subpackages
 Submodules
 ----------
 
-birdnet.acoustic\_models.base module
-------------------------------------
+birdnet.acoustic.models.base module
+-----------------------------------
 
-.. automodule:: birdnet.acoustic_models.base
+.. automodule:: birdnet.acoustic.models.base
    :members:
    :show-inheritance:
    :undoc-members:
@@ -26,7 +26,7 @@ birdnet.acoustic\_models.base module
 Module contents
 ---------------
 
-.. automodule:: birdnet.acoustic_models
+.. automodule:: birdnet.acoustic.models
    :members:
    :show-inheritance:
    :undoc-members:

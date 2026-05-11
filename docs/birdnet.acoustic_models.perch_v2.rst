@@ -1,21 +1,21 @@
-birdnet.acoustic\_models.perch\_v2 package
-==========================================
+birdnet.acoustic.models.perch\_v2 package
+=========================================
 
 Submodules
 ----------
 
-birdnet.acoustic\_models.perch\_v2.model module
+birdnet.acoustic.models.perch\_v2.model module
 -----------------------------------------------
 
-.. automodule:: birdnet.acoustic_models.perch_v2.model
+.. automodule:: birdnet.acoustic.models.perch_v2.model
    :members:
    :show-inheritance:
    :undoc-members:
 
-birdnet.acoustic\_models.perch\_v2.pb module
+birdnet.acoustic.models.perch\_v2.pb module
 --------------------------------------------
 
-.. automodule:: birdnet.acoustic_models.perch_v2.pb
+.. automodule:: birdnet.acoustic.models.perch_v2.pb
    :members:
    :show-inheritance:
    :undoc-members:
@@ -23,7 +23,7 @@ birdnet.acoustic\_models.perch\_v2.pb module
 Module contents
 ---------------
 
-.. automodule:: birdnet.acoustic_models.perch_v2
+.. automodule:: birdnet.acoustic.models.perch_v2
    :members:
    :show-inheritance:
    :undoc-members:

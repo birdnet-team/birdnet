@@ -1,37 +1,37 @@
-birdnet.acoustic\_models.inference.encoding package
-===================================================
+birdnet.acoustic.inference.core.encoding package
+================================================
 
 Submodules
 ----------
 
-birdnet.acoustic\_models.inference.encoding.benchmarking module
----------------------------------------------------------------
+birdnet.acoustic.inference.core.encoding.encoding\_benchmarking module
+----------------------------------------------------------------------
 
-.. automodule:: birdnet.acoustic_models.inference.encoding.benchmarking
+.. automodule:: birdnet.acoustic.inference.core.encoding.encoding_benchmarking
    :members:
    :show-inheritance:
    :undoc-members:
 
-birdnet.acoustic\_models.inference.encoding.result module
----------------------------------------------------------
+birdnet.acoustic.inference.core.encoding.encoding\_result module
+----------------------------------------------------------------
 
-.. automodule:: birdnet.acoustic_models.inference.encoding.result
+.. automodule:: birdnet.acoustic.inference.core.encoding.encoding_result
    :members:
    :show-inheritance:
    :undoc-members:
 
-birdnet.acoustic\_models.inference.encoding.tensor module
----------------------------------------------------------
+birdnet.acoustic.inference.core.encoding.encoding\_tensor module
+----------------------------------------------------------------
 
-.. automodule:: birdnet.acoustic_models.inference.encoding.tensor
+.. automodule:: birdnet.acoustic.inference.core.encoding.encoding_tensor
    :members:
    :show-inheritance:
    :undoc-members:
 
-birdnet.acoustic\_models.inference.encoding.worker module
----------------------------------------------------------
+birdnet.acoustic.inference.core.encoding.encoding\_worker module
+----------------------------------------------------------------
 
-.. automodule:: birdnet.acoustic_models.inference.encoding.worker
+.. automodule:: birdnet.acoustic.inference.core.encoding.encoding_worker
    :members:
    :show-inheritance:
    :undoc-members:
@@ -39,7 +39,7 @@ birdnet.acoustic\_models.inference.encoding.worker module
 Module contents
 ---------------
 
-.. automodule:: birdnet.acoustic_models.inference.encoding
+.. automodule:: birdnet.acoustic.inference.core.encoding
    :members:
    :show-inheritance:
    :undoc-members:

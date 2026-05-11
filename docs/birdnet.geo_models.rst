@@ -1,5 +1,5 @@
-birdnet.geo\_models package
-===========================
+birdnet.geo.models package
+==========================
 
 Subpackages
 -----------
@@ -9,14 +9,15 @@ Subpackages
 
    birdnet.geo_models.inference
    birdnet.geo_models.v2_4
+   birdnet.geo_models.v3_0
 
 Submodules
 ----------
 
-birdnet.geo\_models.base module
--------------------------------
+birdnet.geo.models.base module
+------------------------------
 
-.. automodule:: birdnet.geo_models.base
+.. automodule:: birdnet.geo.models.base
    :members:
    :show-inheritance:
    :undoc-members:
@@ -24,7 +25,7 @@ birdnet.geo\_models.base module
 Module contents
 ---------------
 
-.. automodule:: birdnet.geo_models
+.. automodule:: birdnet.geo.models
    :members:
    :show-inheritance:
    :undoc-members:

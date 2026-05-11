@@ -27,7 +27,7 @@ from birdnet.utils.local_data import APP_DIR
 _LABELS_DL_URL = "https://github.com/birdnet-team/geomodel/releases/download/v3.0.2/BirdNET+_Geomodel_V3.0.2_Global_12K_Labels.txt"
 _LABELS_DL_SIZE = 571793
 _TAXONOMY_DL_URL = (
-  "https://github.com/birdnet-team/geomodel/raw/refs/heads/main/taxonomy.csv"
+  "https://github.com/birdnet-team/geomodel/raw/refs/tags/v3.0.2/taxonomy.csv"
 )
 _TAXONOMY_DL_SIZE = 9162669
 
@@ -89,9 +89,7 @@ class GeoDownloaderBaseV3_0:
     lang_dir = cls._get_lang_dir()
     if not lang_dir.is_dir():
       return False
-    return all(
-      (lang_dir / f"{lang}.txt").is_file() for lang in cls.AVAILABLE_LANGUAGES
-    )
+    return all((lang_dir / f"{lang}.txt").is_file() for lang in cls.AVAILABLE_LANGUAGES)
 
   @classmethod
   def ensure_labels_available(cls) -> None:
