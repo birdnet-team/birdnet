@@ -137,7 +137,8 @@ class VersionedAcousticBackendProtocol(VersionedBackendProtocol, Protocol):
 
 @runtime_checkable
 class VersionedGeoBackendProtocol(VersionedBackendProtocol, Protocol):
-  pass
+  @classmethod
+  def year_round_week_inputs(cls) -> tuple[float, ...]: ...
 
 
 TF_BACKEND_LIB_ARG = "inference_library"

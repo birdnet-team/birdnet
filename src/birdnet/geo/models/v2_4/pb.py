@@ -133,3 +133,7 @@ class GeoPBBackendFP32V2_4(PBBackend, VersionedGeoBackendProtocol):
   @classmethod
   def precision(cls) -> MODEL_PRECISIONS:
     return MODEL_PRECISION_FP32
+
+  @classmethod
+  def year_round_week_inputs(cls) -> tuple[float, ...]:
+    return (-1.0,)

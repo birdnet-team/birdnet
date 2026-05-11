@@ -23,6 +23,7 @@ from birdnet.utils.helper import (
 from birdnet.utils.local_data import get_lang_dir, get_model_path
 
 _SUPPORTED_TF_VERSIONS = ("2.18", "2.19")
+_YEAR_ROUND_WEEK_INPUTS = tuple(float(week) for week in range(1, 49))
 
 
 def _check_tf_version_for_v3_0() -> None:
@@ -145,6 +146,10 @@ class GeoTFBackendFP32V3_0(TFBackend, VersionedGeoBackendProtocol):
   def precision(cls) -> MODEL_PRECISIONS:
     return MODEL_PRECISION_FP32
 
+  @classmethod
+  def year_round_week_inputs(cls) -> tuple[float, ...]:
+    return _YEAR_ROUND_WEEK_INPUTS
+
 
 class GeoTFBackendFP16V3_0(TFBackend, VersionedGeoBackendProtocol):
   def __init__(
@@ -180,6 +185,10 @@ class GeoTFBackendFP16V3_0(TFBackend, VersionedGeoBackendProtocol):
   def precision(cls) -> MODEL_PRECISIONS:
     return MODEL_PRECISION_FP16
 
+  @classmethod
+  def year_round_week_inputs(cls) -> tuple[float, ...]:
+    return _YEAR_ROUND_WEEK_INPUTS
+
 
 class GeoTFBackendInt8V3_0(TFBackend, VersionedGeoBackendProtocol):
   def __init__(
@@ -214,3 +223,7 @@ class GeoTFBackendInt8V3_0(TFBackend, VersionedGeoBackendProtocol):
   @classmethod
   def precision(cls) -> MODEL_PRECISIONS:
     return MODEL_PRECISION_INT8
+
+  @classmethod
+  def year_round_week_inputs(cls) -> tuple[float, ...]:
+    return _YEAR_ROUND_WEEK_INPUTS

@@ -21,7 +21,6 @@ from birdnet.geo.inference.configs import (
 )
 from birdnet.geo.inference.prediction_result import GeoPredictionResult
 from birdnet.globals import (
-  GEO_MODEL_VERSION_V2_4,
   GEO_MODEL_VERSIONS,
   GEO_YEAR_ROUND_AGGREGATION_MAX,
   GEO_YEAR_ROUND_AGGREGATIONS,
@@ -62,27 +61,18 @@ class GeoSessionBase(SessionBase, ABC):
     assert self._backend is not None
 
     if run_config.week is None:
-      if self._conf.model_conf.version == GEO_MODEL_VERSION_V2_4:
-        # v2.4 was trained with -1 as the year-round sentinel
-        sample = np.expand_dims(
-          np.array(
-            [run_config.latitude, run_config.longitude, -1.0],
-            dtype=np.float32,
-          ),
-          0,
-        )
-        res = self._backend.predict(sample)
-        res = np.squeeze(res, axis=0)
+      week_inputs = self._backend.year_round_week_inputs()
+      samples = np.array(
+        [
+          [run_config.latitude, run_config.longitude, week_input]
+          for week_input in week_inputs
+        ],
+        dtype=np.float32,
+      )
+      res_batch = self._backend.predict(samples)
+      if len(week_inputs) == 1:
+        res = np.squeeze(res_batch, axis=0)
       else:
-        # v3.0+: feed all 48 weeks as a batch and aggregate
-        samples = np.array(
-          [
-            [run_config.latitude, run_config.longitude, float(w)]
-            for w in range(1, 49)
-          ],
-          dtype=np.float32,
-        )  # shape: (48, 3)
-        res_batch = self._backend.predict(samples)  # shape: (48, n_species)
         if run_config.year_round_aggregation == GEO_YEAR_ROUND_AGGREGATION_MAX:
           res = np.max(res_batch, axis=0)
         else:

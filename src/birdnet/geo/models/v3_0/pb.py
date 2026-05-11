@@ -23,6 +23,8 @@ from birdnet.utils.helper import (
 )
 from birdnet.utils.local_data import get_lang_dir, get_model_path
 
+_YEAR_ROUND_WEEK_INPUTS = tuple(float(week) for week in range(1, 49))
+
 
 class GeoPBDownloaderV3_0(GeoDownloaderBaseV3_0):
   @classmethod
@@ -128,3 +130,7 @@ class GeoPBBackendFP32V3_0(PBBackend, VersionedGeoBackendProtocol):
   @classmethod
   def precision(cls) -> MODEL_PRECISIONS:
     return MODEL_PRECISION_FP32
+
+  @classmethod
+  def year_round_week_inputs(cls) -> tuple[float, ...]:
+    return _YEAR_ROUND_WEEK_INPUTS
