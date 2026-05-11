@@ -9,7 +9,7 @@ from tqdm import tqdm
 from birdnet.geo.inference.prediction_result import GeoPredictionResult
 from birdnet.geo.models.v3_0.model import GeoModelV3_0
 from birdnet.model_loader import load
-from birdnet_tests.helper import ensure_litert_or_skip
+from birdnet_tests.helper import ensure_geo_v3_0_litert_supported_or_skip
 
 
 @dataclass()
@@ -121,7 +121,7 @@ def test_tf_int8_is_close() -> None:
 
 @pytest.mark.litert
 def test_tf32_litert_is_very_close() -> None:
-  ensure_litert_or_skip()
+  ensure_geo_v3_0_litert_supported_or_skip()
 
   model = load("geo", "3.0", "tf", precision="fp32", library="litert")
   for case_nr, result in predict_test_cases(model):

@@ -5,13 +5,11 @@ from requests import ReadTimeout
 
 from birdnet.geo.models.v3_0.model import GeoModelV3_0
 from birdnet.model_loader import load
-from birdnet_tests.helper import ensure_litert_or_skip
+from birdnet_tests.helper import ensure_geo_v3_0_litert_supported_or_skip
 
 
 @pytest.mark.litert
 def test_pb_v3_0_with_library_raises_error() -> None:
-  ensure_litert_or_skip()
-
   with pytest.raises(
     ValueError,
     match=r"Unexpected keyword arguments: library.",
@@ -57,7 +55,7 @@ def test_v3_0_tf_int8() -> None:
 
 @pytest.mark.litert
 def test_v3_0_litert_fp32() -> None:
-  ensure_litert_or_skip()
+  ensure_geo_v3_0_litert_supported_or_skip()
 
   model = load("geo", "3.0", "tf", precision="fp32", library="litert")
   assert isinstance(model, GeoModelV3_0)
@@ -65,7 +63,7 @@ def test_v3_0_litert_fp32() -> None:
 
 @pytest.mark.litert
 def test_v3_0_litert_fp16() -> None:
-  ensure_litert_or_skip()
+  ensure_geo_v3_0_litert_supported_or_skip()
 
   model = load("geo", "3.0", "tf", precision="fp16", library="litert")
   assert isinstance(model, GeoModelV3_0)
@@ -73,10 +71,18 @@ def test_v3_0_litert_fp16() -> None:
 
 @pytest.mark.litert
 def test_v3_0_litert_int8() -> None:
-  ensure_litert_or_skip()
+  ensure_geo_v3_0_litert_supported_or_skip()
 
   model = load("geo", "3.0", "tf", precision="int8", library="litert")
   assert isinstance(model, GeoModelV3_0)
+
+
+def test_v3_0_litert_raises_error() -> None:
+  with pytest.raises(
+    RuntimeError,
+    match=r"geo model v3\.0 TF backend is not supported with ai_edge_litert",
+  ):
+    load("geo", "3.0", "tf", precision="fp32", library="litert")
 
 
 def test_tf_tflite_fp32_type_is_correct() -> None:
@@ -85,7 +91,7 @@ def test_tf_tflite_fp32_type_is_correct() -> None:
 
 @pytest.mark.litert
 def test_tf_litert_fp32_type_is_correct() -> None:
-  ensure_litert_or_skip()
+  ensure_geo_v3_0_litert_supported_or_skip()
 
   assert type(load("geo", "3.0", "tf", library="litert")) is GeoModelV3_0
 

@@ -7,7 +7,10 @@ from birdnet.geo.models.v3_0.pb import GeoPBDownloaderV3_0
 from birdnet.geo.models.v3_0.tf import GeoTFDownloaderV3_0
 from birdnet.model_loader import load_custom
 from birdnet.utils.local_data import get_lang_dir, get_model_path
-from birdnet_tests.helper import ensure_litert_or_skip, ensure_tf_2_19_or_2_18
+from birdnet_tests.helper import (
+  ensure_geo_v3_0_litert_supported_or_skip,
+  ensure_tf_2_19_or_2_18,
+)
 from birdnet_tests.model_loader_py.acoustic.test_acoustic_load_custom import (
   check_validity,
 )
@@ -63,7 +66,7 @@ def test_load_custom_geo_model_v3_0_tf_int8() -> None:
 
 @pytest.mark.litert
 def test_load_custom_geo_model_v3_0_litert_fp32() -> None:
-  ensure_litert_or_skip()
+  ensure_geo_v3_0_litert_supported_or_skip()
   GeoTFDownloaderV3_0.get_model_path_and_labels("en_us", "fp32")
   model = load_custom(
     "geo",
@@ -76,6 +79,25 @@ def test_load_custom_geo_model_v3_0_litert_fp32() -> None:
     check_validity=check_validity(),
   )
   assert isinstance(model, GeoModelV3_0)
+
+
+def test_load_custom_geo_model_v3_0_litert_raises_error() -> None:
+  GeoTFDownloaderV3_0.get_model_path_and_labels("en_us", "fp32")
+
+  with pytest.raises(
+    RuntimeError,
+    match=r"geo model v3\.0 TF backend is not supported with ai_edge_litert",
+  ):
+    load_custom(
+      "geo",
+      "3.0",
+      "tf",
+      get_model_path("geo", "3.0", "tf", "fp32"),
+      get_lang_dir("geo", "3.0", "tf") / "en_us.txt",
+      precision="fp32",
+      library="litert",
+      check_validity=check_validity(),
+    )
 
 
 def test_tf_types_are_correct() -> None:
@@ -146,8 +168,6 @@ def test_pb_type_is_correct() -> None:
 
 
 def test_load_pb_with_custom_library_raises_error() -> None:
-  ensure_litert_or_skip()
-
   with pytest.raises(
     ValueError,
     match=r"Unexpected keyword arguments: library.",

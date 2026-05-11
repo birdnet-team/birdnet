@@ -198,6 +198,10 @@ def ensure_litert_or_skip() -> None:
     pytest.skip("litert library is not available")
 
 
+def ensure_geo_v3_0_litert_supported_or_skip() -> None:
+  pytest.skip("Geo model v3.0 TF backend is not supported with ai_edge_litert yet")
+
+
 def ensure_tf_2_19_or_2_18() -> None:
   import tensorflow as tf
 

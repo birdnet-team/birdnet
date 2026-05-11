@@ -98,13 +98,32 @@ jobs:
           slug: birdnet-team/birdnet
 
       - name: Extract log path
+        id: extract-log-path
+        shell: pwsh
         run: |
-          LOG_PATH=$(grep -o '/var/folders[^ ]*\.log' output.log | head -n1)
-          echo "LOG_PATH=$LOG_PATH" >> $GITHUB_ENV
+          $logPaths = @()
+
+          if (Test-Path output.log) {
+            $output = Get-Content output.log -Raw
+            $pattern = '(?<path>(?:[A-Za-z]:\\|/)[^\r\n]*?\.log)'
+            $logPaths = [regex]::Matches($output, $pattern) |
+              ForEach-Object { $_.Groups['path'].Value } |
+              Sort-Object -Unique |
+              Where-Object { Test-Path $_ -PathType Leaf }
+          }
+
+          if ($logPaths.Count -gt 0) {
+            "log_paths<<EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            $logPaths | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            "EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          }
+          else {
+            "log_paths=" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          }
 
       - name: Upload log file
-        if: failure() && env.LOG_PATH != ''
+        if: failure() && steps.extract-log-path.outputs.log_paths != ''
         uses: actions/upload-artifact@v4
         with:
           name: birdnet-log
-          path: ${{ env.LOG_PATH }}
+          path: ${{ steps.extract-log-path.outputs.log_paths }}

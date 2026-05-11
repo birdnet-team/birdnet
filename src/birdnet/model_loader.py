@@ -2,6 +2,7 @@
 Provides functions to load official and custom models.
 """
 
+from collections.abc import Callable
 from os import PathLike
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -58,6 +59,7 @@ from birdnet.geo.models.v3_0.tf import (
   GeoTFBackendFP32V3_0,
   GeoTFBackendInt8V3_0,
   GeoTFDownloaderV3_0,
+  check_tf_library_for_v3_0,
 )
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V2_4,
@@ -216,15 +218,23 @@ def _validate_tf_file(model_path: Any) -> Path:  # noqa: ANN401
   return path
 
 
-def _validate_library(library: Any) -> LIBRARY_TYPES:  # noqa: ANN401
+def _validate_library(
+  library: Any,  # noqa: ANN401
+  compatibility_check: Callable[[LIBRARY_TYPES], None] | None = None,
+) -> LIBRARY_TYPES:
   if library not in VALID_LIBRARY_TYPES:
     raise ValueError(
       f"Unsupported TensorFlow library: {library}. "
       f"Supported libraries are: {', '.join(VALID_LIBRARY_TYPES)}."
     )
-  if library == LIBRARY_TFLITE:
+
+  validated_library = cast(LIBRARY_TYPES, library)
+  if compatibility_check is not None:
+    compatibility_check(validated_library)
+
+  if validated_library == LIBRARY_TFLITE:
     assert tf_installed()  # default
-  elif library == LIBRARY_LITERT:
+  elif validated_library == LIBRARY_LITERT:
     if not litert_installed():
       raise ValueError(
         f"Parameter 'library': Library '{LIBRARY_LITERT}' is not available. "
@@ -232,7 +242,7 @@ def _validate_library(library: Any) -> LIBRARY_TYPES:  # noqa: ANN401
       )
   else:
     raise AssertionError()
-  return cast(LIBRARY_TYPES, library)
+  return validated_library
 
 
 def _validate_custom_classifier_type(classifier_type: Any) -> CUSTOM_CLASSIFIER_TYPES:  # noqa: ANN401
@@ -691,7 +701,10 @@ def _load_geo_model_V3_0(
   lang = _validate_language_v3_0(lang)
   if backend == MODEL_BACKEND_TF:
     model_kwargs = _validate_kwargs_allowed(model_kwargs, {LIBRARY_TF_PARAM})
-    library = _validate_library(model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT))
+    library = _validate_library(
+      model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT),
+      compatibility_check=check_tf_library_for_v3_0,
+    )
 
     model_path, species_list = GeoTFDownloaderV3_0.get_model_path_and_labels(
       lang, precision
@@ -745,7 +758,10 @@ def _load_custom_geo_model_V3_0(
   if backend == MODEL_BACKEND_TF:
     model = _validate_tf_file(model)
     model_kwargs = _validate_kwargs_allowed(model_kwargs, {LIBRARY_TF_PARAM})
-    library = _validate_library(model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT))
+    library = _validate_library(
+      model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT),
+      compatibility_check=check_tf_library_for_v3_0,
+    )
 
     backend_type: type[VersionedGeoBackendProtocol]
     if precision == MODEL_PRECISION_INT8:

@@ -10,6 +10,8 @@ from birdnet.core.backends import (
 )
 from birdnet.geo.models.v3_0.model import GeoDownloaderBaseV3_0
 from birdnet.globals import (
+  LIBRARY_LITERT,
+  LIBRARY_TYPES,
   MODEL_PRECISION_FP16,
   MODEL_PRECISION_FP32,
   MODEL_PRECISION_INT8,
@@ -24,6 +26,19 @@ from birdnet.utils.local_data import get_lang_dir, get_model_path
 
 _SUPPORTED_TF_VERSIONS = ("2.18", "2.19")
 _YEAR_ROUND_WEEK_INPUTS = tuple(float(week) for week in range(1, 49))
+
+
+def check_tf_library_for_v3_0(library: LIBRARY_TYPES) -> None:
+  if library == LIBRARY_LITERT:
+    raise RuntimeError(
+      "The geo model v3.0 TF backend is not supported with ai_edge_litert. "
+      "Use library='tflite' or load('geo', '3.0', 'pb', ...)."
+    )
+
+
+def check_tf_runtime_compatibility_for_v3_0(library: LIBRARY_TYPES) -> None:
+  check_tf_library_for_v3_0(library)
+  _check_tf_version_for_v3_0()
 
 
 def _check_tf_version_for_v3_0() -> None:
@@ -120,7 +135,7 @@ class GeoTFBackendFP32V3_0(TFBackend, VersionedGeoBackendProtocol):
     super().__init__(model_path, device_name, half_precision, **kwargs)
 
   def load(self) -> None:
-    _check_tf_version_for_v3_0()
+    check_tf_runtime_compatibility_for_v3_0(self._inference_library)
     super().load()
 
   @classmethod
@@ -155,7 +170,7 @@ class GeoTFBackendFP16V3_0(TFBackend, VersionedGeoBackendProtocol):
     super().__init__(model_path, device_name, half_precision, **kwargs)
 
   def load(self) -> None:
-    _check_tf_version_for_v3_0()
+    check_tf_runtime_compatibility_for_v3_0(self._inference_library)
     super().load()
 
   @classmethod
@@ -190,7 +205,7 @@ class GeoTFBackendInt8V3_0(TFBackend, VersionedGeoBackendProtocol):
     super().__init__(model_path, device_name, half_precision, **kwargs)
 
   def load(self) -> None:
-    _check_tf_version_for_v3_0()
+    check_tf_runtime_compatibility_for_v3_0(self._inference_library)
     super().load()
 
   @classmethod

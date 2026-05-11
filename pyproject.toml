@@ -42,7 +42,7 @@ dependencies = [
   "kagglehub >= 0.3.13",                                                                    # 2025/08/26; needed for downloading PERCH models
   "tensorflow >= 2.8.0 ; sys_platform != 'darwin' or platform_machine != 'x86_64'",         # 2022/02/02
   "tensorflow >= 2.8.0, <2.17 ; sys_platform == 'darwin' and platform_machine == 'x86_64'",
-  "ai-edge-litert >= 2.0.2 ; python_version < '3.13' and sys_platform == 'linux'",          # 2025/09/17
+  "ai-edge-litert >= 2.0.2 ; python_version <= '3.13'",                                     # 2026/05/11
 ]
 
 [project.optional-dependencies]
