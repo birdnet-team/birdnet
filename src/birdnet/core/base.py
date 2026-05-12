@@ -107,10 +107,10 @@ class SessionBase(ABC):
   def __enter__(self) -> Self: ...
 
   @abstractmethod
-  def __exit__(self, *args): ...
+  def __exit__(self, *args) -> None: ...  # noqa: ANN002
 
   @abstractmethod
-  def run(self, *args, **kwargs) -> ResultBase: ...
+  def run(self, *args, **kwargs) -> ResultBase: ...  # noqa: ANN002, ANN003
 
 
 def get_session_id() -> str:

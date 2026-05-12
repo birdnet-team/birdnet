@@ -208,7 +208,8 @@ class FilteringConfig:
 
     if not supported_fmin <= bandpass_fmin < bandpass_fmax <= supported_fmax:
       raise ValueError(
-        f"bandpass frequencies must be in the range [{supported_fmin}, {supported_fmax}] and fmin < fmax"
+        "bandpass frequencies must be in the range "
+        f"[{supported_fmin}, {supported_fmax}] and fmin < fmax"
       )
     return bandpass_fmin, bandpass_fmax
 
@@ -446,23 +447,27 @@ class InferenceConfig:
               parsed_audio_paths.add(inp_path.absolute())
             else:
               raise ValueError(
-                f"Input file '{inp_path}' is not a supported audio format! Supported formats: {sorted(SF_FORMATS)}."
+                "Input file '{inp_path}' is not a supported audio format! "
+                f"Supported formats: {sorted(SF_FORMATS)}."
               )
           elif inp_path.is_dir():
             parsed_audio_paths.update(get_supported_audio_files_recursive(inp_path))
           elif isinstance(inp_data, tuple):
             if len(inp_data) != 2:
               raise ValueError(
-                "Input audio tuple must have exactly two elements: (audio_array, sample_rate)."
+                "Input audio tuple must have exactly two elements: "
+                "(audio_array, sample_rate)."
               )
             audio_array, sample_rate = inp_data
             if not isinstance(audio_array, np.ndarray):
               raise ValueError(
-                f"First element of input audio tuple must be a numpy ndarray, got {type(audio_array)}."
+                "First element of input audio tuple must be a numpy ndarray, "
+                f"got {type(audio_array)}."
               )
             if not isinstance(sample_rate, int):
               raise ValueError(
-                f"Second element of input audio tuple must be an integer sample rate, got {type(sample_rate)}."
+                "Second element of input audio tuple must be an integer sample rate, "
+                f"got {type(sample_rate)}."
               )
             if not sample_rate > 0:
               raise ValueError(
@@ -472,7 +477,8 @@ class InferenceConfig:
               audio_array.dtype, np.floating
             ):
               raise ValueError(
-                f"Audio array must have an integer or floating-point dtype, got {audio_array.dtype}."
+                "Audio array must have an integer or floating-point dtype, "
+                f"got {audio_array.dtype}."
               )
             parsed_audio_arrays.append((audio_array, sample_rate))
           else:

@@ -114,7 +114,7 @@ class GeoSessionBase(SessionBase, ABC):
 
     return prediction
 
-  def __exit__(self, *args) -> None:
+  def __exit__(self, *args) -> None:  # noqa: ANN002
     assert self._is_initialized
     self._backend = None
     self._backend_loader = None

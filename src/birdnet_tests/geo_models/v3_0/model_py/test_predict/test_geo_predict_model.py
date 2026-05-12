@@ -2,7 +2,7 @@ import pytest
 
 from birdnet.model_loader import load
 from birdnet_tests.helper import (
-  ensure_geo_v3_0_litert_supported_or_skip,
+  geo_v3_0_litert_not_supported_skip,
   ensure_gpu_or_skip,
   ensure_tf_2_19_or_2_18,
 )
@@ -12,7 +12,7 @@ from birdnet_tests.helper import (
 
 @pytest.mark.litert
 def test_litert_fp32() -> None:
-  ensure_geo_v3_0_litert_supported_or_skip()
+  geo_v3_0_litert_not_supported_skip()
 
   model = load("geo", "3.0", "tf", precision="fp32", library="litert")
   result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=False)
@@ -41,7 +41,7 @@ def test_tf_fp32() -> None:
 
 @pytest.mark.litert
 def test_litert_fp32_half() -> None:
-  ensure_geo_v3_0_litert_supported_or_skip()
+  geo_v3_0_litert_not_supported_skip()
 
   model = load("geo", "3.0", "tf", precision="fp32", library="litert")
   result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=True)
@@ -73,7 +73,7 @@ def test_tf_fp32_half() -> None:
 
 @pytest.mark.litert
 def test_litert_fp16() -> None:
-  ensure_geo_v3_0_litert_supported_or_skip()
+  geo_v3_0_litert_not_supported_skip()
 
   model = load("geo", "3.0", "tf", precision="fp16", library="litert")
   result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=False)
@@ -105,7 +105,7 @@ def test_tf_fp16() -> None:
 
 @pytest.mark.litert
 def test_litert_int8() -> None:
-  ensure_geo_v3_0_litert_supported_or_skip()
+  geo_v3_0_litert_not_supported_skip()
 
   model = load("geo", "3.0", "tf", precision="int8", library="litert")
   result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=False)

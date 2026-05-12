@@ -198,7 +198,7 @@ def ensure_litert_or_skip() -> None:
     pytest.skip("litert library is not available")
 
 
-def ensure_geo_v3_0_litert_supported_or_skip() -> None:
+def geo_v3_0_litert_not_supported_skip() -> None:
   pytest.skip("Geo model v3.0 TF backend is not supported with ai_edge_litert yet")
 
 

@@ -59,7 +59,7 @@ class GeoPBDownloaderV2_4(GeoDownloaderBaseV2_4):
         description="Downloading geo model v2.4 (pb)",
       )
 
-      print("Extracting...")
+      print("Extracting...")  # noqa: T201
       extract_dir = Path(temp_dir) / "extracted"
 
       with zipfile.ZipFile(zip_download_path, "r") as zip_ref:
@@ -76,7 +76,7 @@ class GeoPBDownloaderV2_4(GeoDownloaderBaseV2_4):
       geo_lang_dir.parent.mkdir(parents=True, exist_ok=True)
       shutil.rmtree(geo_lang_dir, ignore_errors=True)
       shutil.move(species_dl_dir, geo_lang_dir)
-      print("Extracted.")
+      print("Extracted.")  # noqa: T201
 
   @classmethod
   def get_model_path_and_labels(

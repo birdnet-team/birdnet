@@ -16,7 +16,7 @@ root:
 - birdnet_file_writer.session_XXX (INFO, inherited)
   - file writer for each predict/encode session
 
-"""
+"""  # noqa: E501
 
 
 def get_package_logger() -> logging.Logger:
