@@ -3,6 +3,8 @@ from __future__ import annotations
 import ctypes
 import hashlib
 import math
+import os
+import tempfile
 from collections.abc import Generator, Iterable
 from dataclasses import dataclass
 from itertools import islice
@@ -372,18 +374,35 @@ def download_file_tqdm(
     total_size = download_size
 
   block_size = 1024
-  with (
-    tqdm(total=total_size, unit="iB", unit_scale=True, desc=description) as tqdm_bar,
-    open(file_path, "wb") as file,
-  ):
-    for data in response.iter_content(block_size):
-      tqdm_bar.update(len(data))
-      file.write(data)
+  fd, temp_name = tempfile.mkstemp(
+    dir=file_path.parent,
+    prefix=f"{file_path.name}.",
+    suffix=".tmp",
+  )
+  os.close(fd)
+  temp_path = Path(temp_name)
 
-  if response.status_code != 200 or (total_size not in (0, tqdm_bar.n)):
-    raise ValueError(
-      f"Failed to download the file. Status code: {response.status_code}"
-    )
+  try:
+    with (
+      tqdm(total=total_size, unit="iB", unit_scale=True, desc=description) as tqdm_bar,
+      open(temp_path, "wb") as file,
+    ):
+      for data in response.iter_content(block_size):
+        tqdm_bar.update(len(data))
+        file.write(data)
+
+    if response.status_code != 200 or (total_size not in (0, tqdm_bar.n)):
+      raise ValueError(
+        f"Failed to download the file. Status code: {response.status_code}"
+      )
+
+    temp_path.replace(file_path)
+  except Exception:
+    temp_path.unlink(missing_ok=True)
+    raise
+  finally:
+    response.close()
+
   return total_size
 
 
