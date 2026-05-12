@@ -7,9 +7,9 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
-   birdnet.geo_models.inference
-   birdnet.geo_models.v2_4
-   birdnet.geo_models.v3_0
+   birdnet.geo.inference
+   birdnet.geo.models.v2_4
+   birdnet.geo.models.v3_0
 
 Submodules
 ----------

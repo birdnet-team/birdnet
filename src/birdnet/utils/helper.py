@@ -220,15 +220,15 @@ def get_uint_dtype(max_value: int) -> np.dtype:
 
   Examples
   --------
-  >>> uint_dtype_for(100)
+  >>> get_uint_dtype(100)
   dtype('uint8')
-  >>> uint_dtype_for(42_000)
+  >>> get_uint_dtype(42_000)
   dtype('uint16')
-  >>> uint_dtype_for(3_000_000_000)
+  >>> get_uint_dtype(3_000_000_000)
   dtype('uint64')
 
-  Info
-  ----
+  Notes
+  -----
   2**8 = 256
   2**16 = 65,536
   2**32 = 4,294,967,296

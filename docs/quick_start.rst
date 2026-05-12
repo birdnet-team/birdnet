@@ -1,5 +1,5 @@
 Quick start
-====
+===========
 
 This guide will help you get started with BirdNET quickly. It covers installation, basic usage, and running benchmarks to evaluate performance.
 
@@ -19,7 +19,7 @@ To install BirdNET, you can use ``pip``. Open your terminal and run the followin
 This command installs the BirdNET package along with its dependencies.
 
 Predict species from audio file
------------
+-------------------------------
 
 .. code-block:: python
   
@@ -32,7 +32,7 @@ Predict species from audio file
   predictions.to_csv("example/predictions.csv")
 
 Predict species from multiple audio files in a directory
------------
+--------------------------------------------------------
 
 .. code-block:: python
   
@@ -46,7 +46,7 @@ Predict species from multiple audio files in a directory
   predictions.to_csv("example/predictions.csv")
   
 Predict species for a given location and time
-----
+---------------------------------------------
 
 .. code-block:: python
   
@@ -59,7 +59,7 @@ Predict species for a given location and time
   predictions.to_txt("example/species.txt")
 
 Predict species with a custom species list
-----
+------------------------------------------
 
 .. code-block:: python
   

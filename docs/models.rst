@@ -6,7 +6,7 @@ Models
    :depth: 2
 
 Acoustic model V2.4 - June 2023
----------------
+-------------------------------
 
 * more than 6,000 species worldwide
 * covers frequencies from 0 Hz to 15 kHz with two-channel spectrogram (one for low and one for high frequencies)
@@ -30,7 +30,7 @@ Technical details
 * See `this comment <https://github.com/birdnet-team/BirdNET-Analyzer/issues/177#issuecomment-1772538736>`__ for more details
 
 Geo model (species range model) V2.4 - V2, Jan 2024
----------------------------------------
+----------------------------------------------------
 
 * updated species range model based on eBird data
 * more accurate (spatial) species range prediction

@@ -7,8 +7,8 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
-   birdnet.acoustic_models
-   birdnet.geo_models
+   birdnet.acoustic.models
+   birdnet.geo.models
 
 Submodules
 ----------

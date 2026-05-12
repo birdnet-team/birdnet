@@ -7,8 +7,8 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
-   birdnet.acoustic_models.inference.encoding
-   birdnet.acoustic_models.inference.prediction
+   birdnet.acoustic.inference.core.encoding
+   birdnet.acoustic.inference.core.prediction
 
 Submodules
 ----------
