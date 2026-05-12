@@ -4,7 +4,8 @@ version = "0.2.16"
 description = "A Python library for identifying bird species by their sounds."
 readme = "README.md"
 requires-python = ">=3.11, <3.14"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE.md"]
 authors = [{ name = "Stefan Taubert" }]
 maintainers = [{ name = "Stefan Taubert" }]
 keywords = [
@@ -28,7 +29,6 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
-  "License :: OSI Approved :: MIT License",
 ]
 dependencies = [
   "soundfile >= 0.11.0",                                                                                                                                                                                         # 2022/09/27
