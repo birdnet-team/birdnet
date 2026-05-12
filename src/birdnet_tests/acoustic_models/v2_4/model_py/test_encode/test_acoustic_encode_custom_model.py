@@ -1,8 +1,8 @@
 import pytest
 
 from birdnet.acoustic.models.v2_4.tf import AcousticTFDownloaderV2_4
-from birdnet.utils.local_data import get_lang_dir, get_model_path
 from birdnet.model_loader import load_custom
+from birdnet.utils.local_data import get_lang_dir, get_model_path
 from birdnet_tests.helper import ensure_litert_or_skip
 from birdnet_tests.test_files import (
   TEST_FILE_SHORT,

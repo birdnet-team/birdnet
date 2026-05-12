@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 import csv
+import os
+import tempfile
+import time
+from collections.abc import Generator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, final
 
@@ -27,7 +32,7 @@ from birdnet.utils.local_data import APP_DIR
 _LABELS_DL_URL = "https://github.com/birdnet-team/geomodel/releases/download/v3.0.2/BirdNET+_Geomodel_V3.0.2_Global_12K_Labels.txt"
 _LABELS_DL_SIZE = 571793
 _TAXONOMY_DL_URL = (
-  "https://github.com/birdnet-team/geomodel/raw/refs/heads/main/taxonomy.csv"
+  "https://github.com/birdnet-team/geomodel/raw/refs/tags/v3.0.2/taxonomy.csv"
 )
 _TAXONOMY_DL_SIZE = 9162669
 
@@ -67,6 +72,44 @@ _LANGUAGE_TO_COLUMN: dict[str, str] = {
 _GEO_V3_0_BASE_DIR = APP_DIR / "geo-models" / "v3.0"
 _LABELS_RAW_PATH = _GEO_V3_0_BASE_DIR / "labels_raw.txt"
 _TAXONOMY_PATH = APP_DIR / "taxonomy_v3_0.csv"
+_SETUP_LOCK_DIR = APP_DIR / ".geo_model_v3_0_setup.lock"
+
+
+def _write_text_atomic(path: Path, content: str, encoding: str = "utf-8") -> None:
+  fd, temp_name = tempfile.mkstemp(
+    dir=path.parent,
+    prefix=f"{path.name}.",
+    suffix=".tmp",
+  )
+  os.close(fd)
+  temp_path = Path(temp_name)
+
+  try:
+    temp_path.write_text(content, encoding=encoding)
+    temp_path.replace(path)
+  except Exception:
+    temp_path.unlink(missing_ok=True)
+    raise
+
+
+@contextmanager
+def _setup_lock(timeout_s: float = 300.0) -> Generator[None, None, None]:
+  deadline = time.monotonic() + timeout_s
+  while True:
+    try:
+      _SETUP_LOCK_DIR.mkdir(parents=True, exist_ok=False)
+      break
+    except FileExistsError as err:
+      if time.monotonic() >= deadline:
+        raise TimeoutError(
+          "Timed out while waiting for geo model v3.0 shared asset setup."
+        ) from err
+      time.sleep(0.1)
+
+  try:
+    yield
+  finally:
+    _SETUP_LOCK_DIR.rmdir()
 
 
 class GeoDownloaderBaseV3_0:
@@ -89,46 +132,49 @@ class GeoDownloaderBaseV3_0:
     lang_dir = cls._get_lang_dir()
     if not lang_dir.is_dir():
       return False
-    return all(
-      (lang_dir / f"{lang}.txt").is_file() for lang in cls.AVAILABLE_LANGUAGES
-    )
+    return all((lang_dir / f"{lang}.txt").is_file() for lang in cls.AVAILABLE_LANGUAGES)
 
   @classmethod
   def ensure_labels_available(cls) -> None:
-    needs_regen = False
+    with _setup_lock():
+      if cls._check_labels_available():
+        return
 
-    labels_stale = not _LABELS_RAW_PATH.is_file() or (
-      _LABELS_RAW_PATH.stat().st_size != _LABELS_DL_SIZE
-    )
-    if labels_stale:
-      _LABELS_RAW_PATH.parent.mkdir(parents=True, exist_ok=True)
-      download_file_tqdm(
-        _LABELS_DL_URL,
-        _LABELS_RAW_PATH,
-        download_size=_LABELS_DL_SIZE,
-        description="Downloading geo model v3.0 labels",
+      needs_regen = False
+
+      labels_stale = not _LABELS_RAW_PATH.is_file() or (
+        _LABELS_RAW_PATH.stat().st_size != _LABELS_DL_SIZE
       )
-      needs_regen = True
+      if labels_stale:
+        _LABELS_RAW_PATH.parent.mkdir(parents=True, exist_ok=True)
+        download_file_tqdm(
+          _LABELS_DL_URL,
+          _LABELS_RAW_PATH,
+          download_size=_LABELS_DL_SIZE,
+          description="Downloading geo model v3.0 labels",
+        )
+        needs_regen = True
 
-    taxonomy_stale = (
-      not _TAXONOMY_PATH.is_file() or _TAXONOMY_PATH.stat().st_size != _TAXONOMY_DL_SIZE
-    )
-    if taxonomy_stale:
-      _TAXONOMY_PATH.parent.mkdir(parents=True, exist_ok=True)
-      download_file_tqdm(
-        _TAXONOMY_DL_URL,
-        _TAXONOMY_PATH,
-        download_size=_TAXONOMY_DL_SIZE,
-        description="Downloading geo model v3.0 taxonomy",
+      taxonomy_stale = (
+        not _TAXONOMY_PATH.is_file()
+        or _TAXONOMY_PATH.stat().st_size != _TAXONOMY_DL_SIZE
       )
-      needs_regen = True
+      if taxonomy_stale:
+        _TAXONOMY_PATH.parent.mkdir(parents=True, exist_ok=True)
+        download_file_tqdm(
+          _TAXONOMY_DL_URL,
+          _TAXONOMY_PATH,
+          download_size=_TAXONOMY_DL_SIZE,
+          description="Downloading geo model v3.0 taxonomy",
+        )
+        needs_regen = True
 
-    lang_files_missing = not all(
-      (cls._get_lang_dir() / f"{lang}.txt").is_file()
-      for lang in cls.AVAILABLE_LANGUAGES
-    )
-    if needs_regen or lang_files_missing:
-      cls._generate_lang_files()
+      lang_files_missing = not all(
+        (cls._get_lang_dir() / f"{lang}.txt").is_file()
+        for lang in cls.AVAILABLE_LANGUAGES
+      )
+      if needs_regen or lang_files_missing:
+        cls._generate_lang_files()
 
   @classmethod
   def _generate_lang_files(cls) -> None:
@@ -157,7 +203,7 @@ class GeoDownloaderBaseV3_0:
         if not localized_name:
           localized_name = en_us_name
         lines.append(f"{sci_name}_{localized_name}")
-      lang_file.write_text("\n".join(lines), encoding="utf-8")
+      _write_text_atomic(lang_file, "\n".join(lines), encoding="utf-8")
 
   @classmethod
   def get_lang_file(cls, lang: str) -> Path:

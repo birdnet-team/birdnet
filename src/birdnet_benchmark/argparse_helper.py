@@ -24,7 +24,7 @@ class ConvertToOrderedSetAction(argparse._StoreAction):
     namespace: argparse.Namespace,
     values: list | None,
     option_string: str | None = None,
-  ):
+  ) -> None:
     if values is not None:
       values = OrderedSet(values)
     super().__call__(parser, namespace, values, option_string)
@@ -37,7 +37,7 @@ class ConvertToSetAction(argparse._StoreAction):
     namespace: argparse.Namespace,
     values: list | None,
     option_string: str | None = None,
-  ):
+  ) -> None:
     if values is not None:
       values = set(values)
     super().__call__(parser, namespace, values, option_string)

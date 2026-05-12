@@ -17,7 +17,7 @@ To install BirdNET, you can use ``pip``:
 This will install the latest version of the BirdNET package along with its dependencies.
 
 Ensure reproducibility
-^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To install BirdNET in a reproducible environment, use the ``repro`` extra, which pins dependency versions and tries to ensure consistent behavior across setups.
 
@@ -30,7 +30,7 @@ To install BirdNET in a reproducible environment, use the ``repro`` extra, which
   pip install birdnet[repro] --user
 
 CUDA Support
-^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To install BirdNET with CUDA support, ensure that you have the NVIDIA GPU driver and CUDA installed on your system. Then, use the following command:
 
@@ -39,7 +39,7 @@ To install BirdNET with CUDA support, ensure that you have the NVIDIA GPU driver
   pip install birdnet[and-cuda] --user
 
 Troubleshooting
-^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 If you encounter issues with audio file reading, please ensure that `libsndfile <https://libsndfile.github.io/libsndfile/>`__ is installed on your system.
 
@@ -48,12 +48,12 @@ If you encounter issues with audio file reading, please ensure that `libsndfile 
 - **Windows**: Download and install the latest precompiled binaries (e.g., ``libsndfile-1.2.2-win64.zip``) from the `official website <https://github.com/libsndfile/libsndfile/releases/>`__, extract them and add the folder to path.
 
 Installation (dev)
------------
+------------------
 
 For development purposes, you can clone the repository and install it in editable mode.
 
 Linux & macOS
-^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: bash
   
@@ -74,7 +74,7 @@ Linux & macOS
   python3.12 -m uv pip install -e .[dev,tests,docs,and-cuda]
 
 Windows
-^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: ps1
 
@@ -100,7 +100,7 @@ Workflows
 This section describes common workflows for maintaining and using the BirdNET codebase.
 
 Delete cached Python files
-^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To delete all cached Python files from the source code, use the following command:
 
@@ -109,7 +109,7 @@ To delete all cached Python files from the source code, use the following comman
   find ./src | grep -E "(/__pycache__$|\.pyc$|\.pyo$)" | xargs rm -rf
 
 Run MyPy for type checking
-^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To run MyPy for type checking, use the following command:
 
@@ -119,7 +119,7 @@ To run MyPy for type checking, use the following command:
   mypy
 
 Autoformat code
-^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To autoformat the codebase, use the following command:
 
@@ -128,7 +128,7 @@ To autoformat the codebase, use the following command:
   autoflake --in-place --remove-all-unused-imports --ignore-init-module-imports ./src/ -r
 
 Run ruff linter
-^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To run the ruff linter, use the following command:
   
@@ -141,7 +141,7 @@ To run the ruff linter, use the following command:
   ruff check src/birdnet --fix
 
 Delete shared memory segments
-^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To delete all shared memory segments (e.g., after a crash), use the following command:
 
@@ -154,7 +154,7 @@ To delete all shared memory segments (e.g., after a crash), use the following co
   rm /dev/shm/bn_*
 
 Run tests
-^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To run the test suite, use the following command:
 
@@ -176,7 +176,7 @@ You can also run only specific tests using the following commands (examples):
   pytest -m "not repro and (not litert and not gpu)" -n auto
 
 Calculate code coverage
-^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To calculate code coverage, use the following command:
 
@@ -186,7 +186,7 @@ To calculate code coverage, use the following command:
   tox -e py312-coverage
 
 Deploy package to PyPI
-^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To build and deploy the package to PyPI, use the following commands:
 
@@ -216,7 +216,7 @@ To build and deploy the package to PyPI, use the following commands:
   python3.12 -m twine upload --repository pypi dist/*
 
 Build documentation
-^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To build the documentation locally, use the following command:
 
@@ -232,7 +232,7 @@ To build the documentation locally, use the following command:
   sphinx-autobuild -b html docs/ docs/_build/html -j auto --watch src/birdnet
 
 Count lines of code
-^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To count the lines of code in the BirdNET source code, use the following command:
 
@@ -241,7 +241,7 @@ To count the lines of code in the BirdNET source code, use the following command
   pygount src/birdnet --format=summary
 
 Debugging on Raspberry Pi
-^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To debug BirdNET on a Raspberry Pi, you can use the following command:
 
@@ -273,7 +273,7 @@ FAQ
 ---
 
 Where is application data stored?
-^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All BirdNET data (models, benchmarks) is stored in the application-data directory, whose location is platform-specific:
 
@@ -281,7 +281,15 @@ All BirdNET data (models, benchmarks) is stored in the application-data director
 - **macOS:** ``~/Library/Application Support/birdnet``
 - **Windows:** ``%APPDATA%/birdnet``
 
+The default location can be overridden by setting the ``BIRDNET_APP_DATA`` environment variable to any absolute path before the ``birdnet`` package is imported. ::
+
+  # Windows pre-execution script
+  set BIRDNET_APP_DATA=C:\Program Files\BirdNET-Analyzer\birdnet-data
+
+  # Linux / macOS pre-execution script
+  export BIRDNET_APP_DATA=/opt/birdnet-analyzer/birdnet-data
+
 Why is Python 3.10 not supported?
-^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Python 3.10 is not supported because it is outdated and misses some ``typing`` features, e.g., ``from typing import Self``

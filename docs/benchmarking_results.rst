@@ -1,5 +1,5 @@
 Comparative benchmarking results
-===================
+================================
 
 .. contents::
    :local:
@@ -14,7 +14,7 @@ Run 10 h WAV-files on Intel i7-8565U (4-Core, 16 GB RAM, Windows 10)
 
 **Result:** 49 × real-time (RTF: 0.02047110)
 
-.. code-block:: txt
+.. code-block:: text
 
    $ birdnet-benchmark test-dataset/test_dataset_100x60min -p 5
 
@@ -52,7 +52,7 @@ Run 100 h WAV-files on AMD Ryzen 7 3800X (8-Core, 64 GB RAM, Linux)
 
 **Result:** 416 × real-time (RTF: 0.00240288)
 
-.. code-block:: txt
+.. code-block:: text
 
    $ birdnet-benchmark test-dataset/test_dataset_100x60min -f
 
@@ -92,13 +92,13 @@ Run 100 h WAV-files on NVIDIA Titan RTX (24 GB, Linux)
 
 Disk speed:
 
-.. code-block:: txt
+.. code-block:: text
 
    $ sudo hdparm -tT /dev/nvme0n1
      Timing cached reads: 27324 MB in 1.99 seconds = 13707.90 MB/sec
      Timing buffered disk reads: 6880 MB in 3.00 seconds = 2293.17 MB/sec
 
-.. code-block:: txt
+.. code-block:: text
 
    $ birdnet-benchmark test-dataset/test_dataset_100x60min --device GPU --backend pb -w 1 -p 5 -s 1025 --prefetch-ratio 5
 
@@ -137,7 +137,7 @@ Run 100 h FLAC-files on NVIDIA Titan RTX (24 GB, Linux)
 
 **Result:** 2487 × real-time (RTF: 0.00040214)
 
-.. code-block:: txt
+.. code-block:: text
 
    $ birdnet-benchmark test-dataset/test_dataset_100x60min_flac --device GPU --backend pb -w 1 -p 5 -s 1025
 
