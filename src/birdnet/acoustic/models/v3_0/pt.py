@@ -26,9 +26,15 @@ models = {
 class AcousticPTDownloaderV3_0(AcousticDownloaderBaseV3_0):
   @classmethod
   def _get_paths(cls) -> tuple[Path, Path]:
-    model_path = get_model_path("acoustic", "3.0", MODEL_BACKEND_PT, MODEL_PRECISION_FP32)
+    model_path = get_model_path(
+      "acoustic", "3.0", MODEL_BACKEND_PT, MODEL_PRECISION_FP32
+    )
     lang_dir = get_lang_dir("acoustic", "3.0", MODEL_BACKEND_PT)
     return model_path, lang_dir
+
+  @classmethod
+  def _get_lang_dir(cls) -> Path:
+    return cls._get_paths()[1]
 
   @classmethod
   def _check_acoustic_model_available(cls) -> bool:

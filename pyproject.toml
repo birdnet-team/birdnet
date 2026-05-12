@@ -241,7 +241,7 @@ install_command = uv pip install {opts} {packages}
 skip_missing_interpreters = true
 
 deps = 
-  .[tests,and-cuda]
+  .[tests,and-cuda,pt,onnx]
 commands = 
   # ruff check src/birdnet
   # ruff check src/birdnet_tests

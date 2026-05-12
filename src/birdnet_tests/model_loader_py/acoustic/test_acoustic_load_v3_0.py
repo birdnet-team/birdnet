@@ -2,11 +2,13 @@ from pathlib import Path
 
 import pytest
 from ordered_set import OrderedSet
+from requests.exceptions import ReadTimeout
 
 from birdnet.acoustic.models.v3_0.model import AcousticModelV3_0
 from birdnet.acoustic.models.v3_0.onnx import AcousticOnnxBackendFP32V3_0
 from birdnet.acoustic.models.v3_0.pt import AcousticPTBackendFP32V3_0
 from birdnet.model_loader import load
+from birdnet_tests.helper import ensure_onnxruntime_or_skip, ensure_torch_or_skip
 
 
 def test_v3_0_tf_backend_raises_error() -> None:
@@ -15,6 +17,28 @@ def test_v3_0_tf_backend_raises_error() -> None:
     match=r"Unsupported backend 'tf' for acoustic model v3.0.",
   ):
     load("acoustic", "3.0", "tf")  # type: ignore[arg-type]
+
+
+@pytest.mark.load_model
+def test_v3_0_pt() -> None:
+  ensure_torch_or_skip()
+
+  try:
+    model = load("acoustic", "3.0", "pt", precision="fp32")
+  except ReadTimeout as e:
+    pytest.fail(f"Model download timed out: {e}. Try again later.")
+  assert isinstance(model, AcousticModelV3_0)
+
+
+@pytest.mark.load_model
+def test_v3_0_onnx() -> None:
+  ensure_onnxruntime_or_skip()
+
+  try:
+    model = load("acoustic", "3.0", "onnx", precision="fp32")
+  except ReadTimeout as e:
+    pytest.fail(f"Model download timed out: {e}. Try again later.")
+  assert isinstance(model, AcousticModelV3_0)
 
 
 def test_v3_0_pt_with_library_raises_error() -> None:

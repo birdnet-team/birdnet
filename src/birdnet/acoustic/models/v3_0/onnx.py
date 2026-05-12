@@ -33,6 +33,10 @@ class AcousticOnnxDownloaderV3_0(AcousticDownloaderBaseV3_0):
     return model_path, lang_dir
 
   @classmethod
+  def _get_lang_dir(cls) -> Path:
+    return cls._get_paths()[1]
+
+  @classmethod
   def _check_acoustic_model_available(cls) -> bool:
     model_path, lang_dir = cls._get_paths()
     if not model_path.is_file():
