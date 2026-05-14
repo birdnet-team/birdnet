@@ -25,22 +25,20 @@ from birdnet.core.backends import BackendLoader, VersionedAcousticBackendProtoco
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V3_0,
   ACOUSTIC_MODEL_VERSIONS,
-  MODEL_LANGUAGE_EN_US,
-  MODEL_LANGUAGES_V3_0,
-  VALID_MODEL_LANGUAGES_V3_0,
 )
 from birdnet.utils.helper import download_file_tqdm, validate_species_list
 from birdnet.utils.local_data import APP_DIR
+from birdnet.utils.taxonomy_v3 import (
+  ensure_taxonomy_v3_available,
+  get_taxonomy_v3_path,
+  taxonomy_v3_available,
+)
 
 _LABELS_DL_URL = (
   "https://zenodo.org/records/18247420/files/"
   "BirdNET+_V3.0-preview3_Global_11K_Labels.csv"
 )
 _LABELS_DL_SIZE = 809172
-_TAXONOMY_DL_URL = (
-  "https://github.com/birdnet-team/geomodel/raw/refs/heads/main/taxonomy.csv"
-)
-_TAXONOMY_DL_SIZE = 9162669
 _DEFAULT_SEGMENT_SIZE_S = 3.0
 _DEFAULT_SEGMENT_SIZE_SAMPLES = 96_000
 
@@ -79,7 +77,6 @@ _LANGUAGE_TO_COLUMN: dict[str, str] = {
 
 _ACOUSTIC_V3_0_BASE_DIR = APP_DIR / "acoustic-models" / "v3.0"
 _LABELS_RAW_PATH = _ACOUSTIC_V3_0_BASE_DIR / "labels_raw.csv"
-_TAXONOMY_PATH = APP_DIR / "taxonomy_v3_0.csv"
 
 
 class AcousticDownloaderBaseV3_0:
@@ -95,9 +92,7 @@ class AcousticDownloaderBaseV3_0:
       return False
     if _LABELS_RAW_PATH.stat().st_size != _LABELS_DL_SIZE:
       return False
-    if not _TAXONOMY_PATH.is_file():
-      return False
-    if _TAXONOMY_PATH.stat().st_size != _TAXONOMY_DL_SIZE:
+    if not taxonomy_v3_available():
       return False
 
     lang_dir = cls._get_lang_dir()
@@ -122,17 +117,9 @@ class AcousticDownloaderBaseV3_0:
       )
       needs_regen = True
 
-    taxonomy_stale = (
-      not _TAXONOMY_PATH.is_file() or _TAXONOMY_PATH.stat().st_size != _TAXONOMY_DL_SIZE
-    )
+    taxonomy_stale = not taxonomy_v3_available()
     if taxonomy_stale:
-      _TAXONOMY_PATH.parent.mkdir(parents=True, exist_ok=True)
-      download_file_tqdm(
-        _TAXONOMY_DL_URL,
-        _TAXONOMY_PATH,
-        download_size=_TAXONOMY_DL_SIZE,
-        description="Downloading acoustic model v3.0 taxonomy",
-      )
+      ensure_taxonomy_v3_available()
       needs_regen = True
 
     lang_files_missing = not all(
@@ -154,7 +141,7 @@ class AcousticDownloaderBaseV3_0:
           species_order.append((sci_name, en_us_name))
 
     taxonomy: dict[str, dict[str, str]] = {}
-    with open(_TAXONOMY_PATH, encoding="utf-8", newline="") as f:
+    with open(get_taxonomy_v3_path(), encoding="utf-8", newline="") as f:
       reader = csv.DictReader(f)
       for row in reader:
         sci_name = row.get("sci_name", "").strip()

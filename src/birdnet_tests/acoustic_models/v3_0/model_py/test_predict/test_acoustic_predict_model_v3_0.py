@@ -1,3 +1,4 @@
+import math
 from typing import Literal
 
 import pytest
@@ -15,8 +16,8 @@ from birdnet_tests.test_files import TEST_FILE_SHORT
 _Backend = Literal["pt", "onnx"]
 _DEFAULT_SCORE_SHAPE = (1, 3, 11560)
 _TWO_ARRAY_SCORE_SHAPE = (2, 3, 11560)
-_PT_ONNX_PREDICTION_MAX_ABS_DIFF = 0.25
-_PT_ONNX_PREDICTION_MEAN_ABS_DIFF = 5e-5
+_PT_ONNX_PREDICTION_MAX_ABS_DIFF = 1e-4
+_PT_ONNX_PREDICTION_MEAN_ABS_DIFF = 1e-5
 
 
 def _load_model(backend: _Backend) -> AcousticModelV3_0:
@@ -124,7 +125,10 @@ def test_v3_0_predict_pt_and_onnx_are_close() -> None:
   )
 
 
-def test_v3_0_predict_pt_and_onnx_are_close_with_custom_segment_size() -> None:
+@pytest.mark.parametrize("segment_size_s", [2.0, 4.0, 5.0])
+def test_v3_0_predict_pt_and_onnx_are_close_with_custom_segment_size(
+  segment_size_s: float,
+) -> None:
   ensure_torch_or_skip()
   ensure_onnxruntime_or_skip()
 
@@ -135,7 +139,7 @@ def test_v3_0_predict_pt_and_onnx_are_close_with_custom_segment_size() -> None:
     n_workers=1,
     top_k=None,
     default_confidence_threshold=-float("inf"),
-    segment_size_s=2.0,
+    segment_size_s=segment_size_s,
   ) as pt_session:
     pt_result = pt_session.run(TEST_FILE_SHORT)
 
@@ -143,12 +147,13 @@ def test_v3_0_predict_pt_and_onnx_are_close_with_custom_segment_size() -> None:
     n_workers=1,
     top_k=None,
     default_confidence_threshold=-float("inf"),
-    segment_size_s=2.0,
+    segment_size_s=segment_size_s,
   ) as onnx_session:
     onnx_result = onnx_session.run(TEST_FILE_SHORT)
 
-  assert pt_result.species_probs.shape == (1, 4, 11560)
-  assert onnx_result.species_probs.shape == (1, 4, 11560)
+  segments_cnt = math.ceil(7.0 / segment_size_s)
+  assert pt_result.species_probs.shape == (1, segments_cnt, 11560)
+  assert onnx_result.species_probs.shape == (1, segments_cnt, 11560)
   assert_prediction_result_is_close(
     pt_result,
     onnx_result,

@@ -1,3 +1,4 @@
+import math
 from typing import Literal
 
 import pytest
@@ -15,8 +16,8 @@ from birdnet_tests.test_files import TEST_FILE_SHORT
 _Backend = Literal["pt", "onnx"]
 _DEFAULT_EMB_SHAPE = (1, 3, 1280)
 _TWO_ARRAY_EMB_SHAPE = (2, 3, 1280)
-_PT_ONNX_ENCODING_MAX_ABS_DIFF = 0.5
-_PT_ONNX_ENCODING_MEAN_ABS_DIFF = 0.02
+_PT_ONNX_ENCODING_MAX_ABS_DIFF = 1e-4
+_PT_ONNX_ENCODING_MEAN_ABS_DIFF = 1e-5
 
 
 def _load_model(backend: _Backend) -> AcousticModelV3_0:
@@ -102,21 +103,30 @@ def test_v3_0_encode_pt_and_onnx_are_close() -> None:
     )
 
 
-def test_v3_0_encode_pt_and_onnx_are_close_with_custom_segment_size() -> None:
+@pytest.mark.parametrize("segment_size_s", [2.0, 4.0, 5.0])
+def test_v3_0_encode_pt_and_onnx_are_close_with_custom_segment_size(
+  segment_size_s: float,
+) -> None:
   ensure_torch_or_skip()
   ensure_onnxruntime_or_skip()
 
   pt_model = load("acoustic", "3.0", "pt", precision="fp32")
   onnx_model = load("acoustic", "3.0", "onnx", precision="fp32")
 
-  with pt_model.encode_session(n_workers=1, segment_size_s=2.0) as pt_session:
+  with pt_model.encode_session(
+    n_workers=1, segment_size_s=segment_size_s
+  ) as pt_session:
     pt_result = pt_session.run(TEST_FILE_SHORT)
 
-  with onnx_model.encode_session(n_workers=1, segment_size_s=2.0) as onnx_session:
+  with onnx_model.encode_session(
+    n_workers=1, segment_size_s=segment_size_s
+  ) as onnx_session:
     onnx_result = onnx_session.run(TEST_FILE_SHORT)
 
-  assert pt_result.embeddings.shape == (1, 4, 1280)
-  assert onnx_result.embeddings.shape == (1, 4, 1280)
+  segments_cnt = math.ceil(7.0 / segment_size_s)
+
+  assert pt_result.embeddings.shape == (1, segments_cnt, 1280)
+  assert onnx_result.embeddings.shape == (1, segments_cnt, 1280)
   assert_encoding_result_is_close(
     pt_result,
     onnx_result,

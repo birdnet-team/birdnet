@@ -28,13 +28,14 @@ from birdnet.globals import (
 )
 from birdnet.utils.helper import download_file_tqdm, validate_species_list
 from birdnet.utils.local_data import APP_DIR
+from birdnet.utils.taxonomy_v3 import (
+  ensure_taxonomy_v3_available,
+  get_taxonomy_v3_path,
+  taxonomy_v3_available,
+)
 
 _LABELS_DL_URL = "https://github.com/birdnet-team/geomodel/releases/download/v3.0.2/BirdNET+_Geomodel_V3.0.2_Global_12K_Labels.txt"
 _LABELS_DL_SIZE = 571793
-_TAXONOMY_DL_URL = (
-  "https://github.com/birdnet-team/geomodel/raw/refs/tags/v3.0.2/taxonomy.csv"
-)
-_TAXONOMY_DL_SIZE = 9162669
 
 _LANGUAGE_TO_COLUMN: dict[str, str] = {
   "en_us": "com_name",
@@ -71,7 +72,6 @@ _LANGUAGE_TO_COLUMN: dict[str, str] = {
 
 _GEO_V3_0_BASE_DIR = APP_DIR / "geo-models" / "v3.0"
 _LABELS_RAW_PATH = _GEO_V3_0_BASE_DIR / "labels_raw.txt"
-_TAXONOMY_PATH = APP_DIR / "taxonomy_v3_0.csv"
 _SETUP_LOCK_DIR = APP_DIR / ".geo_model_v3_0_setup.lock"
 
 
@@ -125,9 +125,7 @@ class GeoDownloaderBaseV3_0:
       return False
     if _LABELS_RAW_PATH.stat().st_size != _LABELS_DL_SIZE:
       return False
-    if not _TAXONOMY_PATH.is_file():
-      return False
-    if _TAXONOMY_PATH.stat().st_size != _TAXONOMY_DL_SIZE:
+    if not taxonomy_v3_available():
       return False
     lang_dir = cls._get_lang_dir()
     if not lang_dir.is_dir():
@@ -155,18 +153,9 @@ class GeoDownloaderBaseV3_0:
         )
         needs_regen = True
 
-      taxonomy_stale = (
-        not _TAXONOMY_PATH.is_file()
-        or _TAXONOMY_PATH.stat().st_size != _TAXONOMY_DL_SIZE
-      )
+      taxonomy_stale = not taxonomy_v3_available()
       if taxonomy_stale:
-        _TAXONOMY_PATH.parent.mkdir(parents=True, exist_ok=True)
-        download_file_tqdm(
-          _TAXONOMY_DL_URL,
-          _TAXONOMY_PATH,
-          download_size=_TAXONOMY_DL_SIZE,
-          description="Downloading geo model v3.0 taxonomy",
-        )
+        ensure_taxonomy_v3_available()
         needs_regen = True
 
       lang_files_missing = not all(
@@ -185,7 +174,7 @@ class GeoDownloaderBaseV3_0:
         species_order.append((parts[0], parts[1], parts[2]))
 
     taxonomy: dict[str, dict[str, str]] = {}
-    with open(_TAXONOMY_PATH, encoding="utf-8", newline="") as f:
+    with open(get_taxonomy_v3_path(), encoding="utf-8", newline="") as f:
       reader = csv.DictReader(f)
       for row in reader:
         code = row.get("species_code", "").strip()
