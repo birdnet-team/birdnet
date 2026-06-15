@@ -1,8 +1,12 @@
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import birdnet.acoustic.models.v3_0.model as model_module
 from birdnet.acoustic.models.v3_0.model import AcousticDownloaderBaseV3_0
 from birdnet.globals import VALID_MODEL_LANGUAGES_V3_0
+
+if TYPE_CHECKING:
+  from pytest import MonkeyPatch
 
 
 class ProbeDownloader(AcousticDownloaderBaseV3_0):
@@ -14,13 +18,11 @@ class ProbeDownloader(AcousticDownloaderBaseV3_0):
 
 
 def test_generate_lang_files_from_taxonomy(
-  tmp_path, monkeypatch
+  tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
   labels_raw = tmp_path / "labels_raw.csv"
   labels_raw.write_text(
-    "sci_name;com_name\n"
-    "Aaa aaa;English One\n"
-    "Bbb bbb;English Two\n",
+    "sci_name;com_name\nAaa aaa;English One\nBbb bbb;English Two\n",
     encoding="utf-8",
   )
   taxonomy = tmp_path / "taxonomy.csv"
@@ -31,7 +33,7 @@ def test_generate_lang_files_from_taxonomy(
   )
 
   monkeypatch.setattr(model_module, "_LABELS_RAW_PATH", labels_raw)
-  monkeypatch.setattr(model_module, "_TAXONOMY_PATH", taxonomy)
+  monkeypatch.setattr(model_module, "get_taxonomy_v3_path", lambda: taxonomy)
   ProbeDownloader.lang_dir = tmp_path / "labels"
 
   ProbeDownloader._generate_lang_files()
