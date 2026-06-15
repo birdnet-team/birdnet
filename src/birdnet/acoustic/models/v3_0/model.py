@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import csv
+import os
+import tempfile
 from collections.abc import Callable, Collection, Iterable
 from pathlib import Path
 from typing import Any, Literal, final
@@ -77,6 +79,23 @@ _LANGUAGE_TO_COLUMN: dict[str, str] = {
 
 _ACOUSTIC_V3_0_BASE_DIR = APP_DIR / "acoustic-models" / "v3.0"
 _LABELS_RAW_PATH = _ACOUSTIC_V3_0_BASE_DIR / "labels_raw.csv"
+
+
+def _write_text_atomic(path: Path, content: str, encoding: str = "utf-8") -> None:
+  fd, temp_name = tempfile.mkstemp(
+    dir=path.parent,
+    prefix=f"{path.name}.",
+    suffix=".tmp",
+  )
+  os.close(fd)
+  temp_path = Path(temp_name)
+
+  try:
+    temp_path.write_text(content, encoding=encoding)
+    temp_path.replace(path)
+  except Exception as e:
+    temp_path.unlink(missing_ok=True)
+    raise e
 
 
 class AcousticDownloaderBaseV3_0:
@@ -159,7 +178,7 @@ class AcousticDownloaderBaseV3_0:
         if not localized_name:
           localized_name = en_us_name
         lines.append(f"{sci_name}_{localized_name}")
-      lang_file.write_text("\n".join(lines), encoding="utf-8")
+      _write_text_atomic(lang_file, "\n".join(lines), encoding="utf-8")
 
   @classmethod
   def get_lang_file(cls, lang: str) -> Path:
