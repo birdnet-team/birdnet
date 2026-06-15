@@ -27,20 +27,26 @@ from birdnet.globals import (
   LIBRARY_LITERT,
   LIBRARY_TFLITE,
   LIBRARY_TYPES,
+  MODEL_BACKEND_ONNX,
   MODEL_BACKEND_PB,
+  MODEL_BACKEND_PT,
   MODEL_BACKEND_TF,
   MODEL_PRECISIONS,
 )
 from birdnet.utils.logging_utils import get_logger_for_package
 
 if TYPE_CHECKING:
+  import onnxruntime as ort
   from ai_edge_litert.interpreter import (  # type: ignore
     Interpreter as LiteRTInterpreter,
   )
   from tensorflow import Tensor
   from tensorflow.lite.python.interpreter import Interpreter as TFInterpreter
+  from torch import Tensor as TorchTensor
+  from torch import device as TorchDevice
+  from torch.jit import RecursiveScriptModule
 
-BatchT = TypeVar("BatchT", np.ndarray, "Tensor")
+BatchT = TypeVar("BatchT", np.ndarray, "Tensor", "TorchTensor")
 
 
 class Backend(Generic[BatchT], ABC):
@@ -232,6 +238,216 @@ class TFBackend(Backend, ABC):
 
   def copy_to_device(self, batch: np.ndarray) -> np.ndarray:
     assert isinstance(batch, np.ndarray)
+    return batch
+
+  def half_precision(self, inference_result: np.ndarray) -> np.ndarray:
+    assert isinstance(inference_result, np.ndarray)
+    assert inference_result.dtype == np.float32
+    if self._half_precision:
+      inference_result = inference_result.astype(np.float16, copy=False)
+      assert inference_result.dtype == np.float16
+    return inference_result
+
+  @final
+  def predict(self, batch: np.ndarray) -> np.ndarray:
+    return self._infer(batch, self.prediction_out_idx())
+
+  @final
+  def encode(self, batch: np.ndarray) -> np.ndarray:
+    out_idx = self.encoding_out_idx()
+    assert out_idx is not None
+    return self._infer(batch, out_idx)
+
+
+class TorchBackend(Backend, ABC):
+  def __init__(
+    self,
+    model_path: Path,
+    device_name: str,
+    half_precision: bool,
+    **kwargs: dict,
+  ) -> None:
+    super().__init__(model_path, device_name, half_precision)
+    self._model: RecursiveScriptModule | None = None
+    self._device: TorchDevice | None = None
+    self._n_species: int | None = None
+
+  @classmethod
+  def name(cls) -> str:
+    return MODEL_BACKEND_PT
+
+  @final
+  @classmethod
+  def supports_cow(cls) -> bool:
+    return False
+
+  @classmethod
+  @abstractmethod
+  def prediction_out_idx(cls) -> int: ...
+
+  @classmethod
+  @abstractmethod
+  def encoding_out_idx(cls) -> int | None: ...
+
+  @classmethod
+  @abstractmethod
+  def probe_input_size_samples(cls) -> int: ...
+
+  def load(self) -> None:
+    assert self._model is None
+
+    self._device = set_torch_device(self._device_name)
+    self._model = load_torch_model(self._model_path, self._device)
+
+  def unload(self) -> None:
+    self._model = None
+    self._device = None
+    self._n_species = None
+
+  @property
+  def n_species(self) -> int:
+    if self._n_species is None:
+      probe_input = np.zeros((1, self.probe_input_size_samples()), dtype=np.float32)
+      prediction = self.predict(self.copy_to_device(probe_input))
+      self._n_species = int(self.copy_from_device(prediction).shape[1])
+    return self._n_species
+
+  def _infer(self, batch: TorchTensor, out_idx: int) -> TorchTensor:
+    import torch
+
+    assert self._model is not None
+    with torch.inference_mode():
+      outputs = self._model(batch)
+
+    if not isinstance(outputs, (tuple, list)):
+      raise ValueError(
+        "PyTorch model is expected to return a tuple of "
+        "(embeddings, predictions)."
+      )
+
+    result = outputs[out_idx]
+    if not isinstance(result, torch.Tensor):
+      raise ValueError("PyTorch model output is expected to be a torch.Tensor.")
+    assert result.dtype == torch.float32
+    return result
+
+  def copy_from_device(self, inference_result: TorchTensor) -> np.ndarray:
+    import torch
+
+    assert isinstance(inference_result, torch.Tensor)
+    return inference_result.detach().cpu().numpy()
+
+  def copy_to_device(self, batch: np.ndarray) -> TorchTensor:
+    import torch
+
+    assert isinstance(batch, np.ndarray)
+    assert batch.dtype == np.float32
+    assert self._device is not None
+    return torch.from_numpy(batch).to(self._device)
+
+  def half_precision(self, inference_result: TorchTensor) -> TorchTensor:
+    import torch
+
+    assert isinstance(inference_result, torch.Tensor)
+    assert inference_result.dtype == torch.float32
+    if self._half_precision:
+      inference_result = inference_result.to(dtype=torch.float16)
+      assert inference_result.dtype == torch.float16
+    return inference_result
+
+  @final
+  def predict(self, batch: TorchTensor) -> TorchTensor:
+    return self._infer(batch, self.prediction_out_idx())
+
+  @final
+  def encode(self, batch: TorchTensor) -> TorchTensor:
+    out_idx = self.encoding_out_idx()
+    assert out_idx is not None
+    return self._infer(batch, out_idx)
+
+
+class OnnxBackend(Backend, ABC):
+  def __init__(
+    self,
+    model_path: Path,
+    device_name: str,
+    half_precision: bool,
+    **kwargs: dict,
+  ) -> None:
+    super().__init__(model_path, device_name, half_precision)
+    self._session: ort.InferenceSession | None = None
+    self._input_name: str | None = None
+    self._output_names: list[str] | None = None
+    self._n_species: int | None = None
+
+  @classmethod
+  def name(cls) -> str:
+    return MODEL_BACKEND_ONNX
+
+  @final
+  @classmethod
+  def supports_cow(cls) -> bool:
+    return False
+
+  @classmethod
+  @abstractmethod
+  def prediction_out_idx(cls) -> int: ...
+
+  @classmethod
+  @abstractmethod
+  def encoding_out_idx(cls) -> int | None: ...
+
+  @classmethod
+  @abstractmethod
+  def probe_input_size_samples(cls) -> int: ...
+
+  def load(self) -> None:
+    assert self._session is None
+
+    self._session = load_onnx_model(self._model_path, self._device_name)
+    self._input_name = self._session.get_inputs()[0].name
+    self._output_names = [output.name for output in self._session.get_outputs()]
+
+  def unload(self) -> None:
+    self._session = None
+    self._input_name = None
+    self._output_names = None
+    self._n_species = None
+
+  @property
+  def n_species(self) -> int:
+    if self._n_species is None:
+      assert self._session is not None
+      pred_output = self._session.get_outputs()[self.prediction_out_idx()]
+      pred_shape = pred_output.shape
+      if len(pred_shape) > 1 and isinstance(pred_shape[1], int):
+        self._n_species = pred_shape[1]
+      else:
+        probe_input = np.zeros((1, self.probe_input_size_samples()), dtype=np.float32)
+        prediction = self.predict(self.copy_to_device(probe_input))
+        self._n_species = int(self.copy_from_device(prediction).shape[1])
+    return self._n_species
+
+  def _infer(self, batch: np.ndarray, out_idx: int) -> np.ndarray:
+    assert self._session is not None
+    assert self._input_name is not None
+    assert self._output_names is not None
+
+    [result] = self._session.run(
+      [self._output_names[out_idx]],
+      {self._input_name: batch},
+    )
+    assert isinstance(result, np.ndarray)
+    assert result.dtype == np.float32
+    return result
+
+  def copy_from_device(self, inference_result: np.ndarray) -> np.ndarray:
+    assert isinstance(inference_result, np.ndarray)
+    return inference_result
+
+  def copy_to_device(self, batch: np.ndarray) -> np.ndarray:
+    assert isinstance(batch, np.ndarray)
+    assert batch.dtype == np.float32
     return batch
 
   def half_precision(self, inference_result: np.ndarray) -> np.ndarray:
@@ -853,10 +1069,130 @@ def load_lib_litert_model(
   return interp
 
 
+def set_torch_device(device: str) -> TorchDevice:
+  import torch
+
+  if "CPU" in device:
+    return torch.device("cpu")
+  elif "GPU" in device:
+    if not torch.cuda.is_available():
+      raise ValueError(
+        "No GPU found! Please check your PyTorch installation and ensure that a "
+        "CUDA-capable GPU is available."
+      )
+
+    device_index = int(device.split(":")[1]) if ":" in device else 0
+    if device_index >= torch.cuda.device_count():
+      raise ValueError(
+        f"Requested GPU index {device_index} is out of range for "
+        f"{torch.cuda.device_count()} available CUDA device(s)."
+      )
+    return torch.device(f"cuda:{device_index}")
+  else:
+    raise AssertionError()
+
+
+def load_torch_model(
+  model_path: Path, device: TorchDevice
+) -> RecursiveScriptModule:
+  assert model_path.is_file()
+  assert torch_installed()
+
+  import torch
+
+  start = time.perf_counter()
+  try:
+    model = torch.jit.load(str(model_path.absolute()), map_location=device)
+  except RuntimeError as e:
+    raise ValueError(
+      f"Failed to load model '{model_path.absolute()}' using 'torch'. "
+      "Ensure it is a valid TorchScript model."
+    ) from e
+  model.eval()
+  end = time.perf_counter()
+
+  logger = get_logger_for_package(__name__)
+  logger.debug(
+    f"Model loaded from {model_path.absolute()} using 'torch' "
+    f"in {end - start:.2f} seconds."
+  )
+  return model
+
+
+def _get_onnx_session_providers(device: str) -> tuple[list[str], list[dict[str, str]]]:
+  import onnxruntime as ort
+
+  if "CPU" in device:
+    return ["CPUExecutionProvider"], [{}]
+
+  if "GPU" not in device:
+    raise AssertionError()
+
+  device_index = int(device.split(":")[1]) if ":" in device else 0
+  available = ort.get_available_providers()
+  if "CUDAExecutionProvider" in available:
+    return ["CUDAExecutionProvider", "CPUExecutionProvider"], [
+      {"device_id": str(device_index)},
+      {},
+    ]
+  if "DmlExecutionProvider" in available:
+    return ["DmlExecutionProvider", "CPUExecutionProvider"], [
+      {"device_id": str(device_index)},
+      {},
+    ]
+
+  raise ValueError(
+    "No ONNX Runtime GPU execution provider found. Install an ONNX Runtime "
+    "build with GPU support."
+  )
+
+
+def load_onnx_model(model_path: Path, device: str) -> ort.InferenceSession:
+  assert model_path.is_file()
+  assert onnxruntime_installed()
+
+  import onnxruntime as ort
+
+  providers, provider_options = _get_onnx_session_providers(device)
+  start = time.perf_counter()
+  try:
+    session = ort.InferenceSession(
+      str(model_path.absolute()),
+      providers=providers,
+      provider_options=provider_options,
+    )
+  except Exception as e:
+    raise ValueError(
+      f"Failed to load model '{model_path.absolute()}' using 'onnxruntime'. "
+      "Ensure it is a valid ONNX model."
+    ) from e
+  end = time.perf_counter()
+
+  logger = get_logger_for_package(__name__)
+  actual_provider = session.get_providers()[0] if session.get_providers() else "unknown"
+  logger.debug(
+    f"Model loaded from {model_path.absolute()} using 'onnxruntime' "
+    f"with provider '{actual_provider}' in {end - start:.2f} seconds."
+  )
+  return session
+
+
 def tf_installed() -> bool:
   import importlib.util
 
   return importlib.util.find_spec("tensorflow") is not None
+
+
+def torch_installed() -> bool:
+  import importlib.util
+
+  return importlib.util.find_spec("torch") is not None
+
+
+def onnxruntime_installed() -> bool:
+  import importlib.util
+
+  return importlib.util.find_spec("onnxruntime") is not None
 
 
 def litert_installed() -> bool:

@@ -49,6 +49,12 @@ dependencies = [
 and-cuda = [
   "tensorflow[and-cuda] >= 2.8.0 ; sys_platform == 'linux'", # 2022/02/02
 ]
+pt = [
+  "torch >= 2.0.0",
+]
+onnx = [
+  "onnxruntime >= 1.16.0",
+]
 repro = [
   # Reproducible results only with Python 3.12 and on CPU and not on macOS Intel
   # Direct dependencies
@@ -235,7 +241,7 @@ install_command = uv pip install {opts} {packages}
 skip_missing_interpreters = true
 
 deps = 
-  .[tests,and-cuda]
+  .[tests,and-cuda,pt,onnx]
 commands = 
   # ruff check src/birdnet
   # ruff check src/birdnet_tests

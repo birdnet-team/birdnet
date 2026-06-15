@@ -32,13 +32,26 @@ from birdnet.acoustic.models.v2_4.tf import (
   AcousticTFBackendInt8V2_4,
   AcousticTFDownloaderV2_4,
 )
+from birdnet.acoustic.models.v3_0.model import (
+  AcousticModelV3_0,
+)
+from birdnet.acoustic.models.v3_0.onnx import (
+  AcousticOnnxBackendFP32V3_0,
+  AcousticOnnxDownloaderV3_0,
+)
+from birdnet.acoustic.models.v3_0.pt import (
+  AcousticPTBackendFP32V3_0,
+  AcousticPTDownloaderV3_0,
+)
 from birdnet.core.backends import (
   TF_BACKEND_LIB_ARG,
   BackendLoader,
   VersionedAcousticBackendProtocol,
   VersionedGeoBackendProtocol,
   litert_installed,
+  onnxruntime_installed,
   tf_installed,
+  torch_installed,
 )
 from birdnet.core.base import ModelBase
 from birdnet.geo.models.base import GeoModelBase
@@ -63,6 +76,7 @@ from birdnet.geo.models.v3_0.tf import (
 )
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V2_4,
+  ACOUSTIC_MODEL_VERSION_V3_0,
   ACOUSTIC_MODEL_VERSIONS,
   CUSTOM_CLASSIFIER_APPEND,
   CUSTOM_CLASSIFIER_APPEND_HIDDEN,
@@ -80,7 +94,9 @@ from birdnet.globals import (
   LIBRARY_TF_PARAM,
   LIBRARY_TFLITE,
   LIBRARY_TYPES,
+  MODEL_BACKEND_ONNX,
   MODEL_BACKEND_PB,
+  MODEL_BACKEND_PT,
   MODEL_BACKEND_TF,
   MODEL_BACKENDS,
   MODEL_LANGUAGE_EN_US,
@@ -176,7 +192,7 @@ def _validate_language_v2_4(lang: Any) -> MODEL_LANGUAGES_V2_4:  # noqa: ANN401
 def _validate_language_v3_0(lang: Any) -> MODEL_LANGUAGES_V3_0:  # noqa: ANN401
   if lang not in VALID_MODEL_LANGUAGES_V3_0:
     raise ValueError(
-      f"Language '{lang}' is not supported by the geo model v3.0. "
+      f"Language '{lang}' is not supported by model v3.0. "
       f"Available languages are: {', '.join(VALID_MODEL_LANGUAGES_V3_0)}."
     )
   return cast(MODEL_LANGUAGES_V3_0, lang)
@@ -218,6 +234,26 @@ def _validate_tf_file(model_path: Any) -> Path:  # noqa: ANN401
   return path
 
 
+def _validate_pt_file(model_path: Any) -> Path:  # noqa: ANN401
+  path = Path(model_path)
+  if not path.is_file():
+    raise ValueError(f"Model file '{path.absolute()}' does not exist!")
+  if path.suffix != ".pt":
+    raise ValueError(f"Model file '{path.absolute()}' is not a valid PT model file!")
+  return path
+
+
+def _validate_onnx_file(model_path: Any) -> Path:  # noqa: ANN401
+  path = Path(model_path)
+  if not path.is_file():
+    raise ValueError(f"Model file '{path.absolute()}' does not exist!")
+  if path.suffix != ".onnx":
+    raise ValueError(
+      f"Model file '{path.absolute()}' is not a valid ONNX model file!"
+    )
+  return path
+
+
 def _validate_library(
   library: Any,  # noqa: ANN401
   compatibility_check: Callable[[LIBRARY_TYPES], None] | None = None,
@@ -243,6 +279,31 @@ def _validate_library(
   else:
     raise AssertionError()
   return validated_library
+
+
+def _validate_optional_backend_runtime(backend: MODEL_BACKENDS) -> None:
+  if backend == MODEL_BACKEND_PT and not torch_installed():
+    raise ValueError(
+      f"Parameter 'backend': Backend '{MODEL_BACKEND_PT}' is not available. "
+      "Install birdnet with [pt] option."
+    )
+  elif backend == MODEL_BACKEND_ONNX and not onnxruntime_installed():
+    raise ValueError(
+      f"Parameter 'backend': Backend '{MODEL_BACKEND_ONNX}' is not available. "
+      "Install birdnet with [onnx] option."
+    )
+
+
+def _raise_unsupported_backend(
+  model_type: MODEL_TYPES,
+  version: str,
+  backend: MODEL_BACKENDS,
+  supported_backends: tuple[str, ...],
+) -> None:
+  raise ValueError(
+    f"Unsupported backend '{backend}' for {model_type} model v{version}. "
+    f"Supported backends are: {', '.join(supported_backends)}."
+  )
 
 
 def _validate_custom_classifier_type(classifier_type: Any) -> CUSTOM_CLASSIFIER_TYPES:  # noqa: ANN401
@@ -357,6 +418,13 @@ def _load_acoustic_model(
       lang=lang,
       **model_kwargs,
     )
+  elif version == ACOUSTIC_MODEL_VERSION_V3_0:
+    return _load_acoustic_model_V3_0(
+      backend=backend,
+      precision=precision,
+      lang=lang,
+      **model_kwargs,
+    )
   else:
     raise AssertionError()
 
@@ -409,7 +477,64 @@ def _load_acoustic_model_V2_4(
       backend_kwargs={},
     )
   else:
-    raise AssertionError()
+    _raise_unsupported_backend(
+      MODEL_TYPE_ACOUSTIC,
+      ACOUSTIC_MODEL_VERSION_V2_4,
+      backend,
+      (MODEL_BACKEND_TF, MODEL_BACKEND_PB),
+    )
+
+
+def _load_acoustic_model_V3_0(
+  backend: MODEL_BACKENDS,
+  precision: MODEL_PRECISIONS,
+  lang: str,
+  **model_kwargs: object,
+) -> AcousticModelV3_0:
+  lang = _validate_language_v3_0(lang)
+  if backend == MODEL_BACKEND_PT:
+    if precision != MODEL_PRECISION_FP32:
+      raise ValueError(
+        f"Unsupported model precision for acoustic pt model: {precision}. "
+        f"Currently supported precision is: {MODEL_PRECISION_FP32}."
+      )
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, None)
+    _validate_optional_backend_runtime(backend)
+
+    model_path, species_list = AcousticPTDownloaderV3_0.get_model_path_and_labels(
+      lang, precision
+    )
+    return AcousticModelV3_0.load(
+      model_path,
+      species_list,
+      backend_type=AcousticPTBackendFP32V3_0,
+      backend_kwargs={},
+    )
+  elif backend == MODEL_BACKEND_ONNX:
+    if precision != MODEL_PRECISION_FP32:
+      raise ValueError(
+        f"Unsupported model precision for acoustic onnx model: {precision}. "
+        f"Currently supported precision is: {MODEL_PRECISION_FP32}."
+      )
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, None)
+    _validate_optional_backend_runtime(backend)
+
+    model_path, species_list = AcousticOnnxDownloaderV3_0.get_model_path_and_labels(
+      lang, precision
+    )
+    return AcousticModelV3_0.load(
+      model_path,
+      species_list,
+      backend_type=AcousticOnnxBackendFP32V3_0,
+      backend_kwargs={},
+    )
+  else:
+    _raise_unsupported_backend(
+      MODEL_TYPE_ACOUSTIC,
+      ACOUSTIC_MODEL_VERSION_V3_0,
+      backend,
+      (MODEL_BACKEND_PT, MODEL_BACKEND_ONNX),
+    )
 
 
 def _load_geo_model_V2_4(
@@ -456,7 +581,12 @@ def _load_geo_model_V2_4(
       backend_kwargs={},
     )
   else:
-    raise AssertionError()
+    _raise_unsupported_backend(
+      MODEL_TYPE_GEO,
+      GEO_MODEL_VERSION_V2_4,
+      backend,
+      (MODEL_BACKEND_TF, MODEL_BACKEND_PB),
+    )
 
 
 def load_custom(
@@ -514,6 +644,15 @@ def _load_custom_acoustic_model(
 ) -> AcousticModelBase:
   if version == ACOUSTIC_MODEL_VERSION_V2_4:
     return _load_custom_acoustic_model_V2_4(
+      backend=backend,
+      precision=precision,
+      species_list=species_list,
+      model=model,
+      check_validity=check_validity,
+      **model_kwargs,
+    )
+  elif version == ACOUSTIC_MODEL_VERSION_V3_0:
+    return _load_custom_acoustic_model_V3_0(
       backend=backend,
       precision=precision,
       species_list=species_list,
@@ -640,7 +779,65 @@ def _load_custom_acoustic_model_V2_4(
       check_validity=check_validity,
     )
   else:
-    raise AssertionError()
+    _raise_unsupported_backend(
+      MODEL_TYPE_ACOUSTIC,
+      ACOUSTIC_MODEL_VERSION_V2_4,
+      backend,
+      (MODEL_BACKEND_TF, MODEL_BACKEND_PB),
+    )
+
+
+def _load_custom_acoustic_model_V3_0(
+  backend: MODEL_BACKENDS,
+  precision: MODEL_PRECISIONS,
+  model: Path,
+  species_list: Path,
+  check_validity: bool,
+  **model_kwargs: object,
+) -> AcousticModelV3_0:
+  if backend == MODEL_BACKEND_PT:
+    if precision != MODEL_PRECISION_FP32:
+      raise ValueError(
+        f"Unsupported model precision for acoustic pt model: {precision}. "
+        f"Currently supported precision is: {MODEL_PRECISION_FP32}."
+      )
+
+    model = _validate_pt_file(model)
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, None)
+    _validate_optional_backend_runtime(backend)
+
+    return AcousticModelV3_0.load_custom(
+      model,
+      species_list,
+      backend_type=AcousticPTBackendFP32V3_0,
+      backend_kwargs={},
+      check_validity=check_validity,
+    )
+  elif backend == MODEL_BACKEND_ONNX:
+    if precision != MODEL_PRECISION_FP32:
+      raise ValueError(
+        f"Unsupported model precision for acoustic onnx model: {precision}. "
+        f"Currently supported precision is: {MODEL_PRECISION_FP32}."
+      )
+
+    model = _validate_onnx_file(model)
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, None)
+    _validate_optional_backend_runtime(backend)
+
+    return AcousticModelV3_0.load_custom(
+      model,
+      species_list,
+      backend_type=AcousticOnnxBackendFP32V3_0,
+      backend_kwargs={},
+      check_validity=check_validity,
+    )
+  else:
+    _raise_unsupported_backend(
+      MODEL_TYPE_ACOUSTIC,
+      ACOUSTIC_MODEL_VERSION_V3_0,
+      backend,
+      (MODEL_BACKEND_PT, MODEL_BACKEND_ONNX),
+    )
 
 
 def _load_custom_geo_model_V2_4(
@@ -689,7 +886,12 @@ def _load_custom_geo_model_V2_4(
       check_validity=check_validity,
     )
   else:
-    raise AssertionError()
+    _raise_unsupported_backend(
+      MODEL_TYPE_GEO,
+      GEO_MODEL_VERSION_V2_4,
+      backend,
+      (MODEL_BACKEND_TF, MODEL_BACKEND_PB),
+    )
 
 
 def _load_geo_model_V3_0(
@@ -744,7 +946,12 @@ def _load_geo_model_V3_0(
       backend_kwargs={},
     )
   else:
-    raise AssertionError()
+    _raise_unsupported_backend(
+      MODEL_TYPE_GEO,
+      GEO_MODEL_VERSION_V3_0,
+      backend,
+      (MODEL_BACKEND_TF, MODEL_BACKEND_PB),
+    )
 
 
 def _load_custom_geo_model_V3_0(
@@ -799,4 +1006,9 @@ def _load_custom_geo_model_V3_0(
       check_validity=check_validity,
     )
   else:
-    raise AssertionError()
+    _raise_unsupported_backend(
+      MODEL_TYPE_GEO,
+      GEO_MODEL_VERSION_V3_0,
+      backend,
+      (MODEL_BACKEND_TF, MODEL_BACKEND_PB),
+    )

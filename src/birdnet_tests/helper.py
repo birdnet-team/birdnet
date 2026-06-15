@@ -20,7 +20,11 @@ from birdnet.acoustic.inference.core.encoding.encoding_result import (
 from birdnet.acoustic.inference.core.prediction.prediction_result import (
   AcousticPredictionResultBase,
 )
-from birdnet.core.backends import litert_installed
+from birdnet.core.backends import (
+  litert_installed,
+  onnxruntime_installed,
+  torch_installed,
+)
 from birdnet.utils.helper import check_is_intel_macos
 
 
@@ -88,7 +92,10 @@ def assert_prediction_result_is_equal(
 
 
 def assert_encoding_result_is_close(
-  a: AcousticEncodingResultBase, b: AcousticEncodingResultBase, max_abs_diff: float
+  a: AcousticEncodingResultBase,
+  b: AcousticEncodingResultBase,
+  max_abs_diff: float | None,
+  mean_abs_diff: float | None = None,
 ) -> None:
   assert isinstance(a, AcousticEncodingResultBase)
   assert isinstance(b, AcousticEncodingResultBase)
@@ -99,18 +106,20 @@ def assert_encoding_result_is_close(
   np.testing.assert_array_equal(a.input_durations, b.input_durations)
 
   np.testing.assert_array_equal(a.embeddings.shape, b.embeddings.shape)
-  max_abs = get_max_absolute_tolerance(
+  _assert_array_is_close(
     a.embeddings,
     b.embeddings,
-  )
-
-  assert max_abs <= max_abs_diff, (
-    f"Max absolute difference {max_abs} exceeds threshold {max_abs_diff}"
+    max_abs_diff=max_abs_diff,
+    mean_abs_diff=mean_abs_diff,
+    label="Embeddings",
   )
 
 
 def assert_prediction_result_is_close(
-  a: AcousticPredictionResultBase, b: AcousticPredictionResultBase, max_abs_diff: float
+  a: AcousticPredictionResultBase,
+  b: AcousticPredictionResultBase,
+  max_abs_diff: float | None,
+  mean_abs_diff: float | None = None,
 ) -> None:
   assert isinstance(a, AcousticPredictionResultBase)
   assert isinstance(b, AcousticPredictionResultBase)
@@ -139,14 +148,41 @@ def assert_prediction_result_is_close(
   sorted_probs_b = np.take_along_axis(b.species_probs, sort_idx_b, axis=-1)
 
   np.testing.assert_array_equal(sorted_probs_a.shape, sorted_probs_b.shape)
-  max_abs = get_max_absolute_tolerance(
+  _assert_array_is_close(
     sorted_probs_a,
     sorted_probs_b,
+    max_abs_diff=max_abs_diff,
+    mean_abs_diff=mean_abs_diff,
+    label="Species probabilities",
   )
 
-  assert max_abs <= max_abs_diff, (
-    f"Max absolute difference {max_abs} exceeds threshold {max_abs_diff}"
-  )
+
+def _assert_array_is_close(
+  a: np.ndarray,
+  b: np.ndarray,
+  *,
+  max_abs_diff: float | None,
+  mean_abs_diff: float | None,
+  label: str,
+) -> None:
+  if max_abs_diff is None and mean_abs_diff is None:
+    raise ValueError("At least one difference threshold must be provided.")
+
+  diff = np.abs(a - b)
+
+  if max_abs_diff is not None:
+    max_abs = np.max(diff)
+    assert max_abs <= max_abs_diff, (
+      f"{label} max absolute difference {max_abs} exceeds threshold "
+      f"{max_abs_diff}"
+    )
+
+  if mean_abs_diff is not None:
+    mean_abs = np.mean(diff)
+    assert mean_abs <= mean_abs_diff, (
+      f"{label} mean absolute difference {mean_abs} exceeds threshold "
+      f"{mean_abs_diff}"
+    )
 
 
 def _check_tf_gpu() -> bool:
@@ -196,6 +232,16 @@ def ensure_gpu_or_skip_old() -> None:
 def ensure_litert_or_skip() -> None:
   if not litert_installed():
     pytest.skip("litert library is not available")
+
+
+def ensure_torch_or_skip() -> None:
+  if not torch_installed():
+    pytest.skip("PyTorch runtime is not available")
+
+
+def ensure_onnxruntime_or_skip() -> None:
+  if not onnxruntime_installed():
+    pytest.skip("ONNX Runtime is not available")
 
 
 def geo_v3_0_litert_not_supported_skip() -> None:
