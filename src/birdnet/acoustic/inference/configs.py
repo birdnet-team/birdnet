@@ -447,7 +447,7 @@ class InferenceConfig:
               parsed_audio_paths.add(inp_path.absolute())
             else:
               raise ValueError(
-                "Input file '{inp_path}' is not a supported audio format! "
+                f"Input file '{inp_path}' is not a supported audio format! "
                 f"Supported formats: {sorted(SF_FORMATS)}."
               )
           elif inp_path.is_dir():
