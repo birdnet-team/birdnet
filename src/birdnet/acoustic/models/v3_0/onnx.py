@@ -17,8 +17,8 @@ models = {
       "BirdNET+_V3.0-preview3_Global_11K_FP32.onnx"
     ),
     dl_file_name="BirdNET+_V3.0-preview3_Global_11K_FP32.onnx",
-    dl_size=541688077,
-    file_size=541688077,
+    dl_size=541391777,
+    file_size=541391777,
   )
 }
 

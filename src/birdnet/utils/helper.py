@@ -393,7 +393,8 @@ def download_file_tqdm(
 
     if response.status_code != 200 or (total_size not in (0, tqdm_bar.n)):
       raise ValueError(
-        f"Failed to download the file. Status code: {response.status_code}"
+        f"Failed to download the file. Status code: {response.status_code}\n"
+        f"Expected size: {total_size} bytes, downloaded size: {tqdm_bar.n} bytes."
       )
 
     temp_path.replace(file_path)
