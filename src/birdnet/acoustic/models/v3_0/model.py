@@ -93,9 +93,9 @@ def _write_text_atomic(path: Path, content: str, encoding: str = "utf-8") -> Non
   try:
     temp_path.write_text(content, encoding=encoding)
     temp_path.replace(path)
-  except Exception as e:
+  except Exception:
     temp_path.unlink(missing_ok=True)
-    raise e
+    raise
 
 
 class AcousticDownloaderBaseV3_0:
