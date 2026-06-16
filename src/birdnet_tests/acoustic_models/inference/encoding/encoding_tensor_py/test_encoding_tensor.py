@@ -37,3 +37,28 @@ def test_resize_keeps_unwritten_encoding_segments_masked() -> None:
     )
 
   assert np.all(tensor._emb_masked[3, 4:, :])
+
+
+def test_initial_zero_pointer_keeps_encoding_tensor_empty_until_first_write() -> None:
+  max_segment_index = mp.RawValue("I", 0)
+  tensor = AcousticEncodingTensor(
+    session_id="test",
+    n_inputs=1,
+    emb_dim=2,
+    half_precision=False,
+    input_indices_dtype=np.dtype(np.uint8),
+    segment_indices_dtype=np.dtype(np.uint8),
+    max_segment_index=max_segment_index,
+  )
+
+  assert tensor._emb.shape == (1, 0, 2)
+
+  emb = np.array([[1.0, 2.0]], dtype=tensor._emb.dtype)
+  tensor.write_block(
+    np.array([0], dtype=np.uint8),
+    np.array([0], dtype=np.uint8),
+    emb,
+  )
+
+  assert tensor._emb.shape == (1, 1, 2)
+  assert np.all(~tensor._emb_masked[0, 0])

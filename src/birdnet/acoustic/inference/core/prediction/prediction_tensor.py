@@ -30,7 +30,9 @@ class AcousticPredictionTensor(AcousticTensorBase):
     self._top_k = top_k
     self._max_segment_index = max_segment_index
 
-    initial_n_segments = max_segment_index.value + 1
+    initial_n_segments = 0
+    if max_segment_index.value > 0:
+      initial_n_segments = max_segment_index.value + 1
 
     self._species_ids = np.empty(
       (n_inputs, initial_n_segments, self._top_k),

@@ -44,3 +44,34 @@ def test_resize_keeps_unwritten_prediction_segments_masked() -> None:
     )
 
   assert np.all(tensor._species_masked[3, 4:, :])
+
+
+def test_initial_zero_pointer_keeps_prediction_tensor_empty_until_first_write() -> None:
+  max_segment_index = mp.RawValue("I", 0)
+  tensor = AcousticPredictionTensor(
+    session_id="test",
+    n_inputs=1,
+    top_k=2,
+    n_species=4,
+    half_precision=False,
+    input_indices_dtype=np.dtype(np.uint8),
+    segment_indices_dtype=np.dtype(np.uint8),
+    max_segment_index=max_segment_index,
+  )
+
+  assert tensor._species_probs.shape == (1, 0, 2)
+
+  top_k_species = np.array([[0, 1]], dtype=tensor._species_ids.dtype)
+  top_k_scores = np.array([[0.5, 0.25]], dtype=tensor._species_probs.dtype)
+  top_k_mask = np.array([[False, False]], dtype=bool)
+
+  tensor.write_block(
+    np.array([0], dtype=np.uint8),
+    np.array([0], dtype=np.uint8),
+    top_k_species,
+    top_k_scores,
+    top_k_mask,
+  )
+
+  assert tensor._species_probs.shape == (1, 1, 2)
+  assert np.all(~tensor._species_masked[0, 0])

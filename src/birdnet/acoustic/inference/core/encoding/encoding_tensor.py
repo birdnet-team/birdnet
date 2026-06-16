@@ -27,7 +27,9 @@ class AcousticEncodingTensor(AcousticTensorBase):
     self._segment_indices_dtype = segment_indices_dtype
     self._max_segment_index = max_segment_index
 
-    initial_n_segments = max_segment_index.value + 1
+    initial_n_segments = 0
+    if max_segment_index.value > 0:
+      initial_n_segments = max_segment_index.value + 1
 
     emb_dtype = np.float16 if half_precision else np.float32
     self._emb = np.empty((n_inputs, initial_n_segments, emb_dim), dtype=emb_dtype)
