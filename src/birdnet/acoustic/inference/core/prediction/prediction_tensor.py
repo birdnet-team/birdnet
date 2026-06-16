@@ -30,7 +30,7 @@ class AcousticPredictionTensor(AcousticTensorBase):
     self._top_k = top_k
     self._max_segment_index = max_segment_index
 
-    initial_n_segments = max_segment_index.value
+    initial_n_segments = max_segment_index.value + 1
 
     self._species_ids = np.empty(
       (n_inputs, initial_n_segments, self._top_k),
@@ -68,25 +68,26 @@ class AcousticPredictionTensor(AcousticTensorBase):
 
     old_n_segments = self.current_n_segments
 
-    self._species_ids.resize(
-      (self._species_ids.shape[0], needed_n_segments, self._species_ids.shape[2]),
-      refcheck=False,
+    new_shape = (
+      self._species_ids.shape[0],
+      needed_n_segments,
+      self._species_ids.shape[2],
     )
-    self._species_probs.resize(
-      (self._species_probs.shape[0], needed_n_segments, self._species_probs.shape[2]),
-      refcheck=False,
-    )
+    new_species_ids = np.empty(new_shape, dtype=self._species_ids.dtype)
+    new_species_probs = np.empty(new_shape, dtype=self._species_probs.dtype)
+    new_species_masked = np.full(new_shape, True, dtype=self._species_masked.dtype)
 
-    self._species_masked.resize(
-      (self._species_masked.shape[0], needed_n_segments, self._species_masked.shape[2]),
-      refcheck=False,
-    )
+    new_species_ids[:, :old_n_segments, :] = self._species_ids
+    new_species_probs[:, :old_n_segments, :] = self._species_probs
+    new_species_masked[:, :old_n_segments, :] = self._species_masked
 
-    # --- Initialize ONLY the newly appended area ----------------
-    self._species_masked[:, old_n_segments:needed_n_segments, :] = True
+    self._species_ids = new_species_ids
+    self._species_probs = new_species_probs
+    self._species_masked = new_species_masked
 
     self._logger.debug(
-      f"[resized] from {old_n_segments} to {needed_n_segments} segments. Resulting array allocated: {self.memory_usage_mb:.2f} MB"
+      f"[resized] from {old_n_segments} to {needed_n_segments} segments. "
+      f"Resulting array allocated: {self.memory_usage_mb:.2f} MB"
     )
 
   def write_block(

@@ -49,20 +49,19 @@ class AcousticEncodingTensor(AcousticTensorBase):
 
     old_n_segments = self.current_n_segments
 
-    self._emb.resize(
-      (
-        self._emb.shape[0],
-        needed_n_segments,
-        self._emb.shape[2],
-      ),
-      refcheck=False,
+    new_shape = (
+      self._emb.shape[0],
+      needed_n_segments,
+      self._emb.shape[2],
     )
+    new_emb = np.empty(new_shape, dtype=self._emb.dtype)
+    new_emb_masked = np.full(new_shape, True, dtype=self._emb_masked.dtype)
 
-    self._emb_masked.resize(
-      (self._emb_masked.shape[0], needed_n_segments, self._emb_masked.shape[2]),
-      refcheck=False,
-    )
-    self._emb_masked[:, old_n_segments:needed_n_segments, :] = True
+    new_emb[:, :old_n_segments, :] = self._emb
+    new_emb_masked[:, :old_n_segments, :] = self._emb_masked
+
+    self._emb = new_emb
+    self._emb_masked = new_emb_masked
 
     self._logger.debug(
       f"[resized] from {old_n_segments} to {needed_n_segments} segments. "
