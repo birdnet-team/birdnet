@@ -13,12 +13,11 @@ from birdnet.utils.local_data import get_lang_dir, get_model_path
 models = {
   MODEL_PRECISION_FP32: ModelInfo(
     dl_url=(
-      "https://zenodo.org/records/18247420/files/"
-      "BirdNET+_V3.0-preview3_Global_11K_FP32.pt"
+      "https://zenodo.org/records/20703646/files/BirdNET+_V3.0-preview3.1_Global_11K_FP32.pt"
     ),
-    dl_file_name="BirdNET+_V3.0-preview3_Global_11K_FP32.pt",
-    dl_size=541968926,
-    file_size=541968926,
+    dl_file_name="BirdNET+_V3.0-preview3.1_Global_11K_FP32.pt",
+    dl_size=541831823,
+    file_size=541831823,
   )
 }
 

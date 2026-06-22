@@ -1,13 +1,11 @@
-from __future__ import annotations
-
 from pathlib import Path
 
 from ordered_set import OrderedSet
 
 from birdnet.acoustic.models.v3_0.model import AcousticDownloaderBaseV3_0
-from birdnet.core.backends import OnnxBackend, VersionedAcousticBackendProtocol
+from birdnet.core.backends import TFBackend, VersionedAcousticBackendProtocol
 from birdnet.globals import (
-  MODEL_BACKEND_ONNX,
+  MODEL_BACKEND_TF,
   MODEL_PRECISION_FP16,
   MODEL_PRECISION_FP32,
   MODEL_PRECISIONS,
@@ -16,34 +14,35 @@ from birdnet.utils.helper import ModelInfo, download_file_tqdm, get_species_from
 from birdnet.utils.local_data import get_lang_dir, get_model_path
 
 models = {
-  MODEL_PRECISION_FP32: ModelInfo(
-    dl_url=(
-      "https://zenodo.org/records/20703646/files/BirdNET+_V3.0-preview3.1_Global_11K_FP32.onnx"
-    ),
-    dl_file_name="BirdNET+_V3.0-preview3.1_Global_11K_FP32.onnx",
-    dl_size=541598502,
-    file_size=541598502,
-  ),
   MODEL_PRECISION_FP16: ModelInfo(
-    dl_url=(
-      "https://zenodo.org/records/20703646/files/BirdNET+_V3.0-preview3.1_Global_11K_FP16.onnx"
-    ),
-    dl_file_name="BirdNET+_V3.0-preview3.1_Global_11K_FP16.onnx",
-    dl_size=271554018,
-    file_size=271554018,
+    dl_url="https://zenodo.org/records/20703646/files/BirdNET+_V3.0-preview3.1_Global_11K_FP16.tflite",
+    dl_file_name="BirdNET+_V3.0-preview3.1_Global_11K_FP16.tflite",
+    dl_size=270496424,
+    file_size=270496424,
+  ),
+  MODEL_PRECISION_FP32: ModelInfo(
+    dl_url="https://zenodo.org/records/20703646/files/BirdNET+_V3.0-preview3.1_Global_11K_FP32.tflite",
+    dl_file_name="BirdNET+_V3.0-preview3.1_Global_11K_FP32.tflite",
+    dl_size=540471440,
+    file_size=540471440,
   ),
 }
 
 
-class AcousticOnnxDownloaderV3_0(AcousticDownloaderBaseV3_0):
-  @classmethod
-  def _get_lang_dir(cls) -> Path:
-    return get_lang_dir("acoustic", "3.0", MODEL_BACKEND_ONNX)
-
+class AcousticTFDownloaderV3_0(AcousticDownloaderBaseV3_0):
   @classmethod
   def _get_paths(cls, precision: MODEL_PRECISIONS) -> tuple[Path, Path]:
-    model_path = get_model_path("acoustic", "3.0", MODEL_BACKEND_ONNX, precision)
-    lang_dir = get_lang_dir("acoustic", "3.0", MODEL_BACKEND_ONNX)
+    model_path = get_model_path(
+      "acoustic",
+      "3.0",
+      MODEL_BACKEND_TF,
+      precision,
+    )
+    lang_dir = get_lang_dir(
+      "acoustic",
+      "3.0",
+      MODEL_BACKEND_TF,
+    )
     return model_path, lang_dir
 
   @classmethod
@@ -65,7 +64,7 @@ class AcousticOnnxDownloaderV3_0(AcousticDownloaderBaseV3_0):
       models[precision].dl_url,
       model_path,
       download_size=models[precision].dl_size,
-      description=f"Downloading acoustic model v3.0 (onnx, {precision.lower()})",
+      description=f"Downloading acoustic model v3.0 (tf, {precision})",
     )
 
   @classmethod
@@ -88,10 +87,10 @@ class AcousticOnnxDownloaderV3_0(AcousticDownloaderBaseV3_0):
     return model_path, labels
 
 
-class AcousticOnnxBackendFP32V3_0(OnnxBackend, VersionedAcousticBackendProtocol):
+class AccousticTFBackendFP32V3_0(TFBackend, VersionedAcousticBackendProtocol):
   @classmethod
   def prediction_out_idx(cls) -> int:
-    return 0
+    return 1164
 
   @classmethod
   def supports_encoding(cls) -> bool:
@@ -99,7 +98,7 @@ class AcousticOnnxBackendFP32V3_0(OnnxBackend, VersionedAcousticBackendProtocol)
 
   @classmethod
   def encoding_out_idx(cls) -> int | None:
-    return 1
+    return 1090
 
   @classmethod
   def probe_input_size_samples(cls) -> int:
@@ -110,10 +109,10 @@ class AcousticOnnxBackendFP32V3_0(OnnxBackend, VersionedAcousticBackendProtocol)
     return MODEL_PRECISION_FP32
 
 
-class AcousticOnnxBackendFP16V3_0(OnnxBackend, VersionedAcousticBackendProtocol):
+class AccousticTFBackendFP16V3_0(TFBackend, VersionedAcousticBackendProtocol):
   @classmethod
   def prediction_out_idx(cls) -> int:
-    return 0
+    return 1546
 
   @classmethod
   def supports_encoding(cls) -> bool:
@@ -121,7 +120,7 @@ class AcousticOnnxBackendFP16V3_0(OnnxBackend, VersionedAcousticBackendProtocol)
 
   @classmethod
   def encoding_out_idx(cls) -> int | None:
-    return 1
+    return 1472
 
   @classmethod
   def probe_input_size_samples(cls) -> int:

@@ -5,7 +5,10 @@ from ordered_set import OrderedSet
 from requests.exceptions import ReadTimeout
 
 from birdnet.acoustic.models.v3_0.model import AcousticModelV3_0
-from birdnet.acoustic.models.v3_0.onnx import AcousticOnnxBackendFP32V3_0
+from birdnet.acoustic.models.v3_0.onnx import (
+  AcousticOnnxBackendFP16V3_0,
+  AcousticOnnxBackendFP32V3_0,
+)
 from birdnet.acoustic.models.v3_0.pt import AcousticPTBackendFP32V3_0
 from birdnet.model_loader import load
 from birdnet_tests.helper import ensure_onnxruntime_or_skip, ensure_torch_or_skip
@@ -83,13 +86,25 @@ def test_v3_0_pt_type_is_correct(monkeypatch: pytest.MonkeyPatch) -> None:
   assert model.backend_type is AcousticPTBackendFP32V3_0
 
 
-def test_v3_0_onnx_type_is_correct(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_v3_0_onnx_type_is_correct_fp32(monkeypatch: pytest.MonkeyPatch) -> None:
   monkeypatch.setattr("birdnet.model_loader.onnxruntime_installed", lambda: True)
   monkeypatch.setattr(
     "birdnet.model_loader.AcousticOnnxDownloaderV3_0.get_model_path_and_labels",
     lambda lang, precision: (Path("birdnet_v3.onnx"), OrderedSet(["species_a"])),
   )
 
-  model = load("acoustic", "3.0", "onnx")
+  model = load("acoustic", "3.0", "onnx", precision="fp32")
   assert type(model) is AcousticModelV3_0
   assert model.backend_type is AcousticOnnxBackendFP32V3_0
+
+
+def test_v3_0_onnx_type_is_correct_fp16(monkeypatch: pytest.MonkeyPatch) -> None:
+  monkeypatch.setattr("birdnet.model_loader.onnxruntime_installed", lambda: True)
+  monkeypatch.setattr(
+    "birdnet.model_loader.AcousticOnnxDownloaderV3_0.get_model_path_and_labels",
+    lambda lang, precision: (Path("birdnet_v3.onnx"), OrderedSet(["species_a"])),
+  )
+
+  model = load("acoustic", "3.0", "onnx", precision="fp16")
+  assert type(model) is AcousticModelV3_0
+  assert model.backend_type is AcousticOnnxBackendFP16V3_0

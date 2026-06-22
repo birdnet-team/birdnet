@@ -36,10 +36,7 @@ from birdnet.utils.taxonomy_v3 import (
   taxonomy_v3_available,
 )
 
-_LABELS_DL_URL = (
-  "https://zenodo.org/records/18247420/files/"
-  "BirdNET+_V3.0-preview3_Global_11K_Labels.csv"
-)
+_LABELS_DL_URL = "https://zenodo.org/records/20703646/files/BirdNET+_V3.0-preview3.1_Global_11K_Labels.csv"
 _LABELS_DL_SIZE = 809172
 _DEFAULT_SEGMENT_SIZE_S = 3.0
 _DEFAULT_SEGMENT_SIZE_SAMPLES = 96_000

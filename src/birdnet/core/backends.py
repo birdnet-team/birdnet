@@ -321,8 +321,7 @@ class TorchBackend(Backend, ABC):
 
     if not isinstance(outputs, (tuple, list)):
       raise ValueError(
-        "PyTorch model is expected to return a tuple of "
-        "(embeddings, predictions)."
+        "PyTorch model is expected to return a tuple of (embeddings, predictions)."
       )
 
     result = outputs[out_idx]
@@ -567,7 +566,6 @@ class PBBackend(Backend, ABC):
     assert self._predict_fn is not None
 
     with device(self._logical_device_name):  # type: ignore
-      # prediction = self._audio_model.basic(batch)["scores"]
       prediction_result = self._predict_fn(**{self.input_key(): batch})
     predictions: Tensor = prediction_result[self.prediction_key()]
     assert predictions.dtype == float32
@@ -1092,9 +1090,7 @@ def set_torch_device(device: str) -> TorchDevice:
     raise AssertionError()
 
 
-def load_torch_model(
-  model_path: Path, device: TorchDevice
-) -> RecursiveScriptModule:
+def load_torch_model(model_path: Path, device: TorchDevice) -> RecursiveScriptModule:
   assert model_path.is_file()
   assert torch_installed()
 

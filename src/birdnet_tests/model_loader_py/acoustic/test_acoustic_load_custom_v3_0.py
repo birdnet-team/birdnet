@@ -1,7 +1,10 @@
 import pytest
 
 from birdnet.acoustic.models.v3_0.model import AcousticModelV3_0
-from birdnet.acoustic.models.v3_0.onnx import AcousticOnnxBackendFP32V3_0
+from birdnet.acoustic.models.v3_0.onnx import (
+  AcousticOnnxBackendFP16V3_0,
+  AcousticOnnxBackendFP32V3_0,
+)
 from birdnet.acoustic.models.v3_0.pt import AcousticPTBackendFP32V3_0
 from birdnet.model_loader import load_custom
 
@@ -25,7 +28,7 @@ def test_v3_0_custom_pt_type_is_correct(
   assert model.backend_type is AcousticPTBackendFP32V3_0
 
 
-def test_v3_0_custom_onnx_type_is_correct(
+def test_v3_0_custom_onnx_type_is_correct_fp32(
   tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
   model_path = tmp_path / "birdnet_v3.onnx"
@@ -39,9 +42,32 @@ def test_v3_0_custom_onnx_type_is_correct(
     lambda *args, **kwargs: 1,
   )
 
-  model = load_custom("acoustic", "3.0", "onnx", model_path, species_list)
+  model = load_custom(
+    "acoustic", "3.0", "onnx", model_path, species_list, precision="fp32"
+  )
   assert type(model) is AcousticModelV3_0
   assert model.backend_type is AcousticOnnxBackendFP32V3_0
+
+
+def test_v3_0_custom_onnx_type_is_correct_fp16(
+  tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+  model_path = tmp_path / "birdnet_v3.onnx"
+  model_path.write_bytes(b"onnx")
+  species_list = tmp_path / "species.txt"
+  species_list.write_text("species_a\n", encoding="utf-8")
+
+  monkeypatch.setattr("birdnet.model_loader.onnxruntime_installed", lambda: True)
+  monkeypatch.setattr(
+    "birdnet.model_loader.BackendLoader.check_model_can_be_loaded",
+    lambda *args, **kwargs: 1,
+  )
+
+  model = load_custom(
+    "acoustic", "3.0", "onnx", model_path, species_list, precision="fp16"
+  )
+  assert type(model) is AcousticModelV3_0
+  assert model.backend_type is AcousticOnnxBackendFP16V3_0
 
 
 def test_v3_0_custom_pt_wrong_suffix_raises_error(tmp_path) -> None:

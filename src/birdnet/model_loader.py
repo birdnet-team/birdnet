@@ -36,6 +36,7 @@ from birdnet.acoustic.models.v3_0.model import (
   AcousticModelV3_0,
 )
 from birdnet.acoustic.models.v3_0.onnx import (
+  AcousticOnnxBackendFP16V3_0,
   AcousticOnnxBackendFP32V3_0,
   AcousticOnnxDownloaderV3_0,
 )
@@ -248,9 +249,7 @@ def _validate_onnx_file(model_path: Any) -> Path:  # noqa: ANN401
   if not path.is_file():
     raise ValueError(f"Model file '{path.absolute()}' does not exist!")
   if path.suffix != ".onnx":
-    raise ValueError(
-      f"Model file '{path.absolute()}' is not a valid ONNX model file!"
-    )
+    raise ValueError(f"Model file '{path.absolute()}' is not a valid ONNX model file!")
   return path
 
 
@@ -511,10 +510,14 @@ def _load_acoustic_model_V3_0(
       backend_kwargs={},
     )
   elif backend == MODEL_BACKEND_ONNX:
-    if precision != MODEL_PRECISION_FP32:
+    if precision == MODEL_PRECISION_FP32:
+      backend_type = AcousticOnnxBackendFP32V3_0
+    elif precision == MODEL_PRECISION_FP16:
+      backend_type = AcousticOnnxBackendFP16V3_0
+    else:
       raise ValueError(
         f"Unsupported model precision for acoustic onnx model: {precision}. "
-        f"Currently supported precision is: {MODEL_PRECISION_FP32}."
+        f"Currently supported precisions are: {MODEL_PRECISION_FP32}, {MODEL_PRECISION_FP16}."
       )
     model_kwargs = _validate_kwargs_allowed(model_kwargs, None)
     _validate_optional_backend_runtime(backend)
@@ -525,7 +528,7 @@ def _load_acoustic_model_V3_0(
     return AcousticModelV3_0.load(
       model_path,
       species_list,
-      backend_type=AcousticOnnxBackendFP32V3_0,
+      backend_type=backend_type,
       backend_kwargs={},
     )
   else:
@@ -814,7 +817,11 @@ def _load_custom_acoustic_model_V3_0(
       check_validity=check_validity,
     )
   elif backend == MODEL_BACKEND_ONNX:
-    if precision != MODEL_PRECISION_FP32:
+    if precision == MODEL_PRECISION_FP32:
+      backend_type = AcousticOnnxBackendFP32V3_0
+    elif precision == MODEL_PRECISION_FP16:
+      backend_type = AcousticOnnxBackendFP16V3_0
+    else:
       raise ValueError(
         f"Unsupported model precision for acoustic onnx model: {precision}. "
         f"Currently supported precision is: {MODEL_PRECISION_FP32}."
@@ -827,7 +834,7 @@ def _load_custom_acoustic_model_V3_0(
     return AcousticModelV3_0.load_custom(
       model,
       species_list,
-      backend_type=AcousticOnnxBackendFP32V3_0,
+      backend_type=backend_type,
       backend_kwargs={},
       check_validity=check_validity,
     )
