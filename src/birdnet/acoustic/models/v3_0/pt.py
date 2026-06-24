@@ -85,7 +85,7 @@ class AcousticPTDownloaderV3_0(AcousticDownloaderBaseV3_0):
 class AcousticPTBackendFP32V3_0(TorchBackend, VersionedAcousticBackendProtocol):
   @classmethod
   def prediction_out_idx(cls) -> int:
-    return 1
+    return 0
 
   @classmethod
   def supports_encoding(cls) -> bool:
@@ -93,7 +93,7 @@ class AcousticPTBackendFP32V3_0(TorchBackend, VersionedAcousticBackendProtocol):
 
   @classmethod
   def encoding_out_idx(cls) -> int | None:
-    return 0
+    return 1
 
   @classmethod
   def probe_input_size_samples(cls) -> int:
