@@ -49,28 +49,50 @@ def create_zero_len_wav(f: IO[bytes]) -> None:
 def assert_encoding_result_is_equal(
   a: AcousticEncodingResultBase, b: AcousticEncodingResultBase
 ) -> None:
-  assert isinstance(a, AcousticEncodingResultBase)
-  assert isinstance(b, AcousticEncodingResultBase)
+  assert isinstance(a, AcousticEncodingResultBase), (
+    "a must be AcousticEncodingResultBase"
+  )
+  assert isinstance(b, AcousticEncodingResultBase), (
+    "b must be AcousticEncodingResultBase"
+  )
 
-  np.testing.assert_array_equal(a.segment_duration_s, b.segment_duration_s)
-  np.testing.assert_array_equal(a.overlap_duration_s, b.overlap_duration_s)
-  np.testing.assert_array_equal(a.inputs, b.inputs)
-  np.testing.assert_array_equal(a.input_durations, b.input_durations)
-  np.testing.assert_array_equal(a.embeddings, b.embeddings)
-  np.testing.assert_array_equal(a.embeddings_masked, b.embeddings_masked)
+  np.testing.assert_array_equal(
+    a.segment_duration_s, b.segment_duration_s, err_msg="segment_duration_s"
+  )
+  np.testing.assert_array_equal(
+    a.overlap_duration_s, b.overlap_duration_s, err_msg="overlap_duration_s"
+  )
+  np.testing.assert_array_equal(a.inputs, b.inputs, err_msg="inputs")
+  np.testing.assert_array_equal(
+    a.input_durations, b.input_durations, err_msg="input_durations"
+  )
+  np.testing.assert_array_equal(a.embeddings, b.embeddings, err_msg="embeddings")
+  np.testing.assert_array_equal(
+    a.embeddings_masked, b.embeddings_masked, err_msg="embeddings_masked"
+  )
 
 
 def assert_prediction_result_is_equal(
   a: AcousticPredictionResultBase, b: AcousticPredictionResultBase
 ) -> None:
-  assert isinstance(a, AcousticPredictionResultBase)
-  assert isinstance(b, AcousticPredictionResultBase)
+  assert isinstance(a, AcousticPredictionResultBase), (
+    "a must be AcousticPredictionResultBase"
+  )
+  assert isinstance(b, AcousticPredictionResultBase), (
+    "b must be AcousticPredictionResultBase"
+  )
 
-  np.testing.assert_array_equal(a.segment_duration_s, b.segment_duration_s)
-  np.testing.assert_array_equal(a.overlap_duration_s, b.overlap_duration_s)
-  np.testing.assert_array_equal(a.inputs, b.inputs)
-  np.testing.assert_array_equal(a.species_list, b.species_list)
-  np.testing.assert_array_equal(a.input_durations, b.input_durations)
+  np.testing.assert_array_equal(
+    a.segment_duration_s, b.segment_duration_s, err_msg="segment_duration_s"
+  )
+  np.testing.assert_array_equal(
+    a.overlap_duration_s, b.overlap_duration_s, err_msg="overlap_duration_s"
+  )
+  np.testing.assert_array_equal(a.inputs, b.inputs, err_msg="inputs")
+  np.testing.assert_array_equal(a.species_list, b.species_list, err_msg="species_list")
+  np.testing.assert_array_equal(
+    a.input_durations, b.input_durations, err_msg="input_durations"
+  )
 
   # Sort species probabilities by species IDs before comparison
   sort_idx_a = np.argsort(a.species_ids, axis=-1)
@@ -80,15 +102,17 @@ def assert_prediction_result_is_equal(
   sorted_ids_b = np.take_along_axis(b.species_ids, sort_idx_b, axis=-1)
 
   # order may differ due to different top-k selection, but ids must be the same
-  np.testing.assert_array_equal(sorted_ids_a, sorted_ids_b)
+  np.testing.assert_array_equal(sorted_ids_a, sorted_ids_b, err_msg="species_ids")
 
   sorted_probs_a = np.take_along_axis(a.species_probs, sort_idx_a, axis=-1)
   sorted_probs_b = np.take_along_axis(b.species_probs, sort_idx_b, axis=-1)
-  np.testing.assert_array_equal(sorted_probs_a, sorted_probs_b)
+  np.testing.assert_array_equal(sorted_probs_a, sorted_probs_b, err_msg="species_probs")
 
   sorted_masks_a = np.take_along_axis(a.species_masked, sort_idx_a, axis=-1)
   sorted_masks_b = np.take_along_axis(b.species_masked, sort_idx_b, axis=-1)
-  np.testing.assert_array_equal(sorted_masks_a, sorted_masks_b)
+  np.testing.assert_array_equal(
+    sorted_masks_a, sorted_masks_b, err_msg="species_masked"
+  )
 
 
 def assert_encoding_result_is_close(
@@ -100,18 +124,26 @@ def assert_encoding_result_is_close(
   assert isinstance(a, AcousticEncodingResultBase)
   assert isinstance(b, AcousticEncodingResultBase)
 
-  np.testing.assert_array_equal(a.segment_duration_s, b.segment_duration_s)
-  np.testing.assert_array_equal(a.overlap_duration_s, b.overlap_duration_s)
-  np.testing.assert_array_equal(a.inputs, b.inputs)
-  np.testing.assert_array_equal(a.input_durations, b.input_durations)
+  np.testing.assert_array_equal(
+    a.segment_duration_s, b.segment_duration_s, err_msg="segment_duration_s"
+  )
+  np.testing.assert_array_equal(
+    a.overlap_duration_s, b.overlap_duration_s, err_msg="overlap_duration_s"
+  )
+  np.testing.assert_array_equal(a.inputs, b.inputs, err_msg="inputs")
+  np.testing.assert_array_equal(
+    a.input_durations, b.input_durations, err_msg="input_durations"
+  )
 
-  np.testing.assert_array_equal(a.embeddings.shape, b.embeddings.shape)
+  np.testing.assert_array_equal(
+    a.embeddings.shape, b.embeddings.shape, err_msg="embeddings.shape"
+  )
   _assert_array_is_close(
     a.embeddings,
     b.embeddings,
     max_abs_diff=max_abs_diff,
     mean_abs_diff=mean_abs_diff,
-    label="Embeddings",
+    label="embeddings",
   )
 
 
@@ -121,14 +153,24 @@ def assert_prediction_result_is_close(
   max_abs_diff: float | None,
   mean_abs_diff: float | None = None,
 ) -> None:
-  assert isinstance(a, AcousticPredictionResultBase)
-  assert isinstance(b, AcousticPredictionResultBase)
+  assert isinstance(a, AcousticPredictionResultBase), (
+    "a must be AcousticPredictionResultBase"
+  )
+  assert isinstance(b, AcousticPredictionResultBase), (
+    "b must be AcousticPredictionResultBase"
+  )
 
-  np.testing.assert_array_equal(a.segment_duration_s, b.segment_duration_s)
-  np.testing.assert_array_equal(a.overlap_duration_s, b.overlap_duration_s)
-  np.testing.assert_array_equal(a.inputs, b.inputs)
-  np.testing.assert_array_equal(a.species_list, b.species_list)
-  np.testing.assert_array_equal(a.input_durations, b.input_durations)
+  np.testing.assert_array_equal(
+    a.segment_duration_s, b.segment_duration_s, err_msg="segment_duration_s"
+  )
+  np.testing.assert_array_equal(
+    a.overlap_duration_s, b.overlap_duration_s, err_msg="overlap_duration_s"
+  )
+  np.testing.assert_array_equal(a.inputs, b.inputs, err_msg="inputs")
+  np.testing.assert_array_equal(a.species_list, b.species_list, err_msg="species_list")
+  np.testing.assert_array_equal(
+    a.input_durations, b.input_durations, err_msg="input_durations"
+  )
 
   # Sort species probabilities by species IDs before comparison
   sort_idx_a = np.argsort(a.species_ids, axis=-1)
@@ -138,22 +180,26 @@ def assert_prediction_result_is_close(
   sorted_ids_b = np.take_along_axis(b.species_ids, sort_idx_b, axis=-1)
 
   # order may differ due to different top-k selection, but ids must be the same
-  np.testing.assert_array_equal(sorted_ids_a, sorted_ids_b)
+  np.testing.assert_array_equal(sorted_ids_a, sorted_ids_b, err_msg="species_ids")
 
   sorted_masks_a = np.take_along_axis(a.species_masked, sort_idx_a, axis=-1)
   sorted_masks_b = np.take_along_axis(b.species_masked, sort_idx_b, axis=-1)
-  np.testing.assert_array_equal(sorted_masks_a, sorted_masks_b)
+  np.testing.assert_array_equal(
+    sorted_masks_a, sorted_masks_b, err_msg="species_masked"
+  )
 
   sorted_probs_a = np.take_along_axis(a.species_probs, sort_idx_a, axis=-1)
   sorted_probs_b = np.take_along_axis(b.species_probs, sort_idx_b, axis=-1)
 
-  np.testing.assert_array_equal(sorted_probs_a.shape, sorted_probs_b.shape)
+  np.testing.assert_array_equal(
+    sorted_probs_a.shape, sorted_probs_b.shape, err_msg="species_probs.shape"
+  )
   _assert_array_is_close(
     sorted_probs_a,
     sorted_probs_b,
     max_abs_diff=max_abs_diff,
     mean_abs_diff=mean_abs_diff,
-    label="Species probabilities",
+    label="species_probs",
   )
 
 
@@ -173,15 +219,13 @@ def _assert_array_is_close(
   if max_abs_diff is not None:
     max_abs = np.max(diff)
     assert max_abs <= max_abs_diff, (
-      f"{label} max absolute difference {max_abs} exceeds threshold "
-      f"{max_abs_diff}"
+      f"{label} max absolute difference {max_abs} exceeds threshold {max_abs_diff}"
     )
 
   if mean_abs_diff is not None:
     mean_abs = np.mean(diff)
     assert mean_abs <= mean_abs_diff, (
-      f"{label} mean absolute difference {mean_abs} exceeds threshold "
-      f"{mean_abs_diff}"
+      f"{label} mean absolute difference {mean_abs} exceeds threshold {mean_abs_diff}"
     )
 
 
