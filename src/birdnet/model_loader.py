@@ -40,9 +40,18 @@ from birdnet.acoustic.models.v3_0.onnx import (
   AcousticOnnxBackendFP32V3_0,
   AcousticOnnxDownloaderV3_0,
 )
+from birdnet.acoustic.models.v3_0.pb import (
+  AcousticPBBackendFP32V3_0,
+  AcousticPBDownloaderV3_0,
+)
 from birdnet.acoustic.models.v3_0.pt import (
   AcousticPTBackendFP32V3_0,
   AcousticPTDownloaderV3_0,
+)
+from birdnet.acoustic.models.v3_0.tf import (
+  AcousticTFBackendFP16V3_0,
+  AcousticTFBackendFP32V3_0,
+  AcousticTFDownloaderV3_0,
 )
 from birdnet.core.backends import (
   TF_BACKEND_LIB_ARG,
@@ -491,7 +500,49 @@ def _load_acoustic_model_V3_0(
   **model_kwargs: object,
 ) -> AcousticModelV3_0:
   lang = _validate_language_v3_0(lang)
-  if backend == MODEL_BACKEND_PT:
+  if backend == MODEL_BACKEND_TF:
+    if precision == MODEL_PRECISION_FP32:
+      backend_type = AcousticTFBackendFP32V3_0
+    elif precision == MODEL_PRECISION_FP16:
+      backend_type = AcousticTFBackendFP16V3_0
+    else:
+      raise ValueError(
+        f"Unsupported model precision for acoustic tf model: {precision}. "
+        "Currently supported precisions are: "
+        f"{MODEL_PRECISION_FP32}, {MODEL_PRECISION_FP16}."
+      )
+
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, {LIBRARY_TF_PARAM})
+    library = _validate_library(model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT))
+
+    model_path, species_list = AcousticTFDownloaderV3_0.get_model_path_and_labels(
+      lang, precision
+    )
+    return AcousticModelV3_0.load(
+      model_path,
+      species_list,
+      backend_type=backend_type,
+      backend_kwargs={
+        TF_BACKEND_LIB_ARG: library,
+      },
+    )
+  elif backend == MODEL_BACKEND_PB:
+    if precision != MODEL_PRECISION_FP32:
+      raise ValueError(
+        f"Unsupported model precision for acoustic pb model: {precision}. "
+        f"Currently supported precision is: {MODEL_PRECISION_FP32}."
+      )
+
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, None)
+
+    model_path, species_list = AcousticPBDownloaderV3_0.get_model_path_and_labels(lang)
+    return AcousticModelV3_0.load(
+      model_path,
+      species_list,
+      backend_type=AcousticPBBackendFP32V3_0,
+      backend_kwargs={},
+    )
+  elif backend == MODEL_BACKEND_PT:
     if precision != MODEL_PRECISION_FP32:
       raise ValueError(
         f"Unsupported model precision for acoustic pt model: {precision}. "
@@ -517,7 +568,8 @@ def _load_acoustic_model_V3_0(
     else:
       raise ValueError(
         f"Unsupported model precision for acoustic onnx model: {precision}. "
-        f"Currently supported precisions are: {MODEL_PRECISION_FP32}, {MODEL_PRECISION_FP16}."
+        "Currently supported precisions are: "
+        f"{MODEL_PRECISION_FP32}, {MODEL_PRECISION_FP16}."
       )
     model_kwargs = _validate_kwargs_allowed(model_kwargs, None)
     _validate_optional_backend_runtime(backend)
@@ -536,7 +588,7 @@ def _load_acoustic_model_V3_0(
       MODEL_TYPE_ACOUSTIC,
       ACOUSTIC_MODEL_VERSION_V3_0,
       backend,
-      (MODEL_BACKEND_PT, MODEL_BACKEND_ONNX),
+      (MODEL_BACKEND_TF, MODEL_BACKEND_PB, MODEL_BACKEND_PT, MODEL_BACKEND_ONNX),
     )
 
 
@@ -798,7 +850,50 @@ def _load_custom_acoustic_model_V3_0(
   check_validity: bool,
   **model_kwargs: object,
 ) -> AcousticModelV3_0:
-  if backend == MODEL_BACKEND_PT:
+  if backend == MODEL_BACKEND_TF:
+    model = _validate_tf_file(model)
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, {LIBRARY_TF_PARAM})
+    library = _validate_library(model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT))
+
+    backend_type: type[VersionedAcousticBackendProtocol]
+    if precision == MODEL_PRECISION_FP32:
+      backend_type = AcousticTFBackendFP32V3_0
+    elif precision == MODEL_PRECISION_FP16:
+      backend_type = AcousticTFBackendFP16V3_0
+    else:
+      raise ValueError(
+        f"Unsupported model precision for acoustic tf model: {precision}. "
+        "Currently supported precisions are: "
+        f"{MODEL_PRECISION_FP32}, {MODEL_PRECISION_FP16}."
+      )
+
+    return AcousticModelV3_0.load_custom(
+      model,
+      species_list,
+      backend_type=backend_type,
+      backend_kwargs={
+        TF_BACKEND_LIB_ARG: library,
+      },
+      check_validity=check_validity,
+    )
+  elif backend == MODEL_BACKEND_PB:
+    if precision != MODEL_PRECISION_FP32:
+      raise ValueError(
+        f"Unsupported model precision for acoustic pb model: {precision}. "
+        f"Currently supported precision is: {MODEL_PRECISION_FP32}."
+      )
+
+    model = _validate_pb_model_folder(model)
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, None)
+
+    return AcousticModelV3_0.load_custom(
+      model,
+      species_list,
+      backend_type=AcousticPBBackendFP32V3_0,
+      backend_kwargs={},
+      check_validity=check_validity,
+    )
+  elif backend == MODEL_BACKEND_PT:
     if precision != MODEL_PRECISION_FP32:
       raise ValueError(
         f"Unsupported model precision for acoustic pt model: {precision}. "
@@ -824,7 +919,8 @@ def _load_custom_acoustic_model_V3_0(
     else:
       raise ValueError(
         f"Unsupported model precision for acoustic onnx model: {precision}. "
-        f"Currently supported precision is: {MODEL_PRECISION_FP32}."
+        "Currently supported precisions are: "
+        f"{MODEL_PRECISION_FP32}, {MODEL_PRECISION_FP16}."
       )
 
     model = _validate_onnx_file(model)
@@ -843,7 +939,7 @@ def _load_custom_acoustic_model_V3_0(
       MODEL_TYPE_ACOUSTIC,
       ACOUSTIC_MODEL_VERSION_V3_0,
       backend,
-      (MODEL_BACKEND_PT, MODEL_BACKEND_ONNX),
+      (MODEL_BACKEND_TF, MODEL_BACKEND_PB, MODEL_BACKEND_PT, MODEL_BACKEND_ONNX),
     )
 
 

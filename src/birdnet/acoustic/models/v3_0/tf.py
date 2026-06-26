@@ -31,6 +31,14 @@ models = {
 
 class AcousticTFDownloaderV3_0(AcousticDownloaderBaseV3_0):
   @classmethod
+  def _get_lang_dir(cls) -> Path:
+    return get_lang_dir(
+      "acoustic",
+      "3.0",
+      MODEL_BACKEND_TF,
+    )
+
+  @classmethod
   def _get_paths(cls, precision: MODEL_PRECISIONS) -> tuple[Path, Path]:
     model_path = get_model_path(
       "acoustic",
@@ -87,7 +95,11 @@ class AcousticTFDownloaderV3_0(AcousticDownloaderBaseV3_0):
     return model_path, labels
 
 
-class AccousticTFBackendFP32V3_0(TFBackend, VersionedAcousticBackendProtocol):
+class AcousticTFBackendFP32V3_0(TFBackend, VersionedAcousticBackendProtocol):
+  @classmethod
+  def in_idx(cls) -> int:
+    return 0
+
   @classmethod
   def prediction_out_idx(cls) -> int:
     return 1164
@@ -109,7 +121,11 @@ class AccousticTFBackendFP32V3_0(TFBackend, VersionedAcousticBackendProtocol):
     return MODEL_PRECISION_FP32
 
 
-class AccousticTFBackendFP16V3_0(TFBackend, VersionedAcousticBackendProtocol):
+class AcousticTFBackendFP16V3_0(TFBackend, VersionedAcousticBackendProtocol):
+  @classmethod
+  def in_idx(cls) -> int:
+    return 0
+
   @classmethod
   def prediction_out_idx(cls) -> int:
     return 1546

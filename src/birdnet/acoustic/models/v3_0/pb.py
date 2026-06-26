@@ -5,7 +5,7 @@ from pathlib import Path
 
 from ordered_set import OrderedSet
 
-from birdnet.acoustic.models.v3_0.pt import AcousticDownloaderBaseV3_0
+from birdnet.acoustic.models.v3_0.model import AcousticDownloaderBaseV3_0
 from birdnet.core.backends import (
   PBBackend,
   VersionedAcousticBackendProtocol,
@@ -24,6 +24,10 @@ from birdnet.utils.local_data import get_lang_dir, get_model_path
 
 
 class AcousticPBDownloaderV3_0(AcousticDownloaderBaseV3_0):
+  @classmethod
+  def _get_lang_dir(cls) -> Path:
+    return get_lang_dir("acoustic", "3.0", "pb")
+
   @classmethod
   def _get_paths(cls) -> tuple[Path, Path]:
     model_path = get_model_path("acoustic", "3.0", "pb", MODEL_PRECISION_FP32)
@@ -47,7 +51,7 @@ class AcousticPBDownloaderV3_0(AcousticDownloaderBaseV3_0):
   @classmethod
   def _download_model(cls) -> None:
     dl_url = "https://zenodo.org/records/20703646/files/BirdNET+_V3.0-preview3.1_Global_11K_FP32_Protobuf.zip"
-    dl_size = 124522908
+    dl_size = 499609919
 
     with tempfile.TemporaryDirectory(prefix="birdnet_download") as temp_dir:
       zip_download_path = Path(temp_dir) / "download.zip"
@@ -78,6 +82,9 @@ class AcousticPBDownloaderV3_0(AcousticDownloaderBaseV3_0):
     cls,
     lang: str,
   ) -> tuple[Path, OrderedSet[str]]:
+    assert lang in cls.AVAILABLE_LANGUAGES
+
+    cls.ensure_labels_available()
     if not cls._check_acoustic_model_available():
       cls._download_model()
     assert cls._check_acoustic_model_available()
@@ -92,7 +99,7 @@ class AcousticPBDownloaderV3_0(AcousticDownloaderBaseV3_0):
     return model_dir, labels
 
 
-class AcousticPBBackendFP32V2_4(PBBackend, VersionedAcousticBackendProtocol):
+class AcousticPBBackendFP32V3_0(PBBackend, VersionedAcousticBackendProtocol):
   def __init__(
     self, model_path: Path, device_name: str, half_precision: bool, **kwargs: dict
   ) -> None:
@@ -127,7 +134,7 @@ class AcousticPBBackendFP32V2_4(PBBackend, VersionedAcousticBackendProtocol):
     return MODEL_PRECISION_FP32
 
 
-class AcousticRavenBackendFP32V2_4(PBBackend, VersionedAcousticBackendProtocol):
+class AcousticRavenBackendFP32V3_0(PBBackend, VersionedAcousticBackendProtocol):
   def __init__(
     self, model_path: Path, device_name: str, half_precision: bool, **kwargs: dict
   ) -> None:

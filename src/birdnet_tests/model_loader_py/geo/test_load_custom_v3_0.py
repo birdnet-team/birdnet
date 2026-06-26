@@ -8,8 +8,8 @@ from birdnet.geo.models.v3_0.tf import GeoTFDownloaderV3_0
 from birdnet.model_loader import load_custom
 from birdnet.utils.local_data import get_lang_dir, get_model_path
 from birdnet_tests.helper import (
-  geo_v3_0_litert_not_supported_skip,
   ensure_tf_2_19_or_2_18,
+  geo_v3_0_litert_not_supported_skip,
 )
 from birdnet_tests.model_loader_py.acoustic.test_acoustic_load_custom import (
   check_validity,
