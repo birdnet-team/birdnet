@@ -40,6 +40,7 @@ dependencies = [
   "psutil >= 5.9.0",                                                                                                                                                                                             # 2021/12/29
   "pyarrow >= 7.0.0",                                                                                                                                                                                            # 2022/02/03
   "kagglehub >= 0.3.13",                                                                                                                                                                                         # 2025/08/26; needed for downloading PERCH models
+  "kagglesdk >= 0.1.23",                                                                                                                                                                                         # 2026/07/01; needed for downloading PERCH models
   "tensorflow >= 2.8.0 ; sys_platform != 'darwin' or platform_machine != 'x86_64'",                                                                                                                              # 2022/02/02
   "tensorflow >= 2.8.0, <2.17 ; sys_platform == 'darwin' and platform_machine == 'x86_64'",
   "ai-edge-litert >= 2.0.2 ; python_version <= '3.13' and (sys_platform == 'linux' or (sys_platform == 'darwin' and platform_machine == 'arm64') or (sys_platform == 'win32' and platform_machine == 'AMD64'))", # 2026/05/12
@@ -49,12 +50,8 @@ dependencies = [
 and-cuda = [
   "tensorflow[and-cuda] >= 2.8.0 ; sys_platform == 'linux'", # 2022/02/02
 ]
-pt = [
-  "torch >= 2.0.0",
-]
-onnx = [
-  "onnxruntime >= 1.16.0",
-]
+pt = ["torch >= 2.0.0"]
+onnx = ["onnxruntime >= 1.16.0"]
 repro = [
   # Reproducible results only with Python 3.12 and on CPU and not on macOS Intel
   # Direct dependencies
