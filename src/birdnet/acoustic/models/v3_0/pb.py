@@ -84,9 +84,9 @@ class AcousticPBDownloaderV3_0(AcousticDownloaderBaseV3_0):
   ) -> tuple[Path, OrderedSet[str]]:
     assert lang in cls.AVAILABLE_LANGUAGES
 
-    cls.ensure_labels_available()
     if not cls._check_acoustic_model_available():
       cls._download_model()
+      cls.ensure_labels_available()
     assert cls._check_acoustic_model_available()
 
     model_dir, langs_path = cls._get_paths()
