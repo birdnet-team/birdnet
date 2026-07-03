@@ -35,18 +35,19 @@ class AcousticPBDownloaderV3_0(AcousticDownloaderBaseV3_0):
     return model_path, lang_dir
 
   @classmethod
+  def _check_model_files_available(cls) -> bool:
+    model_path, _ = cls._get_paths()
+    return model_path.is_dir() and check_protobuf_model_files_exist(model_path)
+
+  @classmethod
   def _check_acoustic_model_available(cls) -> bool:
-    model_path, lang_dir = cls._get_paths()
+    if not cls._check_model_files_available():
+      return False
 
-    model_is_downloaded = True
-    model_is_downloaded &= model_path.is_dir()
-    model_is_downloaded &= check_protobuf_model_files_exist(model_path)
-
-    model_is_downloaded &= lang_dir.is_dir()
-    for lang in cls.AVAILABLE_LANGUAGES:
-      model_is_downloaded &= (lang_dir / f"{lang}.txt").is_file()
-
-    return model_is_downloaded
+    _, lang_dir = cls._get_paths()
+    if not lang_dir.is_dir():
+      return False
+    return all((lang_dir / f"{lang}.txt").is_file() for lang in cls.AVAILABLE_LANGUAGES)
 
   @classmethod
   def _download_model(cls) -> None:
@@ -84,9 +85,11 @@ class AcousticPBDownloaderV3_0(AcousticDownloaderBaseV3_0):
   ) -> tuple[Path, OrderedSet[str]]:
     assert lang in cls.AVAILABLE_LANGUAGES
 
-    cls.ensure_labels_available()
-    if not cls._check_acoustic_model_available():
+    # Only the model files gate the (large) download; labels are (re)generated
+    # afterwards because _download_model() wipes the language directory.
+    if not cls._check_model_files_available():
       cls._download_model()
+    cls.ensure_labels_available()
     assert cls._check_acoustic_model_available()
 
     model_dir, langs_path = cls._get_paths()
