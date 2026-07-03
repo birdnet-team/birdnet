@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Generator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 
 from birdnet.utils.helper import download_file_tqdm
@@ -43,7 +43,8 @@ def _taxonomy_v3_lock(timeout_s: float = 300.0) -> Generator[None, None, None]:
   try:
     yield
   finally:
-    _TAXONOMY_V3_LOCK_DIR.rmdir()
+    with suppress(FileNotFoundError):
+      _TAXONOMY_V3_LOCK_DIR.rmdir()
 
 
 def ensure_taxonomy_v3_available() -> Path:

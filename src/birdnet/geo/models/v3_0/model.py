@@ -5,7 +5,7 @@ import os
 import tempfile
 import time
 from collections.abc import Generator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any, final
 
@@ -109,7 +109,8 @@ def _setup_lock(timeout_s: float = 300.0) -> Generator[None, None, None]:
   try:
     yield
   finally:
-    _SETUP_LOCK_DIR.rmdir()
+    with suppress(FileNotFoundError):
+      _SETUP_LOCK_DIR.rmdir()
 
 
 class GeoDownloaderBaseV3_0:
