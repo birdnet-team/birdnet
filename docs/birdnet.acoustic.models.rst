@@ -11,6 +11,7 @@ Subpackages
    birdnet.acoustic.inference
    birdnet.acoustic.models.perch_v2
    birdnet.acoustic.models.v2_4
+   birdnet.acoustic.models.v3_0
 
 Submodules
 ----------

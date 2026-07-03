@@ -34,8 +34,58 @@ Geo model (species range model) V2.4 - V2, Jan 2024
 
 * updated species range model based on eBird data
 * more accurate (spatial) species range prediction
-* slightly increased long-tail distribution in the temporal resolution 
+* slightly increased long-tail distribution in the temporal resolution
 * see `this discussion post <https://github.com/birdnet-team/BirdNET-Analyzer/discussions/234>`__ for more details
+
+Acoustic model V3.0 (preview)
+-----------------------------
+
+.. note::
+
+   The V3.0 acoustic model is currently a `*preview* <https://zenodo.org/records/20703646>`__ release (``preview3.1``) and may change before the final release.
+
+* global selection of more than 11,000 classes (birds and non-birds)
+* available in four backends, selectable via the ``backend`` argument of ``birdnet.load``:
+
+    * ``tf`` - TFLite/LiteRT (CPU only), ``fp32`` and ``fp16``
+    * ``pb`` - ProtoBuf (CPU/GPU), ``fp32``
+    * ``pt`` - PyTorch (CPU/GPU), ``fp32``; requires ``pip install birdnet[pt]``
+    * ``onnx`` - ONNX Runtime (CPU/GPU), ``fp32`` and ``fp16``; requires ``pip install birdnet[onnx]``
+
+* supports both ``predict(..)`` and ``encode(..)`` on all backends
+* multilingual common names in 30 languages
+
+Technical details
+^^^^^^^^^^^^^^^^^
+
+* 32 kHz sampling rate (audio is automatically resampled)
+* 3 s segments (96,000 samples) covering frequencies from 0 Hz to 15 kHz
+* final embedding size of 1280
+
+.. code-block:: python
+
+  import birdnet
+
+  # e.g. load the ONNX backend with FP16 precision
+  model = birdnet.load("acoustic", "3.0", "onnx", precision="fp16")
+  predictions = model.predict("example/soundscape.wav")
+
+Geo model (species range model) V3.0
+------------------------------------
+
+* updated species range model covering more than 12,000 classes
+* aligned with the V3.0 acoustic taxonomy
+* available in two backends via the ``backend`` argument of ``birdnet.load``:
+
+    * ``tf`` - TFLite/LiteRT (CPU only), ``int8``, ``fp16`` and ``fp32``
+    * ``pb`` - ProtoBuf (CPU/GPU), ``fp32``
+
+.. code-block:: python
+
+  import birdnet
+
+  model = birdnet.load("geo", "3.0", "tf")
+  predictions = model.predict(42.5, -76.45, week=4)
 
 Using older models
 ------------------

@@ -67,6 +67,16 @@ pip install birdnet --user
 pip install birdnet[and-cuda] --user
 ```
 
+The V3.0 models add two additional backends that require optional dependencies:
+
+```sh
+# PyTorch backend (.pt models)
+pip install birdnet[pt] --user
+
+# ONNX backend (.onnx models)
+pip install birdnet[onnx] --user
+```
+
 If you encounter issues with audio file reading, please ensure that `libsndfile` is installed on your system.
 
 - **Ubuntu/Debian**: `sudo apt-get install libsndfile1`
@@ -88,6 +98,23 @@ If you encounter issues with audio file reading, please ensure that `libsndfile`
 
 ✅ = Supported ❌ = Not supported\
 **ProtoBuf Raven is only available for custom acoustic models.*
+
+### V3.0
+
+The V3.0 acoustic model is available in four backends (TFLite/LiteRT, ProtoBuf, PyTorch and ONNX), the V3.0 geo model in two (TFLite/LiteRT and ProtoBuf). The PyTorch backend requires `birdnet[pt]` and the ONNX backend requires `birdnet[onnx]`.
+
+| **Model** | Acoustic | Acoustic | Acoustic | Acoustic | Geo | Geo |
+|---|---|---|---|---|---|---|
+| **Backend** | TFLite/<br>LiteRT | ProtoBuf | PyTorch | ONNX | TFLite/<br>LiteRT | ProtoBuf |
+| `predict(..)` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `encode(..)` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| **INT8** | ❌ | ❌ | ❌ | ❌ | CPU | ❌ |
+| **FP16** | CPU | ❌ | ❌ | CPU/GPU | CPU | ❌ |
+| **FP32** | CPU | CPU/GPU | CPU/GPU | CPU/GPU | CPU | CPU/GPU |
+
+✅ = Supported ❌ = Not supported
+
+Load a V3.0 model by passing the version and backend, e.g. `birdnet.load("acoustic", "3.0", "onnx")` or `birdnet.load("geo", "3.0", "tf")`.
 
 ### Perch V2
 
@@ -176,10 +203,12 @@ The audio models support all formats compatible with the SoundFile library (see 
 
 ## Model formats and execution details
 
-This project provides two model formats: Protobuf/Raven and TFLite. Both models are designed to have identical precision up to 2 decimal places, with differences only appearing from the third decimal place onward.
+Depending on the model version, this project provides up to four model formats: Protobuf/Raven, TFLite, PyTorch and ONNX. All formats are designed to have identical precision up to 2 decimal places, with differences only appearing from the third decimal place onward.
 
-- **TFLite Model**: This model is limited to CPU execution only.
-- **ProtoBuf Model**: This model can be executed on both GPU and CPU.
+* **TFLite Model** (`tf`): Limited to CPU execution only.
+* **ProtoBuf Model** (`pb`): Can be executed on both GPU and CPU.
+* **PyTorch Model** (`pt`, V3.0 only): Can be executed on both GPU and CPU. Requires `birdnet[pt]`.
+* **ONNX Model** (`onnx`, V3.0 only): Can be executed on both GPU and CPU. Requires `birdnet[onnx]`.
 
 Ensure your environment is configured to utilize the appropriate model and available hardware optimally.
 

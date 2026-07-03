@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added support for the BirdNET V3.0 (preview) acoustic model with four backends: TFLite/LiteRT (`tf`), ProtoBuf (`pb`), PyTorch (`pt`) and ONNX (`onnx`). Both `predict(..)` and `encode(..)` are supported on all backends. Load via `birdnet.load("acoustic", "3.0", <backend>)`. The `pt` and `onnx` backends require the new `birdnet[pt]` and `birdnet[onnx]` install extras (#41).
+- Added support for the BirdNET-Geomodel V3.0 with TFLite/LiteRT (`tf`) and ProtoBuf (`pb`) backends. Load via `birdnet.load("geo", "3.0", <backend>)` (#41).
+
 ## [0.2.16] - 2026-05-09
 
 ### Added
