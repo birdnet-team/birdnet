@@ -3,6 +3,8 @@ from __future__ import annotations
 import ctypes
 import hashlib
 import math
+import os
+import tempfile
 from collections.abc import Generator, Iterable
 from dataclasses import dataclass
 from itertools import islice
@@ -220,15 +222,15 @@ def get_uint_dtype(max_value: int) -> np.dtype:
 
   Examples
   --------
-  >>> uint_dtype_for(100)
+  >>> get_uint_dtype(100)
   dtype('uint8')
-  >>> uint_dtype_for(42_000)
+  >>> get_uint_dtype(42_000)
   dtype('uint16')
-  >>> uint_dtype_for(3_000_000_000)
+  >>> get_uint_dtype(3_000_000_000)
   dtype('uint64')
 
-  Info
-  ----
+  Notes
+  -----
   2**8 = 256
   2**16 = 65,536
   2**32 = 4,294,967,296
@@ -372,18 +374,36 @@ def download_file_tqdm(
     total_size = download_size
 
   block_size = 1024
-  with (
-    tqdm(total=total_size, unit="iB", unit_scale=True, desc=description) as tqdm_bar,
-    open(file_path, "wb") as file,
-  ):
-    for data in response.iter_content(block_size):
-      tqdm_bar.update(len(data))
-      file.write(data)
+  fd, temp_name = tempfile.mkstemp(
+    dir=file_path.parent,
+    prefix=f"{file_path.name}.",
+    suffix=".tmp",
+  )
+  os.close(fd)
+  temp_path = Path(temp_name)
 
-  if response.status_code != 200 or (total_size not in (0, tqdm_bar.n)):
-    raise ValueError(
-      f"Failed to download the file. Status code: {response.status_code}"
-    )
+  try:
+    with (
+      tqdm(total=total_size, unit="iB", unit_scale=True, desc=description) as tqdm_bar,
+      open(temp_path, "wb") as file,
+    ):
+      for data in response.iter_content(block_size):
+        tqdm_bar.update(len(data))
+        file.write(data)
+
+    if response.status_code != 200 or (total_size not in (0, tqdm_bar.n)):
+      raise ValueError(
+        f"Failed to download the file. Status code: {response.status_code}\n"
+        f"Expected size: {total_size} bytes, downloaded size: {tqdm_bar.n} bytes."
+      )
+
+    temp_path.replace(file_path)
+  except Exception:
+    temp_path.unlink(missing_ok=True)
+    raise
+  finally:
+    response.close()
+
   return total_size
 
 

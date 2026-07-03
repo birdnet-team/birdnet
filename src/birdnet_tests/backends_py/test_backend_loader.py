@@ -15,7 +15,7 @@ def test_empty_file_can_not_be_loaded() -> None:
   ) as empty_tflite:
     empty_tflite.write(b"")
   model_path = Path(empty_tflite.name)
-  with pytest.raises(ValueError) as exc_info:
+  with pytest.raises(ValueError) as exc_info:  # noqa: F841
     BackendLoader.check_model_can_be_loaded(
       model_path,
       AcousticTFBackendFP32V2_4,

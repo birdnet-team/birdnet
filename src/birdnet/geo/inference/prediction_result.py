@@ -146,7 +146,7 @@ class GeoPredictionResult(ResultBase):
 
     n_predictions = len(unmasked_species)
 
-    max_len = max(map(len, unmasked_species))
+    max_len = max(map(len, unmasked_species), default=1)
     dtype = [
       (VAR_SPECIES_NAME, f"<U{max_len}"),
       (VAR_CONFIDENCE, self._species_probs.dtype),

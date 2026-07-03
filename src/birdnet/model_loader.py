@@ -2,6 +2,7 @@
 Provides functions to load official and custom models.
 """
 
+from collections.abc import Callable
 from os import PathLike
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -11,6 +12,7 @@ from birdnet.acoustic.models.perch_v2.model import AcousticModelPerchV2
 from birdnet.acoustic.models.perch_v2.pb import (
   AcousticPBBackendFP32PerchV2,
   AcousticPBDownloaderPerchV2,
+  check_tf_version_for_perch_v2,
 )
 from birdnet.acoustic.models.v2_4.model import (
   AcousticModelV2_4,
@@ -30,12 +32,36 @@ from birdnet.acoustic.models.v2_4.tf import (
   AcousticTFBackendInt8V2_4,
   AcousticTFDownloaderV2_4,
 )
+from birdnet.acoustic.models.v3_0.model import (
+  AcousticModelV3_0,
+)
+from birdnet.acoustic.models.v3_0.onnx import (
+  AcousticOnnxBackendFP16V3_0,
+  AcousticOnnxBackendFP32V3_0,
+  AcousticOnnxDownloaderV3_0,
+)
+from birdnet.acoustic.models.v3_0.pb import (
+  AcousticPBBackendFP32V3_0,
+  AcousticPBDownloaderV3_0,
+)
+from birdnet.acoustic.models.v3_0.pt import (
+  AcousticPTBackendFP32V3_0,
+  AcousticPTDownloaderV3_0,
+)
+from birdnet.acoustic.models.v3_0.tf import (
+  AcousticTFBackendFP16V3_0,
+  AcousticTFBackendFP32V3_0,
+  AcousticTFDownloaderV3_0,
+)
 from birdnet.core.backends import (
   TF_BACKEND_LIB_ARG,
   BackendLoader,
   VersionedAcousticBackendProtocol,
+  VersionedGeoBackendProtocol,
   litert_installed,
+  onnxruntime_installed,
   tf_installed,
+  torch_installed,
 )
 from birdnet.core.base import ModelBase
 from birdnet.geo.models.base import GeoModelBase
@@ -47,8 +73,20 @@ from birdnet.geo.models.v2_4.tf import (
   GeoTFBackendFP32V2_4,
   GeoTFDownloaderV2_4,
 )
+from birdnet.geo.models.v3_0.model import (
+  GeoModelV3_0,
+)
+from birdnet.geo.models.v3_0.pb import GeoPBBackendFP32V3_0, GeoPBDownloaderV3_0
+from birdnet.geo.models.v3_0.tf import (
+  GeoTFBackendFP16V3_0,
+  GeoTFBackendFP32V3_0,
+  GeoTFBackendInt8V3_0,
+  GeoTFDownloaderV3_0,
+  check_tf_library_for_v3_0,
+)
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V2_4,
+  ACOUSTIC_MODEL_VERSION_V3_0,
   ACOUSTIC_MODEL_VERSIONS,
   CUSTOM_CLASSIFIER_APPEND,
   CUSTOM_CLASSIFIER_APPEND_HIDDEN,
@@ -59,17 +97,21 @@ from birdnet.globals import (
   CUSTOM_PB_IS_RAVEN_DEFAULT,
   CUSTOM_PB_IS_RAVEN_PARAM,
   GEO_MODEL_VERSION_V2_4,
+  GEO_MODEL_VERSION_V3_0,
   GEO_MODEL_VERSIONS,
   LIBRARY_LITERT,
   LIBRARY_TF_DEFAULT,
   LIBRARY_TF_PARAM,
   LIBRARY_TFLITE,
   LIBRARY_TYPES,
+  MODEL_BACKEND_ONNX,
   MODEL_BACKEND_PB,
+  MODEL_BACKEND_PT,
   MODEL_BACKEND_TF,
   MODEL_BACKENDS,
   MODEL_LANGUAGE_EN_US,
-  MODEL_LANGUAGES,
+  MODEL_LANGUAGES_V2_4,
+  MODEL_LANGUAGES_V3_0,
   MODEL_PRECISION_FP16,
   MODEL_PRECISION_FP32,
   MODEL_PRECISION_INT8,
@@ -82,7 +124,8 @@ from birdnet.globals import (
   VALID_GEO_MODEL_VERSIONS,
   VALID_LIBRARY_TYPES,
   VALID_MODEL_BACKENDS,
-  VALID_MODEL_LANGUAGES,
+  VALID_MODEL_LANGUAGES_V2_4,
+  VALID_MODEL_LANGUAGES_V3_0,
   VALID_MODEL_PRECISIONS,
   VALID_MODEL_TYPES,
 )
@@ -147,13 +190,22 @@ def _validate_precision(precision: Any) -> MODEL_PRECISIONS:  # noqa: ANN401
   return cast(MODEL_PRECISIONS, precision)
 
 
-def _validate_language(lang: Any) -> MODEL_LANGUAGES:  # noqa: ANN401
-  if lang not in VALID_MODEL_LANGUAGES:
+def _validate_language_v2_4(lang: Any) -> MODEL_LANGUAGES_V2_4:  # noqa: ANN401
+  if lang not in VALID_MODEL_LANGUAGES_V2_4:
     raise ValueError(
-      f"Language '{lang}' is not supported by the model. "
-      f"Available languages are: {', '.join(VALID_MODEL_LANGUAGES)}."
+      f"Language '{lang}' is not supported by model v2.4. "
+      f"Available languages are: {', '.join(VALID_MODEL_LANGUAGES_V2_4)}."
     )
-  return cast(MODEL_LANGUAGES, lang)
+  return cast(MODEL_LANGUAGES_V2_4, lang)
+
+
+def _validate_language_v3_0(lang: Any) -> MODEL_LANGUAGES_V3_0:  # noqa: ANN401
+  if lang not in VALID_MODEL_LANGUAGES_V3_0:
+    raise ValueError(
+      f"Language '{lang}' is not supported by model v3.0. "
+      f"Available languages are: {', '.join(VALID_MODEL_LANGUAGES_V3_0)}."
+    )
+  return cast(MODEL_LANGUAGES_V3_0, lang)
 
 
 def _validate_species_list_path(species_list: Any | PathLike[Any]) -> Path:  # noqa: ANN401
@@ -192,15 +244,41 @@ def _validate_tf_file(model_path: Any) -> Path:  # noqa: ANN401
   return path
 
 
-def _validate_library(library: Any) -> LIBRARY_TYPES:  # noqa: ANN401
+def _validate_pt_file(model_path: Any) -> Path:  # noqa: ANN401
+  path = Path(model_path)
+  if not path.is_file():
+    raise ValueError(f"Model file '{path.absolute()}' does not exist!")
+  if path.suffix != ".pt":
+    raise ValueError(f"Model file '{path.absolute()}' is not a valid PT model file!")
+  return path
+
+
+def _validate_onnx_file(model_path: Any) -> Path:  # noqa: ANN401
+  path = Path(model_path)
+  if not path.is_file():
+    raise ValueError(f"Model file '{path.absolute()}' does not exist!")
+  if path.suffix != ".onnx":
+    raise ValueError(f"Model file '{path.absolute()}' is not a valid ONNX model file!")
+  return path
+
+
+def _validate_library(
+  library: Any,  # noqa: ANN401
+  compatibility_check: Callable[[LIBRARY_TYPES], None] | None = None,
+) -> LIBRARY_TYPES:
   if library not in VALID_LIBRARY_TYPES:
     raise ValueError(
       f"Unsupported TensorFlow library: {library}. "
       f"Supported libraries are: {', '.join(VALID_LIBRARY_TYPES)}."
     )
-  if library == LIBRARY_TFLITE:
+
+  validated_library = cast(LIBRARY_TYPES, library)
+  if compatibility_check is not None:
+    compatibility_check(validated_library)
+
+  if validated_library == LIBRARY_TFLITE:
     assert tf_installed()  # default
-  elif library == LIBRARY_LITERT:
+  elif validated_library == LIBRARY_LITERT:
     if not litert_installed():
       raise ValueError(
         f"Parameter 'library': Library '{LIBRARY_LITERT}' is not available. "
@@ -208,7 +286,32 @@ def _validate_library(library: Any) -> LIBRARY_TYPES:  # noqa: ANN401
       )
   else:
     raise AssertionError()
-  return cast(LIBRARY_TYPES, library)
+  return validated_library
+
+
+def _validate_optional_backend_runtime(backend: MODEL_BACKENDS) -> None:
+  if backend == MODEL_BACKEND_PT and not torch_installed():
+    raise ValueError(
+      f"Parameter 'backend': Backend '{MODEL_BACKEND_PT}' is not available. "
+      "Install birdnet with [pt] option."
+    )
+  elif backend == MODEL_BACKEND_ONNX and not onnxruntime_installed():
+    raise ValueError(
+      f"Parameter 'backend': Backend '{MODEL_BACKEND_ONNX}' is not available. "
+      "Install birdnet with [onnx] option."
+    )
+
+
+def _raise_unsupported_backend(
+  model_type: MODEL_TYPES,
+  version: str,
+  backend: MODEL_BACKENDS,
+  supported_backends: tuple[str, ...],
+) -> None:
+  raise ValueError(
+    f"Unsupported backend '{backend}' for {model_type} model v{version}. "
+    f"Supported backends are: {', '.join(supported_backends)}."
+  )
 
 
 def _validate_custom_classifier_type(classifier_type: Any) -> CUSTOM_CLASSIFIER_TYPES:  # noqa: ANN401
@@ -258,6 +361,7 @@ def load_perch_v2(device: str) -> AcousticModelPerchV2:
     raise OSError("The Perch v2 model is not supported on Intel macOS systems.")
 
   device = _validate_device(device)
+  check_tf_version_for_perch_v2()
   model_path, species_list = AcousticPBDownloaderPerchV2.get_model_path_and_labels(
     device
   )
@@ -286,7 +390,6 @@ def load(
   model_type = _validate_model_type(model_type)
   backend = _validate_backend(backend)
   precision = _validate_precision(precision)
-  lang = _validate_language(lang)
 
   if model_type == MODEL_TYPE_ACOUSTIC:
     version = _validate_acoustic_model_version(version)
@@ -299,13 +402,12 @@ def load(
     )
   elif model_type == MODEL_TYPE_GEO:
     version = _validate_geo_model_version(version)
-    return _load_geo_model(
-      version=version,
-      backend=backend,
-      precision=precision,
-      lang=lang,
-      **model_kwargs,
-    )
+    if version == GEO_MODEL_VERSION_V2_4:
+      return _load_geo_model_V2_4(backend, precision, lang, **model_kwargs)
+    elif version == GEO_MODEL_VERSION_V3_0:
+      return _load_geo_model_V3_0(backend, precision, lang, **model_kwargs)
+    else:
+      raise AssertionError()
   else:
     raise AssertionError()
 
@@ -314,7 +416,7 @@ def _load_acoustic_model(
   version: ACOUSTIC_MODEL_VERSIONS,
   backend: MODEL_BACKENDS,
   precision: MODEL_PRECISIONS,
-  lang: MODEL_LANGUAGES,
+  lang: str,
   **model_kwargs: object,
 ) -> AcousticModelBase:
   if version == ACOUSTIC_MODEL_VERSION_V2_4:
@@ -324,19 +426,13 @@ def _load_acoustic_model(
       lang=lang,
       **model_kwargs,
     )
-  else:
-    raise AssertionError()
-
-
-def _load_geo_model(
-  version: GEO_MODEL_VERSIONS,
-  backend: MODEL_BACKENDS,
-  precision: MODEL_PRECISIONS,
-  lang: MODEL_LANGUAGES,
-  **model_kwargs: object,
-) -> GeoModelBase:
-  if version == GEO_MODEL_VERSION_V2_4:
-    return _load_geo_model_V2_4(backend, precision, lang, **model_kwargs)
+  elif version == ACOUSTIC_MODEL_VERSION_V3_0:
+    return _load_acoustic_model_V3_0(
+      backend=backend,
+      precision=precision,
+      lang=lang,
+      **model_kwargs,
+    )
   else:
     raise AssertionError()
 
@@ -344,9 +440,10 @@ def _load_geo_model(
 def _load_acoustic_model_V2_4(
   backend: MODEL_BACKENDS,
   precision: MODEL_PRECISIONS,
-  lang: MODEL_LANGUAGES,
+  lang: str,
   **model_kwargs: object,
 ) -> AcousticModelV2_4:
+  lang = _validate_language_v2_4(lang)
   if backend == MODEL_BACKEND_TF:
     model_kwargs = _validate_kwargs_allowed(model_kwargs, {LIBRARY_TF_PARAM})
     library = _validate_library(model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT))
@@ -388,15 +485,120 @@ def _load_acoustic_model_V2_4(
       backend_kwargs={},
     )
   else:
-    raise AssertionError()
+    _raise_unsupported_backend(
+      MODEL_TYPE_ACOUSTIC,
+      ACOUSTIC_MODEL_VERSION_V2_4,
+      backend,
+      (MODEL_BACKEND_TF, MODEL_BACKEND_PB),
+    )
+
+
+def _load_acoustic_model_V3_0(
+  backend: MODEL_BACKENDS,
+  precision: MODEL_PRECISIONS,
+  lang: str,
+  **model_kwargs: object,
+) -> AcousticModelV3_0:
+  lang = _validate_language_v3_0(lang)
+  if backend == MODEL_BACKEND_TF:
+    if precision == MODEL_PRECISION_FP32:
+      backend_type = AcousticTFBackendFP32V3_0
+    elif precision == MODEL_PRECISION_FP16:
+      backend_type = AcousticTFBackendFP16V3_0
+    else:
+      raise ValueError(
+        f"Unsupported model precision for acoustic tf model: {precision}. "
+        "Currently supported precisions are: "
+        f"{MODEL_PRECISION_FP32}, {MODEL_PRECISION_FP16}."
+      )
+
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, {LIBRARY_TF_PARAM})
+    library = _validate_library(model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT))
+
+    model_path, species_list = AcousticTFDownloaderV3_0.get_model_path_and_labels(
+      lang, precision
+    )
+    return AcousticModelV3_0.load(
+      model_path,
+      species_list,
+      backend_type=backend_type,
+      backend_kwargs={
+        TF_BACKEND_LIB_ARG: library,
+      },
+    )
+  elif backend == MODEL_BACKEND_PB:
+    if precision != MODEL_PRECISION_FP32:
+      raise ValueError(
+        f"Unsupported model precision for acoustic pb model: {precision}. "
+        f"Currently supported precision is: {MODEL_PRECISION_FP32}."
+      )
+
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, None)
+
+    model_path, species_list = AcousticPBDownloaderV3_0.get_model_path_and_labels(lang)
+    return AcousticModelV3_0.load(
+      model_path,
+      species_list,
+      backend_type=AcousticPBBackendFP32V3_0,
+      backend_kwargs={},
+    )
+  elif backend == MODEL_BACKEND_PT:
+    if precision != MODEL_PRECISION_FP32:
+      raise ValueError(
+        f"Unsupported model precision for acoustic pt model: {precision}. "
+        f"Currently supported precision is: {MODEL_PRECISION_FP32}."
+      )
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, None)
+    _validate_optional_backend_runtime(backend)
+
+    model_path, species_list = AcousticPTDownloaderV3_0.get_model_path_and_labels(
+      lang, precision
+    )
+    return AcousticModelV3_0.load(
+      model_path,
+      species_list,
+      backend_type=AcousticPTBackendFP32V3_0,
+      backend_kwargs={},
+    )
+  elif backend == MODEL_BACKEND_ONNX:
+    if precision == MODEL_PRECISION_FP32:
+      backend_type = AcousticOnnxBackendFP32V3_0
+    elif precision == MODEL_PRECISION_FP16:
+      backend_type = AcousticOnnxBackendFP16V3_0
+    else:
+      raise ValueError(
+        f"Unsupported model precision for acoustic onnx model: {precision}. "
+        "Currently supported precisions are: "
+        f"{MODEL_PRECISION_FP32}, {MODEL_PRECISION_FP16}."
+      )
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, None)
+    _validate_optional_backend_runtime(backend)
+
+    model_path, species_list = AcousticOnnxDownloaderV3_0.get_model_path_and_labels(
+      lang, precision
+    )
+    return AcousticModelV3_0.load(
+      model_path,
+      species_list,
+      backend_type=backend_type,
+      backend_kwargs={},
+    )
+  else:
+    _raise_unsupported_backend(
+      MODEL_TYPE_ACOUSTIC,
+      ACOUSTIC_MODEL_VERSION_V3_0,
+      backend,
+      (MODEL_BACKEND_TF, MODEL_BACKEND_PB, MODEL_BACKEND_PT, MODEL_BACKEND_ONNX),
+    )
 
 
 def _load_geo_model_V2_4(
   backend: MODEL_BACKENDS,
   precision: MODEL_PRECISIONS,
-  lang: MODEL_LANGUAGES,
+  lang: str,
   **model_kwargs: object,
 ) -> GeoModelV2_4:
+  lang = _validate_language_v2_4(lang)
   if backend == MODEL_BACKEND_TF:
     if precision != MODEL_PRECISION_FP32:
       raise ValueError(
@@ -434,7 +636,12 @@ def _load_geo_model_V2_4(
       backend_kwargs={},
     )
   else:
-    raise AssertionError()
+    _raise_unsupported_backend(
+      MODEL_TYPE_GEO,
+      GEO_MODEL_VERSION_V2_4,
+      backend,
+      (MODEL_BACKEND_TF, MODEL_BACKEND_PB),
+    )
 
 
 def load_custom(
@@ -499,6 +706,15 @@ def _load_custom_acoustic_model(
       check_validity=check_validity,
       **model_kwargs,
     )
+  elif version == ACOUSTIC_MODEL_VERSION_V3_0:
+    return _load_custom_acoustic_model_V3_0(
+      backend=backend,
+      precision=precision,
+      species_list=species_list,
+      model=model,
+      check_validity=check_validity,
+      **model_kwargs,
+    )
   else:
     raise AssertionError()
 
@@ -514,6 +730,10 @@ def _load_custom_geo_model(
 ) -> GeoModelBase:
   if version == GEO_MODEL_VERSION_V2_4:
     return _load_custom_geo_model_V2_4(
+      backend, model, precision, species_list, check_validity, **model_kwargs
+    )
+  elif version == GEO_MODEL_VERSION_V3_0:
+    return _load_custom_geo_model_V3_0(
       backend, model, precision, species_list, check_validity, **model_kwargs
     )
   else:
@@ -614,7 +834,113 @@ def _load_custom_acoustic_model_V2_4(
       check_validity=check_validity,
     )
   else:
-    raise AssertionError()
+    _raise_unsupported_backend(
+      MODEL_TYPE_ACOUSTIC,
+      ACOUSTIC_MODEL_VERSION_V2_4,
+      backend,
+      (MODEL_BACKEND_TF, MODEL_BACKEND_PB),
+    )
+
+
+def _load_custom_acoustic_model_V3_0(
+  backend: MODEL_BACKENDS,
+  precision: MODEL_PRECISIONS,
+  model: Path,
+  species_list: Path,
+  check_validity: bool,
+  **model_kwargs: object,
+) -> AcousticModelV3_0:
+  if backend == MODEL_BACKEND_TF:
+    model = _validate_tf_file(model)
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, {LIBRARY_TF_PARAM})
+    library = _validate_library(model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT))
+
+    backend_type: type[VersionedAcousticBackendProtocol]
+    if precision == MODEL_PRECISION_FP32:
+      backend_type = AcousticTFBackendFP32V3_0
+    elif precision == MODEL_PRECISION_FP16:
+      backend_type = AcousticTFBackendFP16V3_0
+    else:
+      raise ValueError(
+        f"Unsupported model precision for acoustic tf model: {precision}. "
+        "Currently supported precisions are: "
+        f"{MODEL_PRECISION_FP32}, {MODEL_PRECISION_FP16}."
+      )
+
+    return AcousticModelV3_0.load_custom(
+      model,
+      species_list,
+      backend_type=backend_type,
+      backend_kwargs={
+        TF_BACKEND_LIB_ARG: library,
+      },
+      check_validity=check_validity,
+    )
+  elif backend == MODEL_BACKEND_PB:
+    if precision != MODEL_PRECISION_FP32:
+      raise ValueError(
+        f"Unsupported model precision for acoustic pb model: {precision}. "
+        f"Currently supported precision is: {MODEL_PRECISION_FP32}."
+      )
+
+    model = _validate_pb_model_folder(model)
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, None)
+
+    return AcousticModelV3_0.load_custom(
+      model,
+      species_list,
+      backend_type=AcousticPBBackendFP32V3_0,
+      backend_kwargs={},
+      check_validity=check_validity,
+    )
+  elif backend == MODEL_BACKEND_PT:
+    if precision != MODEL_PRECISION_FP32:
+      raise ValueError(
+        f"Unsupported model precision for acoustic pt model: {precision}. "
+        f"Currently supported precision is: {MODEL_PRECISION_FP32}."
+      )
+
+    model = _validate_pt_file(model)
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, None)
+    _validate_optional_backend_runtime(backend)
+
+    return AcousticModelV3_0.load_custom(
+      model,
+      species_list,
+      backend_type=AcousticPTBackendFP32V3_0,
+      backend_kwargs={},
+      check_validity=check_validity,
+    )
+  elif backend == MODEL_BACKEND_ONNX:
+    if precision == MODEL_PRECISION_FP32:
+      backend_type = AcousticOnnxBackendFP32V3_0
+    elif precision == MODEL_PRECISION_FP16:
+      backend_type = AcousticOnnxBackendFP16V3_0
+    else:
+      raise ValueError(
+        f"Unsupported model precision for acoustic onnx model: {precision}. "
+        "Currently supported precisions are: "
+        f"{MODEL_PRECISION_FP32}, {MODEL_PRECISION_FP16}."
+      )
+
+    model = _validate_onnx_file(model)
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, None)
+    _validate_optional_backend_runtime(backend)
+
+    return AcousticModelV3_0.load_custom(
+      model,
+      species_list,
+      backend_type=backend_type,
+      backend_kwargs={},
+      check_validity=check_validity,
+    )
+  else:
+    _raise_unsupported_backend(
+      MODEL_TYPE_ACOUSTIC,
+      ACOUSTIC_MODEL_VERSION_V3_0,
+      backend,
+      (MODEL_BACKEND_TF, MODEL_BACKEND_PB, MODEL_BACKEND_PT, MODEL_BACKEND_ONNX),
+    )
 
 
 def _load_custom_geo_model_V2_4(
@@ -663,4 +989,129 @@ def _load_custom_geo_model_V2_4(
       check_validity=check_validity,
     )
   else:
-    raise AssertionError()
+    _raise_unsupported_backend(
+      MODEL_TYPE_GEO,
+      GEO_MODEL_VERSION_V2_4,
+      backend,
+      (MODEL_BACKEND_TF, MODEL_BACKEND_PB),
+    )
+
+
+def _load_geo_model_V3_0(
+  backend: MODEL_BACKENDS,
+  precision: MODEL_PRECISIONS,
+  lang: str,
+  **model_kwargs: object,
+) -> GeoModelV3_0:
+  lang = _validate_language_v3_0(lang)
+  if backend == MODEL_BACKEND_TF:
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, {LIBRARY_TF_PARAM})
+    library = _validate_library(
+      model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT),
+      compatibility_check=check_tf_library_for_v3_0,
+    )
+
+    model_path, species_list = GeoTFDownloaderV3_0.get_model_path_and_labels(
+      lang, precision
+    )
+
+    backend_type: type[VersionedGeoBackendProtocol]
+    if precision == MODEL_PRECISION_INT8:
+      backend_type = GeoTFBackendInt8V3_0
+    elif precision == MODEL_PRECISION_FP16:
+      backend_type = GeoTFBackendFP16V3_0
+    else:
+      assert precision == MODEL_PRECISION_FP32
+      backend_type = GeoTFBackendFP32V3_0
+
+    return GeoModelV3_0.load(
+      model_path,
+      species_list,
+      backend_type=backend_type,
+      backend_kwargs={
+        TF_BACKEND_LIB_ARG: library,
+      },
+    )
+  elif backend == MODEL_BACKEND_PB:
+    if precision != MODEL_PRECISION_FP32:
+      raise ValueError(
+        f"Unsupported model precision for geo model: {precision}. "
+        f"Currently supported precision is: {MODEL_PRECISION_FP32}."
+      )
+
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, None)
+
+    model_path, species_list = GeoPBDownloaderV3_0.get_model_path_and_labels(lang)
+    return GeoModelV3_0.load(
+      model_path,
+      species_list,
+      backend_type=GeoPBBackendFP32V3_0,
+      backend_kwargs={},
+    )
+  else:
+    _raise_unsupported_backend(
+      MODEL_TYPE_GEO,
+      GEO_MODEL_VERSION_V3_0,
+      backend,
+      (MODEL_BACKEND_TF, MODEL_BACKEND_PB),
+    )
+
+
+def _load_custom_geo_model_V3_0(
+  backend: MODEL_BACKENDS,
+  model: Path,
+  precision: MODEL_PRECISIONS,
+  species_list: Path,
+  check_validity: bool,
+  **model_kwargs: object,
+) -> GeoModelV3_0:
+  if backend == MODEL_BACKEND_TF:
+    model = _validate_tf_file(model)
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, {LIBRARY_TF_PARAM})
+    library = _validate_library(
+      model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT),
+      compatibility_check=check_tf_library_for_v3_0,
+    )
+
+    backend_type: type[VersionedGeoBackendProtocol]
+    if precision == MODEL_PRECISION_INT8:
+      backend_type = GeoTFBackendInt8V3_0
+    elif precision == MODEL_PRECISION_FP16:
+      backend_type = GeoTFBackendFP16V3_0
+    else:
+      assert precision == MODEL_PRECISION_FP32
+      backend_type = GeoTFBackendFP32V3_0
+
+    return GeoModelV3_0.load_custom(
+      model,
+      species_list,
+      backend_type=backend_type,
+      backend_kwargs={
+        TF_BACKEND_LIB_ARG: library,
+      },
+      check_validity=check_validity,
+    )
+  elif backend == MODEL_BACKEND_PB:
+    if precision != MODEL_PRECISION_FP32:
+      raise ValueError(
+        f"Unsupported model precision for geo model: {precision}. "
+        f"Currently supported precision is: {MODEL_PRECISION_FP32}."
+      )
+
+    model = _validate_pb_model_folder(model)
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, None)
+
+    return GeoModelV3_0.load_custom(
+      model,
+      species_list,
+      backend_type=GeoPBBackendFP32V3_0,
+      backend_kwargs={},
+      check_validity=check_validity,
+    )
+  else:
+    _raise_unsupported_backend(
+      MODEL_TYPE_GEO,
+      GEO_MODEL_VERSION_V3_0,
+      backend,
+      (MODEL_BACKEND_TF, MODEL_BACKEND_PB),
+    )

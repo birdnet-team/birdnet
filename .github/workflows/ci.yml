@@ -34,7 +34,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 2
 
@@ -56,7 +56,7 @@ jobs:
           choco install libsndfile
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -92,7 +92,38 @@ jobs:
 
       - name: Upload results to Codecov
         if: matrix.os == 'ubuntu-24.04' && matrix.python-version == '3.12'
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: birdnet-team/birdnet
+
+      - name: Extract log path
+        id: extract-log-path
+        shell: pwsh
+        run: |
+          $logPaths = @()
+
+          if (Test-Path output.log) {
+            $output = Get-Content output.log -Raw
+            $pattern = '(?<path>(?:[A-Za-z]:\\|/)[^\r\n]*?\.log)'
+            $logPaths = [regex]::Matches($output, $pattern) |
+              ForEach-Object { $_.Groups['path'].Value } |
+              Sort-Object -Unique |
+              Where-Object { Test-Path $_ -PathType Leaf }
+          }
+
+          if ($logPaths.Count -gt 0) {
+            "log_paths<<EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            $logPaths | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            "EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          }
+          else {
+            "log_paths=" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          }
+
+      - name: Upload log file
+        if: failure() && steps.extract-log-path.outputs.log_paths != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: birdnet-log
+          path: ${{ steps.extract-log-path.outputs.log_paths }}

@@ -127,7 +127,9 @@ def run_benchmark_from_args(args: list[str]) -> None:
     "--workers",
     type=parse_positive_integer,
     metavar="WORKERS",
-    help="number of workers to use for processing (default: number of physical CPU cores)",
+    help=(
+      "number of workers to use for processing (default: number of physical CPU cores)"
+    ),
     default=psutil.cpu_count(logical=False) or 4,
   )
 
@@ -152,7 +154,9 @@ def run_benchmark_from_args(args: list[str]) -> None:
   parser.add_argument(
     "--half-precision",
     action="store_true",
-    help="use half-precision (float16) for model inference (slower but uses less memory)",
+    help=(
+      "use half-precision (float16) for model inference (slower but uses less memory)"
+    ),
     default=False,
   )
 
@@ -162,7 +166,12 @@ def run_benchmark_from_args(args: list[str]) -> None:
     type=parse_non_empty_or_whitespace,
     nargs="+",
     metavar="DEVICE",
-    help="device(s) to use for processing (only available for the Protobuf backend), e.g., 'CPU', 'GPU', 'GPU:0', 'GPU:1', ...,  (default: 'CPU'); either string or list of strings, latter is useful for multi-GPU setups, the first GPU will be used for the first producer, the second for the second producer, etc.",
+    help=(
+      "device(s) to use for processing (only available for the Protobuf backend), e.g.,"
+      " 'CPU', 'GPU', 'GPU:0', 'GPU:1', ...,  (default: 'CPU'); either string or list"
+      " of strings, latter is useful for multi-GPU setups, the first GPU will be used "
+      "for the first producer, the second for the second producer, etc."
+    ),
     default=["CPU"],
   )
 
@@ -188,7 +197,12 @@ def run_benchmark_from_args(args: list[str]) -> None:
     "--prefetch-ratio",
     type=parse_non_negative_integer,
     metavar="RATIO",
-    help="amount of additional buffer capacity to keep ahead of the workers, expressed as a ratio of the amount of workers, i.e., 0 means no prefetching, 1 means one additional slot per worker, 2 means two additional slots per worker, etc. (default: 1)",
+    help=(
+      "amount of additional buffer capacity to keep ahead of the workers, expressed "
+      "as a ratio of the amount of workers, i.e., 0 means no prefetching, 1 means one "
+      "additional slot per worker, 2 means two additional slots per worker, etc. "
+      "(default: 1)"
+    ),
     default=1,
   )
 
@@ -205,7 +219,11 @@ def run_benchmark_from_args(args: list[str]) -> None:
     type=str,
     choices=["no", "minimal", "progress", "benchmark"],
     metavar="SHOW_STATS",
-    help="show statistics during processing; 'no' means no statistics, 'minimal' means only minimal statistics, 'progress' means progress bar and minimal statistics, 'benchmark' means progress bar and detailed statistics (default: 'benchmark')",
+    help=(
+      "show statistics during processing; 'no' means no statistics, 'minimal' means "
+      "only minimal statistics, 'progress' means progress bar and minimal statistics, "
+      "'benchmark' means progress bar and detailed statistics (default: 'benchmark')"
+    ),
     default="benchmark",
   )
 
@@ -328,7 +346,7 @@ def show_progress_stats(
   )
 
   output_msg = "; ".join(output_msg_fields)
-  print(output_msg, file=sys.stdout)
+  print(output_msg, file=sys.stdout)  # noqa: T201
 
   if info.finished:
     result_container.stats = info
@@ -480,7 +498,7 @@ def save_statistics(result_container: BenchmarkResultContainer) -> None:
   stats_json_path = output_folder / "benchmark_stats.json"
   with stats_json_path.open("w", encoding="utf8") as f:
     json.dump(result_json, f, indent=2)
-  print(f"Saved benchmark statistics to: {stats_json_path.absolute()}")
+  print(f"Saved benchmark statistics to: {stats_json_path.absolute()}")  # noqa: T201
 
   summary = (
     f"-------------------------------\n"
@@ -495,7 +513,8 @@ def save_statistics(result_container: BenchmarkResultContainer) -> None:
     f"  Minimum duration (single file): {input_stats['min_duration']}\n"
     f"  Maximum duration (single file): {input_stats['max_duration']}\n"
     f"Producer(s): {params['n_producers']}\n"
-    f"Buffer: {proc_buffer['median_filled_slots']:.1f}/{proc_buffer['n_slots']} filled slots (median)\n"
+    f"Buffer: {proc_buffer['median_filled_slots']:.1f}/{proc_buffer['n_slots']} "
+    "filled slots (median)\n"
     f"Busy workers: {proc_worker['median_busy']:.1f}/{params['n_workers']} (median)\n"
     f"  Median wait time for next batch: {proc_worker['median_wait_ms']:.3f} ms\n"
     f"Memory usage:\n"
@@ -503,35 +522,35 @@ def save_statistics(result_container: BenchmarkResultContainer) -> None:
     # f"  Buffer: {bmm.mem_shm_size_total_MiB:.2f} M (shared memory)\n"
     f"  Result: {output_stats['file_size_MiB']:.2f} M (NumPy)\n"
     f"Performance:\n"
-    f"  {proc_stats['speed_xrt']:.0f} x real-time (RTF: {proc_stats['speed_rtf']:.8f})\n"
-    f"  {proc_stats['speed_seg_per_s']:.0f} segments/s "  # ({bmm.speed_total_audio_per_second} audio/s)\n"
+    f"  {proc_stats['speed_xrt']:.0f} x real-time (RTF: {proc_stats['speed_rtf']:.8f})\n"  # noqa: E501
+    f"  {proc_stats['speed_seg_per_s']:.0f} segments/s "  # ({bmm.speed_total_audio_per_second} audio/s)\n"  # noqa: E501
     f"Worker performance:\n"
-    f"  {proc_worker['speed_xrt']:.0f} x real-time (RTF: {proc_worker['speed_rtf']:.8f})\n"
-    f"  {proc_worker['speed_seg_per_s']:.0f} segments/s"  #  ({bmm.speed_worker_total_audio_per_second} audio/s)\n"
+    f"  {proc_worker['speed_xrt']:.0f} x real-time (RTF: {proc_worker['speed_rtf']:.8f})\n"  # noqa: E501
+    f"  {proc_worker['speed_seg_per_s']:.0f} segments/s"  #  ({bmm.speed_worker_total_audio_per_second} audio/s)\n"  # noqa: E501
   )
 
   stats_human_readable_out = output_folder / "benchmark_stats.txt"
   stats_human_readable_out.write_text(summary, encoding="utf8")
-  print(f"Saved benchmark statistics to: {stats_human_readable_out.absolute()}")
+  print(f"Saved benchmark statistics to: {stats_human_readable_out.absolute()}")  # noqa: T201
 
   return
-  print("Saving result using internal format (.npz)...")
-  result.save(result_npz)
-  saved_files = [result_npz]
-  saved_files += strategy.save_results_extra(result, benchmark_run_dir, prepend)
+  # print("Saving result using internal format (.npz)...")
+  # result.save(result_npz)
+  # saved_files = [result_npz]
+  # saved_files += strategy.save_results_extra(result, benchmark_run_dir, prepend)
 
-  summary += (
-    f"-------------------------------\n"
-    f"Benchmark folder:\n"
-    f"  {benchmark_run_dir.absolute()}\n"
-    f"Statistics results written to:\n"
-    f"  {stats_human_readable_out.absolute()}\n"
-    f"  {stats_out_json.absolute()}\n"
-    f"  {all_sessions_meta_df_out.absolute()}\n"
-    f"Prediction results written to:\n"
-  )
-  for saved_file in saved_files:
-    summary += f"  {saved_file.absolute()}\n"
-  summary += (
-    f"Session log file:\n  {resources.logging_resources.session_log_file.absolute()}\n"
-  )
+  # summary += (
+  #   f"-------------------------------\n"
+  #   f"Benchmark folder:\n"
+  #   f"  {benchmark_run_dir.absolute()}\n"
+  #   f"Statistics results written to:\n"
+  #   f"  {stats_human_readable_out.absolute()}\n"
+  #   f"  {stats_out_json.absolute()}\n"
+  #   f"  {all_sessions_meta_df_out.absolute()}\n"
+  #   f"Prediction results written to:\n"
+  # )
+  # for saved_file in saved_files:
+  #   summary += f"  {saved_file.absolute()}\n"
+  # summary += (
+  #   f"Session log file:\n  {resources.logging_resources.session_log_file.absolute()}\n"  # noqa: E501
+  # )

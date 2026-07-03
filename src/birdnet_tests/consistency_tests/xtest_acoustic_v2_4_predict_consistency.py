@@ -191,7 +191,8 @@ def get_prediction_result_tolerances(
   #   ref_result.species_probs,
   # )
   # assert precision == decimal, (
-  #   f"Precision {precision} does not match expected {decimal} for test case '{case_nr}'"
+  #   f"Precision {precision} does not match expected {decimal}"
+  #   f" for test case '{case_nr}'"
   # )
   # numpy.testing.assert_almost_equal(
   #   result.species_probs,

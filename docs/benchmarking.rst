@@ -1,7 +1,12 @@
 Benchmarking using command-line tool
-============
+====================================
 
 This page provides information on benchmarking BirdNET's performance on different hardware configurations. For some real world benchmark results, see :doc:`Comparative benchmarking results <benchmarking_results>`.
+
+.. toctree::
+  :hidden:
+
+  benchmarking_results
 
 .. note::
 
@@ -20,7 +25,8 @@ Example usage
 - Use Protobuf backend: ``birdnet-benchmark soundscape.wav -b "pb"``
 - Output predictions for top 10 species: ``birdnet-benchmark soundscape.wav --top-k 10 --confidence -100``
 - Run on GPU: ``birdnet-benchmark soundscape.wav --backend "pb" --worker 1 --device "GPU" --batch-size 1000``
-  - To determine the largest possible batch size, you must experiment with several values. On a GPU with 24 GB of VRAM, a batch size of roughly 1,000 usually works well. If the batch size is set too high, the pipeline will abort with a runtime error ("Analysis was cancelled due to an error."), and the log will state that the GPU ran out of memory.
+
+  To determine the largest possible batch size, you must experiment with several values. On a GPU with 24 GB of VRAM, a batch size of roughly 1,000 usually works well. If the batch size is set too high, the pipeline will abort with a runtime error ("Analysis was cancelled due to an error."), and the log will state that the GPU ran out of memory.
 - Run on three GPUs: ``birdnet-benchmark soundscape.wav --backend "pb" --worker 3 --device "GPU:0" "GPU:1" "GPU:2" --batch-size 1000``
 - Increase amount of *Producers*: ``birdnet-benchmark soundscape.wav --producers 2``
 - Increase *Buffer* size to 3 * *Worker*: ``birdnet-benchmark soundscape.wav --prefetch-ratio 2``
@@ -70,7 +76,7 @@ Example output on Linux:
 
 
 Interpretation of runtime metrics
---------------------------------
+---------------------------------
 
 During analysis, performance indicators are updated and printed once per second.
 
@@ -109,7 +115,7 @@ Example log line::
 
 
 Typical bottlenecks and mitigation measures
-^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 * **High WAIT values or empty buffer** – Increase the number of *Producers*. If insufficient, use faster storage (NVMe/SSD) or reduce *Workers*.
 * **BUSY < Worker count** – Typically an I/O bottleneck. Apply steps above.
@@ -117,7 +123,7 @@ Typical bottlenecks and mitigation measures
 
 
 Metrics after completion
------
+------------------------
 
 After analysis completes, the benchmark tool reports:
 

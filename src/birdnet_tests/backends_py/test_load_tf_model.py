@@ -9,6 +9,7 @@ from birdnet_tests.helper import ensure_litert_or_skip, use_fork_or_skip
 
 
 def test_load_tf_and_litert_after_each_other_is_not_possible() -> None:
+  pytest.skip("Does not throw an exception with ai-edge-litert==2.1.4. @stefantaubert")
   # not marked as @pytest.mark.litert because TF is loaded first
   # other tests with litert marking would fail then
   ensure_litert_or_skip()

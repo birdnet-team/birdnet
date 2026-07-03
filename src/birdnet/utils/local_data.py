@@ -6,7 +6,9 @@ from birdnet.globals import (
   ACOUSTIC_MODEL_VERSIONS,
   ENV_VAR_APP_DATA,
   GEO_MODEL_VERSIONS,
+  MODEL_BACKEND_ONNX,
   MODEL_BACKEND_PB,
+  MODEL_BACKEND_PT,
   MODEL_BACKEND_TF,
   MODEL_BACKENDS,
   MODEL_PRECISIONS,
@@ -81,6 +83,10 @@ def get_model_path(
     result = root_dir / f"model-{precision}.tflite"
   elif backend == MODEL_BACKEND_PB:
     result = root_dir / f"model-{precision}"
+  elif backend == MODEL_BACKEND_PT:
+    result = root_dir / f"model-{precision}.pt"
+  elif backend == MODEL_BACKEND_ONNX:
+    result = root_dir / f"model-{precision}.onnx"
   else:
     raise AssertionError()
   return result

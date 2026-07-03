@@ -25,7 +25,9 @@ CUSTOM_CLASSIFIER_REPLACE = "replace"
 CUSTOM_CLASSIFIER_APPEND = "append"
 CUSTOM_CLASSIFIER_REPLACE_HIDDEN = "replace_hidden"
 CUSTOM_CLASSIFIER_APPEND_HIDDEN = "append_hidden"
-CUSTOM_CLASSIFIER_TYPES = Literal["replace", "append", "replace_hidden", "append_hidden"]
+CUSTOM_CLASSIFIER_TYPES = Literal[
+  "replace", "append", "replace_hidden", "append_hidden"
+]
 VALID_CUSTOM_CLASSIFIER_TYPES = [
   CUSTOM_CLASSIFIER_REPLACE,
   CUSTOM_CLASSIFIER_APPEND,
@@ -52,22 +54,39 @@ VALID_MODEL_TYPES = [
 ]
 
 ACOUSTIC_MODEL_VERSION_V2_4 = "2.4"
-ACOUSTIC_MODEL_VERSION_V2 = "2"
-ACOUSTIC_MODEL_VERSIONS = Literal["2.4",]
-VALID_ACOUSTIC_MODEL_VERSIONS = [ACOUSTIC_MODEL_VERSION_V2_4, ACOUSTIC_MODEL_VERSION_V2]
+ACOUSTIC_MODEL_VERSION_V3_0 = "3.0"
+ACOUSTIC_MODEL_VERSIONS = Literal["2.4", "3.0"]
+VALID_ACOUSTIC_MODEL_VERSIONS = [
+  ACOUSTIC_MODEL_VERSION_V2_4,
+  ACOUSTIC_MODEL_VERSION_V3_0,
+]
 
 GEO_MODEL_VERSION_V2_4 = "2.4"
-GEO_MODEL_VERSIONS = Literal["2.4",]
+GEO_MODEL_VERSION_V3_0 = "3.0"
+GEO_MODEL_VERSIONS = Literal["2.4", "3.0"]
 VALID_GEO_MODEL_VERSIONS = [
   GEO_MODEL_VERSION_V2_4,
+  GEO_MODEL_VERSION_V3_0,
+]
+
+GEO_YEAR_ROUND_AGGREGATION_MAX = "max"
+GEO_YEAR_ROUND_AGGREGATION_AVERAGE = "average"
+GEO_YEAR_ROUND_AGGREGATIONS = Literal["max", "average"]
+VALID_GEO_YEAR_ROUND_AGGREGATIONS = [
+  GEO_YEAR_ROUND_AGGREGATION_MAX,
+  GEO_YEAR_ROUND_AGGREGATION_AVERAGE,
 ]
 
 MODEL_BACKEND_TF = "tf"
 MODEL_BACKEND_PB = "pb"
-MODEL_BACKENDS = Literal["tf", "pb"]
+MODEL_BACKEND_PT = "pt"
+MODEL_BACKEND_ONNX = "onnx"
+MODEL_BACKENDS = Literal["tf", "pb", "pt", "onnx"]
 VALID_MODEL_BACKENDS = [
   MODEL_BACKEND_TF,
   MODEL_BACKEND_PB,
+  MODEL_BACKEND_PT,
+  MODEL_BACKEND_ONNX,
 ]
 
 MODEL_PRECISION_INT8 = "int8"
@@ -80,39 +99,7 @@ VALID_MODEL_PRECISIONS = [
   MODEL_PRECISION_FP32,
 ]  # TODO: use `from typing import get_args`
 MODEL_LANGUAGE_EN_US = "en_us"
-MODEL_LANGUAGES = (
-  Literal[
-    "af",
-    "ar",
-    "cs",
-    "da",
-    "de",
-    "en_uk",
-    "en_us",
-    "es",
-    "fi",
-    "fr",
-    "hu",
-    "it",
-    "ja",
-    "ko",
-    "nl",
-    "no",
-    "pl",
-    "pt",
-    "ro",
-    "ru",
-    "sk",
-    "sl",
-    "sv",
-    "th",
-    "tr",
-    "uk",
-    "zh",
-  ]
-  | Literal["latin"]
-)
-VALID_MODEL_LANGUAGES = [
+MODEL_LANGUAGES_V2_4 = Literal[
   "af",
   "ar",
   "cs",
@@ -140,8 +127,104 @@ VALID_MODEL_LANGUAGES = [
   "tr",
   "uk",
   "zh",
-] + ["latin"]
+]
+VALID_MODEL_LANGUAGES_V2_4 = [
+  "af",
+  "ar",
+  "cs",
+  "da",
+  "de",
+  "en_uk",
+  "en_us",
+  "es",
+  "fi",
+  "fr",
+  "hu",
+  "it",
+  "ja",
+  "ko",
+  "nl",
+  "no",
+  "pl",
+  "pt",
+  "ro",
+  "ru",
+  "sk",
+  "sl",
+  "sv",
+  "th",
+  "tr",
+  "uk",
+  "zh",
+]
 
+MODEL_LANGUAGES_V3_0 = Literal[
+  "bg",
+  "ca",
+  "cs",
+  "cy",
+  "da",
+  "de",
+  "en_us",
+  "es",
+  "es_ec",
+  "es_es",
+  "es_mx",
+  "et",
+  "fa",
+  "fi",
+  "fr",
+  "hr",
+  "ja",
+  "lt",
+  "nl",
+  "no",
+  "pl",
+  "pt",
+  "pt_pt",
+  "ru",
+  "sk",
+  "sr",
+  "sv",
+  "tr",
+  "uk",
+  "zh",
+]
+VALID_MODEL_LANGUAGES_V3_0 = [
+  "bg",
+  "ca",
+  "cs",
+  "cy",
+  "da",
+  "de",
+  "en_us",
+  "es",
+  "es_ec",
+  "es_es",
+  "es_mx",
+  "et",
+  "fa",
+  "fi",
+  "fr",
+  "hr",
+  "ja",
+  "lt",
+  "nl",
+  "no",
+  "pl",
+  "pt",
+  "pt_pt",
+  "ru",
+  "sk",
+  "sr",
+  "sv",
+  "tr",
+  "uk",
+  "zh",
+]
+
+MODEL_LANGUAGES = MODEL_LANGUAGES_V2_4 | MODEL_LANGUAGES_V3_0
+VALID_MODEL_LANGUAGES = VALID_MODEL_LANGUAGES_V2_4 + VALID_MODEL_LANGUAGES_V3_0
 
 PKG_NAME = "birdnet"
 

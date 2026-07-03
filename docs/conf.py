@@ -16,6 +16,7 @@ release = "0.2.16"
 
 extensions = [
   "sphinx.ext.autodoc",
+  "sphinx.ext.autosummary",
   "sphinx_autodoc_typehints",
   "numpydoc",
   "myst_parser",
@@ -29,5 +30,8 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 html_theme = "alabaster"
 html_static_path = ["_static"]
+
+autosummary_generate = True
+numpydoc_class_members_toctree = False
 
 typehints_fully_qualified = False

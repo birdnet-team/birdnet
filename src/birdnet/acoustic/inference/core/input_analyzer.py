@@ -174,8 +174,8 @@ class InputAnalyzer:
           )
           self._logger.error(
             f"Input {inp_path} has a duration of {audio_duration_s / 60:.2f} min and "
-            f"contains {input_n_segments} segments, which exceeds the maximum supported "
-            f"amount of segments {self._max_supported_segment_index + 1}. "
+            f"contains {input_n_segments} segments, which exceeds the maximum supported"
+            f" amount of segments {self._max_supported_segment_index + 1}. "
             f"Please set maximum audio duration."
           )
           self._cancel_event.set()
