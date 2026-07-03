@@ -38,6 +38,21 @@ To install BirdNET with CUDA support, ensure that you have the NVIDIA GPU driver
 
   pip install birdnet[and-cuda] --user
 
+PyTorch and ONNX backends (V3.0)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The V3.0 acoustic model can additionally be run with the PyTorch (``pt``) and ONNX (``onnx``) backends. These require optional dependencies:
+
+.. code-block:: bash
+
+  # PyTorch backend (.pt models)
+  pip install birdnet[pt] --user
+
+  # ONNX backend (.onnx models)
+  pip install birdnet[onnx] --user
+
+Both backends support CPU and GPU execution.
+
 Troubleshooting
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
