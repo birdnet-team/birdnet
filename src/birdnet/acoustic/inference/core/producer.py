@@ -584,7 +584,7 @@ def get_sf_info(audio_path: Path) -> soundfile._SoundFileInfo:
 
 
 def get_audio_duration_from_sf(sf_info: soundfile._SoundFileInfo) -> float:
-  result = float(sf_info.duration)
+  result = get_audio_n_samples_from_sf(sf_info) / get_sample_rate_from_sf(sf_info)
   return result
 
 
@@ -605,7 +605,7 @@ def get_audio_duration_s(audio_path: Path) -> float:
   assert audio_path.is_file()
   assert audio_path.suffix.upper() in SF_FORMATS
   sf_info = soundfile.info(audio_path)
-  result = float(sf_info.duration)
+  result = get_audio_duration_from_sf(sf_info)
   return result
 
 
