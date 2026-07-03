@@ -1,4 +1,5 @@
 from math import ceil
+from types import SimpleNamespace
 
 import numpy as np
 import numpy.testing
@@ -6,6 +7,7 @@ import pytest
 import soundfile
 
 from birdnet.acoustic.inference.core.producer import (
+  get_audio_duration_from_sf,
   get_file_segments_with_overlap,
 )
 from birdnet_tests.test_files import AUDIO_FORMATS_DIR, TEST_FILE_LONG
@@ -95,6 +97,12 @@ def test_wma_can_not_be_read() -> None:
     soundfile.LibsndfileError,
   ):
     format_can_be_read("soundscape.wma")
+
+
+def test_audio_duration_uses_frames_over_sf_duration_field() -> None:
+  sf_info = SimpleNamespace(frames=960_000, samplerate=16_000, duration=59.94)
+
+  assert get_audio_duration_from_sf(sf_info) == 60.0
 
 
 def get_segments(
