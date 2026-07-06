@@ -160,7 +160,9 @@ class AcousticModelPerchV2(AcousticModelBase):
       half_precision: Use float16 where supported for inference.
       max_audio_duration_min: Maximum total duration per call.
       show_stats: Level of statistics logging to emit.
-      progress_callback: Optional callback to report progress.
+      progress_callback: Optional callback to report progress. Invoked from a
+        background worker thread, inheriting a copy of the caller's context
+        (contextvars) as captured when the call starts.
       device: Target device(s) for running the backend.
       max_n_files: Upper bound on files to limit resource consumption.
 
@@ -246,7 +248,9 @@ class AcousticModelPerchV2(AcousticModelBase):
       half_precision: Use float16 where supported for inference.
       max_audio_duration_min: Maximum total duration per call.
       show_stats: Level of statistics logging to emit.
-      progress_callback: Optional callback to report progress.
+      progress_callback: Optional callback to report progress. Invoked from a
+        background worker thread, inheriting a copy of the caller's context
+        (contextvars) as captured when the call starts.
       device: Target device(s) for running the backend.
       max_n_files: Upper bound on files to limit resource consumption.
 
@@ -320,7 +324,9 @@ class AcousticModelPerchV2(AcousticModelBase):
       half_precision: Use float16 where supported for inference.
       max_audio_duration_min: Maximum total duration per call.
       show_stats: Level of statistics logging to emit.
-      progress_callback: Optional callback to report progress.
+      progress_callback: Optional callback to report progress. Invoked from a
+        background worker thread, inheriting a copy of the caller's context
+        (contextvars) as captured when the call starts.
       device: Target device(s) for running the backend.
 
     Returns:
@@ -381,7 +387,9 @@ class AcousticModelPerchV2(AcousticModelBase):
       half_precision: Use float16 where supported for inference.
       max_audio_duration_min: Maximum total duration per call.
       show_stats: Level of statistics logging to emit.
-      progress_callback: Optional callback to report progress.
+      progress_callback: Optional callback to report progress. Invoked from a
+        background worker thread, inheriting a copy of the caller's context
+        (contextvars) as captured when the call starts.
       device: Target device(s) for running the backend.
 
     Returns:
@@ -460,7 +468,9 @@ class AcousticModelPerchV2(AcousticModelBase):
       max_audio_duration_min: Maximum total duration per call.
       device: Target device(s) for running the backend.
       show_stats: Level of statistics logging to emit.
-      progress_callback: Optional callback to report progress.
+      progress_callback: Optional callback to report progress. Invoked from a
+        background worker thread, inheriting a copy of the caller's context
+        (contextvars) as captured when the call starts.
 
     Returns:
       AcousticPredictionResultBase: Object containing detected species and confidence
@@ -544,7 +554,9 @@ class AcousticModelPerchV2(AcousticModelBase):
       max_audio_duration_min: Maximum total duration per call.
       device: Target device(s) for running the backend.
       show_stats: Level of statistics logging to emit.
-      progress_callback: Optional callback to report progress.
+      progress_callback: Optional callback to report progress. Invoked from a
+        background worker thread, inheriting a copy of the caller's context
+        (contextvars) as captured when the call starts.
 
     Returns:
       AcousticPredictionResultBase: Object containing detected species and confidence
