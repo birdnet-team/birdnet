@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextvars
 import os
 import threading
 from multiprocessing import Process
@@ -78,18 +79,28 @@ class ProcessManager:
     assert self._res.stats_resources.callback_finish_signal is not None
     assert self._res.stats_resources.callback_fn is not None
 
+    dispatcher = ProgressDispatcher(
+      session_id=self._session_id,
+      callback_fn=self._res.stats_resources.callback_fn,
+      check_interval=self._res.processing_resources.update_interval,
+      start_signal=self._res.stats_resources.callback_start_signal,
+      finish_signal=self._res.stats_resources.callback_finish_signal,
+      end_event=self._res.processing_resources.end_event,
+      callback_queue=self._res.stats_resources.callback_queue,
+      cancel_event=self._res.processing_resources.cancel_event,
+      processing_finished_event=self._res.processing_resources.processing_finished_event,
+    )
+
+    # Capture the caller's context so the progress callback runs with the same
+    # contextvars (e.g. request-scoped state) as the thread that started the
+    # session. The callback is invoked from this background worker thread, and
+    # without this it would otherwise run with an empty/default context.
+    # copy_context() is a one-time shallow copy; ctx.run enters the context once
+    # for the whole thread, so there is no per-callback overhead.
+    ctx = contextvars.copy_context()
     progress_dispatcher = threading.Thread(
-      target=ProgressDispatcher(
-        session_id=self._session_id,
-        callback_fn=self._res.stats_resources.callback_fn,
-        check_interval=self._res.processing_resources.update_interval,
-        start_signal=self._res.stats_resources.callback_start_signal,
-        finish_signal=self._res.stats_resources.callback_finish_signal,
-        end_event=self._res.processing_resources.end_event,
-        callback_queue=self._res.stats_resources.callback_queue,
-        cancel_event=self._res.processing_resources.cancel_event,
-        processing_finished_event=self._res.processing_resources.processing_finished_event,
-      ),
+      target=ctx.run,
+      args=(dispatcher,),
       name=f"{self._session_hash}-ProgressDispatcher",
       daemon=True,
     )
