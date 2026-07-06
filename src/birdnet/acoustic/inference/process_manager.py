@@ -92,7 +92,7 @@ class ProcessManager:
     )
 
     # Capture the caller's context so the progress callback runs with the same
-    # contextvars (e.g. gradio request state) as the thread that started the
+    # contextvars (e.g. request-scoped state) as the thread that started the
     # session. The callback is invoked from this background worker thread, and
     # without this it would otherwise run with an empty/default context.
     # copy_context() is a one-time shallow copy; ctx.run enters the context once
