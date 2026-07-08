@@ -211,6 +211,7 @@ class AcousticModelPerchV2(AcousticModelBase):
     bandpass_fmin: int = 0,
     bandpass_fmax: int = 15_000,
     apply_sigmoid: bool = False,
+    apply_softmax: bool = False,
     sigmoid_sensitivity: float | None = None,
     default_confidence_threshold: float | None = 0.1,
     custom_confidence_thresholds: dict[str, float] | None = None,
@@ -239,6 +240,8 @@ class AcousticModelPerchV2(AcousticModelBase):
       apply_sigmoid: Whether to transform logits with a sigmoid.
         When False, output scores are raw logits and thresholds are interpreted in
         logit space rather than as probabilities.
+      apply_softmax: Whether to transform logits with a softmax. When False, output
+        scores are raw logits unless apply_sigmoid=True.
       sigmoid_sensitivity: Optional scale for the sigmoid function.
       default_confidence_threshold: Base threshold to emit a detection.
         When apply_sigmoid=True this is a probability (typical range 0 to 1);
@@ -278,6 +281,7 @@ class AcousticModelPerchV2(AcousticModelBase):
       bandpass_fmin=bandpass_fmin,
       bandpass_fmax=bandpass_fmax,
       apply_sigmoid=apply_sigmoid,
+      apply_softmax=apply_softmax,
       sigmoid_sensitivity=sigmoid_sensitivity,
       default_confidence_threshold=default_confidence_threshold,
       custom_confidence_thresholds=custom_confidence_thresholds,
@@ -431,6 +435,7 @@ class AcousticModelPerchV2(AcousticModelBase):
     bandpass_fmax: int = 15_000,
     speed: float = 1.0,
     apply_sigmoid: bool = False,
+    apply_softmax: bool = False,
     sigmoid_sensitivity: float | None = None,
     default_confidence_threshold: float | None = 0.1,
     custom_confidence_thresholds: dict[str, float] | None = None,
@@ -458,6 +463,8 @@ class AcousticModelPerchV2(AcousticModelBase):
       apply_sigmoid: Whether to transform logits with a sigmoid.
         When False, output scores are raw logits and thresholds are interpreted in
         logit space rather than as probabilities.
+      apply_softmax: Whether to transform logits with a softmax. When False, output
+        scores are raw logits unless apply_sigmoid=True.
       sigmoid_sensitivity: Optional scale for the sigmoid function.
       default_confidence_threshold: Base threshold to emit a detection.
         When apply_sigmoid=True this is a probability (typical range 0 to 1);
@@ -490,6 +497,7 @@ class AcousticModelPerchV2(AcousticModelBase):
       bandpass_fmin=bandpass_fmin,
       bandpass_fmax=bandpass_fmax,
       apply_sigmoid=apply_sigmoid,
+      apply_softmax=apply_softmax,
       sigmoid_sensitivity=sigmoid_sensitivity,
       default_confidence_threshold=default_confidence_threshold,
       custom_confidence_thresholds=custom_confidence_thresholds,
@@ -518,6 +526,7 @@ class AcousticModelPerchV2(AcousticModelBase):
     bandpass_fmax: int = 15_000,
     speed: float = 1.0,
     apply_sigmoid: bool = False,
+    apply_softmax: bool = False,
     sigmoid_sensitivity: float | None = None,
     default_confidence_threshold: float | None = 0.1,
     custom_confidence_thresholds: dict[str, float] | None = None,
@@ -545,6 +554,8 @@ class AcousticModelPerchV2(AcousticModelBase):
         When False, output scores are raw logits and thresholds are interpreted in
         logit space rather than as probabilities.
       sigmoid_sensitivity: Optional scale for the sigmoid function.
+      apply_softmax: Whether to transform logits with a softmax. When False, output
+        scores are raw logits unless apply_sigmoid=True.
       default_confidence_threshold: Base threshold to emit a detection.
         When apply_sigmoid=True this is a probability (typical range 0 to 1);
         when apply_sigmoid=False it is a logit value.
@@ -576,6 +587,7 @@ class AcousticModelPerchV2(AcousticModelBase):
       bandpass_fmin=bandpass_fmin,
       bandpass_fmax=bandpass_fmax,
       apply_sigmoid=apply_sigmoid,
+      apply_softmax=apply_softmax,
       sigmoid_sensitivity=sigmoid_sensitivity,
       default_confidence_threshold=default_confidence_threshold,
       custom_confidence_thresholds=custom_confidence_thresholds,

@@ -11,7 +11,11 @@ from numpy.typing import DTypeLike
 from birdnet.acoustic.inference.core.shm import RingField
 from birdnet.acoustic.inference.core.worker import WorkerBase
 from birdnet.core.backends import BackendLoader, BatchT
-from birdnet.utils.helper import flat_sigmoid_logaddexp_fast, get_uint_dtype
+from birdnet.utils.helper import (
+  flat_sigmoid_logaddexp_fast,
+  flat_softmax_fast,
+  get_uint_dtype,
+)
 
 if TYPE_CHECKING:
   pass
@@ -40,6 +44,7 @@ class PredictionWorker(WorkerBase):
     sem_active_workers: Semaphore | None,
     half_precision: bool,
     apply_sigmoid: bool,
+    apply_softmax: bool,
     sigmoid_sensitivity: float | None,
     wkr_stats_queue: Queue | None,
     logging_queue: Queue,
@@ -61,6 +66,7 @@ class PredictionWorker(WorkerBase):
     self._thresholds = species_thresholds
     self._blacklist = species_blacklist
     self._apply_sigmoid = apply_sigmoid
+    self._apply_softmax = apply_softmax
     self._sigmoid_sensitivity = None
     if apply_sigmoid:
       assert sigmoid_sensitivity is not None
@@ -119,6 +125,8 @@ class PredictionWorker(WorkerBase):
         sensitivity=-1.0,
         bias=self._sigmoid_sensitivity,
       )
+    elif self._apply_softmax:
+      infer_result = flat_softmax_fast(infer_result)
 
     invalid_mask = (infer_result < self._thresholds) | self._blacklist
 

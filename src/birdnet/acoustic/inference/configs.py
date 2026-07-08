@@ -250,6 +250,7 @@ class PredictionConfig(SpecificConfigBase):
   custom_confidence_thresholds: dict[str, float] | None
   custom_species_list: set[str] | None
   apply_sigmoid: bool
+  apply_softmax: bool
   sigmoid_sensitivity: float | None
 
   @classmethod

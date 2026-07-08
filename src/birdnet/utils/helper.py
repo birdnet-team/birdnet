@@ -358,6 +358,13 @@ def flat_sigmoid_logaddexp_fast(
   return np.where(positive_mask, exp_neg_abs / one_plus_exp, 1.0 / one_plus_exp)
 
 
+def flat_softmax_fast(x: npt.NDArray) -> npt.NDArray:
+  x_max = np.max(x, axis=1, keepdims=True)
+  shifted = x - x_max
+  exp_shifted = np.exp(shifted, dtype=x.dtype)
+  return exp_shifted / np.sum(exp_shifted, axis=1, keepdims=True)
+
+
 def download_file_tqdm(
   url: str,
   file_path: Path,
