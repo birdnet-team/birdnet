@@ -10,6 +10,7 @@ from ordered_set import OrderedSet
 from birdnet.acoustic.inference.configs import InferenceConfig
 from birdnet.acoustic.inference.core.encoding.encoding_result import (
   AcousticEncodingResultBase,
+  AcousticFileEncodingResult,
 )
 from birdnet.acoustic.inference.core.perf_tracker import AcousticProgressStats
 from birdnet.acoustic.inference.core.prediction.prediction_result import (
@@ -178,6 +179,7 @@ class AcousticModelV2_4(AcousticModelBase):
     progress_callback: Callable[[AcousticProgressStats], None] | None = None,
     device: str | list[str] = "CPU",
     max_n_files: int = 65_536,  # Limit to avoid excessive memory usage
+    on_file_complete: Callable[[AcousticFileEncodingResult], None] | None = None,
   ) -> AcousticEncodingSession:
     """Create an encoding session with explicit resource configuration.
 
@@ -200,6 +202,12 @@ class AcousticModelV2_4(AcousticModelBase):
         (contextvars) as captured when the call starts.
       device: Target device(s) for running the backend.
       max_n_files: Upper bound on files to limit resource consumption.
+      on_file_complete: Optional callback fired once per input file as soon as
+        that file is fully processed, receiving a single-file
+        AcousticFileEncodingResult (invalid files are reported with their input
+        marked unprocessable). Enables streaming per-file persistence. Invoked
+        from a background thread with a copy of the caller's context; file
+        inputs only (not run_arrays). A callback that raises cancels the run.
 
     Returns:
       AcousticEncodingSession: Session capable of running encodings.
@@ -230,6 +238,7 @@ class AcousticModelV2_4(AcousticModelBase):
       progress_callback=progress_callback,
       device=device,
       max_n_files=max_n_files,
+      on_file_complete=on_file_complete,
     )
 
   def predict_session(
@@ -352,6 +361,7 @@ class AcousticModelV2_4(AcousticModelBase):
     show_stats: None | Literal["minimal", "progress", "benchmark"] = None,
     progress_callback: Callable[[AcousticProgressStats], None] | None = None,
     device: str | list[str] = "CPU",
+    on_file_complete: Callable[[AcousticFileEncodingResult], None] | None = None,
   ) -> AcousticEncodingResultBase:
     """Run encoding with the BirdNET 2.4 model on files or paths to obtain embeddings.
 
@@ -372,6 +382,12 @@ class AcousticModelV2_4(AcousticModelBase):
         background worker thread, inheriting a copy of the caller's context
         (contextvars) as captured when the call starts.
       device: Target device(s) for running the backend.
+      on_file_complete: Optional callback fired once per input file as soon as
+        that file is fully processed, receiving a single-file
+        AcousticFileEncodingResult (invalid files are reported with their input
+        marked unprocessable). Enables streaming per-file persistence. Invoked
+        from a background thread with a copy of the caller's context. A callback
+        that raises cancels the run.
 
     Returns:
       AcousticEncodingResultBase: Object containing embeddings for each file.
@@ -394,6 +410,7 @@ class AcousticModelV2_4(AcousticModelBase):
       max_n_files=max_n_files,
       device=device,
       progress_callback=progress_callback,
+      on_file_complete=on_file_complete,
     ) as session:
       return session.run(input_files)
 

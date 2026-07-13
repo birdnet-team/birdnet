@@ -10,6 +10,7 @@ from ordered_set import OrderedSet
 from birdnet.acoustic.inference.configs import InferenceConfig
 from birdnet.acoustic.inference.core.encoding.encoding_result import (
   AcousticEncodingResultBase,
+  AcousticFileEncodingResult,
 )
 from birdnet.acoustic.inference.core.perf_tracker import AcousticProgressStats
 from birdnet.acoustic.inference.core.prediction.prediction_result import (
@@ -144,6 +145,7 @@ class AcousticModelPerchV2(AcousticModelBase):
     progress_callback: Callable[[AcousticProgressStats], None] | None = None,
     device: str | list[str] = "CPU",
     max_n_files: int = 65_536,  # Limit to avoid excessive memory usage
+    on_file_complete: Callable[[AcousticFileEncodingResult], None] | None = None,
   ) -> AcousticEncodingSession:
     """Create an encoding session with explicit resource configuration.
 
@@ -196,6 +198,7 @@ class AcousticModelPerchV2(AcousticModelBase):
       progress_callback=progress_callback,
       device=device,
       max_n_files=max_n_files,
+      on_file_complete=on_file_complete,
     )
 
   def predict_session(
@@ -311,6 +314,7 @@ class AcousticModelPerchV2(AcousticModelBase):
     show_stats: None | Literal["minimal", "progress", "benchmark"] = None,
     progress_callback: Callable[[AcousticProgressStats], None] | None = None,
     device: str | list[str] = "CPU",
+    on_file_complete: Callable[[AcousticFileEncodingResult], None] | None = None,
   ) -> AcousticEncodingResultBase:
     """Run encoding with the Perch V2 model on files or paths to obtain embeddings.
 
@@ -353,6 +357,7 @@ class AcousticModelPerchV2(AcousticModelBase):
       max_n_files=max_n_files,
       device=device,
       progress_callback=progress_callback,
+      on_file_complete=on_file_complete,
     ) as session:
       return session.run(input_files)
 

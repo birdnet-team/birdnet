@@ -10,13 +10,12 @@ import numpy as np
 
 import birdnet.acoustic.inference.core.logs as bn_logging
 
-# (file_path, species_ids, species_probs, species_masked, is_invalid, duration_s)
-DispatchItem = tuple[object, np.ndarray, np.ndarray, np.ndarray, bool, float]
+# (file_path, tensor_slice_arrays, is_invalid, duration_s)
+# ``tensor_slice_arrays`` is a strategy-specific tuple of copied per-file arrays
+# (e.g. species ids/probs/masked for predictions, embeddings/mask for encodings).
+DispatchItem = tuple[object, tuple[np.ndarray, ...], bool, float]
 
-# (file_path, species_ids, species_probs, species_masked, is_invalid, duration_s)
-BuildResultFn = Callable[
-  [object, np.ndarray, np.ndarray, np.ndarray, bool, float], object
-]
+BuildResultFn = Callable[[object, tuple[np.ndarray, ...], bool, float], object]
 
 
 class FileCompletionDispatcher:
@@ -94,11 +93,9 @@ class FileCompletionDispatcher:
         # Sentinel: the consumer finished this run.
         return
 
-      file_path, ids, probs, masked, is_invalid, duration = item
+      file_path, arrays, is_invalid, duration = item
       try:
-        result = self._build_result_fn(
-          file_path, ids, probs, masked, is_invalid, duration
-        )
+        result = self._build_result_fn(file_path, arrays, is_invalid, duration)
         self._callback_fn(result)
       except Exception as e:
         self._logger.exception(

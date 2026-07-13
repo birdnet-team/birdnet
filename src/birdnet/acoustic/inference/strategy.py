@@ -66,16 +66,16 @@ class InferenceStrategyBase(Generic[ResultType, ConfigType, TensorType], ABC):
     self,
     config: InferenceConfig,
     file_path: Path,
-    species_ids: object,
-    species_probs: object,
-    species_masked: object,
+    arrays: tuple[object, ...],
     is_invalid: bool,
     duration_s: float,
   ) -> ResultType:
     """Build a single-file result from already-materialised per-file arrays.
 
-    Used by the per-file completion dispatcher (``on_file_complete``). Only
-    strategies that support the callback need to override this.
+    ``arrays`` is the strategy-specific tuple produced by the tensor's
+    ``copy_file_slice`` (predictions: species ids/probs/masked; encodings:
+    embeddings/mask). Used by the per-file completion dispatcher
+    (``on_file_complete``).
     """
     raise NotImplementedError(
       "This inference strategy does not support per-file completion results."

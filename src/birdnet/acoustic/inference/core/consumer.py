@@ -171,9 +171,11 @@ class Consumer:
     n_segments = int(self._expected[idx]) if valid else 0
     # Runs on this (consumer) thread, so the tensor is never read and written
     # concurrently; the copied arrays are what crosses to the dispatcher thread.
-    ids, probs, masked = self._tensor.copy_file_slice(idx, n_segments)  # type: ignore[attr-defined]
+    # The array tuple is tensor-specific (predictions vs embeddings); the
+    # strategy that built the tensor knows how to turn it back into a result.
+    arrays = self._tensor.copy_file_slice(idx, n_segments)  # type: ignore[attr-defined]
     self._dispatch_queue.put(
-      (self._inputs[idx], ids, probs, masked, not valid, float(self._duration[idx]))
+      (self._inputs[idx], arrays, not valid, float(self._duration[idx]))
     )
 
   def _end_dispatch(self) -> None:

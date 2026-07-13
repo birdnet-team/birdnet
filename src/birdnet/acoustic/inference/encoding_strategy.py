@@ -125,6 +125,42 @@ class EncodingStrategy(
       model_version=config.model_conf.version,
     )
 
+  def build_single_file_result(
+    self,
+    config: InferenceConfig,
+    file_path: Path,
+    arrays: tuple[object, ...],
+    is_invalid: bool,
+    duration_s: float,
+  ) -> AcousticFileEncodingResult:
+    import numpy as np
+
+    from birdnet.acoustic.inference.core.encoding.encoding_tensor import (
+      PrebuiltEncodingTensor,
+    )
+
+    emb, emb_masked = arrays
+    tensor = PrebuiltEncodingTensor(
+      emb=emb,  # type: ignore[arg-type]
+      emb_masked=emb_masked,  # type: ignore[arg-type]
+    )
+    tensor.set_unprocessable_inputs({0} if is_invalid else set())
+
+    return AcousticFileEncodingResult(
+      tensor=tensor,
+      files=[Path(file_path)],
+      segment_duration_s=config.model_conf.segment_size_s,
+      overlap_duration_s=config.processing_conf.overlap_duration_s,
+      speed=config.processing_conf.speed,
+      file_durations=np.array([duration_s], dtype=np.float32),
+      model_path=config.model_conf.path,
+      model_fmin=config.model_conf.sig_fmin,
+      model_fmax=config.model_conf.sig_fmax,
+      model_sr=config.model_conf.sample_rate,
+      model_precision=config.model_conf.backend_type.precision(),
+      model_version=config.model_conf.version,
+    )
+
   def create_array_result(
     self,
     tensor: AcousticEncodingTensor,

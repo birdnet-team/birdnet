@@ -188,9 +188,7 @@ class PredictionStrategy(
     self,
     config: InferenceConfig,
     file_path: Path,
-    species_ids: object,
-    species_probs: object,
-    species_masked: object,
+    arrays: tuple[object, ...],
     is_invalid: bool,
     duration_s: float,
   ) -> AcousticFilePredictionResult:
@@ -198,6 +196,7 @@ class PredictionStrategy(
       PrebuiltPredictionTensor,
     )
 
+    species_ids, species_probs, species_masked = arrays
     tensor = PrebuiltPredictionTensor(
       species_ids=species_ids,  # type: ignore[arg-type]
       species_probs=species_probs,  # type: ignore[arg-type]

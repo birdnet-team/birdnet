@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added an `on_file_complete` callback to acoustic `predict(..)`, `predict_session(..)`, `encode(..)` and `encode_session(..)` (all models: 2.4, 3.0, Perch V2). It fires once per input file the moment that file is fully processed, receiving a single-file result (`AcousticFilePredictionResult` / `AcousticFileEncodingResult`); invalid files are reported with their input marked unprocessable. This enables streaming per-file persistence (e.g. resumable multi-file analysis) and live output. The callback runs on a background thread with a copy of the caller's context, off the inference hot path, so it does not regress throughput. File inputs only (not `run_arrays`); a callback that raises cancels the run.
 - Added support for the BirdNET V3.0 (preview) acoustic model with four backends: TFLite/LiteRT (`tf`), ProtoBuf (`pb`), PyTorch (`pt`) and ONNX (`onnx`). Both `predict(..)` and `encode(..)` are supported on all backends. Load via `birdnet.load("acoustic", "3.0", <backend>)`. The `pt` and `onnx` backends require the new `birdnet[pt]` and `birdnet[onnx]` install extras (#41).
 - Added support for the BirdNET-Geomodel V3.0 with TFLite/LiteRT (`tf`) and ProtoBuf (`pb`) backends. Load via `birdnet.load("geo", "3.0", <backend>)` (#41).
 

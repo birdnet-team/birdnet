@@ -261,6 +261,7 @@ class AcousticEncodingSession(AcousticSessionBase):
     progress_callback: Callable[[AcousticProgressStats], None] | None,
     device: str | list[str],
     max_n_files: int,  # Limit to avoid excessive memory usage
+    on_file_complete: Callable[[AcousticFileEncodingResult], None] | None = None,
   ) -> None:
     assert len(species_list) > 0
     assert model_path.exists()
@@ -269,6 +270,10 @@ class AcousticEncodingSession(AcousticSessionBase):
     assert 0 <= model_sig_fmin < model_sig_fmax
     assert model_backend_custom_kwargs is not None
     assert model_emb_dim > 0
+
+    if on_file_complete is not None and not callable(on_file_complete):
+      raise TypeError("on_file_complete must be callable")
+    self._on_file_complete = on_file_complete
 
     ModelConfig.validate_backend_supports_embeddings(model_backend_type)
     n_producers = ProcessingConfig.validate_n_producers(n_producers)
@@ -328,6 +333,7 @@ class AcousticEncodingSession(AcousticSessionBase):
         output_conf=OutputConfig(
           show_stats=show_stats,
           progress_callback=progress_callback,
+          file_completion_callback=on_file_complete,
         ),
       ),
       strategy=EncodingStrategy(),
@@ -352,6 +358,10 @@ class AcousticEncodingSession(AcousticSessionBase):
   def run_arrays(
     self, inputs: tuple[npt.NDArray, int] | Iterable[tuple[npt.NDArray, int]]
   ) -> AcousticDataEncodingResult:
+    if self._on_file_complete is not None:
+      raise RuntimeError(
+        "on_file_complete is only supported for file inputs (run), not run_arrays."
+      )
     data = InferenceConfig.validate_input_audio(inputs)
     return super()._run(data)
 
