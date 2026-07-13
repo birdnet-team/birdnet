@@ -84,8 +84,13 @@ class Producer(bn_logging.LogableProcessBase):
     fmin: int | None,
     fmax: int | None,
     unprocessed_inputs_queue: Queue,
-  ):
+    completion_queue: Queue | None = None,
+  ) -> None:
     super().__init__(session_id, __name__, logging_queue, logging_level)
+    self._completion_queue = completion_queue
+    # Duration (s) of the file currently being segmented; reported alongside the
+    # per-file completion marker so a single-file result can clamp end times.
+    self._current_input_duration_s: float = 0.0
     self._end_event = end_event
     self._all_finished = all_finished
     self._prd_ring_access_lock = prd_ring_access_lock
@@ -168,6 +173,7 @@ class Producer(bn_logging.LogableProcessBase):
   ) -> Generator[tuple[int, Float32Array], None, None]:
     audio_n_samples: int = 0
     audio_sample_rate: int = 0
+    self._current_input_duration_s = 0.0
 
     if isinstance(inp_data, Path):
       read_file_successfully = False
@@ -209,6 +215,7 @@ class Producer(bn_logging.LogableProcessBase):
     assert audio_sample_rate > 0
 
     audio_duration_s = audio_n_samples / audio_sample_rate
+    self._current_input_duration_s = audio_duration_s
 
     file_n_segments = get_n_segments_speed(
       audio_duration_s, self._segment_duration_s, self._overlap_duration_s, self._speed
@@ -345,8 +352,20 @@ class Producer(bn_logging.LogableProcessBase):
       assert isinstance(input_queue_entry, tuple)
       input_index, inp_data = input_queue_entry
 
+      n_emitted = 0
       for segment_index, segment in self.get_segments_from_input(input_index, inp_data):
+        n_emitted += 1
         yield input_index, segment_index, segment
+
+      if self._completion_queue is not None:
+        # Emitted after the file's last segment has entered the pipeline. The
+        # consumer waits until it has written this many segments before firing
+        # the completion callback. Invalid files (n_emitted may be 0 or partial)
+        # are reported as such and handled as zero-detection by the consumer.
+        is_invalid = input_index in self._unprocessable_inputs
+        self._completion_queue.put(
+          (input_index, n_emitted, is_invalid, self._current_input_duration_s)
+        )
 
   @property
   def _pid(self) -> int:

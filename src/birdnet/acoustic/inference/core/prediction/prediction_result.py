@@ -53,6 +53,7 @@ class AcousticPredictionResultBase(AcousticResultBase):
     overlap_duration_s: int | float,
     speed: int | float,
     tensor: AcousticPredictionTensor,
+    species_list_array: np.ndarray | None = None,
   ) -> None:
     super().__init__(
       inputs=inputs,
@@ -77,8 +78,15 @@ class AcousticPredictionResultBase(AcousticResultBase):
       np.uint64,
     )
 
-    max_len = max(map(len, species_list))
-    self._species_list = np.array(list(species_list), dtype=f"<U{max_len}")
+    # A caller may pass a prebuilt species-name array to avoid rebuilding it per
+    # result (e.g. the per-file completion path constructs one result per file
+    # from the same species list). The array is immutable and identical for all
+    # results of a run.
+    if species_list_array is not None:
+      self._species_list = species_list_array
+    else:
+      max_len = max(map(len, species_list))
+      self._species_list = np.array(list(species_list), dtype=f"<U{max_len}")
     self._species_probs = tensor._species_probs
     self._species_ids = tensor._species_ids
     self._species_masked = tensor._species_masked
@@ -350,6 +358,7 @@ class AcousticFilePredictionResult(AcousticPredictionResultBase):
     model_sr: int,
     model_precision: str,
     model_version: str,
+    species_list_array: np.ndarray | None = None,
   ) -> None:
     all_files = [str(file.absolute()) for file in files]
     max_len = max(map(len, all_files))
@@ -369,6 +378,7 @@ class AcousticFilePredictionResult(AcousticPredictionResultBase):
       model_sr=model_sr,
       model_precision=model_precision,
       model_version=model_version,
+      species_list_array=species_list_array,
     )
 
   def get_unprocessed_files(self) -> set[Path]:

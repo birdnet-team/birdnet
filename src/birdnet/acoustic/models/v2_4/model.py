@@ -13,6 +13,7 @@ from birdnet.acoustic.inference.core.encoding.encoding_result import (
 )
 from birdnet.acoustic.inference.core.perf_tracker import AcousticProgressStats
 from birdnet.acoustic.inference.core.prediction.prediction_result import (
+  AcousticFilePredictionResult,
   AcousticPredictionResultBase,
 )
 from birdnet.acoustic.inference.session import (
@@ -255,6 +256,7 @@ class AcousticModelV2_4(AcousticModelBase):
     progress_callback: Callable[[AcousticProgressStats], None] | None = None,
     device: str | list[str] = "CPU",
     max_n_files: int = 65_536,  # Limit to avoid excessive memory usage
+    on_file_complete: Callable[[AcousticFilePredictionResult], None] | None = None,
   ) -> AcousticPredictionSession:
     """Create a prediction session allowing manual control over the inference lifecycle.
 
@@ -287,6 +289,13 @@ class AcousticModelV2_4(AcousticModelBase):
         (contextvars) as captured when the call starts.
       device: Target device(s) for running the backend.
       max_n_files: Upper bound on files to limit resource consumption.
+      on_file_complete: Optional callback fired once per input file as soon as
+        that file is fully processed, receiving a single-file
+        AcousticFilePredictionResult (invalid files are reported with their
+        input marked unprocessable). Enables streaming per-file persistence
+        (e.g. resumable analysis). Invoked from a background thread with a copy
+        of the caller's context; file inputs only (not run_arrays). A callback
+        that raises cancels the run.
 
     Returns:
       AcousticPredictionSession: Session capable of running predictions.
@@ -322,6 +331,7 @@ class AcousticModelV2_4(AcousticModelBase):
       progress_callback=progress_callback,
       device=device,
       max_n_files=max_n_files,
+      on_file_complete=on_file_complete,
     )
 
   def encode(
@@ -474,6 +484,7 @@ class AcousticModelV2_4(AcousticModelBase):
     device: str | list[str] = "CPU",
     show_stats: Literal["minimal", "progress", "benchmark"] | None = None,
     progress_callback: Callable[[AcousticProgressStats], None] | None = None,
+    on_file_complete: Callable[[AcousticFilePredictionResult], None] | None = None,
   ) -> AcousticPredictionResultBase:
     """Run prediction with the BirdNET 2.4 model on files or paths with configurable
     inference options.
@@ -505,6 +516,12 @@ class AcousticModelV2_4(AcousticModelBase):
       progress_callback: Optional callback to report progress. Invoked from a
         background worker thread, inheriting a copy of the caller's context
         (contextvars) as captured when the call starts.
+      on_file_complete: Optional callback fired once per input file as soon as
+        that file is fully processed, receiving a single-file
+        AcousticFilePredictionResult (invalid files are reported with their
+        input marked unprocessable). Enables streaming per-file persistence
+        (e.g. resumable analysis). Invoked from a background thread with a copy
+        of the caller's context. A callback that raises cancels the run.
 
     Returns:
       AcousticPredictionResultBase: Object containing detected species and confidence
@@ -534,6 +551,7 @@ class AcousticModelV2_4(AcousticModelBase):
       progress_callback=progress_callback,
       max_n_files=max_n_files,
       device=device,
+      on_file_complete=on_file_complete,
     ) as session:
       return session.run(input_files)
 

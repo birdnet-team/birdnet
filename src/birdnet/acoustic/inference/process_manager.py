@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextvars
+import functools
 import os
 import threading
 from multiprocessing import Process
@@ -15,6 +16,7 @@ from birdnet.acoustic.inference.configs import (
   TensorType,
 )
 from birdnet.acoustic.inference.core.consumer import Consumer
+from birdnet.acoustic.inference.core.file_completion import FileCompletionDispatcher
 from birdnet.acoustic.inference.core.input_analyzer import InputAnalyzer
 from birdnet.acoustic.inference.core.logs import (
   get_logger_from_session,
@@ -50,6 +52,7 @@ class ProcessManager:
     self._logging_thread: threading.Thread | None = None
     self._analyzer_thread: threading.Thread | None = None
     self._progress_dispatcher_thread: threading.Thread | None = None
+    self._file_completion_thread: threading.Thread | None = None
     self._perf_tracker_process: Process | None = None
     self._producer_processes: list[Process] | None = None
     self._worker_processes: list[Process] | None = None
@@ -109,6 +112,42 @@ class ProcessManager:
     assert self._progress_dispatcher_thread is None
     self._progress_dispatcher_thread = progress_dispatcher
     return progress_dispatcher
+
+  def start_file_completion_dispatcher_thread(self) -> threading.Thread:
+    fc = self._res.file_completion_resources
+    assert fc.enabled
+    assert fc.dispatch_queue is not None
+    assert fc.callback_fn is not None
+    assert fc.start_signal is not None
+    assert fc.finish_signal is not None
+
+    dispatcher = FileCompletionDispatcher(
+      session_id=self._session_id,
+      dispatch_queue=fc.dispatch_queue,
+      callback_fn=fc.callback_fn,
+      build_result_fn=functools.partial(
+        self._strategy.build_single_file_result, self._cfg
+      ),
+      cancel_event=self._res.processing_resources.cancel_event,
+      end_event=self._res.processing_resources.end_event,
+      start_signal=fc.start_signal,
+      finish_signal=fc.finish_signal,
+    )
+
+    # Run the callback with a copy of the caller's context (contextvars), the
+    # same guarantee the progress callback gives.
+    ctx = contextvars.copy_context()
+    thread = threading.Thread(
+      target=ctx.run,
+      args=(dispatcher,),
+      name=f"{self._session_hash}-FileCompletionDispatcher",
+      daemon=True,
+    )
+    thread.start()
+
+    assert self._file_completion_thread is None
+    self._file_completion_thread = thread
+    return thread
 
   def start_performance_tracker_process(self) -> Process:
     assert self._res.stats_resources.track_performance
@@ -221,6 +260,7 @@ class ProcessManager:
           start_signal=self._res.producer_resources.start_signals[i],
           finish_signal=self._res.producer_resources.finish_signals[i],
           unprocessed_inputs_queue=self._res.producer_resources.unprocessed_inputs_queue,
+          completion_queue=self._res.file_completion_resources.marker_queue,
         ),
         name=f"{self._session_hash}-Producer-{i}",
         daemon=True,
@@ -325,13 +365,26 @@ class ProcessManager:
       assert res.stats_resources.callback_finish_signal is not None
       res.stats_resources.callback_finish_signal.wait(timeout=None)
 
-  def run_consumer(self, result_tensor: AcousticTensorBase) -> None:
+  def run_consumer(
+    self,
+    result_tensor: AcousticTensorBase,
+    inputs: list[Path] | None = None,
+    *,
+    completion_active: bool = False,
+  ) -> None:
+    fc = self._res.file_completion_resources
+    marker_queue = fc.marker_queue if completion_active else None
+    dispatch_queue = fc.dispatch_queue if completion_active else None
     consumer = Consumer(
       session_id=self._session_id,
       n_workers=self._cfg.processing_conf.workers,
       worker_queue=self._res.worker_resources.results_queue,
       tensor=result_tensor,
       cancel_event=self._res.processing_resources.cancel_event,
+      n_inputs=len(inputs) if inputs is not None else 0,
+      inputs=inputs,
+      completion_marker_queue=marker_queue,
+      completion_dispatch_queue=dispatch_queue,
     )
     consumer()
 
@@ -345,6 +398,9 @@ class ProcessManager:
 
     if self._res.stats_resources.use_callback:
       self.start_progress_dispatcher_thread()
+
+    if self._res.file_completion_resources.enabled:
+      self.start_file_completion_dispatcher_thread()
 
   def join(self) -> None:
     logger = get_logger_from_session(self._session_id, __name__)
@@ -384,6 +440,13 @@ class ProcessManager:
       self._progress_dispatcher_thread.join()
       self._progress_dispatcher_thread = None
       logger.debug("Dispatcher thread finished.")
+
+    if self._res.file_completion_resources.enabled:
+      logger.debug("Joining file completion dispatcher thread...")
+      assert self._file_completion_thread is not None
+      self._file_completion_thread.join()
+      self._file_completion_thread = None
+      logger.debug("File completion dispatcher thread finished.")
 
   def join_logging(self) -> None:
     assert self._logging_thread is not None

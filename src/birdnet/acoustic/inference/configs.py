@@ -219,6 +219,14 @@ class OutputConfig:
   show_stats: None | Literal["minimal", "progress", "benchmark"]
   progress_callback: Callable[[AcousticProgressStats], None] | None
 
+  # Fired once per input file as soon as that file is fully processed, with a
+  # single-file result. Unlike ``progress_callback`` this is independent of
+  # ``show_stats`` and enables streaming per-file persistence (e.g. resumable
+  # analysis). Only supported for file inputs. Typed loosely to avoid importing
+  # the (heavy) result module here; the concrete type is
+  # ``AcousticFilePredictionResult``.
+  file_completion_callback: Callable[[Any], None] | None = None
+
   @classmethod
   def validate_show_stats(
     cls,

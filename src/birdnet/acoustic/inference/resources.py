@@ -49,6 +49,7 @@ class PipelineResources:
   producer_resources: ProducerResources
   worker_resources: WorkerResources
   ring_buffer_resources: RingBufferResources
+  file_completion_resources: FileCompletionResources
 
   def reset(self) -> None:
     self.processing_resources.reset()
@@ -58,6 +59,7 @@ class PipelineResources:
     self.stats_resources.reset()
     self.logging_resources.reset()
     self.ring_buffer_resources.reset()
+    self.file_completion_resources.reset()
 
 
 class ResourceManager:
@@ -80,6 +82,7 @@ class ResourceManager:
     buf_resources = RingBufferResources.create(
       session_id, self.conf, analyzer_resources
     )
+    file_completion_resources = FileCompletionResources.create(self.conf)
 
     self._resources = PipelineResources(
       stats_resources=stats_resources,
@@ -89,6 +92,7 @@ class ResourceManager:
       producer_resources=producer_resources,
       worker_resources=worker_resources,
       ring_buffer_resources=buf_resources,
+      file_completion_resources=file_completion_resources,
     )
     return self.resources
 
@@ -599,6 +603,64 @@ class StatisticsResources:
     object.__setattr__(self, "start", start)
     object.__setattr__(self, "start_time", start_time)
     object.__setattr__(self, "start_timepoint", start_timepoint)
+
+
+@dataclass(frozen=True)
+class FileCompletionResources:
+  """Resources backing the per-file completion callback (``on_file_complete``).
+
+  When enabled, producers push a completion marker per file onto
+  ``marker_queue`` (cross-process); the consumer turns those into per-file
+  results and hands them to the dispatcher thread via the in-process
+  ``dispatch_queue``. All fields are ``None`` when the feature is disabled, so
+  the pipeline pays no cost.
+  """
+
+  enabled: bool
+  callback_fn: Callable[[object], None] | None
+  marker_queue: Queue | None
+  dispatch_queue: queue.Queue | None
+  start_signal: threading.Event | None
+  finish_signal: threading.Event | None
+
+  @classmethod
+  def create(cls, conf: InferenceConfig) -> FileCompletionResources:
+    enabled = conf.output_conf.file_completion_callback is not None
+    if not enabled:
+      return FileCompletionResources(
+        enabled=False,
+        callback_fn=None,
+        marker_queue=None,
+        dispatch_queue=None,
+        start_signal=None,
+        finish_signal=None,
+      )
+    return FileCompletionResources(
+      enabled=True,
+      callback_fn=conf.output_conf.file_completion_callback,
+      marker_queue=Queue(),
+      dispatch_queue=queue.Queue(),
+      start_signal=threading.Event(),
+      finish_signal=threading.Event(),
+    )
+
+  def reset(self) -> None:
+    if not self.enabled:
+      return
+    assert self.dispatch_queue is not None
+    assert self.marker_queue is not None
+    assert self.start_signal is not None
+    assert self.finish_signal is not None
+    # Drain any stragglers (e.g. after a cancelled run) so a reused session
+    # starts clean and never mixes markers/items across runs.
+    for q in (self.dispatch_queue, self.marker_queue):
+      while True:
+        try:
+          q.get_nowait()
+        except queue.Empty:
+          break
+    self.start_signal.clear()
+    self.finish_signal.clear()
 
 
 def get_iso_time(timepoint: datetime) -> str:
