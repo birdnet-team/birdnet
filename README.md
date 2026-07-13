@@ -199,7 +199,7 @@ If something goes wrong, you can find the log file in the following locations:
 The audio models support all formats compatible with the SoundFile library (see [here](https://python-soundfile.readthedocs.io/en/0.11.0/#read-write-functions)). This includes, but is not limited to, WAV, FLAC, OGG, and AIFF. The flexibility of supported formats ensures that the models can handle a wide variety of audio input types, making them adaptable to different use cases and environments.
 
 * Supported: AIFC, AIFF, AU, AVR, CAF, FLAC, HTK, IRCAM, MAT4, MAT5, MP3, MPC2K, NIST, OGG, OPUS, PAF, PVF, RAW, RF64, SD2, SDS, SVX, VOC, W64, WAV, WAVEX, WVE, XI
-* Not supportet at the moment: AAC, M4A, WMA
+* Not supported at the moment: AAC, M4A, WMA
 
 ## Model formats and execution details
 

@@ -223,8 +223,9 @@ class OutputConfig:
   # single-file result. Unlike ``progress_callback`` this is independent of
   # ``show_stats`` and enables streaming per-file persistence (e.g. resumable
   # analysis). Only supported for file inputs. Typed loosely to avoid importing
-  # the (heavy) result module here; the concrete type is
-  # ``AcousticFilePredictionResult``.
+  # the (heavy) result module here; the concrete type depends on the session:
+  # ``AcousticFilePredictionResult`` for predictions,
+  # ``AcousticFileEncodingResult`` for encodings.
   file_completion_callback: Callable[[Any], None] | None = None
 
   @classmethod
