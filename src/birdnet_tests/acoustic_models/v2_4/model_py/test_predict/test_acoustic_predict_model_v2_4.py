@@ -251,6 +251,58 @@ def test_tflite_int8_all_species_no_threshold_should_not_mask_anything() -> None
   assert numpy.all(~res.species_masked)
 
 
+def test_tflite_fp32_softmax_probs_sum_to_one_per_segment() -> None:
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
+  with model.predict_session(
+    n_workers=1,
+    top_k=None,
+    default_confidence_threshold=-numpy.inf,
+    apply_sigmoid=False,
+    apply_softmax=True,
+  ) as session:
+    res = session.run(TEST_FILE_SHORT)
+
+  assert res.species_probs.shape == TEST_FILE_SHORT_SCORE_SHAPE
+  assert numpy.all(res.species_probs > 0)
+  assert numpy.all(res.species_probs <= 1)
+  numpy.testing.assert_allclose(
+    res.species_probs.sum(axis=-1),
+    numpy.ones(TEST_FILE_SHORT_SCORE_SHAPE[:2]),
+    atol=1e-4,
+  )
+
+
+def test_tflite_fp32_softmax_matches_softmax_of_logits() -> None:
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
+  with model.predict_session(
+    n_workers=1,
+    top_k=None,
+    default_confidence_threshold=-numpy.inf,
+    apply_sigmoid=False,
+  ) as session:
+    res_logits = session.run(TEST_FILE_SHORT)
+  with model.predict_session(
+    n_workers=1,
+    top_k=None,
+    default_confidence_threshold=-numpy.inf,
+    apply_sigmoid=False,
+    apply_softmax=True,
+  ) as session:
+    res_softmax = session.run(TEST_FILE_SHORT)
+
+  # top-k order is random, so sort both results by species id before comparing
+  logits = numpy.take_along_axis(
+    res_logits.species_probs, numpy.argsort(res_logits.species_ids, axis=-1), axis=-1
+  )
+  softmax_probs = numpy.take_along_axis(
+    res_softmax.species_probs, numpy.argsort(res_softmax.species_ids, axis=-1), axis=-1
+  )
+
+  exp_logits = numpy.exp(logits - logits.max(axis=-1, keepdims=True))
+  expected = exp_logits / exp_logits.sum(axis=-1, keepdims=True)
+  numpy.testing.assert_allclose(softmax_probs, expected, atol=1e-6)
+
+
 @pytest.mark.litert
 def test_litert_fp32() -> None:
   ensure_litert_or_skip()
