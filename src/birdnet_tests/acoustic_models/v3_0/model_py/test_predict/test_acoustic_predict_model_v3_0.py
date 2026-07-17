@@ -10,6 +10,7 @@ from birdnet_tests.helper import (
   assert_prediction_result_is_close,
   ensure_onnxruntime_or_skip,
   ensure_torch_or_skip,
+  ensure_v3_0_torch_backend_or_skip,
 )
 from birdnet_tests.test_files import TEST_FILE_SHORT
 
@@ -23,6 +24,7 @@ _PT_ONNX_PREDICTION_MEAN_ABS_DIFF = 1e-5
 def _load_model(backend: _Backend) -> AcousticModelV3_0:
   if backend == "pt":
     ensure_torch_or_skip()
+    ensure_v3_0_torch_backend_or_skip()
   else:
     ensure_onnxruntime_or_skip()
 
@@ -98,6 +100,7 @@ def test_v3_0_predict_respects_segment_size(
 
 def test_v3_0_predict_pt_and_onnx_are_close() -> None:
   ensure_torch_or_skip()
+  ensure_v3_0_torch_backend_or_skip()
   ensure_onnxruntime_or_skip()
 
   pt_model = load("acoustic", "3.0", "pt", precision="fp32")
@@ -130,6 +133,7 @@ def test_v3_0_predict_pt_and_onnx_are_close_with_custom_segment_size(
   segment_size_s: float,
 ) -> None:
   ensure_torch_or_skip()
+  ensure_v3_0_torch_backend_or_skip()
   ensure_onnxruntime_or_skip()
 
   pt_model = load("acoustic", "3.0", "pt", precision="fp32")

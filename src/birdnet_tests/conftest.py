@@ -1,6 +1,19 @@
 import logging
 
+import pytest
+
 from birdnet.utils.logging_utils import get_package_logger
+
+# The v3.0 models are ~520 MiB and Zenodo serves them at roughly 2 MiB/s, so a single
+# download takes ~5-6 min. That sits right on the global 300s timeout, which cut the
+# downloads off just short of completion instead of letting them finish.
+LOAD_MODEL_TIMEOUT_S = 1800
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+  for item in items:
+    if item.get_closest_marker("load_model") is not None:
+      item.add_marker(pytest.mark.timeout(LOAD_MODEL_TIMEOUT_S))
 
 
 def pytest_configure() -> None:
