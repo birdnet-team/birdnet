@@ -14,7 +14,9 @@ jobs:
   run-tests:
     runs-on: ${{ matrix.os }}
     continue-on-error: false
-    timeout-minutes: 360
+    # The slowest passing job takes ~30 min; this only needs to stop a wedged run from
+    # burning runner hours, pytest-timeout is what bounds individual tests.
+    timeout-minutes: 60
 
     strategy:
       fail-fast: false
