@@ -10,13 +10,22 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
+# Cancel a running PR check when new commits are pushed, so a wedged run does not
+# keep burning runner hours after it has been superseded. Pushes to main still run
+# to completion.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   run-tests:
     runs-on: ${{ matrix.os }}
     continue-on-error: false
-    # The slowest passing job takes ~30 min; this only needs to stop a wedged run from
-    # burning runner hours, pytest-timeout is what bounds individual tests.
-    timeout-minutes: 60
+    # Backstop for a wedged run: the fork/TensorFlow deadlock hangs in native code
+    # holding the GIL, which pytest-timeout cannot interrupt in either method, so the
+    # job-level limit is what stops it. Slowest healthy job is ~32 min; 50 leaves
+    # headroom while capping a hang's cost.
+    timeout-minutes: 50
 
     strategy:
       fail-fast: false
