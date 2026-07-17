@@ -4,8 +4,13 @@ import contextvars
 import functools
 import os
 import threading
+import time
+from contextlib import suppress
+from logging import Logger
 from multiprocessing import Process
 from pathlib import Path
+from queue import Empty
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -31,6 +36,9 @@ from birdnet.acoustic.inference.file_writer import QueueFileWriter
 from birdnet.acoustic.inference.resources import PipelineResources
 from birdnet.acoustic.inference.strategy import InferenceStrategyBase
 from birdnet.core.base import get_session_id_hash
+
+if TYPE_CHECKING:
+  from multiprocessing import Queue
 
 
 class ProcessManager:
@@ -411,28 +419,31 @@ class ProcessManager:
     self._analyzer_thread = None
     logger.debug("File analyzer finished.")
 
-    logger.debug("Joining producer processes...")
-    assert self._producer_processes is not None
-    for p in self._producer_processes:
-      p.join()
-      logger.debug(f"Producer '{p.name}' finished.")
-    self._producer_processes = None
-    logger.debug("All producers finished.")
+    if self._res.processing_resources.cancel_event.is_set():
+      self._join_processes_after_cancel(logger)
+    else:
+      logger.debug("Joining producer processes...")
+      assert self._producer_processes is not None
+      for p in self._producer_processes:
+        p.join()
+        logger.debug(f"Producer '{p.name}' finished.")
+      self._producer_processes = None
+      logger.debug("All producers finished.")
 
-    logger.debug("Joining worker processes...")
-    assert self._worker_processes is not None
-    for w in self._worker_processes:
-      w.join()
-      logger.debug(f"Worker '{w.name}' finished.")
-    self._worker_processes = None
-    logger.debug("All workers finished.")
+      logger.debug("Joining worker processes...")
+      assert self._worker_processes is not None
+      for w in self._worker_processes:
+        w.join()
+        logger.debug(f"Worker '{w.name}' finished.")
+      self._worker_processes = None
+      logger.debug("All workers finished.")
 
-    if self._res.stats_resources.track_performance:
-      logger.debug("Joining performance tracker process...")
-      assert self._perf_tracker_process is not None
-      self._perf_tracker_process.join()
-      self._perf_tracker_process = None
-      logger.debug("Performance tracker finished.")
+      if self._res.stats_resources.track_performance:
+        logger.debug("Joining performance tracker process...")
+        assert self._perf_tracker_process is not None
+        self._perf_tracker_process.join()
+        self._perf_tracker_process = None
+        logger.debug("Performance tracker finished.")
 
     if self._res.stats_resources.use_callback:
       logger.debug("Joining dispatcher thread...")
@@ -447,6 +458,75 @@ class ProcessManager:
       self._file_completion_thread.join()
       self._file_completion_thread = None
       logger.debug("File completion dispatcher thread finished.")
+
+  def _join_processes_after_cancel(
+    self, logger: Logger, grace_period_s: float = 30.0
+  ) -> None:
+    """Join child processes after a cancelled run without deadlocking.
+
+    A cancelled run leaves undelivered items in the child-to-parent queues
+    (results, stats, completion markers, unprocessed inputs): the consumer and
+    the performance tracker stop reading when the cancel event is set. A child
+    process cannot exit while its queue feeder threads still hold buffered
+    data — its exit handler joins the feeders, which block on the full pipe —
+    so a plain ``join()`` waits forever. Drain every parent-side queue while
+    joining so the children can flush and exit, and terminate any process
+    that still lingers after the grace period. The drained data is discarded,
+    which is fine: the run was cancelled.
+    """
+    logger.debug("Joining processes after cancellation (draining queues)...")
+
+    processes: list[Process] = [
+      *(self._producer_processes or []),
+      *(self._worker_processes or []),
+    ]
+
+    if self._perf_tracker_process is not None:
+      processes.append(self._perf_tracker_process)
+
+    stats_res = self._res.stats_resources
+    queues: list[Queue] = [
+      self._res.producer_resources.unprocessed_inputs_queue,
+      self._res.worker_resources.results_queue,
+      self._res.file_completion_resources.marker_queue,
+      stats_res.wkr_stats_queue,
+      stats_res.prd_stats_queue,
+      stats_res.perf_res_queue,
+      stats_res.callback_queue,
+    ]
+    queues = [q for q in queues if q is not None]
+
+    deadline = time.monotonic() + grace_period_s
+
+    while True:
+      alive = [p for p in processes if p.is_alive()]
+
+      if not alive:
+        break
+
+      for q in queues:
+        with suppress(Empty):
+          while True:
+            q.get_nowait()
+
+      if time.monotonic() >= deadline:
+        for p in alive:
+          logger.warning(
+            f"Process '{p.name}' did not exit after cancellation; terminating."
+          )
+          p.terminate()
+        break
+
+      time.sleep(0.05)
+
+    for p in processes:
+      p.join()
+      logger.debug(f"Process '{p.name}' finished.")
+
+    self._producer_processes = None
+    self._worker_processes = None
+    self._perf_tracker_process = None
+    logger.debug("All processes finished after cancellation.")
 
   def join_logging(self) -> None:
     assert self._logging_thread is not None
