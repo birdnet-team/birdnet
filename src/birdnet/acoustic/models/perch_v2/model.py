@@ -335,6 +335,12 @@ class AcousticModelPerchV2(AcousticModelBase):
         background worker thread, inheriting a copy of the caller's context
         (contextvars) as captured when the call starts.
       device: Target device(s) for running the backend.
+      on_file_complete: Optional callback fired once per input file as soon as
+        that file is fully processed, receiving a single-file
+        AcousticFileEncodingResult (invalid files are reported with their input
+        marked unprocessable). Enables streaming per-file persistence. Invoked
+        from a background thread with a copy of the caller's context; file
+        inputs only (not encode_arrays). A callback that raises cancels the run.
 
     Returns:
       AcousticEncodingResultBase: Object containing embeddings for each file.

@@ -135,12 +135,7 @@ class AcousticSessionBase(
       completion_active=completion_active,
     )
 
-    if self._resources.processing_resources.cancel_event.is_set():
-      raise RuntimeError(
-        f"Analysis was cancelled. "
-        f"Please check the logs: "
-        f"{self._resources.logging_resources.session_log_file.absolute()}"
-      )
+    self._raise_if_cancelled()
 
     self._resources.stats_resources.save_end_time()
 
@@ -155,6 +150,11 @@ class AcousticSessionBase(
     if completion_active:
       assert self._resources.file_completion_resources.finish_signal is not None
       self._resources.file_completion_resources.finish_signal.wait(timeout=None)
+
+      # The completion dispatcher runs on a background thread, so a callback
+      # that raises can set cancel_event only now — after the check above, while
+      # it was still draining. Re-check so a late callback failure fails the run.
+      self._raise_if_cancelled()
 
     # Collect only if no cancellation occurred, otherwise result queues might be empty
     self._resources.analyzer_resources.collect_input_durations()
@@ -188,6 +188,14 @@ class AcousticSessionBase(
     self._resources.processing_resources.increment_run_nr()
 
     return result
+
+  def _raise_if_cancelled(self) -> None:
+    if self._resources.processing_resources.cancel_event.is_set():
+      raise RuntimeError(
+        f"Analysis was cancelled. "
+        f"Please check the logs: "
+        f"{self._resources.logging_resources.session_log_file.absolute()}"
+      )
 
   def cancel(self) -> None:
     if not self._is_initialized:

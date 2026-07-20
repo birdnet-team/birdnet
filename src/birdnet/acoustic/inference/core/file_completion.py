@@ -104,3 +104,7 @@ class FileCompletionDispatcher:
           stack_info=True,
         )
         self._cancel_event.set()
+        # Stop immediately: draining the rest of the queue would re-invoke the
+        # failing callback on every remaining file (extra work and log spam)
+        # after the run is already being cancelled.
+        return
