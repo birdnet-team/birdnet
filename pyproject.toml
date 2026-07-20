@@ -174,6 +174,11 @@ namespaces = true
 log_cli = true
 log_level = "DEBUG"
 timeout = 300
+# The signal method cannot interrupt a thread blocked in a C call, so a deadlocked
+# fork child let the run hang until the job limit killed it hours later. The thread
+# method kills the process instead, turning such hangs into a failure with a stack
+# dump. Windows already uses it, since it has no SIGALRM.
+timeout_method = "thread"
 addopts = ["--max-worker-restart=0"]
 testpaths = ["src/birdnet_tests"]
 norecursedirs = ["src/birdnet_v1_tests"]
