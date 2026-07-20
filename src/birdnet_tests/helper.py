@@ -256,6 +256,14 @@ def ensure_not_intel_macos_or_skip() -> None:
     pytest.skip("Test not supported on Intel macOS systems")
 
 
+def ensure_v3_0_torch_backend_or_skip() -> None:
+  # torch 2.2.2 is the last release shipping x86 macOS wheels and is too old for the
+  # v3.0 TorchScript model: loading it succeeds, but the inference workers then die and
+  # the session is cancelled. The onnx backend works on the same machines.
+  if check_is_intel_macos():
+    pytest.skip("Acoustic model v3.0 needs a newer torch than Intel macOS provides")
+
+
 def ensure_gpu_or_skip_smi() -> None:
   gpu_available = False
   try:

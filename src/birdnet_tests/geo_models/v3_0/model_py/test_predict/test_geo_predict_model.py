@@ -2,9 +2,9 @@ import pytest
 
 from birdnet.model_loader import load
 from birdnet_tests.helper import (
-  geo_v3_0_litert_not_supported_skip,
   ensure_gpu_or_skip,
   ensure_tf_2_19_or_2_18,
+  geo_v3_0_litert_not_supported_skip,
 )
 
 # --- FP32 ---

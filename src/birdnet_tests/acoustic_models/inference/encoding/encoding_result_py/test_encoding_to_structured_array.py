@@ -17,6 +17,12 @@ from birdnet.utils.helper import (
 
 DEFAULT_EMBEDDING_DIM = 6
 
+# start_time/end_time are stored as float32 and, on numpy 1.x, the intermediate
+# products are computed in float32 as well (numpy 2 keeps them float64 via NEP 50).
+# Speeds that are not exactly representable therefore drift by ~1 ULP, which exceeds
+# the assert_allclose default rtol of 1e-7 - that is below float32 eps (~1.19e-7).
+_FLOAT32_TIME_RTOL = 1e-6
+
 
 def create_mock_encoding_tensor(
   n_files: int,
@@ -268,8 +274,12 @@ def test_time_calculations_speedup_one_tenth_no_overlap() -> None:
   expected_starts = np.arange(len(structured)) * hop
   expected_ends = np.minimum(expected_starts + 3.0 * 0.1, result.input_durations[0])
 
-  np.testing.assert_allclose(structured["start_time"], expected_starts)
-  np.testing.assert_allclose(structured["end_time"], expected_ends)
+  np.testing.assert_allclose(
+    structured["start_time"], expected_starts, rtol=_FLOAT32_TIME_RTOL
+  )
+  np.testing.assert_allclose(
+    structured["end_time"], expected_ends, rtol=_FLOAT32_TIME_RTOL
+  )
 
 
 def test_time_calculations_speedup_decimal_no_overlap() -> None:
@@ -289,8 +299,12 @@ def test_time_calculations_speedup_decimal_no_overlap() -> None:
     expected_starts + 3.0 * 0.1387434856, result.input_durations[0]
   )
 
-  np.testing.assert_allclose(structured["start_time"], expected_starts)
-  np.testing.assert_allclose(structured["end_time"], expected_ends)
+  np.testing.assert_allclose(
+    structured["start_time"], expected_starts, rtol=_FLOAT32_TIME_RTOL
+  )
+  np.testing.assert_allclose(
+    structured["end_time"], expected_ends, rtol=_FLOAT32_TIME_RTOL
+  )
 
 
 def _test_end_time_clipping_multiple_segments(

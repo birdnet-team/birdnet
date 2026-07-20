@@ -398,6 +398,7 @@ class AcousticPredictionSession(AcousticSessionBase):
     bandpass_fmin: int,
     bandpass_fmax: int,
     apply_sigmoid: bool,
+    apply_softmax: bool,
     sigmoid_sensitivity: float | None,
     default_confidence_threshold: float | None,
     custom_confidence_thresholds: dict[str, float] | None,
@@ -452,6 +453,9 @@ class AcousticPredictionSession(AcousticSessionBase):
         "Progress callback can only be used when 'show_stats' is set to "
         "'progress' or 'benchmark'."
       )
+
+    if apply_sigmoid and apply_softmax:
+      raise ValueError("apply_sigmoid and apply_softmax cannot both be True")
 
     if custom_confidence_thresholds is not None:
       custom_confidence_thresholds = (
@@ -513,6 +517,7 @@ class AcousticPredictionSession(AcousticSessionBase):
         top_k=top_k,
         default_confidence_threshold=default_confidence_threshold,
         custom_confidence_thresholds=custom_confidence_thresholds,
+        apply_softmax=apply_softmax,
         apply_sigmoid=apply_sigmoid,
         sigmoid_sensitivity=sigmoid_sensitivity,
         custom_species_list=custom_species_list,

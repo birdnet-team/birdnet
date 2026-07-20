@@ -44,6 +44,48 @@ def test_cpu_speed_factor() -> None:
   assert res.species_probs.shape == (1, 3, 14795)
 
 
+def test_cpu_softmax_probs_sum_to_one_per_segment() -> None:
+  ensure_not_intel_macos_or_skip()
+
+  model = load_perch_v2("CPU")
+  with model.predict_session(
+    n_workers=1,
+    top_k=None,
+    device="CPU",
+    default_confidence_threshold=-numpy.inf,
+    apply_softmax=True,
+  ) as session:
+    res = session.run(TEST_FILE_SHORT)
+
+  assert res.species_probs.shape == (1, 2, 14795)
+  assert numpy.all(res.species_probs > 0)
+  assert numpy.all(res.species_probs <= 1)
+  numpy.testing.assert_allclose(
+    res.species_probs.sum(axis=-1), numpy.ones((1, 2)), atol=1e-4
+  )
+
+
+def test_cpu_softmax_keeps_ranking_of_logits() -> None:
+  ensure_not_intel_macos_or_skip()
+
+  model = load_perch_v2("CPU")
+  with model.predict_session(
+    n_workers=1, top_k=1, device="CPU", default_confidence_threshold=-numpy.inf
+  ) as session:
+    res_logits = session.run(TEST_FILE_SHORT)
+  with model.predict_session(
+    n_workers=1,
+    top_k=1,
+    device="CPU",
+    default_confidence_threshold=-numpy.inf,
+    apply_softmax=True,
+  ) as session:
+    res_softmax = session.run(TEST_FILE_SHORT)
+
+  # softmax is monotonic, so the top species must not change
+  numpy.testing.assert_array_equal(res_softmax.species_ids, res_logits.species_ids)
+
+
 @pytest.mark.gpu
 def test_gpu() -> None:
   ensure_not_intel_macos_or_skip()
