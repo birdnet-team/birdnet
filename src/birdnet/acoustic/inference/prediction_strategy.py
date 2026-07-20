@@ -49,6 +49,9 @@ class PredictionStrategy(
   def validate_config(
     self, config: InferenceConfig, specific_config: PredictionConfig
   ) -> None:
+    if specific_config.apply_sigmoid and specific_config.apply_softmax:
+      raise ValueError("apply_sigmoid and apply_softmax cannot both be True")
+
     if specific_config.apply_sigmoid:
       if specific_config.sigmoid_sensitivity is None:
         raise ValueError("sigmoid_sensitivity required when apply_sigmoid=True")
@@ -136,6 +139,7 @@ class PredictionStrategy(
         sem_fill=resources.ring_buffer_resources.sem_filled_slots,
         sem_free=resources.ring_buffer_resources.sem_free_slots,
         apply_sigmoid=specific_config.apply_sigmoid,
+        apply_softmax=specific_config.apply_softmax,
         sigmoid_sensitivity=specific_config.sigmoid_sensitivity,
         wkr_stats_queue=resources.stats_resources.wkr_stats_queue,
         cancel_event=resources.processing_resources.cancel_event,
@@ -275,6 +279,7 @@ class PredictionStrategy(
       mem_shm_ringsize=config.processing_conf.workers
       + (config.processing_conf.workers * config.processing_conf.prefetch_ratio),
       param_sigmoid_apply=specific_config.apply_sigmoid,
+      param_softmax_apply=specific_config.apply_softmax,
       param_sigmoid_sensitivity=specific_config.sigmoid_sensitivity
       if specific_config.apply_sigmoid
       else None,

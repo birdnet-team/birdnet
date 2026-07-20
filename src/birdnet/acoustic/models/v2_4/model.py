@@ -255,6 +255,7 @@ class AcousticModelV2_4(AcousticModelBase):
     progress_callback: Callable[[AcousticProgressStats], None] | None = None,
     device: str | list[str] = "CPU",
     max_n_files: int = 65_536,  # Limit to avoid excessive memory usage
+    apply_softmax: bool = False,
   ) -> AcousticPredictionSession:
     """Create a prediction session allowing manual control over the inference lifecycle.
 
@@ -273,6 +274,8 @@ class AcousticModelV2_4(AcousticModelBase):
       apply_sigmoid: Whether to transform logits with a sigmoid. When False, output
         scores are raw logits and thresholds are interpreted in logit space rather than
         as probabilities.
+      apply_softmax: Whether to transform logits with a softmax. When False, output
+        scores are raw logits unless apply_sigmoid=True.
       sigmoid_sensitivity: Optional scale for the sigmoid function.
       default_confidence_threshold: Base threshold to emit a detection.
         When apply_sigmoid=True this is a probability (typical range 0 to 1);
@@ -312,6 +315,7 @@ class AcousticModelV2_4(AcousticModelBase):
       bandpass_fmin=bandpass_fmin,
       bandpass_fmax=bandpass_fmax,
       apply_sigmoid=apply_sigmoid,
+      apply_softmax=apply_softmax,
       sigmoid_sensitivity=sigmoid_sensitivity,
       default_confidence_threshold=default_confidence_threshold,
       custom_confidence_thresholds=custom_confidence_thresholds,
@@ -474,6 +478,7 @@ class AcousticModelV2_4(AcousticModelBase):
     device: str | list[str] = "CPU",
     show_stats: Literal["minimal", "progress", "benchmark"] | None = None,
     progress_callback: Callable[[AcousticProgressStats], None] | None = None,
+    apply_softmax: bool = False,
   ) -> AcousticPredictionResultBase:
     """Run prediction with the BirdNET 2.4 model on files or paths with configurable
     inference options.
@@ -524,6 +529,7 @@ class AcousticModelV2_4(AcousticModelBase):
       bandpass_fmin=bandpass_fmin,
       bandpass_fmax=bandpass_fmax,
       apply_sigmoid=apply_sigmoid,
+      apply_softmax=apply_softmax,
       sigmoid_sensitivity=sigmoid_sensitivity,
       default_confidence_threshold=default_confidence_threshold,
       custom_confidence_thresholds=custom_confidence_thresholds,
@@ -561,6 +567,7 @@ class AcousticModelV2_4(AcousticModelBase):
     device: str | list[str] = "CPU",
     show_stats: Literal["minimal", "progress", "benchmark"] | None = None,
     progress_callback: Callable[[AcousticProgressStats], None] | None = None,
+    apply_softmax: bool = False,
   ) -> AcousticPredictionResultBase:
     """Run prediction with the BirdNET 2.4 model directly on in-memory audio arrays.
 
@@ -578,6 +585,8 @@ class AcousticModelV2_4(AcousticModelBase):
       apply_sigmoid: Whether to transform logits with a sigmoid.
         When False, output scores are raw logits and thresholds are interpreted in
         logit space rather than as probabilities.
+      apply_softmax: Whether to transform logits with a softmax. When False, output
+        scores are raw logits unless apply_sigmoid=True.
       sigmoid_sensitivity: Optional scale for the sigmoid function.
       default_confidence_threshold: Base threshold to emit a detection.
         When apply_sigmoid=True this is a probability (typical range 0 to 1);
@@ -610,6 +619,7 @@ class AcousticModelV2_4(AcousticModelBase):
       bandpass_fmin=bandpass_fmin,
       bandpass_fmax=bandpass_fmax,
       apply_sigmoid=apply_sigmoid,
+      apply_softmax=apply_softmax,
       sigmoid_sensitivity=sigmoid_sensitivity,
       default_confidence_threshold=default_confidence_threshold,
       custom_confidence_thresholds=custom_confidence_thresholds,

@@ -17,6 +17,7 @@ class MinimalBenchmarkMeta(MinimalBenchmarkMetaBase):
 class FullBenchmarkMeta(FullBenchmarkMetaBase):
   param_top_k: int | None
   param_sigmoid_apply: bool
+  param_softmax_apply: bool
   param_sigmoid_sensitivity: float | None
   param_confidence_threshold_default: float | None
   param_confidence_threshold_custom: int
