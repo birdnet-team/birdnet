@@ -79,9 +79,9 @@ pip install birdnet[onnx] --user
 
 If you encounter issues with audio file reading, please ensure that `libsndfile` is installed on your system.
 
-- **Ubuntu/Debian**: `sudo apt-get install libsndfile1`
-- **macOS** (using Homebrew): `brew install libsndfile`
-- **Windows**: Download and install the precompiled binaries from the [official website](https://github.com/libsndfile/libsndfile/releases/), extract them and add the folder to path.
+* **Ubuntu/Debian**: `sudo apt-get install libsndfile1`
+* **macOS** (using Homebrew): `brew install libsndfile`
+* **Windows**: Download and install the precompiled binaries from the [official website](https://github.com/libsndfile/libsndfile/releases/), extract them and add the folder to path.
 
 ## Supported operations, precisions and devices
 
@@ -191,15 +191,15 @@ The full result is at [example/location.csv](example/location.csv).
 
 If something goes wrong, you can find the log file in the following locations:
 
-- Windows: `C:\Users\{user}\AppData\Local\Temp\birdnet.log`
-- Linux/MacOS: `/tmp/birdnet.log`
+* Windows: `C:\Users\{user}\AppData\Local\Temp\birdnet.log`
+* Linux/MacOS: `/tmp/birdnet.log`
 
 ## File formats
 
 The audio models support all formats compatible with the SoundFile library (see [here](https://python-soundfile.readthedocs.io/en/0.11.0/#read-write-functions)). This includes, but is not limited to, WAV, FLAC, OGG, and AIFF. The flexibility of supported formats ensures that the models can handle a wide variety of audio input types, making them adaptable to different use cases and environments.
 
-- Supported: AIFC, AIFF, AU, AVR, CAF, FLAC, HTK, IRCAM, MAT4, MAT5, MP3, MPC2K, NIST, OGG, OPUS, PAF, PVF, RAW, RF64, SD2, SDS, SVX, VOC, W64, WAV, WAVEX, WVE, XI
-- Not supportet at the moment: AAC, M4A, WMA
+* Supported: AIFC, AIFF, AU, AVR, CAF, FLAC, HTK, IRCAM, MAT4, MAT5, MP3, MPC2K, NIST, OGG, OPUS, PAF, PVF, RAW, RF64, SD2, SDS, SVX, VOC, W64, WAV, WAVEX, WVE, XI
+* Not supported at the moment: AAC, M4A, WMA
 
 ## Model formats and execution details
 
@@ -214,8 +214,8 @@ Ensure your environment is configured to utilize the appropriate model and avail
 
 ## License
 
-- **Source Code**: The source code for this project is licensed under the [MIT License](https://opensource.org/licenses/MIT).
-- **Models**: The models used in this project are licensed under the [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License (CC BY-NC-SA 4.0)](https://creativecommons.org/licenses/by-nc-sa/4.0/).
+* **Source Code**: The source code for this project is licensed under the [MIT License](https://opensource.org/licenses/MIT).
+* **Models**: The models used in this project are licensed under the [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License (CC BY-NC-SA 4.0)](https://creativecommons.org/licenses/by-nc-sa/4.0/).
 
 Please ensure you review and adhere to the specific license terms provided with each model. Note that educational and research purposes are considered non-commercial use cases.
 

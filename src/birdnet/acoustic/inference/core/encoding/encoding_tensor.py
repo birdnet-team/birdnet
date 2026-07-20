@@ -89,3 +89,40 @@ class AcousticEncodingTensor(AcousticTensorBase):
     super().set_unprocessable_inputs(unprocessable_inputs)
     self._emb[self._unprocessable_inputs, :, :] = 0
     self._emb_masked[self._unprocessable_inputs, :, :] = True
+
+  def copy_file_slice(
+    self, file_idx: int, n_segments: int
+  ) -> tuple[np.ndarray, np.ndarray]:
+    """Return an independent copy of a single file's embedding rows.
+
+    The returned arrays have shape ``(1, n_segments, emb_dim)`` so they can back
+    a single-file result. Copying (rather than viewing) makes the data safe to
+    hand to another thread while this tensor keeps being written/resized.
+
+    Must be called from the same thread that writes the tensor (the consumer);
+    ``n_segments`` must not exceed the segments already written for the file.
+    """
+    assert 0 <= n_segments <= self.current_n_segments
+    emb = self._emb[file_idx, :n_segments].copy()[np.newaxis]
+    emb_masked = self._emb_masked[file_idx, :n_segments].copy()[np.newaxis]
+    return emb, emb_masked
+
+
+class PrebuiltEncodingTensor(AcousticTensorBase):
+  """Minimal tensor holder wrapping already-materialised per-file embeddings.
+
+  Used to build a single-file ``AcousticFileEncodingResult`` from the slice
+  copied out of the shared result tensor, without re-running any inference.
+  """
+
+  def __init__(self, emb: np.ndarray, emb_masked: np.ndarray) -> None:
+    super().__init__()
+    self._emb = emb
+    self._emb_masked = emb_masked
+
+  @property
+  def memory_usage_mb(self) -> float:
+    return (self._emb.nbytes + self._emb_masked.nbytes) / 1024**2
+
+  def write_block(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
+    raise NotImplementedError("PrebuiltEncodingTensor is read-only.")

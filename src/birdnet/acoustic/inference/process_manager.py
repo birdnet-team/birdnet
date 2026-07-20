@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 import contextvars
+import functools
 import os
 import threading
+import time
+from contextlib import suppress
+from logging import Logger
 from multiprocessing import Process
 from pathlib import Path
+from queue import Empty
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -15,6 +21,7 @@ from birdnet.acoustic.inference.configs import (
   TensorType,
 )
 from birdnet.acoustic.inference.core.consumer import Consumer
+from birdnet.acoustic.inference.core.file_completion import FileCompletionDispatcher
 from birdnet.acoustic.inference.core.input_analyzer import InputAnalyzer
 from birdnet.acoustic.inference.core.logs import (
   get_logger_from_session,
@@ -29,6 +36,9 @@ from birdnet.acoustic.inference.file_writer import QueueFileWriter
 from birdnet.acoustic.inference.resources import PipelineResources
 from birdnet.acoustic.inference.strategy import InferenceStrategyBase
 from birdnet.core.base import get_session_id_hash
+
+if TYPE_CHECKING:
+  from multiprocessing import Queue
 
 
 class ProcessManager:
@@ -50,6 +60,7 @@ class ProcessManager:
     self._logging_thread: threading.Thread | None = None
     self._analyzer_thread: threading.Thread | None = None
     self._progress_dispatcher_thread: threading.Thread | None = None
+    self._file_completion_thread: threading.Thread | None = None
     self._perf_tracker_process: Process | None = None
     self._producer_processes: list[Process] | None = None
     self._worker_processes: list[Process] | None = None
@@ -109,6 +120,42 @@ class ProcessManager:
     assert self._progress_dispatcher_thread is None
     self._progress_dispatcher_thread = progress_dispatcher
     return progress_dispatcher
+
+  def start_file_completion_dispatcher_thread(self) -> threading.Thread:
+    fc = self._res.file_completion_resources
+    assert fc.enabled
+    assert fc.dispatch_queue is not None
+    assert fc.callback_fn is not None
+    assert fc.start_signal is not None
+    assert fc.finish_signal is not None
+
+    dispatcher = FileCompletionDispatcher(
+      session_id=self._session_id,
+      dispatch_queue=fc.dispatch_queue,
+      callback_fn=fc.callback_fn,
+      build_result_fn=functools.partial(
+        self._strategy.build_single_file_result, self._cfg
+      ),
+      cancel_event=self._res.processing_resources.cancel_event,
+      end_event=self._res.processing_resources.end_event,
+      start_signal=fc.start_signal,
+      finish_signal=fc.finish_signal,
+    )
+
+    # Run the callback with a copy of the caller's context (contextvars), the
+    # same guarantee the progress callback gives.
+    ctx = contextvars.copy_context()
+    thread = threading.Thread(
+      target=ctx.run,
+      args=(dispatcher,),
+      name=f"{self._session_hash}-FileCompletionDispatcher",
+      daemon=True,
+    )
+    thread.start()
+
+    assert self._file_completion_thread is None
+    self._file_completion_thread = thread
+    return thread
 
   def start_performance_tracker_process(self) -> Process:
     assert self._res.stats_resources.track_performance
@@ -221,6 +268,7 @@ class ProcessManager:
           start_signal=self._res.producer_resources.start_signals[i],
           finish_signal=self._res.producer_resources.finish_signals[i],
           unprocessed_inputs_queue=self._res.producer_resources.unprocessed_inputs_queue,
+          completion_queue=self._res.file_completion_resources.marker_queue,
         ),
         name=f"{self._session_hash}-Producer-{i}",
         daemon=True,
@@ -325,13 +373,26 @@ class ProcessManager:
       assert res.stats_resources.callback_finish_signal is not None
       res.stats_resources.callback_finish_signal.wait(timeout=None)
 
-  def run_consumer(self, result_tensor: AcousticTensorBase) -> None:
+  def run_consumer(
+    self,
+    result_tensor: AcousticTensorBase,
+    inputs: list[Path] | None = None,
+    *,
+    completion_active: bool = False,
+  ) -> None:
+    fc = self._res.file_completion_resources
+    marker_queue = fc.marker_queue if completion_active else None
+    dispatch_queue = fc.dispatch_queue if completion_active else None
     consumer = Consumer(
       session_id=self._session_id,
       n_workers=self._cfg.processing_conf.workers,
       worker_queue=self._res.worker_resources.results_queue,
       tensor=result_tensor,
       cancel_event=self._res.processing_resources.cancel_event,
+      n_inputs=len(inputs) if inputs is not None else 0,
+      inputs=inputs,
+      completion_marker_queue=marker_queue,
+      completion_dispatch_queue=dispatch_queue,
     )
     consumer()
 
@@ -346,6 +407,9 @@ class ProcessManager:
     if self._res.stats_resources.use_callback:
       self.start_progress_dispatcher_thread()
 
+    if self._res.file_completion_resources.enabled:
+      self.start_file_completion_dispatcher_thread()
+
   def join(self) -> None:
     logger = get_logger_from_session(self._session_id, __name__)
 
@@ -355,28 +419,31 @@ class ProcessManager:
     self._analyzer_thread = None
     logger.debug("File analyzer finished.")
 
-    logger.debug("Joining producer processes...")
-    assert self._producer_processes is not None
-    for p in self._producer_processes:
-      p.join()
-      logger.debug(f"Producer '{p.name}' finished.")
-    self._producer_processes = None
-    logger.debug("All producers finished.")
+    if self._res.processing_resources.cancel_event.is_set():
+      self._join_processes_after_cancel(logger)
+    else:
+      logger.debug("Joining producer processes...")
+      assert self._producer_processes is not None
+      for p in self._producer_processes:
+        p.join()
+        logger.debug(f"Producer '{p.name}' finished.")
+      self._producer_processes = None
+      logger.debug("All producers finished.")
 
-    logger.debug("Joining worker processes...")
-    assert self._worker_processes is not None
-    for w in self._worker_processes:
-      w.join()
-      logger.debug(f"Worker '{w.name}' finished.")
-    self._worker_processes = None
-    logger.debug("All workers finished.")
+      logger.debug("Joining worker processes...")
+      assert self._worker_processes is not None
+      for w in self._worker_processes:
+        w.join()
+        logger.debug(f"Worker '{w.name}' finished.")
+      self._worker_processes = None
+      logger.debug("All workers finished.")
 
-    if self._res.stats_resources.track_performance:
-      logger.debug("Joining performance tracker process...")
-      assert self._perf_tracker_process is not None
-      self._perf_tracker_process.join()
-      self._perf_tracker_process = None
-      logger.debug("Performance tracker finished.")
+      if self._res.stats_resources.track_performance:
+        logger.debug("Joining performance tracker process...")
+        assert self._perf_tracker_process is not None
+        self._perf_tracker_process.join()
+        self._perf_tracker_process = None
+        logger.debug("Performance tracker finished.")
 
     if self._res.stats_resources.use_callback:
       logger.debug("Joining dispatcher thread...")
@@ -384,6 +451,82 @@ class ProcessManager:
       self._progress_dispatcher_thread.join()
       self._progress_dispatcher_thread = None
       logger.debug("Dispatcher thread finished.")
+
+    if self._res.file_completion_resources.enabled:
+      logger.debug("Joining file completion dispatcher thread...")
+      assert self._file_completion_thread is not None
+      self._file_completion_thread.join()
+      self._file_completion_thread = None
+      logger.debug("File completion dispatcher thread finished.")
+
+  def _join_processes_after_cancel(
+    self, logger: Logger, grace_period_s: float = 30.0
+  ) -> None:
+    """Join child processes after a cancelled run without deadlocking.
+
+    A cancelled run leaves undelivered items in the child-to-parent queues
+    (results, stats, completion markers, unprocessed inputs): the consumer and
+    the performance tracker stop reading when the cancel event is set. A child
+    process cannot exit while its queue feeder threads still hold buffered
+    data — its exit handler joins the feeders, which block on the full pipe —
+    so a plain ``join()`` waits forever. Drain every parent-side queue while
+    joining so the children can flush and exit, and terminate any process
+    that still lingers after the grace period. The drained data is discarded,
+    which is fine: the run was cancelled.
+    """
+    logger.debug("Joining processes after cancellation (draining queues)...")
+
+    processes: list[Process] = [
+      *(self._producer_processes or []),
+      *(self._worker_processes or []),
+    ]
+
+    if self._perf_tracker_process is not None:
+      processes.append(self._perf_tracker_process)
+
+    stats_res = self._res.stats_resources
+    queues: list[Queue] = [
+      self._res.producer_resources.unprocessed_inputs_queue,
+      self._res.worker_resources.results_queue,
+      self._res.file_completion_resources.marker_queue,
+      stats_res.wkr_stats_queue,
+      stats_res.prd_stats_queue,
+      stats_res.perf_res_queue,
+      stats_res.callback_queue,
+    ]
+    queues = [q for q in queues if q is not None]
+
+    deadline = time.monotonic() + grace_period_s
+
+    while True:
+      alive = [p for p in processes if p.is_alive()]
+
+      if not alive:
+        break
+
+      for q in queues:
+        with suppress(Empty):
+          while True:
+            q.get_nowait()
+
+      if time.monotonic() >= deadline:
+        for p in alive:
+          logger.warning(
+            f"Process '{p.name}' did not exit after cancellation; terminating."
+          )
+          p.terminate()
+        break
+
+      time.sleep(0.05)
+
+    for p in processes:
+      p.join()
+      logger.debug(f"Process '{p.name}' finished.")
+
+    self._producer_processes = None
+    self._worker_processes = None
+    self._perf_tracker_process = None
+    logger.debug("All processes finished after cancellation.")
 
   def join_logging(self) -> None:
     assert self._logging_thread is not None

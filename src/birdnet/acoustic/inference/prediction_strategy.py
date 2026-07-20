@@ -175,6 +175,56 @@ class PredictionStrategy(
       model_version=config.model_conf.version,
     )
 
+  def _species_list_array(self, config: InferenceConfig) -> npt.NDArray:
+    # Built once per strategy (i.e. per session) and reused for every per-file
+    # result, so the completion callback does not pay to rebuild the (large)
+    # species-name array for each file.
+    cached = getattr(self, "_cached_species_array", None)
+    if cached is None:
+      species_list = config.model_conf.species_list
+      max_len = max(map(len, species_list))
+      cached = np.array(list(species_list), dtype=f"<U{max_len}")
+      cached.setflags(write=False)
+      self._cached_species_array = cached
+    return cached
+
+  def build_single_file_result(
+    self,
+    config: InferenceConfig,
+    file_path: Path,
+    arrays: tuple[object, ...],
+    is_invalid: bool,
+    duration_s: float,
+  ) -> AcousticFilePredictionResult:
+    from birdnet.acoustic.inference.core.prediction.prediction_tensor import (
+      PrebuiltPredictionTensor,
+    )
+
+    species_ids, species_probs, species_masked = arrays
+    tensor = PrebuiltPredictionTensor(
+      species_ids=species_ids,  # type: ignore[arg-type]
+      species_probs=species_probs,  # type: ignore[arg-type]
+      species_masked=species_masked,  # type: ignore[arg-type]
+    )
+    tensor.set_unprocessable_inputs({0} if is_invalid else set())
+
+    return AcousticFilePredictionResult(
+      tensor=tensor,
+      files=[Path(file_path)],
+      segment_duration_s=config.model_conf.segment_size_s,
+      overlap_duration_s=config.processing_conf.overlap_duration_s,
+      speed=config.processing_conf.speed,
+      species_list=config.model_conf.species_list,
+      species_list_array=self._species_list_array(config),
+      file_durations=np.array([duration_s], dtype=np.float32),
+      model_path=config.model_conf.path,
+      model_fmin=config.model_conf.sig_fmin,
+      model_fmax=config.model_conf.sig_fmax,
+      model_sr=config.model_conf.sample_rate,
+      model_precision=config.model_conf.backend_type.precision(),
+      model_version=config.model_conf.version,
+    )
+
   def create_array_result(
     self,
     tensor: AcousticPredictionTensor,

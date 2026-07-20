@@ -108,6 +108,16 @@ class AcousticSessionBase(
     if not self._resources.processing_resources.is_first_run:
       self._resources.reset()
 
+    # Per-file completion callback (``on_file_complete``) is only wired for file
+    # inputs; array inputs have no path to report and are rejected earlier.
+    inputs_are_files = len(inputs) > 0 and isinstance(inputs[0], Path)
+    completion_active = (
+      self._conf.output_conf.file_completion_callback is not None and inputs_are_files
+    )
+    if completion_active:
+      assert self._resources.file_completion_resources.start_signal is not None
+      self._resources.file_completion_resources.start_signal.set()
+
     self._logger.info(f"Got {len(inputs)} inputs for analysis.")
     self._process_manager.start_processing(inputs)
 
@@ -119,14 +129,13 @@ class AcousticSessionBase(
       len(inputs),
     )
 
-    self._process_manager.run_consumer(result_tensor)
+    self._process_manager.run_consumer(
+      result_tensor,
+      cast(list[Path], inputs) if inputs_are_files else None,
+      completion_active=completion_active,
+    )
 
-    if self._resources.processing_resources.cancel_event.is_set():
-      raise RuntimeError(
-        f"Analysis was cancelled. "
-        f"Please check the logs: "
-        f"{self._resources.logging_resources.session_log_file.absolute()}"
-      )
+    self._raise_if_cancelled()
 
     self._resources.stats_resources.save_end_time()
 
@@ -135,6 +144,17 @@ class AcousticSessionBase(
     # which have no defined ending otherwise
     self._resources.processing_resources.processing_finished_event.set()
     self._process_manager.wait_until_all_finished()
+
+    # Ensure every per-file callback has fired before returning the aggregate
+    # result, so the caller can rely on all files being persisted.
+    if completion_active:
+      assert self._resources.file_completion_resources.finish_signal is not None
+      self._resources.file_completion_resources.finish_signal.wait(timeout=None)
+
+      # The completion dispatcher runs on a background thread, so a callback
+      # that raises can set cancel_event only now — after the check above, while
+      # it was still draining. Re-check so a late callback failure fails the run.
+      self._raise_if_cancelled()
 
     # Collect only if no cancellation occurred, otherwise result queues might be empty
     self._resources.analyzer_resources.collect_input_durations()
@@ -168,6 +188,14 @@ class AcousticSessionBase(
     self._resources.processing_resources.increment_run_nr()
 
     return result
+
+  def _raise_if_cancelled(self) -> None:
+    if self._resources.processing_resources.cancel_event.is_set():
+      raise RuntimeError(
+        f"Analysis was cancelled. "
+        f"Please check the logs: "
+        f"{self._resources.logging_resources.session_log_file.absolute()}"
+      )
 
   def cancel(self) -> None:
     if not self._is_initialized:
@@ -241,6 +269,7 @@ class AcousticEncodingSession(AcousticSessionBase):
     progress_callback: Callable[[AcousticProgressStats], None] | None,
     device: str | list[str],
     max_n_files: int,  # Limit to avoid excessive memory usage
+    on_file_complete: Callable[[AcousticFileEncodingResult], None] | None = None,
   ) -> None:
     assert len(species_list) > 0
     assert model_path.exists()
@@ -249,6 +278,10 @@ class AcousticEncodingSession(AcousticSessionBase):
     assert 0 <= model_sig_fmin < model_sig_fmax
     assert model_backend_custom_kwargs is not None
     assert model_emb_dim > 0
+
+    if on_file_complete is not None and not callable(on_file_complete):
+      raise TypeError("on_file_complete must be callable")
+    self._on_file_complete = on_file_complete
 
     ModelConfig.validate_backend_supports_embeddings(model_backend_type)
     n_producers = ProcessingConfig.validate_n_producers(n_producers)
@@ -308,6 +341,7 @@ class AcousticEncodingSession(AcousticSessionBase):
         output_conf=OutputConfig(
           show_stats=show_stats,
           progress_callback=progress_callback,
+          file_completion_callback=on_file_complete,
         ),
       ),
       strategy=EncodingStrategy(),
@@ -332,6 +366,10 @@ class AcousticEncodingSession(AcousticSessionBase):
   def run_arrays(
     self, inputs: tuple[npt.NDArray, int] | Iterable[tuple[npt.NDArray, int]]
   ) -> AcousticDataEncodingResult:
+    if self._on_file_complete is not None:
+      raise RuntimeError(
+        "on_file_complete is only supported for file inputs (run), not run_arrays."
+      )
     data = InferenceConfig.validate_input_audio(inputs)
     return super()._run(data)
 
@@ -371,6 +409,7 @@ class AcousticPredictionSession(AcousticSessionBase):
     progress_callback: Callable[[AcousticProgressStats], None] | None,
     device: str | list[str],
     max_n_files: int,
+    on_file_complete: Callable[[AcousticFilePredictionResult], None] | None = None,
   ) -> None:
     assert len(species_list) > 0
     assert model_path.exists()
@@ -378,6 +417,10 @@ class AcousticPredictionSession(AcousticSessionBase):
     assert model_sample_rate > 0
     assert 0 <= model_sig_fmin < model_sig_fmax
     assert model_backend_custom_kwargs is not None
+
+    if on_file_complete is not None and not callable(on_file_complete):
+      raise TypeError("on_file_complete must be callable")
+    self._on_file_complete = on_file_complete
 
     if top_k is not None:
       top_k = PredictionConfig.validate_top_k(top_k, len(species_list))
@@ -466,6 +509,7 @@ class AcousticPredictionSession(AcousticSessionBase):
         output_conf=OutputConfig(
           show_stats=show_stats,
           progress_callback=progress_callback,
+          file_completion_callback=on_file_complete,
         ),
       ),
       strategy=PredictionStrategy(),
@@ -496,5 +540,9 @@ class AcousticPredictionSession(AcousticSessionBase):
   def run_arrays(
     self, inputs: tuple[npt.NDArray, int] | Iterable[tuple[npt.NDArray, int]]
   ) -> AcousticDataPredictionResult:
+    if self._on_file_complete is not None:
+      raise RuntimeError(
+        "on_file_complete is only supported for file inputs (run), not run_arrays."
+      )
     data = InferenceConfig.validate_input_audio(inputs)
     return super()._run(data)

@@ -62,6 +62,25 @@ class InferenceStrategyBase(Generic[ResultType, ConfigType, TensorType], ABC):
     resources: PipelineResources,
   ) -> ResultType: ...
 
+  def build_single_file_result(
+    self,
+    config: InferenceConfig,
+    file_path: Path,
+    arrays: tuple[object, ...],
+    is_invalid: bool,
+    duration_s: float,
+  ) -> ResultType:
+    """Build a single-file result from already-materialised per-file arrays.
+
+    ``arrays`` is the strategy-specific tuple produced by the tensor's
+    ``copy_file_slice`` (predictions: species ids/probs/masked; encodings:
+    embeddings/mask). Used by the per-file completion dispatcher
+    (``on_file_complete``).
+    """
+    raise NotImplementedError(
+      "This inference strategy does not support per-file completion results."
+    )
+
   @abstractmethod
   def create_minimal_benchmark_meta(
     self,

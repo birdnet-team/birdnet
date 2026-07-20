@@ -117,3 +117,51 @@ class AcousticPredictionTensor(AcousticTensorBase):
     self._species_probs[self._unprocessable_inputs, :, :] = 0.0
     self._species_ids[self._unprocessable_inputs, :, :] = 0
     self._species_masked[self._unprocessable_inputs, :, :] = True
+
+  def copy_file_slice(
+    self, file_idx: int, n_segments: int
+  ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return an independent copy of a single file's tensor rows.
+
+    The returned arrays have shape ``(1, n_segments, top_k)`` so they can back a
+    single-file result. Copying (rather than viewing) makes the data safe to
+    hand to another thread while this tensor keeps being written/resized.
+
+    Must be called from the same thread that writes the tensor (the consumer);
+    ``n_segments`` must not exceed the segments already written for the file.
+    """
+    assert 0 <= n_segments <= self.current_n_segments
+    ids = self._species_ids[file_idx, :n_segments].copy()[np.newaxis]
+    probs = self._species_probs[file_idx, :n_segments].copy()[np.newaxis]
+    masked = self._species_masked[file_idx, :n_segments].copy()[np.newaxis]
+    return ids, probs, masked
+
+
+class PrebuiltPredictionTensor(AcousticTensorBase):
+  """Minimal tensor holder wrapping already-materialised per-file arrays.
+
+  Used to build a single-file ``AcousticFilePredictionResult`` from the slice
+  copied out of the shared result tensor, without re-running any inference.
+  """
+
+  def __init__(
+    self,
+    species_ids: np.ndarray,
+    species_probs: np.ndarray,
+    species_masked: np.ndarray,
+  ) -> None:
+    super().__init__()
+    self._species_ids = species_ids
+    self._species_probs = species_probs
+    self._species_masked = species_masked
+
+  @property
+  def memory_usage_mb(self) -> float:
+    return (
+      self._species_ids.nbytes
+      + self._species_probs.nbytes
+      + self._species_masked.nbytes
+    ) / 1024**2
+
+  def write_block(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
+    raise NotImplementedError("PrebuiltPredictionTensor is read-only.")

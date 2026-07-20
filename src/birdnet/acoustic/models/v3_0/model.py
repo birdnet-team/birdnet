@@ -13,9 +13,11 @@ from ordered_set import OrderedSet
 from birdnet.acoustic.inference.configs import InferenceConfig
 from birdnet.acoustic.inference.core.encoding.encoding_result import (
   AcousticEncodingResultBase,
+  AcousticFileEncodingResult,
 )
 from birdnet.acoustic.inference.core.perf_tracker import AcousticProgressStats
 from birdnet.acoustic.inference.core.prediction.prediction_result import (
+  AcousticFilePredictionResult,
   AcousticPredictionResultBase,
 )
 from birdnet.acoustic.inference.session import (
@@ -298,6 +300,7 @@ class AcousticModelV3_0(AcousticModelBase):
     device: str | list[str] = "CPU",
     max_n_files: int = 65_536,
     segment_size_s: float = _DEFAULT_SEGMENT_SIZE_S,
+    on_file_complete: Callable[[AcousticFileEncodingResult], None] | None = None,
   ) -> AcousticEncodingSession:
     return AcousticEncodingSession(
       species_list=self.species_list,
@@ -325,6 +328,7 @@ class AcousticModelV3_0(AcousticModelBase):
       progress_callback=progress_callback,
       device=device,
       max_n_files=max_n_files,
+      on_file_complete=on_file_complete,
     )
 
   def predict_session(
@@ -353,6 +357,7 @@ class AcousticModelV3_0(AcousticModelBase):
     device: str | list[str] = "CPU",
     max_n_files: int = 65_536,
     segment_size_s: float = _DEFAULT_SEGMENT_SIZE_S,
+    on_file_complete: Callable[[AcousticFilePredictionResult], None] | None = None,
   ) -> AcousticPredictionSession:
     return AcousticPredictionSession(
       species_list=self.species_list,
@@ -386,6 +391,7 @@ class AcousticModelV3_0(AcousticModelBase):
       progress_callback=progress_callback,
       device=device,
       max_n_files=max_n_files,
+      on_file_complete=on_file_complete,
     )
 
   def encode(
@@ -407,6 +413,7 @@ class AcousticModelV3_0(AcousticModelBase):
     progress_callback: Callable[[AcousticProgressStats], None] | None = None,
     device: str | list[str] = "CPU",
     segment_size_s: float = _DEFAULT_SEGMENT_SIZE_S,
+    on_file_complete: Callable[[AcousticFileEncodingResult], None] | None = None,
   ) -> AcousticEncodingResultBase:
     input_files = InferenceConfig.validate_input_files(inp)
     with self.encode_session(
@@ -425,6 +432,7 @@ class AcousticModelV3_0(AcousticModelBase):
       device=device,
       max_n_files=len(input_files),
       segment_size_s=segment_size_s,
+      on_file_complete=on_file_complete,
     ) as session:
       return session.run(input_files)
 
@@ -494,6 +502,7 @@ class AcousticModelV3_0(AcousticModelBase):
     show_stats: Literal["minimal", "progress", "benchmark"] | None = None,
     progress_callback: Callable[[AcousticProgressStats], None] | None = None,
     segment_size_s: float = _DEFAULT_SEGMENT_SIZE_S,
+    on_file_complete: Callable[[AcousticFilePredictionResult], None] | None = None,
   ) -> AcousticPredictionResultBase:
     input_files = InferenceConfig.validate_input_files(inp)
     with self.predict_session(
@@ -519,6 +528,7 @@ class AcousticModelV3_0(AcousticModelBase):
       progress_callback=progress_callback,
       max_n_files=len(input_files),
       segment_size_s=segment_size_s,
+      on_file_complete=on_file_complete,
     ) as session:
       return session.run(input_files)
 
