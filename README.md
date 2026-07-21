@@ -57,6 +57,23 @@ For more detailed benchmarks, please refer to the [documentation](https://birdne
 
 For details see the official [TensorFlow](https://www.tensorflow.org/install/pip#package_location) documentation.
 
+#### Python 3.14
+
+TensorFlow does not yet publish wheels for Python 3.14, so the table above (all TensorFlow-based backends: ProtoBuf, TFLite/LiteRT) is limited to Python 3.11–3.13. On Python 3.14, `birdnet` installs *without* TensorFlow and supports the **acoustic 3.0 model via the `onnx` and `pt` backends** only:
+
+```sh
+pip install birdnet[onnx] --user   # or birdnet[pt]
+```
+
+```py
+import birdnet
+
+model = birdnet.load("acoustic", "3.0", "onnx")  # 'pt' also works
+predictions = model.predict("example/soundscape.wav")
+```
+
+The TensorFlow-only paths — the `tf`/`pb` backends, the acoustic 2.4 and Perch models, and **all geo models** — raise a clear error on Python 3.14 (the geo models are not currently distributed in ONNX/PyTorch form). To use them, install `birdnet` on Python 3.11–3.13. Full 3.14 support will follow once TensorFlow ships Python 3.14 wheels.
+
 ### Instructions
 
 ```sh

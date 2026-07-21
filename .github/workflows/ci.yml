@@ -38,10 +38,12 @@ jobs:
             macos-15-intel,
             windows-2025,
           ]
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
         exclude:
           - os: macos-15-intel
             python-version: "3.13" # no TF support
+          - os: macos-15-intel
+            python-version: "3.14" # no TF / torch x86 macOS wheels
 
     steps:
       - name: Checkout
@@ -90,6 +92,14 @@ jobs:
         if: matrix.python-version == '3.13'
         run: |
           python -m tox -e py313
+
+      # TensorFlow has no Python 3.14 wheels yet (issue #55), so 3.14 installs
+      # without it and only the TensorFlow-free surface (acoustic 3.0 via onnx)
+      # is exercised here.
+      - name: Run tests py314
+        if: matrix.python-version == '3.14'
+        run: |
+          python -m tox -e py314
 
       - name: Run repro tests
         if: matrix.python-version == '3.12' && matrix.os != 'macos-15-intel'

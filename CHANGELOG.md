@@ -12,6 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added an `on_file_complete` callback to acoustic `predict(..)`, `predict_session(..)`, `encode(..)` and `encode_session(..)` (all models: 2.4, 3.0, Perch V2). It fires once per input file the moment that file is fully processed, receiving a single-file result (`AcousticFilePredictionResult` / `AcousticFileEncodingResult`); invalid files are reported with their input marked unprocessable. This enables streaming per-file persistence (e.g. resumable multi-file analysis) and live output. The callback runs on a background thread with a copy of the caller's context, off the inference hot path, so it does not regress throughput. File inputs only (not `run_arrays`); a callback that raises cancels the run.
 - Added support for the BirdNET V3.0 (preview) acoustic model with four backends: TFLite/LiteRT (`tf`), ProtoBuf (`pb`), PyTorch (`pt`) and ONNX (`onnx`). Both `predict(..)` and `encode(..)` are supported on all backends. Load via `birdnet.load("acoustic", "3.0", <backend>)`. The `pt` and `onnx` backends require the new `birdnet[pt]` and `birdnet[onnx]` install extras (#41).
 - Added support for the BirdNET-Geomodel V3.0 with TFLite/LiteRT (`tf`) and ProtoBuf (`pb`) backends. Load via `birdnet.load("geo", "3.0", <backend>)` (#41).
+- Added an `apply_softmax` option to acoustic `predict(..)` (all models: 2.4, 3.0, Perch V2), mirroring `apply_sigmoid`. When enabled, output scores are the softmax over the model's logits, which is useful for obtaining confidence scores (e.g. for Perch V2). Defaults to `False` (#54).
+- Added (partial) support for Python 3.14. TensorFlow does not yet ship Python 3.14 wheels, so on 3.14 `birdnet` installs without TensorFlow and supports the acoustic 3.0 model via the `onnx` and `pt` backends. The version cap `<3.14` was lifted and `tensorflow` is now only a dependency on Python ≤3.13. TensorFlow-only paths (`tf`/`pb` backends, acoustic 2.4, Perch, and all geo models — which are not distributed in ONNX/PyTorch form) raise a clear, actionable error on 3.14 instead of an `ImportError`. Full support will follow once TensorFlow provides 3.14 wheels (#55).
+
+### Changed
+
+- The progress callback now runs on a background worker thread with a copy of the caller's context (contextvars) as captured when the call starts, matching the behavior of the new `on_file_complete` callback (#53).
+
+### Bugfixes
+
+- Fixed corrupt rows in acoustic prediction and encoding output: growing the internal result buffer via `numpy.ndarray.resize` (together with an off-by-one in the initial segment count) could leave stale or uninitialized values in some segments. Buffers are now reallocated and copied, so all output rows are correct (#50).
 
 ## [0.2.16] - 2026-05-09
 

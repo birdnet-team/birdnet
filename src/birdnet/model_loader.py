@@ -302,6 +302,41 @@ def _validate_optional_backend_runtime(backend: MODEL_BACKENDS) -> None:
     )
 
 
+def _validate_tf_backend_runtime(backend: MODEL_BACKENDS) -> None:
+  """Guard the TensorFlow-backed backends when TensorFlow is unavailable.
+
+  The 'tf' (TFLite/LiteRT) and 'pb' (SavedModel) backends both require
+  TensorFlow. Fail early with an actionable message instead of a bare
+  ImportError deep in the backend (issue #55). The advice depends on the
+  running interpreter: TensorFlow has no wheels for Python 3.14+, so there it
+  cannot be installed; on 3.11-3.13 it merely needs to be installed.
+  """
+  if backend not in (MODEL_BACKEND_TF, MODEL_BACKEND_PB) or tf_installed():
+    return
+
+  import sys
+
+  base = (
+    f"Parameter 'backend': Backend '{backend}' requires TensorFlow, which is "
+    "not installed. "
+  )
+  if sys.version_info >= (3, 14):
+    reason = (
+      "TensorFlow provides no wheels for Python "
+      f"{sys.version_info.major}.{sys.version_info.minor}, so it cannot be "
+      "installed on this interpreter; use Python 3.11-3.13 to run "
+      "TensorFlow-based models. "
+    )
+  else:
+    reason = "Install it (e.g. reinstall birdnet, or 'pip install tensorflow'). "
+  alternative = (
+    "Alternatively, use the 'onnx' or 'pt' backend with the acoustic 3.0 model, "
+    "e.g. birdnet.load('acoustic', '3.0', 'onnx'); note that the geo models and "
+    "the acoustic 2.4/Perch models are TensorFlow-only."
+  )
+  raise ValueError(base + reason + alternative)
+
+
 def _raise_unsupported_backend(
   model_type: MODEL_TYPES,
   version: str,
@@ -361,6 +396,7 @@ def load_perch_v2(device: str) -> AcousticModelPerchV2:
     raise OSError("The Perch v2 model is not supported on Intel macOS systems.")
 
   device = _validate_device(device)
+  _validate_tf_backend_runtime(MODEL_BACKEND_PB)
   check_tf_version_for_perch_v2()
   model_path, species_list = AcousticPBDownloaderPerchV2.get_model_path_and_labels(
     device
@@ -389,6 +425,7 @@ def load(
 ) -> ModelBase:
   model_type = _validate_model_type(model_type)
   backend = _validate_backend(backend)
+  _validate_tf_backend_runtime(backend)
   precision = _validate_precision(precision)
 
   if model_type == MODEL_TYPE_ACOUSTIC:
@@ -658,6 +695,7 @@ def load_custom(
 ) -> ModelBase:
   model_type = _validate_model_type(model_type)
   backend = _validate_backend(backend)
+  _validate_tf_backend_runtime(backend)
   model = _validate_path(model)
   species_list = _validate_species_list_path(species_list)
   precision = _validate_precision(precision)
