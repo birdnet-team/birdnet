@@ -306,19 +306,35 @@ def _validate_tf_backend_runtime(backend: MODEL_BACKENDS) -> None:
   """Guard the TensorFlow-backed backends when TensorFlow is unavailable.
 
   The 'tf' (TFLite/LiteRT) and 'pb' (SavedModel) backends both require
-  TensorFlow. TensorFlow does not yet ship wheels for Python 3.14+, so on such
-  interpreters birdnet installs without it. Fail early with an actionable
-  message instead of a bare ImportError deep in the backend (issue #55).
+  TensorFlow. Fail early with an actionable message instead of a bare
+  ImportError deep in the backend (issue #55). The advice depends on the
+  running interpreter: TensorFlow has no wheels for Python 3.14+, so there it
+  cannot be installed; on 3.11-3.13 it merely needs to be installed.
   """
-  if backend in (MODEL_BACKEND_TF, MODEL_BACKEND_PB) and not tf_installed():
-    raise ValueError(
-      f"Parameter 'backend': Backend '{backend}' requires TensorFlow, which is "
-      "not installed. TensorFlow currently provides no wheels for Python 3.14+; "
-      "use Python 3.11-3.13 to run TensorFlow-based models (all geo models and "
-      "the acoustic 2.4/Perch models are TensorFlow-only), or use the 'onnx' or "
-      "'pt' backend with the acoustic 3.0 model, e.g. "
-      "birdnet.load('acoustic', '3.0', 'onnx')."
+  if backend not in (MODEL_BACKEND_TF, MODEL_BACKEND_PB) or tf_installed():
+    return
+
+  import sys
+
+  base = (
+    f"Parameter 'backend': Backend '{backend}' requires TensorFlow, which is "
+    "not installed. "
+  )
+  if sys.version_info >= (3, 14):
+    reason = (
+      "TensorFlow provides no wheels for Python "
+      f"{sys.version_info.major}.{sys.version_info.minor}, so it cannot be "
+      "installed on this interpreter; use Python 3.11-3.13 to run "
+      "TensorFlow-based models. "
     )
+  else:
+    reason = "Install it (e.g. reinstall birdnet, or 'pip install tensorflow'). "
+  alternative = (
+    "Alternatively, use the 'onnx' or 'pt' backend with the acoustic 3.0 model, "
+    "e.g. birdnet.load('acoustic', '3.0', 'onnx'); note that the geo models and "
+    "the acoustic 2.4/Perch models are TensorFlow-only."
+  )
+  raise ValueError(base + reason + alternative)
 
 
 def _raise_unsupported_backend(
