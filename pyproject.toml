@@ -3,7 +3,7 @@ name = "birdnet"
 version = "0.2.16"
 description = "A Python library for identifying bird species by their sounds."
 readme = "README.md"
-requires-python = ">=3.11, <3.14"
+requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE.md"]
 authors = [{ name = "Stefan Taubert" }]
@@ -29,6 +29,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
   "soundfile >= 0.11.0",                                                                                                                                                                                         # 2022/09/27
@@ -39,14 +40,18 @@ dependencies = [
   "pandas >= 1.4.0",                                                                                                                                                                                             # 2022/02/22
   "psutil >= 5.9.0",                                                                                                                                                                                             # 2021/12/29
   "pyarrow >= 7.0.0",                                                                                                                                                                                            # 2022/02/03
-  "tensorflow >= 2.8.0 ; sys_platform != 'darwin' or platform_machine != 'x86_64'",                                                                                                                             # 2022/02/02
-  "tensorflow >= 2.8.0, <2.17 ; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+  # TensorFlow has no wheels for Python 3.14+ yet, so it is only required on
+  # <=3.13. On Python 3.14 birdnet installs without TensorFlow; the acoustic 3.0
+  # model then runs via the optional 'onnx'/'pt' backends. TF/PB backends and all
+  # geo models raise a clear error there until TF ships cp314 wheels (issue #55).
+  "tensorflow >= 2.8.0 ; (sys_platform != 'darwin' or platform_machine != 'x86_64') and python_version < '3.14'",                                                                                                # 2022/02/02
+  "tensorflow >= 2.8.0, <2.17 ; sys_platform == 'darwin' and platform_machine == 'x86_64' and python_version < '3.14'",
   "ai-edge-litert >= 2.0.2 ; python_version <= '3.13' and (sys_platform == 'linux' or (sys_platform == 'darwin' and platform_machine == 'arm64') or (sys_platform == 'win32' and platform_machine == 'AMD64'))", # 2026/05/12
 ]
 
 [project.optional-dependencies]
 and-cuda = [
-  "tensorflow[and-cuda] >= 2.8.0 ; sys_platform == 'linux'", # 2022/02/02
+  "tensorflow[and-cuda] >= 2.8.0 ; sys_platform == 'linux' and python_version < '3.14'", # 2022/02/02
 ]
 pt = ["torch >= 2.0.0"]
 onnx = ["onnxruntime >= 1.16.0"]
@@ -187,6 +192,7 @@ markers = [
   "litert: tests requiring ai_edge_litert backend which can not be loaded after tf is imported (raises ImportError) which happens on parallel test runs",
   "gpu: tests requiring a GPU to run and to be run sequentially",
   "repro: tests requiring exact package versions to reproduce results",
+  "no_tf: tests for the TensorFlow-free surface, run when TF is absent (e.g. Python 3.14)",
 ]
 
 [tool.ruff]
@@ -230,7 +236,7 @@ exclude_lines = ["if __name__ == .__main__.:"]
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-envlist = py{311,312,313}, py312-repro
+envlist = py{311,312,313,314}, py312-repro
 isolated_build = True
 
 [testenv]
@@ -268,6 +274,16 @@ commands =
   pyproject-build -o dist/
   python -m twine check dist/*
   
+[testenv:py314]
+# Python 3.14 has no TensorFlow wheels yet (issue #55). Install the TF-free
+# surface (onnx backend) and exercise it plus the friendly errors on TF paths.
+deps =
+  .[tests,onnx]
+commands =
+  pytest -m "no_tf" -n auto
+  pyproject-build -o dist/
+  python -m twine check dist/*
+
 [testenv:py312-coverage]
 deps =
   .[tests]
