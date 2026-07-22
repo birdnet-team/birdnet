@@ -34,8 +34,8 @@ from birdnet.utils.taxonomy_v3 import (
   taxonomy_v3_available,
 )
 
-_LABELS_DL_URL = "https://github.com/birdnet-team/geomodel/releases/download/v3.0.2/BirdNET+_Geomodel_V3.0.2_Global_12K_Labels.txt"
-_LABELS_DL_SIZE = 571793
+_LABELS_DL_URL = "https://github.com/birdnet-team/geomodel/releases/download/v3.0.3/BirdNET+_Geomodel_V3.0.3_Global_12K_Labels.txt"
+_LABELS_DL_SIZE = 585766
 
 _LANGUAGE_TO_COLUMN: dict[str, str] = {
   "en_us": "com_name",
@@ -92,6 +92,11 @@ def _write_text_atomic(path: Path, content: str, encoding: str = "utf-8") -> Non
     raise
 
 
+def _count_lines(path: Path, encoding: str = "utf-8") -> int:
+  with open(path, encoding=encoding) as f:
+    return sum(1 for _ in f)
+
+
 @contextmanager
 def _setup_lock(timeout_s: float = 300.0) -> Generator[None, None, None]:
   deadline = time.monotonic() + timeout_s
@@ -131,7 +136,19 @@ class GeoDownloaderBaseV3_0:
     lang_dir = cls._get_lang_dir()
     if not lang_dir.is_dir():
       return False
-    return all((lang_dir / f"{lang}.txt").is_file() for lang in cls.AVAILABLE_LANGUAGES)
+    if not all(
+      (lang_dir / f"{lang}.txt").is_file() for lang in cls.AVAILABLE_LANGUAGES
+    ):
+      return False
+    # Guard against lang files left over from an older labels version: they exist
+    # but carry a different species count. Lang files are generated together from
+    # the raw labels (one entry per raw line), so any file whose line count differs
+    # from the raw labels means the cache is stale and must be regenerated.
+    n_species = _count_lines(_LABELS_RAW_PATH)
+    return all(
+      _count_lines(lang_dir / f"{lang}.txt") == n_species
+      for lang in cls.AVAILABLE_LANGUAGES
+    )
 
   @classmethod
   def ensure_labels_available(cls) -> None:
@@ -139,8 +156,11 @@ class GeoDownloaderBaseV3_0:
       if cls._check_labels_available():
         return
 
-      needs_regen = False
-
+      # We only get here when the labels are missing or stale. Ensure the raw
+      # labels and taxonomy are present and current, then regenerate the
+      # per-language files unconditionally: they are either missing or left over
+      # from an older labels version (see _check_labels_available). Regeneration
+      # is idempotent, so this is safe even if only one of them was outdated.
       labels_stale = not _LABELS_RAW_PATH.is_file() or (
         _LABELS_RAW_PATH.stat().st_size != _LABELS_DL_SIZE
       )
@@ -152,19 +172,11 @@ class GeoDownloaderBaseV3_0:
           download_size=_LABELS_DL_SIZE,
           description="Downloading geo model v3.0 labels",
         )
-        needs_regen = True
 
-      taxonomy_stale = not taxonomy_v3_available()
-      if taxonomy_stale:
+      if not taxonomy_v3_available():
         ensure_taxonomy_v3_available()
-        needs_regen = True
 
-      lang_files_missing = not all(
-        (cls._get_lang_dir() / f"{lang}.txt").is_file()
-        for lang in cls.AVAILABLE_LANGUAGES
-      )
-      if needs_regen or lang_files_missing:
-        cls._generate_lang_files()
+      cls._generate_lang_files()
 
   @classmethod
   def _generate_lang_files(cls) -> None:

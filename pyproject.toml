@@ -7,7 +7,7 @@ requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE.md"]
 authors = [{ name = "Stefan Taubert" }]
-maintainers = [{ name = "Stefan Taubert" }]
+maintainers = [{ name = "Stefan Taubert" }, { name = "Josef Haupt" }]
 keywords = [
   "birds",
   "deep-learning",
@@ -32,14 +32,18 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-  "soundfile >= 0.11.0",                                                                                                                                                                                         # 2022/09/27
-  "scipy >= 1.8.0",                                                                                                                                                                                              # 2022/02/05
-  "ordered-set >= 4.1.0",                                                                                                                                                                                        # 2022/01/26
-  "tqdm >= 4.64.0",                                                                                                                                                                                              # 2022/04/04
-  "numpy >= 1.22.0",                                                                                                                                                                                             # 2021/12/31
-  "pandas >= 1.4.0",                                                                                                                                                                                             # 2022/02/22
-  "psutil >= 5.9.0",                                                                                                                                                                                             # 2021/12/29
-  "pyarrow >= 7.0.0",                                                                                                                                                                                            # 2022/02/03
+  "soundfile >= 0.11.0",  # 2022/09/27
+  "scipy >= 1.8.0",       # 2022/02/05
+  "ordered-set >= 4.1.0", # 2022/01/26
+  "tqdm >= 4.64.0",       # 2022/04/04
+  "numpy >= 1.22.0",      # 2021/12/31
+  "pandas >= 1.4.0",      # 2022/02/22
+  "psutil >= 5.9.0",      # 2021/12/29
+  "pyarrow >= 7.0.0",     # 2022/02/03
+  # Used to download the official models (birdnet.utils.helper.download_file_tqdm).
+  # Previously pulled in transitively via TensorFlow; declared explicitly so the
+  # TensorFlow-free install on Python 3.14 (onnx/pt backends) can download models.
+  "requests >= 2.27.0",   # 2022/01/05
   # TensorFlow has no wheels for Python 3.14+ yet, so it is only required on
   # <=3.13. On Python 3.14 birdnet installs without TensorFlow; the acoustic 3.0
   # model then runs via the optional 'onnx'/'pt' backends. TF/PB backends and all

@@ -63,3 +63,10 @@ def test_acoustic_v3_onnx_predicts_without_tensorflow() -> None:
   model = birdnet.load("acoustic", "3.0", "onnx")
   predictions = model.predict("example/soundscape.wav")
   assert predictions is not None
+
+
+@pytest.mark.skipif(not onnxruntime_installed(), reason="onnxruntime not installed")
+def test_geo_v3_onnx_predicts_without_tensorflow() -> None:
+  model = birdnet.load("geo", "3.0", "onnx")
+  predictions = model.predict(42.5, -76.45, week=4)
+  assert predictions is not None

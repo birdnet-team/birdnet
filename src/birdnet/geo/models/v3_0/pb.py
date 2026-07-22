@@ -25,6 +25,14 @@ from birdnet.utils.local_data import get_lang_dir, get_model_path
 
 _YEAR_ROUND_WEEK_INPUTS = tuple(float(week) for week in range(1, 49))
 
+_PB_DL_URL = "https://github.com/birdnet-team/geomodel/releases/download/v3.0.3/BirdNET+_Geomodel_V3.0.3_Global_12K_FP32_TF.zip"
+_PB_DL_SIZE = 64757796
+# Written into the extracted model directory to record which release it came from.
+# The on-disk directory name is generic (model-fp32), so unlike the size-checked
+# .tflite/.onnx files a SavedModel cached from an older release would otherwise
+# never be detected as stale and re-downloaded on upgrade.
+_SOURCE_MARKER_NAME = ".birdnet_source"
+
 
 class GeoPBDownloaderV3_0(GeoDownloaderBaseV3_0):
   @classmethod
@@ -43,20 +51,26 @@ class GeoPBDownloaderV3_0(GeoDownloaderBaseV3_0):
       return False
     if not check_protobuf_model_files_exist(model_path):
       return False
+    if not cls._check_source_marker(model_path):
+      return False
 
     return cls._check_labels_available()
 
   @classmethod
-  def _download_model(cls) -> None:
-    dl_url = "https://github.com/birdnet-team/geomodel/releases/download/v3.0.2/BirdNET+_Geomodel_V3.0.2_Global_12K_FP32_TF.zip"
-    dl_size = 13466042
+  def _check_source_marker(cls, model_path: Path) -> bool:
+    marker = model_path / _SOURCE_MARKER_NAME
+    if not marker.is_file():
+      return False
+    return marker.read_text(encoding="utf-8").strip() == _PB_DL_URL
 
+  @classmethod
+  def _download_model(cls) -> None:
     with tempfile.TemporaryDirectory(prefix="birdnet_download") as temp_dir:
       zip_download_path = Path(temp_dir) / "download.zip"
       download_file_tqdm(
-        dl_url,
+        _PB_DL_URL,
         zip_download_path,
-        download_size=dl_size,
+        download_size=_PB_DL_SIZE,
         description="Downloading geo model v3.0 (pb)",
       )
 
@@ -66,11 +80,12 @@ class GeoPBDownloaderV3_0(GeoDownloaderBaseV3_0):
       with zipfile.ZipFile(zip_download_path, "r") as zip_ref:
         zip_ref.extractall(extract_dir)
 
-      geo_model_dl_dir = extract_dir / "BirdNET+_Geomodel_V3.0.2_Global_12K_FP32_TF"
+      geo_model_dl_dir = extract_dir / "BirdNET+_Geomodel_V3.0.3_Global_12K_FP32_TF"
       geo_model_dir = cls._get_model_path()
       geo_model_dir.parent.mkdir(parents=True, exist_ok=True)
       shutil.rmtree(geo_model_dir, ignore_errors=True)
       shutil.move(geo_model_dl_dir, geo_model_dir)
+      (geo_model_dir / _SOURCE_MARKER_NAME).write_text(_PB_DL_URL, encoding="utf-8")
       print("Extracted.")  # noqa: T201
 
   @classmethod
