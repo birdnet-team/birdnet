@@ -41,6 +41,17 @@ def test_perch_cpu_v2_wrong_tf_version_raises_error(
     load_perch_v2("CPU")
 
 
+def test_perch_v2_on_intel_macos_raises_error(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  monkeypatch.setattr(model_loader, "check_is_intel_macos", lambda: True)
+
+  with pytest.raises(
+    OSError, match=r"Perch v2 model is not supported on Intel macOS"
+  ):
+    load_perch_v2("CPU")
+
+
 @pytest.mark.gpu
 @pytest.mark.load_model
 def test_perch_gpu_v2() -> None:
