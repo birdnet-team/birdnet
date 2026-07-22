@@ -56,22 +56,22 @@ def _check_tf_version_for_v3_0() -> None:
 
 models = {
   MODEL_PRECISION_INT8: ModelInfo(
-    dl_url="https://github.com/birdnet-team/geomodel/releases/download/v3.0.2/BirdNET+_Geomodel_V3.0.2_Global_12K_INT8.tflite",
-    dl_file_name="BirdNET+_Geomodel_V3.0.2_Global_12K_INT8.tflite",
-    dl_size=4011888,
-    file_size=4011888,
+    dl_url="https://github.com/birdnet-team/geomodel/releases/download/v3.0.3/BirdNET+_Geomodel_V3.0.3_Global_12K_INT8.tflite",
+    dl_file_name="BirdNET+_Geomodel_V3.0.3_Global_12K_INT8.tflite",
+    dl_size=7486688,
+    file_size=7486688,
   ),
   MODEL_PRECISION_FP16: ModelInfo(
-    dl_url="https://github.com/birdnet-team/geomodel/releases/download/v3.0.2/BirdNET+_Geomodel_V3.0.2_Global_12K_FP16.tflite",
-    dl_file_name="BirdNET+_Geomodel_V3.0.2_Global_12K_FP16.tflite",
-    dl_size=7303476,
-    file_size=7303476,
+    dl_url="https://github.com/birdnet-team/geomodel/releases/download/v3.0.3/BirdNET+_Geomodel_V3.0.3_Global_12K_FP16.tflite",
+    dl_file_name="BirdNET+_Geomodel_V3.0.3_Global_12K_FP16.tflite",
+    dl_size=14046588,
+    file_size=14046588,
   ),
   MODEL_PRECISION_FP32: ModelInfo(
-    dl_url="https://github.com/birdnet-team/geomodel/releases/download/v3.0.2/BirdNET+_Geomodel_V3.0.2_Global_12K_FP32.tflite",
-    dl_file_name="BirdNET+_Geomodel_V3.0.2_Global_12K_FP32.tflite",
-    dl_size=14512340,
-    file_size=14512340,
+    dl_url="https://github.com/birdnet-team/geomodel/releases/download/v3.0.3/BirdNET+_Geomodel_V3.0.3_Global_12K_FP32.tflite",
+    dl_file_name="BirdNET+_Geomodel_V3.0.3_Global_12K_FP32.tflite",
+    dl_size=27982532,
+    file_size=27982532,
   ),
 }
 

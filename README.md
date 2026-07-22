@@ -59,7 +59,7 @@ For details see the official [TensorFlow](https://www.tensorflow.org/install/pip
 
 #### Python 3.14
 
-TensorFlow does not yet publish wheels for Python 3.14, so the table above (all TensorFlow-based backends: ProtoBuf, TFLite/LiteRT) is limited to Python 3.11–3.13. On Python 3.14, `birdnet` installs *without* TensorFlow and supports the **acoustic 3.0 model via the `onnx` and `pt` backends** only:
+TensorFlow does not yet publish wheels for Python 3.14, so the table above (all TensorFlow-based backends: ProtoBuf, TFLite/LiteRT) is limited to Python 3.11–3.13. On Python 3.14, `birdnet` installs *without* TensorFlow and supports the models that have a TensorFlow-free backend: the **acoustic 3.0 model** (via `onnx` or `pt`) and the **geo 3.0 model** (via `onnx`):
 
 ```sh
 pip install birdnet[onnx] --user   # or birdnet[pt]
@@ -70,9 +70,12 @@ import birdnet
 
 model = birdnet.load("acoustic", "3.0", "onnx")  # 'pt' also works
 predictions = model.predict("example/soundscape.wav")
+
+geo = birdnet.load("geo", "3.0", "onnx")
+geo_predictions = geo.predict(42.5, -76.45, week=4)
 ```
 
-The TensorFlow-only paths — the `tf`/`pb` backends, the acoustic 2.4 and Perch models, and **all geo models** — raise a clear error on Python 3.14 (the geo models are not currently distributed in ONNX/PyTorch form). To use them, install `birdnet` on Python 3.11–3.13. Full 3.14 support will follow once TensorFlow ships Python 3.14 wheels.
+The TensorFlow-only paths — the `tf`/`pb` backends, the acoustic 2.4 and Perch models, and the geo 2.4 model — raise a clear error on Python 3.14. To use them, install `birdnet` on Python 3.11–3.13. Full 3.14 support will follow once TensorFlow ships Python 3.14 wheels.
 
 ### Instructions
 
@@ -118,16 +121,16 @@ If you encounter issues with audio file reading, please ensure that `libsndfile`
 
 ### V3.0
 
-The V3.0 acoustic model is available in four backends (TFLite/LiteRT, ProtoBuf, PyTorch and ONNX), the V3.0 geo model in two (TFLite/LiteRT and ProtoBuf). The PyTorch backend requires `birdnet[pt]` and the ONNX backend requires `birdnet[onnx]`.
+The V3.0 acoustic model is available in four backends (TFLite/LiteRT, ProtoBuf, PyTorch and ONNX), the V3.0 geo model in three (TFLite/LiteRT, ProtoBuf and ONNX; there is no PyTorch backend for the geo model). The PyTorch backend requires `birdnet[pt]` and the ONNX backend requires `birdnet[onnx]`.
 
-| **Model** | Acoustic | Acoustic | Acoustic | Acoustic | Geo | Geo |
-|---|---|---|---|---|---|---|
-| **Backend** | TFLite/<br>LiteRT | ProtoBuf | PyTorch | ONNX | TFLite/<br>LiteRT | ProtoBuf |
-| `predict(..)` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `encode(..)` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| **INT8** | ❌ | ❌ | ❌ | ❌ | CPU | ❌ |
-| **FP16** | CPU | ❌ | ❌ | CPU/GPU | CPU | ❌ |
-| **FP32** | CPU | CPU/GPU | CPU/GPU | CPU/GPU | CPU | CPU/GPU |
+| **Model** | Acoustic | Acoustic | Acoustic | Acoustic | Geo | Geo | Geo |
+|---|---|---|---|---|---|---|---|
+| **Backend** | TFLite/<br>LiteRT | ProtoBuf | PyTorch | ONNX | TFLite/<br>LiteRT | ProtoBuf | ONNX |
+| `predict(..)` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `encode(..)` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **INT8** | ❌ | ❌ | ❌ | ❌ | CPU | ❌ | ❌ |
+| **FP16** | CPU | ❌ | ❌ | CPU/GPU | CPU | ❌ | CPU/GPU |
+| **FP32** | CPU | CPU/GPU | CPU/GPU | CPU/GPU | CPU | CPU/GPU | CPU/GPU |
 
 ✅ = Supported ❌ = Not supported
 
