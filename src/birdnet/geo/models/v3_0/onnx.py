@@ -78,6 +78,11 @@ class GeoOnnxDownloaderV3_0(GeoDownloaderBaseV3_0):
   def get_model_path_and_labels(
     cls, lang: str, precision: MODEL_PRECISIONS
   ) -> tuple[Path, OrderedSet[str]]:
+    if precision not in models:
+      raise ValueError(
+        f"Unsupported model precision for geo onnx model: {precision}. "
+        f"Currently supported precisions are: {', '.join(models)}."
+      )
     assert lang in cls.AVAILABLE_LANGUAGES
 
     cls.ensure_labels_available()
