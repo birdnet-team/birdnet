@@ -281,7 +281,7 @@ class PredictionConfig(SpecificConfigBase):
   ) -> float:
     if not isinstance(default_confidence_threshold, int | float):
       raise TypeError("default confidence threshold must be a number")
-    return default_confidence_threshold
+    return float(default_confidence_threshold)
 
   @classmethod
   def validate_custom_confidence_thresholds(

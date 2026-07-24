@@ -163,3 +163,50 @@ def test_run_week_none_batches_and_aggregates_year_round_predictions(
     result.species_ids,
     np.array([0, 1, 2], dtype=np.uint8),
   )
+
+
+def test_run_with_specific_week_uses_single_sample(tmp_path: Path) -> None:
+  model_path = tmp_path / "geo-model.bin"
+  model_path.touch()
+
+  prediction_batch = np.array([[0.1, 0.8, 0.9]], dtype=np.float32)
+  FakeGeoBackend.configure(
+    prediction_batch=prediction_batch,
+    week_inputs=(1.0, 24.0, 48.0),
+  )
+
+  with create_geo_session(model_path) as session:
+    result = session.run(20, 50, week=12)
+
+  # exactly one [lat, lon, week] sample is fed to the backend
+  assert len(FakeGeoBackend.captured_batches) == 1
+  np.testing.assert_array_equal(
+    FakeGeoBackend.captured_batches[0],
+    np.array([[20.0, 50.0, 12.0]], dtype=np.float32),
+  )
+  assert result.week == 12
+  np.testing.assert_array_equal(result.species_probs, prediction_batch[0])
+  np.testing.assert_array_equal(result.species_masked, prediction_batch[0] < 0.5)
+
+
+def test_run_week_none_with_single_week_input_squeezes(tmp_path: Path) -> None:
+  model_path = tmp_path / "geo-model.bin"
+  model_path.touch()
+
+  # A single year-round week input exercises the squeeze branch (no aggregation).
+  prediction_batch = np.array([[0.2, 0.6, 0.95]], dtype=np.float32)
+  FakeGeoBackend.configure(
+    prediction_batch=prediction_batch,
+    week_inputs=(1.0,),
+  )
+
+  with create_geo_session(model_path) as session:
+    result = session.run(10, 30, week=None)
+
+  assert len(FakeGeoBackend.captured_batches) == 1
+  np.testing.assert_array_equal(
+    FakeGeoBackend.captured_batches[0],
+    np.array([[10.0, 30.0, 1.0]], dtype=np.float32),
+  )
+  assert result.week == -1
+  np.testing.assert_array_equal(result.species_probs, prediction_batch[0])
