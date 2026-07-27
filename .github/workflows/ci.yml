@@ -1,11 +1,27 @@
 name: CI
 
 on:
+  # Only run the (expensive) test matrix when files that can affect the tests or
+  # package change. Docs, license, images and other non-code changes are skipped.
+  # This is an allowlist: anything test-relevant added later (e.g. a new data dir
+  # or a root conftest.py) must be added here or CI will silently skip it.
   push:
     branches: ["main"]
+    paths:
+      - "src/**"                    # birdnet, birdnet_tests (incl. TEST_FILES), birdnet_benchmark
+      - "example/**"                # test data: test_issue29/55 load example/soundscape.wav
+      - "pyproject.toml"            # deps + tox + pytest/ruff/mypy config
+      - "MANIFEST.in"               # packaging -> build/twine check step
+      - ".github/workflows/ci.yml"  # the workflow itself
 
   pull_request:
     branches: ["main"]
+    paths:
+      - "src/**"
+      - "example/**"
+      - "pyproject.toml"
+      - "MANIFEST.in"
+      - ".github/workflows/ci.yml"
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -28,11 +44,12 @@ jobs:
     timeout-minutes: 50
 
     env:
-      # Redirect birdnet's model/label downloads to a fixed directory outside the
-      # checkout (so actions/checkout never cleans it) that we cache across runs,
-      # skipping the ~11 min "load_model" download step on a cache hit. tox forwards
-      # this var to the pytest subprocess via `passenv` in the tox config.
-      BIRDNET_APP_DATA: ${{ runner.temp }}/birdnet-app-data
+      # Fixed, cacheable location for birdnet's model/label downloads so the ~11 min
+      # "load_model" download step is skipped on a cache hit. Placed under the
+      # workspace because the `runner` context is not available in job-level env;
+      # this is safe since checkout runs once, before the cache is restored, and is
+      # never re-run. tox forwards this var to the pytest subprocess via `passenv`.
+      BIRDNET_APP_DATA: ${{ github.workspace }}/.birdnet-app-data
 
     strategy:
       fail-fast: false
@@ -101,7 +118,7 @@ jobs:
             birdnet-models-${{ runner.os }}-
 
       - name: Install dependencies
-        run: uv pip install --system .[tests]
+        run: uv pip install --system '.[tests]'
 
       - name: Run tests py311
         if: matrix.python-version == '3.11'
