@@ -107,17 +107,20 @@ jobs:
           enable-cache: true
           cache-dependency-glob: pyproject.toml
 
-      # Cache the downloaded models/labels keyed on the model definition files (which
-      # carry the download URLs and expected sizes). A miss or a changed definition
-      # falls back to the newest matching cache and re-downloads only what is stale.
+      # Cache the downloaded models/labels. The files are identical across OS and
+      # Python, so we key only on the download *profile* (full vs the TF-free py3.14
+      # surface) plus the model definitions (their URLs/sizes). This keeps the cache
+      # to ~2 entries (~3.6 GB) instead of one ~3 GB copy per (os, python), which
+      # overran the 10 GB repo cache limit and thrashed. A changed definition busts
+      # the key; restore-keys then falls back to the last cache of the same profile
+      # and only the stale models are re-downloaded.
       - name: Cache downloaded models
         uses: actions/cache@v4
         with:
           path: ${{ env.BIRDNET_APP_DATA }}
-          key: birdnet-models-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('src/birdnet/**/models/**/*.py') }}
+          key: birdnet-models-${{ matrix.python-version == '3.14' && 'notf' || 'full' }}-${{ hashFiles('src/birdnet/**/models/**/*.py') }}
           restore-keys: |
-            birdnet-models-${{ runner.os }}-py${{ matrix.python-version }}-
-            birdnet-models-${{ runner.os }}-
+            birdnet-models-${{ matrix.python-version == '3.14' && 'notf' || 'full' }}-
 
       - name: Install dependencies
         run: uv pip install --system '.[tests]'
