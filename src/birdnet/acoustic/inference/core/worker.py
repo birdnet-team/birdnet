@@ -14,7 +14,7 @@ from numpy.typing import DTypeLike
 
 import birdnet.acoustic.inference.core.logs as bn_logging
 from birdnet.acoustic.inference.core.shm import RingField
-from birdnet.acoustic.inference.core.sync import CountedSemaphore
+from birdnet.acoustic.inference.core.sync import CountedSemaphore, abandon_queue_feeders
 from birdnet.core.backends import BackendLoader, BatchT, VersionedBackendProtocol
 from birdnet.globals import (
   READABLE_FLAG,
@@ -199,6 +199,12 @@ class WorkerBase(bn_logging.LogableProcessBase):
         "Worker encountered an exception.", exc_info=e, stack_info=True
       )
       self._cancel_event.set()
+
+    # On cancellation the consumer has stopped reading these queues; drop any
+    # buffered results/stats so this process can exit without blocking on its
+    # feeder threads (see abandon_queue_feeders).
+    if self._cancel_event.is_set():
+      abandon_queue_feeders(self._out_q, self._wkr_stats_queue)
 
     self._uninit_logging()
 
