@@ -48,9 +48,10 @@ def test_load_litert_and_tf_after_each_other_is_possible() -> None:
   assert model_litert is not None
 
   # Load TF model
-  # on macOS it can't be loaded after liteRT
-  if platform.system() == "Darwin":
-    # Loading Litert model after TF fails
+  # On macOS the mixed load is blocked only on Intel; Apple Silicon allows it with
+  # current ai-edge-litert (cf. the skipped test_load_tf_and_litert_..._not_possible).
+  if platform.system() == "Darwin" and platform.machine() == "x86_64":
+    # Loading TF model after liteRT fails on Intel macOS
     with pytest.raises(ImportError):
       load_tf_model(model_path, library="tflite", allocate_tensors=False)
   else:
