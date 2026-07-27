@@ -14,6 +14,7 @@ from birdnet_tests.test_files import (
 )
 
 
+@pytest.mark.fork
 @pytest.mark.litert
 def test_litert_fork() -> None:
   ensure_litert_or_skip()
@@ -25,6 +26,7 @@ def test_litert_fork() -> None:
   assert result.species_probs.shape == TEST_FILE_SHORT_SCORE_SHAPE
 
 
+@pytest.mark.fork
 def test_tf_fork() -> None:
   use_fork_or_skip()
 
@@ -34,6 +36,7 @@ def test_tf_fork() -> None:
   assert result.species_probs.shape == TEST_FILE_SHORT_SCORE_SHAPE
 
 
+@pytest.mark.fork
 def test_pb_cpu_fork() -> None:
   use_fork_or_skip()
 
@@ -42,6 +45,7 @@ def test_pb_cpu_fork() -> None:
   assert result.species_probs.shape == TEST_FILE_SHORT_SCORE_SHAPE
 
 
+@pytest.mark.fork
 @pytest.mark.gpu
 def test_pb_gpu_fork() -> None:
   ensure_gpu_or_skip()

@@ -1,4 +1,5 @@
 import logging
+from multiprocessing import set_start_method
 
 import pytest
 
@@ -8,6 +9,20 @@ from birdnet.utils.logging_utils import get_package_logger
 # download takes ~5-6 min. That sits right on the global 300s timeout, which cut the
 # downloads off just short of completion instead of letting them finish.
 LOAD_MODEL_TIMEOUT_S = 1800
+
+
+@pytest.fixture(autouse=True)
+def _default_spawn_start_method() -> None:
+  # The inference pipeline creates its processes with the global default start
+  # method. On Linux that default is "fork", so a pipeline test that forks after
+  # TensorFlow's multi-threaded runtime is loaded can deadlock in the child (the
+  # classic fork-after-threads trap) and hang the whole run until the job timeout.
+  # macOS/Windows already default to "spawn" and don't hit this. Force "spawn" per
+  # test so every platform matches, and reset it before each test so a start-method
+  # test that calls set_start_method("fork"/"forkserver") cannot leak its choice into
+  # the next test sharing the same xdist worker. Tests that specifically need another
+  # method still override this via use_fork_or_skip()/use_spawn_or_skip().
+  set_start_method("spawn", force=True)
 
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:

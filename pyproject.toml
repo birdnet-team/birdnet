@@ -197,6 +197,7 @@ markers = [
   "gpu: tests requiring a GPU to run and to be run sequentially",
   "repro: tests requiring exact package versions to reproduce results",
   "no_tf: tests for the TensorFlow-free surface, run when TF is absent (e.g. Python 3.14)",
+  "fork: tests that force the fork start method; run in a dedicated serial (-n 1) lane in a fresh process so a fork-after-TensorFlow deadlock cannot wedge the parallel general-phase workers (see conftest.py for why the default is otherwise spawn)",
 ]
 
 [tool.ruff]
@@ -259,9 +260,15 @@ commands =
   # ruff check src/birdnet_tests
   # mypy src/birdnet
   pytest -m "not repro and load_model" -n auto
-  pytest -m "not repro and not load_model and (not litert and not gpu)" -n auto
-  pytest -m "not repro and not load_model and litert" -n auto
+  pytest -m "not repro and not load_model and (not litert and not gpu and not fork)" -n auto
+  pytest -m "not repro and not load_model and litert and not fork" -n auto
   pytest -m "not repro and not load_model and gpu" -n 1
+  # Fork tests run last, serially, in a fresh process (see the `fork` marker and
+  # conftest.py). A fork-after-TensorFlow deadlock here can only wedge this isolated
+  # lane, not the parallel general phase, whose results are already recorded. The
+  # litert/non-litert split mirrors the phases above (litert can't load after TF).
+  pytest -m "not repro and not load_model and fork and not litert and not gpu" -n 1
+  pytest -m "not repro and not load_model and fork and litert and not gpu" -n 1
   # build and check package
   # note `python -m build` uses the isolated build folder which results in import error:
   # 'No module named build.__main__; 'build' is a package and cannot be directly executed'
@@ -274,9 +281,12 @@ deps =
 commands = 
   pytest -m "load_model" -n auto
   # run normal tests including repro tests
-  pytest -m "not load_model and (not litert and not gpu)" -n auto
+  pytest -m "not load_model and (not litert and not gpu and not fork)" -n auto
   # run litert tests including repro tests
-  pytest -m "not load_model and litert" -n auto
+  pytest -m "not load_model and litert and not fork" -n auto
+  # fork tests isolated + serial (see the `fork` marker and conftest.py)
+  pytest -m "not load_model and fork and not litert and not gpu" -n 1
+  pytest -m "not load_model and fork and litert and not gpu" -n 1
   # gpu tests are not supported to be run with repro environment
   pyproject-build -o dist/
   python -m twine check dist/*
@@ -297,9 +307,12 @@ deps =
 commands =
   coverage erase
   pytest -m "not repro and load_model" -n auto --cov=src/birdnet --cov-append --cov-report=
-  pytest -m "not repro and not load_model and (not litert and not gpu)" -n auto --cov=src/birdnet --cov-append --cov-report=
-  pytest -m "not repro and not load_model and litert" -n auto --cov=src/birdnet --cov-append --cov-report=
+  pytest -m "not repro and not load_model and (not litert and not gpu and not fork)" -n auto --cov=src/birdnet --cov-append --cov-report=
+  pytest -m "not repro and not load_model and litert and not fork" -n auto --cov=src/birdnet --cov-append --cov-report=
   pytest -m "not repro and not load_model and gpu" -n 1 --cov=src/birdnet --cov-append --cov-report=
+  # fork tests isolated + serial (see the `fork` marker and conftest.py)
+  pytest -m "not repro and not load_model and fork and not litert and not gpu" -n 1 --cov=src/birdnet --cov-append --cov-report=
+  pytest -m "not repro and not load_model and fork and litert and not gpu" -n 1 --cov=src/birdnet --cov-append --cov-report=
   coverage report
 """
 
