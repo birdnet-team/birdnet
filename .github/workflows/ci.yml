@@ -94,7 +94,7 @@ jobs:
       - name: Cache downloaded models
         uses: actions/cache@v4
         with:
-          path: ${{ runner.temp }}/birdnet-app-data
+          path: ${{ env.BIRDNET_APP_DATA }}
           key: birdnet-models-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('src/birdnet/**/models/**/*.py') }}
           restore-keys: |
             birdnet-models-${{ runner.os }}-py${{ matrix.python-version }}-
