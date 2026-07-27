@@ -5,7 +5,9 @@ raise inside ``run()`` and then let the ``with`` block exit promptly, instead of
 hanging in ``ProcessManager.join()`` while it drains the worker queues.
 """
 
+import shutil
 import threading
+from pathlib import Path
 
 import pytest
 
@@ -25,7 +27,7 @@ def _load_model():  # noqa: ANN202
 _TEARDOWN_DEADLINE_S = 120.0
 
 
-def test_cancel_from_progress_callback_tears_down_cleanly() -> None:
+def test_cancel_from_progress_callback_tears_down_cleanly(tmp_path: Path) -> None:
   model = _load_model()
 
   # Enough audio across multiple workers that the run lasts well beyond the first
@@ -33,7 +35,16 @@ def test_cancel_from_progress_callback_tears_down_cleanly() -> None:
   # segments (and buffered result batches) still outstanding -- exactly the state
   # that used to deadlock teardown. The run is cancelled almost immediately, so
   # the large file list does not make the test slow.
-  files = [str(TEST_FILE_LONG)] * 8
+  #
+  # validate_input_files de-duplicates inputs by absolute path (it collects them
+  # into a set), so passing the same file N times collapses to a SINGLE input --
+  # the run then finishes before the first progress callback can cancel it, and
+  # run() returns without raising. Materialise N distinct copies so the run
+  # genuinely spans multiple files and workers.
+  src = Path(TEST_FILE_LONG)
+  files = [
+    str(shutil.copyfile(src, tmp_path / f"copy_{i}{src.suffix}")) for i in range(8)
+  ]
 
   holder: dict = {}
   cancelled = threading.Event()
