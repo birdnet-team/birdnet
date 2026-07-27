@@ -248,6 +248,9 @@ package = wheel
 allowlist_externals = uv, pyproject-build
 install_command = uv pip install {opts} {packages}
 skip_missing_interpreters = true
+# Forward the model-cache location (set in CI) into the test subprocess; without
+# this tox strips it and models download to the default dir, defeating the cache.
+passenv = BIRDNET_APP_DATA
 
 deps = 
   .[tests,and-cuda,pt,onnx]

@@ -27,6 +27,13 @@ jobs:
     # headroom while capping a hang's cost.
     timeout-minutes: 50
 
+    env:
+      # Redirect birdnet's model/label downloads to a fixed directory outside the
+      # checkout (so actions/checkout never cleans it) that we cache across runs,
+      # skipping the ~11 min "load_model" download step on a cache hit. tox forwards
+      # this var to the pytest subprocess via `passenv` in the tox config.
+      BIRDNET_APP_DATA: ${{ runner.temp }}/birdnet-app-data
+
     strategy:
       fail-fast: false
       matrix:
@@ -73,10 +80,28 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      # Provides the `uv` binary and persists uv's wheel cache across runs, so the
+      # large TensorFlow/torch/cuda downloads are not repeated every run.
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: pyproject.toml
+
+      # Cache the downloaded models/labels keyed on the model definition files (which
+      # carry the download URLs and expected sizes). A miss or a changed definition
+      # falls back to the newest matching cache and re-downloads only what is stale.
+      - name: Cache downloaded models
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/birdnet-app-data
+          key: birdnet-models-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('src/birdnet/**/models/**/*.py') }}
+          restore-keys: |
+            birdnet-models-${{ runner.os }}-py${{ matrix.python-version }}-
+            birdnet-models-${{ runner.os }}-
+
       - name: Install dependencies
-        run: |
-          python -m pip install uv --upgrade
-          python -m uv pip install --system .[tests]
+        run: uv pip install --system .[tests]
 
       - name: Run tests py311
         if: matrix.python-version == '3.11'
