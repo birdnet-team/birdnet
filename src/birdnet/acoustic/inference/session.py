@@ -228,6 +228,7 @@ class AcousticSessionBase(
     self._resources.logging_resources.stop_logging_event.set()
 
     self._process_manager.join_logging()
+    self._process_manager.close_queues()
     self._process_manager = None
 
     shutil.copyfile(

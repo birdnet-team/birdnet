@@ -1,8 +1,31 @@
 from __future__ import annotations
 
 import multiprocessing as mp
+from multiprocessing import Queue
 from multiprocessing.sharedctypes import Synchronized
 from types import TracebackType
+
+
+def abandon_queue_feeders(*queues: Queue | None) -> None:
+  """Let the current process exit without flushing these queues' feeders.
+
+  On the cancellation path the parent stops reading the child->parent queues, so
+  any items still buffered in a child's feeder thread would otherwise block the
+  child's shutdown: its exit handler joins the feeder, which is stuck writing to
+  a full pipe that nobody drains. ``cancel_join_thread`` drops that buffered data
+  and lets the process exit immediately. Losing the data is fine here -- the run
+  was cancelled and the results are discarded anyway.
+
+  Exiting cleanly this way (instead of being force-terminated by the parent) also
+  avoids leaking the semaphores the child inherited: a killed process never runs
+  the finalizers that unregister them from the multiprocessing resource tracker.
+
+  Only call this once cancellation is certain; ``None`` entries are skipped so
+  callers can pass optional queues directly.
+  """
+  for q in queues:
+    if q is not None:
+      q.cancel_join_thread()
 
 
 class CountedSemaphore:

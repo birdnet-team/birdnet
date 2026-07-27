@@ -40,6 +40,12 @@ from birdnet.core.base import get_session_id_hash
 if TYPE_CHECKING:
   from multiprocessing import Queue
 
+# After a cancelled process is asked to stop (SIGTERM), how long to wait for it
+# to actually exit before escalating to SIGKILL. Terminated processes normally
+# die within a moment; this only bounds a child that ignores SIGTERM so teardown
+# can never hang on it.
+_TERMINATE_JOIN_TIMEOUT_S = 5.0
+
 
 class ProcessManager:
   def __init__(
@@ -497,6 +503,7 @@ class ProcessManager:
     queues = [q for q in queues if q is not None]
 
     deadline = time.monotonic() + grace_period_s
+    terminated = False
 
     while True:
       alive = [p for p in processes if p.is_alive()]
@@ -515,12 +522,20 @@ class ProcessManager:
             f"Process '{p.name}' did not exit after cancellation; terminating."
           )
           p.terminate()
+        terminated = True
         break
 
       time.sleep(0.05)
 
+    # Reap every process. Ones that exited on their own join instantly; ones we
+    # just terminated get a bounded wait and are then SIGKILLed if they ignored
+    # SIGTERM, so a single unresponsive child can never hang teardown.
     for p in processes:
-      p.join()
+      p.join(timeout=_TERMINATE_JOIN_TIMEOUT_S if terminated else None)
+      if p.is_alive():
+        logger.warning(f"Process '{p.name}' ignored termination; killing.")
+        p.kill()
+        p.join()
       logger.debug(f"Process '{p.name}' finished.")
 
     self._producer_processes = None
@@ -532,3 +547,30 @@ class ProcessManager:
     assert self._logging_thread is not None
     self._logging_thread.join()
     self._logging_thread = None
+
+  def close_queues(self) -> None:
+    """Release the parent's handles on the multiprocessing queues.
+
+    Call once during teardown, after all child processes and the logging thread
+    have been joined. Closing is non-blocking (``cancel_join_thread`` first, so
+    ``close`` never waits on a feeder) and lets the OS reclaim the pipes and
+    semaphores promptly instead of leaving it to garbage collection -- which the
+    caller may skip entirely (e.g. ``os._exit``).
+    """
+    res = self._res
+    stats = res.stats_resources
+    queues: list[Queue | None] = [
+      res.producer_resources.input_queue,
+      res.producer_resources.unprocessed_inputs_queue,
+      res.worker_resources.results_queue,
+      res.file_completion_resources.marker_queue,
+      res.logging_resources.logging_queue,
+      stats.wkr_stats_queue,
+      stats.prd_stats_queue,
+      stats.perf_res_queue,
+      stats.callback_queue,
+    ]
+    for q in queues:
+      if q is not None:
+        q.cancel_join_thread()
+        q.close()

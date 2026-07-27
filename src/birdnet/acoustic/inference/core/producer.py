@@ -19,7 +19,7 @@ import soundfile
 
 import birdnet.acoustic.inference.core.logs as bn_logging
 from birdnet.acoustic.inference.core.shm import RingField
-from birdnet.acoustic.inference.core.sync import CountedSemaphore
+from birdnet.acoustic.inference.core.sync import CountedSemaphore, abandon_queue_feeders
 from birdnet.globals import (
   READABLE_FLAG,
   READING_FLAG,
@@ -551,6 +551,16 @@ class Producer(bn_logging.LogableProcessBase):
         "Producer encountered an exception.", exc_info=e, stack_info=True
       )
       self._cancel_event.set()
+
+    # On cancellation the parent stops reading these queues; drop any buffered
+    # stats/markers so this process can exit without blocking on its feeder
+    # threads (see abandon_queue_feeders).
+    if self._cancel_event.is_set():
+      abandon_queue_feeders(
+        self._prod_stats_queue,
+        self._unprocessed_inputs_queue,
+        self._completion_queue,
+      )
 
     self._uninit_logging()
 
