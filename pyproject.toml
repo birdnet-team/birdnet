@@ -182,7 +182,13 @@ namespaces = true
 [tool.pytest.ini_options]
 log_cli = true
 log_level = "DEBUG"
-timeout = 300
+# Hang backstop, not a speed budget. 600 because the slowest healthy tests (TF
+# SavedModel "pb" loads, acoustic v3 onnx predict) take ~140-250 s on an idle dev
+# machine and CI runners are slower and run several xdist workers concurrently:
+# at 300 they were killed at exactly 300 s under contention, which the thread
+# timeout method turns into an opaque xdist "node down: Not properly terminated"
+# worker crash. A genuine hang still dies here long before the job-level limit.
+timeout = 600
 # The signal method cannot interrupt a thread blocked in a C call, so a deadlocked
 # fork child let the run hang until the job limit killed it hours later. The thread
 # method kills the process instead, turning such hangs into a failure with a stack
@@ -197,7 +203,7 @@ markers = [
   "gpu: tests requiring a GPU to run and to be run sequentially",
   "repro: tests requiring exact package versions to reproduce results",
   "no_tf: tests for the TensorFlow-free surface, run when TF is absent (e.g. Python 3.14)",
-  "fork: tests that force the fork start method; run in a dedicated serial (-n 1) lane in a fresh process so a fork-after-TensorFlow deadlock cannot wedge the parallel general-phase workers (see conftest.py for why the default is otherwise spawn)",
+  "fork: tests that force the fork start method; run in a dedicated serial (-n 1) lane in a fresh process so a fork-after-TensorFlow deadlock cannot wedge the parallel general-phase workers (the library itself defaults to spawn, see birdnet.core.start_method)",
 ]
 
 [tool.ruff]
