@@ -9,7 +9,9 @@ from birdnet.globals import ENV_VAR_START_METHOD
 
 def test_env_var_wins_over_global(monkeypatch: pytest.MonkeyPatch) -> None:
   # the autouse conftest fixture has fixed the global to "spawn"
-  other = next(m for m in mp.get_all_start_methods() if m != "spawn")
+  other = next((m for m in mp.get_all_start_methods() if m != "spawn"), None)
+  if other is None:
+    pytest.skip("platform only supports spawn (e.g. Windows)")
   monkeypatch.setenv(ENV_VAR_START_METHOD, other)
   assert resolve_start_method() == other
 
