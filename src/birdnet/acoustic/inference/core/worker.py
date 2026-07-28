@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import multiprocessing as mp
 import multiprocessing.synchronize
 import os
 import time
@@ -56,8 +55,9 @@ class WorkerBase(bn_logging.LogableProcessBase):
     start_signal: Event,
     finish_signal: Event,
     end_event: Event,
+    start_method: str,
   ) -> None:
-    super().__init__(session_id, name, logging_queue, logging_level)
+    super().__init__(session_id, name, logging_queue, logging_level, start_method)
 
     self._half_precision = half_precision
     self._end_event = end_event
@@ -108,7 +108,12 @@ class WorkerBase(bn_logging.LogableProcessBase):
 
     self._cancel_event = cancel_event
 
-    self._lazy_init = mp.get_start_method() != "fork"
+    # Only "fork" children inherit parent state, so only then may logging and
+    # the ring buffers be initialized here in the parent. The session's
+    # effective method is passed in because this __init__ runs in the parent,
+    # where the global mp.get_start_method() can differ from the context the
+    # pipeline actually uses.
+    self._lazy_init = start_method != "fork"
 
     if not self._lazy_init:
       self._init_logging()

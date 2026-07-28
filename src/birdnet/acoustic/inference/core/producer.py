@@ -84,9 +84,10 @@ class Producer(bn_logging.LogableProcessBase):
     fmin: int | None,
     fmax: int | None,
     unprocessed_inputs_queue: Queue,
+    start_method: str,
     completion_queue: Queue | None = None,
   ) -> None:
-    super().__init__(session_id, __name__, logging_queue, logging_level)
+    super().__init__(session_id, __name__, logging_queue, logging_level, start_method)
     self._completion_queue = completion_queue
     # Duration (s) of the file currently being segmented; reported alongside the
     # per-file completion marker so a single-file result can clamp end times.

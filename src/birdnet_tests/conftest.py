@@ -13,15 +13,17 @@ LOAD_MODEL_TIMEOUT_S = 1800
 
 @pytest.fixture(autouse=True)
 def _default_spawn_start_method() -> None:
-  # The inference pipeline creates its processes with the global default start
-  # method. On Linux that default is "fork", so a pipeline test that forks after
-  # TensorFlow's multi-threaded runtime is loaded can deadlock in the child (the
-  # classic fork-after-threads trap) and hang the whole run until the job timeout.
-  # macOS/Windows already default to "spawn" and don't hit this. Force "spawn" per
-  # test so every platform matches, and reset it before each test so a start-method
-  # test that calls set_start_method("fork"/"forkserver") cannot leak its choice into
-  # the next test sharing the same xdist worker. Tests that specifically need another
-  # method still override this via use_fork_or_skip()/use_spawn_or_skip().
+  # The library resolves its own safe start method (see
+  # birdnet.core.start_method.resolve_start_method): "spawn" unless the
+  # application explicitly chose otherwise. This fixture resets the global to
+  # "spawn" before each test for isolation: a start-method test that calls
+  # set_start_method("fork"/"forkserver") would otherwise leak its choice into
+  # the next test sharing the same xdist worker -- and because the resolver
+  # honors an explicitly fixed global, a leaked "fork" would silently switch
+  # every later pipeline test onto the deadlock-prone fork path. Tests that
+  # need another method still override this via use_fork_or_skip() etc.; the
+  # resolver's unset-global fallback is covered by unit tests
+  # (core_py/test_start_method.py) since the global cannot be un-fixed here.
   set_start_method("spawn", force=True)
 
 

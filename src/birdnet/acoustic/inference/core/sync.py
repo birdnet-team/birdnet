@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import multiprocessing as mp
 from multiprocessing import Queue
+from multiprocessing.context import BaseContext
 from multiprocessing.sharedctypes import Synchronized
 from types import TracebackType
 
@@ -34,9 +35,12 @@ class CountedSemaphore:
   macOS by mirroring acquire/release into a shared counter.
   """
 
-  def __init__(self, initial: int = 0) -> None:
-    self._sem = mp.Semaphore(initial)
-    self._counter: Synchronized = mp.Value("i", initial)
+  def __init__(self, initial: int = 0, ctx: BaseContext | None = None) -> None:
+    # The context must match the one the pipeline's processes are created
+    # with; primitives from mismatched contexts cannot be shared reliably.
+    ctx = ctx if ctx is not None else mp.get_context()
+    self._sem = ctx.Semaphore(initial)
+    self._counter: Synchronized = ctx.Value("i", initial)
 
   def acquire(self, block: bool = True, timeout: float | None = None) -> bool:
     acquired = self._sem.acquire(block, timeout)

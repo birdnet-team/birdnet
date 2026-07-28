@@ -148,6 +148,7 @@ class PredictionStrategy(
         start_signal=resources.worker_resources.start_signals[i],
         finish_signal=resources.worker_resources.finish_signals[i],
         half_precision=config.processing_conf.half_precision,
+        start_method=config.start_method,
       )
       for i in range(config.processing_conf.workers)
     ]
@@ -308,6 +309,7 @@ class PredictionStrategy(
     return FullBenchmarkMeta(
       _start_timepoint=resources.stats_resources.start_timepoint,
       _end_timepoint=resources.stats_resources.end_timepoint,
+      sw_start_method=config.start_method,
       param_producers=config.processing_conf.producers,
       param_workers=config.processing_conf.workers,
       _worker_avg_wall_time_s=perf_result.worker_avg_wall_time_s,

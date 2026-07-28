@@ -99,6 +99,7 @@ class EncodingStrategy(
         start_signal=resources.worker_resources.start_signals[i],
         finish_signal=resources.worker_resources.finish_signals[i],
         half_precision=config.processing_conf.half_precision,
+        start_method=config.start_method,
       )
       for i in range(config.processing_conf.workers)
     ]

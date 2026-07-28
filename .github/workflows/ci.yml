@@ -39,10 +39,11 @@ jobs:
     continue-on-error: false
     # Backstop for a wedged run: a fork/TensorFlow deadlock hangs in native code
     # holding the GIL, which pytest-timeout cannot interrupt in either method, so the
-    # job-level limit is what stops it. Tests now default to the "spawn" start method
-    # (see conftest.py), which removes the fork-after-TensorFlow deadlock from the
-    # general suite; this remains a backstop for the few tests that still force fork.
-    # Slowest healthy job is ~33-35 min, so 40 caps a hang's cost while keeping margin.
+    # job-level limit is what stops it. The library defaults to the "spawn" start
+    # method (see birdnet.core.start_method), which removes the fork-after-TensorFlow
+    # deadlock from the general suite; this remains a backstop for the few tests that
+    # explicitly opt into fork. Slowest healthy job is ~33-35 min, so 40 caps a
+    # hang's cost while keeping margin.
     timeout-minutes: 40
 
     env:

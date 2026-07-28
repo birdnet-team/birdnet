@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import inspect
-import multiprocessing as mp
 import platform
 from collections import OrderedDict
 from dataclasses import asdict, dataclass
@@ -168,9 +167,9 @@ class FullBenchmarkMetaBase(MinimalBenchmarkMetaBase):
   def hw_ram_GiB(self) -> float:
     return psutil.virtual_memory().total / 1024**3
 
-  @property
-  def sw_start_method(self) -> str:
-    return mp.get_start_method()
+  # The session's effective start method (see InferenceConfig.start_method);
+  # the global mp.get_start_method() may differ from what the pipeline used.
+  sw_start_method: str
 
   # Software
   @property

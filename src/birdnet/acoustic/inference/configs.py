@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import multiprocessing
 from collections.abc import Callable, Collection, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, TypeVar
 
@@ -15,6 +15,7 @@ from birdnet.acoustic.inference.core.perf_tracker import AcousticProgressStats
 from birdnet.acoustic.inference.core.tensor import AcousticTensorBase
 from birdnet.core.backends import VersionedBackendProtocol
 from birdnet.core.base import ResultBase
+from birdnet.core.start_method import resolve_start_method
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
 from birdnet.utils.helper import (
   SF_FORMATS,
@@ -339,6 +340,12 @@ class InferenceConfig:
   processing_conf: ProcessingConfig
   filtering_conf: FilteringConfig
   output_conf: OutputConfig
+  # Effective multiprocessing start method for every process, queue and
+  # synchronization primitive of this session's pipeline (see
+  # resolve_start_method for the resolution rules). Resolved once at config
+  # creation so parent and children always agree on it; stored as a string so
+  # the config stays picklable.
+  start_method: str = field(default_factory=resolve_start_method)
 
   @classmethod
   def validate_input_audio(

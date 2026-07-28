@@ -638,13 +638,17 @@ class BackendLoader:
     return backend
 
   def load_backend_in_main_process_if_possible(
-    self, devices: list[str], half_precision: bool
+    self, devices: list[str], half_precision: bool, start_method: str
   ) -> None:
+    # Only "fork" children inherit the parent's memory (copy-on-write), so
+    # pre-loading the backend here only pays off then. The session's effective
+    # start method is passed in because the global mp.get_start_method() can
+    # differ from the context the pipeline actually uses.
     unique_devices = set(devices)
     same_device_for_all_workers = len(unique_devices) == 1
     if (
       same_device_for_all_workers
-      and multiprocessing.get_start_method() == "fork"
+      and start_method == "fork"
       and self._backend_type.supports_cow()
     ):
       device_name = unique_devices.pop()

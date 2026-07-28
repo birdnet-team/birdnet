@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import contextvars
 import functools
+import multiprocessing as mp
 import os
 import threading
 import time
 from contextlib import suppress
 from logging import Logger
-from multiprocessing import Process
+from multiprocessing.process import BaseProcess
 from pathlib import Path
 from queue import Empty
 from typing import TYPE_CHECKING
@@ -60,6 +61,10 @@ class ProcessManager:
     self._session_hash = get_session_id_hash(session_id)
     self._logger = get_logger_from_session(session_id, __name__)
     self._cfg = config
+    # All pipeline processes are created from the session's resolved start
+    # method; the resources (queues, events, semaphores) were created from the
+    # same context, and mixing contexts is not reliable.
+    self._ctx = mp.get_context(config.start_method)
     self._strategy = strategy
     self._specific_cfg = specific_config
     self._res = resources
@@ -67,9 +72,9 @@ class ProcessManager:
     self._analyzer_thread: threading.Thread | None = None
     self._progress_dispatcher_thread: threading.Thread | None = None
     self._file_completion_thread: threading.Thread | None = None
-    self._perf_tracker_process: Process | None = None
-    self._producer_processes: list[Process] | None = None
-    self._worker_processes: list[Process] | None = None
+    self._perf_tracker_process: BaseProcess | None = None
+    self._producer_processes: list[BaseProcess] | None = None
+    self._worker_processes: list[BaseProcess] | None = None
 
   def start_file_logging_thread(self) -> threading.Thread:
     logging_listener = threading.Thread(
@@ -163,7 +168,7 @@ class ProcessManager:
     self._file_completion_thread = thread
     return thread
 
-  def start_performance_tracker_process(self) -> Process:
+  def start_performance_tracker_process(self) -> BaseProcess:
     assert self._res.stats_resources.track_performance
     assert self._res.stats_resources.sem_active_workers is not None
     assert self._res.stats_resources.perf_res_queue is not None
@@ -172,7 +177,7 @@ class ProcessManager:
     assert self._res.stats_resources.wkr_stats_queue is not None
     assert self._res.stats_resources.prd_stats_queue is not None
 
-    perf_tracker_proc = Process(
+    perf_tracker_proc = self._ctx.Process(
       target=PerformanceTracker(
         session_id=self._session_id,
         pred_dur_queue=self._res.stats_resources.wkr_stats_queue,
@@ -195,6 +200,7 @@ class ProcessManager:
         start_signal=self._res.stats_resources.perf_res_start_signal,
         finish_signal=self._res.stats_resources.perf_res_finish_signal,
         callback_queue=self._res.stats_resources.callback_queue,
+        start_method=self._cfg.start_method,
       ),
       name=f"{self._session_hash}-PerformanceTracker",
       daemon=True,
@@ -232,14 +238,14 @@ class ProcessManager:
     self._analyzer_thread = file_analyzer_proc
     return file_analyzer_proc
 
-  def start_producer_processes(self) -> list[Process]:
+  def start_producer_processes(self) -> list[BaseProcess]:
     use_bandpass = not (
       self._cfg.model_conf.sig_fmin == self._cfg.filtering_conf.bandpass_fmin
       and self._cfg.model_conf.sig_fmax == self._cfg.filtering_conf.bandpass_fmax
     )
 
     producer_processes = [
-      Process(
+      self._ctx.Process(
         target=Producer(
           session_id=self._session_id,
           input_queue=self._res.producer_resources.input_queue,
@@ -274,6 +280,7 @@ class ProcessManager:
           start_signal=self._res.producer_resources.start_signals[i],
           finish_signal=self._res.producer_resources.finish_signals[i],
           unprocessed_inputs_queue=self._res.producer_resources.unprocessed_inputs_queue,
+          start_method=self._cfg.start_method,
           completion_queue=self._res.file_completion_resources.marker_queue,
         ),
         name=f"{self._session_hash}-Producer-{i}",
@@ -289,16 +296,18 @@ class ProcessManager:
     self._producer_processes = producer_processes
     return producer_processes
 
-  def start_worker_processes(self) -> list[Process]:
+  def start_worker_processes(self) -> list[BaseProcess]:
     try:
       self._res.worker_resources.backend_loader.load_backend_in_main_process_if_possible(
-        self._res.worker_resources.devices, self._cfg.processing_conf.half_precision
+        self._res.worker_resources.devices,
+        self._cfg.processing_conf.half_precision,
+        self._cfg.start_method,
       )
     except Exception as exc:
       raise RuntimeError(f"Error during backend initialization: {exc}") from exc
 
     worker_processes = [
-      Process(
+      self._ctx.Process(
         target=w,
         name=f"{self._session_hash}-Worker-{i}",
         daemon=True,
@@ -482,7 +491,7 @@ class ProcessManager:
     """
     logger.debug("Joining processes after cancellation (draining queues)...")
 
-    processes: list[Process] = [
+    processes: list[BaseProcess] = [
       *(self._producer_processes or []),
       *(self._worker_processes or []),
     ]

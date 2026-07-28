@@ -136,8 +136,9 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     start_signal: Event,
     finish_signal: Event,
     start: float,
+    start_method: str,
   ) -> None:
-    super().__init__(session_id, __name__, logging_queue, logging_level)
+    super().__init__(session_id, __name__, logging_queue, logging_level, start_method)
 
     n_last_batch_stats = 10
     n_last_seconds_live_stats = 5.0

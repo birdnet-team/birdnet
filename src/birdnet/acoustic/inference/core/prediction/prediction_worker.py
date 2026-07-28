@@ -55,6 +55,7 @@ class PredictionWorker(WorkerBase):
     start_signal: Event,
     finish_signal: Event,
     end_event: Event,
+    start_method: str,
   ) -> None:
     assert species_thresholds.shape[0] == 1
     assert species_blacklist.shape[0] == 1
@@ -102,6 +103,7 @@ class PredictionWorker(WorkerBase):
       start_signal=start_signal,
       finish_signal=finish_signal,
       end_event=end_event,
+      start_method=start_method,
     )
 
   def _infer(self, batch: BatchT) -> BatchT:
