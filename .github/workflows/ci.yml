@@ -204,6 +204,8 @@ jobs:
 
       # Stack dumps written by the hang watchdog (see BIRDNET_TEST_WATCHDOG_DIR
       # above); on a wedge they show every thread's stack at kill time.
+      # include-hidden-files is required: upload-artifact skips dotfiles by
+      # default, and the dump dir is hidden (.watchdog-dumps).
       - name: Upload hang watchdog dumps
         if: failure()
         uses: actions/upload-artifact@v7
@@ -211,3 +213,4 @@ jobs:
           name: watchdog-dumps-${{ matrix.os }}-py${{ matrix.python-version }}
           path: .watchdog-dumps/
           if-no-files-found: ignore
+          include-hidden-files: true
