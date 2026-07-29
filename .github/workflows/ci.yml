@@ -202,6 +202,14 @@ jobs:
           name: birdnet-log
           path: ${{ steps.extract-log-path.outputs.log_paths }}
 
+      # The fork-lane workers die by SIGKILL with faulthandler enabled and no
+      # crash dump, which on these runners points at the kernel OOM killer
+      # (forking a process that holds a loaded model multiplies the footprint).
+      # Surface the kernel's verdict directly in the job log.
+      - name: Check for OOM kills (Linux)
+        if: failure() && startsWith(matrix.os, 'ubuntu')
+        run: sudo dmesg | grep -iE "out of memory|oom-kill|killed process" || echo "no OOM kills logged"
+
       # Stack dumps written by the hang watchdog (see BIRDNET_TEST_WATCHDOG_DIR
       # above); on a wedge they show every thread's stack at kill time.
       # include-hidden-files is required: upload-artifact skips dotfiles by
