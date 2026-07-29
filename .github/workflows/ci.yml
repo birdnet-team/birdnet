@@ -53,6 +53,11 @@ jobs:
       # this is safe since checkout runs once, before the cache is restored, and is
       # never re-run. tox forwards this var to the pytest subprocess via `passenv`.
       BIRDNET_APP_DATA: ${{ github.workspace }}/.birdnet-app-data
+      # Enables the GIL-immune hang watchdog (see birdnet_tests/conftest.py): a
+      # wedged test that survives pytest-timeout gets its thread stacks dumped
+      # here and the process hard-killed shortly after its timeout, instead of
+      # silently burning the job budget. Uploaded as an artifact on failure.
+      BIRDNET_TEST_WATCHDOG_DIR: ${{ github.workspace }}/.watchdog-dumps
 
     strategy:
       fail-fast: false
@@ -196,3 +201,13 @@ jobs:
         with:
           name: birdnet-log
           path: ${{ steps.extract-log-path.outputs.log_paths }}
+
+      # Stack dumps written by the hang watchdog (see BIRDNET_TEST_WATCHDOG_DIR
+      # above); on a wedge they show every thread's stack at kill time.
+      - name: Upload hang watchdog dumps
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: watchdog-dumps-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: .watchdog-dumps/
+          if-no-files-found: ignore
