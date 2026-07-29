@@ -202,10 +202,10 @@ jobs:
           name: birdnet-log
           path: ${{ steps.extract-log-path.outputs.log_paths }}
 
-      # The fork-lane workers die by SIGKILL with faulthandler enabled and no
-      # crash dump, which on these runners points at the kernel OOM killer
-      # (forking a process that holds a loaded model multiplies the footprint).
-      # Surface the kernel's verdict directly in the job log.
+      # Diagnostic for silent test-process deaths: rules the kernel OOM killer
+      # in or out directly in the job log. (Checked for the fork-lane wedges:
+      # no OOM kills logged — those are the inherent fork-after-TF child
+      # deadlock, ended by pytest-timeout at the per-test timeout.)
       - name: Check for OOM kills (Linux)
         if: failure() && startsWith(matrix.os, 'ubuntu')
         run: sudo dmesg | grep -iE "out of memory|oom-kill|killed process" || echo "no OOM kills logged"

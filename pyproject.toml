@@ -280,8 +280,13 @@ commands =
   # conftest.py). A fork-after-TensorFlow deadlock here can only wedge this isolated
   # lane, not the parallel general phase, whose results are already recorded. The
   # litert/non-litert split mirrors the phases above (litert can't load after TF).
-  pytest -m "not repro and not load_model and fork and not litert and not gpu" -n 1
-  pytest -m "not repro and not load_model and fork and litert and not gpu" -n 1
+  # -n 0 (in-process, no xdist worker) on purpose: when a forked child wedges and
+  # pytest-timeout kills the test process, an xdist worker's timeout report is lost
+  # with the worker, and the orphaned child keeps the worker's execnet socket open
+  # so the controller sits blind until the watchdog's idle deadline. In-process,
+  # the timeout report lands in the log and the run ends at the test timeout.
+  pytest -m "not repro and not load_model and fork and not litert and not gpu" -n 0
+  pytest -m "not repro and not load_model and fork and litert and not gpu" -n 0
   # build and check package
   # note `python -m build` uses the isolated build folder which results in import error:
   # 'No module named build.__main__; 'build' is a package and cannot be directly executed'
@@ -298,8 +303,8 @@ commands =
   # run litert tests including repro tests
   pytest -m "not load_model and litert and not fork" -n auto
   # fork tests isolated + serial (see the `fork` marker and conftest.py)
-  pytest -m "not load_model and fork and not litert and not gpu" -n 1
-  pytest -m "not load_model and fork and litert and not gpu" -n 1
+  pytest -m "not load_model and fork and not litert and not gpu" -n 0
+  pytest -m "not load_model and fork and litert and not gpu" -n 0
   # gpu tests are not supported to be run with repro environment
   pyproject-build -o dist/
   python -m twine check dist/*
@@ -324,8 +329,8 @@ commands =
   pytest -m "not repro and not load_model and litert and not fork" -n auto --cov=src/birdnet --cov-append --cov-report=
   pytest -m "not repro and not load_model and gpu" -n 1 --cov=src/birdnet --cov-append --cov-report=
   # fork tests isolated + serial (see the `fork` marker and conftest.py)
-  pytest -m "not repro and not load_model and fork and not litert and not gpu" -n 1 --cov=src/birdnet --cov-append --cov-report=
-  pytest -m "not repro and not load_model and fork and litert and not gpu" -n 1 --cov=src/birdnet --cov-append --cov-report=
+  pytest -m "not repro and not load_model and fork and not litert and not gpu" -n 0 --cov=src/birdnet --cov-append --cov-report=
+  pytest -m "not repro and not load_model and fork and litert and not gpu" -n 0 --cov=src/birdnet --cov-append --cov-report=
   coverage report
 """
 

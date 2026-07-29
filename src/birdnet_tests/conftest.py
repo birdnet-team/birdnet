@@ -44,6 +44,15 @@ WATCHDOG_IDLE_S = 900
 
 _watchdog_file: IO[str] | None = None
 _watchdog_test_timeouts: dict[str, float] = {}
+# Deadline used when a nodeid is missing from the map. Under xdist only the
+# workers collect, so the controller's map is always empty and every logstart
+# falls back to this value. It must therefore cover the longest legitimate
+# test (a cold-cache load_model download, up to LOAD_MODEL_TIMEOUT_S), or the
+# controller would kill a healthy run whose workers are all quietly
+# downloading. pytest_configure lowers it to WATCHDOG_IDLE_S in processes
+# that collect themselves (workers, -n 0 runs), where the map hit is the
+# normal case and a miss means something is off.
+_watchdog_fallback_s: float = LOAD_MODEL_TIMEOUT_S
 
 
 def _watchdog_arm(seconds: float) -> None:
@@ -87,7 +96,7 @@ def pytest_runtest_logstart(nodeid: str, location: tuple) -> None:
   if _watchdog_file is not None:
     _watchdog_file.write(f"===== STARTING: {nodeid} =====\n")
     _watchdog_file.flush()
-    timeout = _watchdog_test_timeouts.get(nodeid, WATCHDOG_IDLE_S)
+    timeout = _watchdog_test_timeouts.get(nodeid, _watchdog_fallback_s)
     _watchdog_arm(timeout + WATCHDOG_MARGIN_S)
 
 
@@ -104,12 +113,16 @@ def pytest_unconfigure() -> None:
 
 
 def pytest_configure(config: pytest.Config) -> None:
-  global _watchdog_file
+  global _watchdog_file, _watchdog_fallback_s
+  is_worker = hasattr(config, "workerinput")
+  is_xdist_controller = not is_worker and bool(config.getoption("numprocesses", None))
+  if not is_xdist_controller:
+    _watchdog_fallback_s = WATCHDOG_IDLE_S
   watchdog_dir = os.environ.get(ENV_VAR_WATCHDOG_DIR)
   if watchdog_dir:
     dump_dir = Path(watchdog_dir)
     dump_dir.mkdir(parents=True, exist_ok=True)
-    role = "worker" if hasattr(config, "workerinput") else "main"
+    role = "worker" if is_worker else "main"
     _watchdog_file = open(  # noqa: SIM115 (closed in pytest_unconfigure)
       dump_dir / f"watchdog_{role}_{os.getpid()}.txt", "w", encoding="utf-8"
     )
