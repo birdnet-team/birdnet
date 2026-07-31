@@ -69,6 +69,7 @@ def _run_two_parallel_sessions(backend: _Backend) -> None:
 # it moves from TensorFlow to PyTorch, so these lanes must stay green; they are the
 # coverage that proves fork works for everything except TensorFlow.
 @pytest.mark.fork
+@pytest.mark.fork_nontf
 @pytest.mark.parametrize("backend", ["pt", "onnx"])
 def test_twice_two_sessions_parallel_processes_fork(backend: _Backend) -> None:
   # macOS is skipped to match the perch/v2.4 fork tests: forking the
