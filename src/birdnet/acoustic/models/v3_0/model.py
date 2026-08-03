@@ -504,6 +504,16 @@ class AcousticModelV3_0(AcousticModelBase):
     segment_size_s: float = _DEFAULT_SEGMENT_SIZE_S,
     on_file_complete: Callable[[AcousticFilePredictionResult], None] | None = None,
   ) -> AcousticPredictionResultBase:
+    """Run prediction with the BirdNET 3.0 model on files or paths.
+
+    ``n_workers`` sets the number of inference worker processes. Its default value,
+    ``None``, uses the number of physical CPU cores. Pass a fixed integer to meet a
+    scheduler or container process limit.
+
+    This method creates one prediction session for the call. That session shuts down
+    its producer and worker processes before this method returns, including when
+    inference raises an exception.
+    """
     input_files = InferenceConfig.validate_input_files(inp)
     with self.predict_session(
       top_k=top_k,

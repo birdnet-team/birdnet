@@ -44,6 +44,40 @@ Predict species from multiple audio files in a directory
   predictions = model.predict("example/soundscapes/")
 
   predictions.to_csv("example/predictions.csv")
+
+Limit prediction worker processes
+---------------------------------
+
+``predict`` starts one worker process per physical CPU core when ``n_workers`` is
+omitted. Pass a fixed value when a scheduler or container limits the number of
+processes available to the job:
+
+.. code-block:: python
+
+  import birdnet
+
+  if __name__ == "__main__":
+      model = birdnet.load("acoustic", "2.4", "tf")
+      predictions = model.predict("example/soundscapes/", n_workers=2)
+      predictions.to_csv("example/predictions.csv")
+
+Each call to ``predict`` shuts down its producer and worker processes before it
+returns, including when inference raises an exception. To process several batches
+without restarting two workers for every batch, reuse a prediction session:
+
+.. code-block:: python
+
+  import birdnet
+
+  if __name__ == "__main__":
+      model = birdnet.load("acoustic", "2.4", "tf")
+
+      with model.predict_session(n_workers=2) as session:
+          first = session.run("example/soundscapes/day-1/")
+          second = session.run("example/soundscapes/day-2/")
+
+      first.to_csv("example/day-1.csv")
+      second.to_csv("example/day-2.csv")
   
 Predict species for a given location and time
 ---------------------------------------------
