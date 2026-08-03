@@ -34,11 +34,11 @@ The package is also available as an R package at: [birdnetR](https://github.com/
 
 ## Speed benchmarks
 
-| Device             | Specs       | Disk | OS      | Audio processed per second | Time to predict 1 h |
-|--------------------|-------------|------|---------|----------------------------|---------------------|
-| Intel i7 8th Gen   | 4 cores     | NVMe | Windows | 50 s                       | 72 s                |
-| Ryzen 7 3800X      | 8 cores     | NVMe | Linux   | 7 min                      | 8.5 s               |
-| Nvidia Titan RTX   | 24 GB VRAM  | NVMe | Linux   | 41 min                     | 1.5 s               |
+| Device             | Specs       | Disk | OS      | Real-time factor | Time to predict 1 h |
+|--------------------|-------------|------|---------|------------------|---------------------|
+| Intel i7 8th Gen   | 4 cores     | NVMe | Windows | 50×              | 72 s                |
+| Ryzen 7 3800X      | 8 cores     | NVMe | Linux   | 420×             | 8.5 s               |
+| Nvidia Titan RTX   | 24 GB VRAM  | NVMe | Linux   | 2460×            | 1.5 s               |
 
 For more detailed benchmarks, please refer to the [documentation](https://birdnet-team.github.io/birdnet/benchmarking.html).
 

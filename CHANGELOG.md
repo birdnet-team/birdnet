@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-03
+
 ### Added
 
 - Added an `on_file_complete` callback to acoustic `predict(..)`/`encode(..)` and their session variants (all models: 2.4, 3.0, Perch V2), fired once per file as soon as it is fully processed with a single-file result, enabling streaming per-file persistence and live output. File inputs only; runs off the inference hot path so throughput is unaffected (#57).
@@ -292,7 +294,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release
 
-[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v0.2.16...HEAD
+[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/birdnet-team/birdnet/compare/v0.2.16...v1.0.0
 [0.2.16]: https://github.com/birdnet-team/birdnet/compare/v0.2.15...v0.2.16
 [0.2.15]: https://github.com/birdnet-team/birdnet/compare/v0.2.14...v0.2.15
 [0.2.14]: https://github.com/birdnet-team/birdnet/compare/v0.2.13...v0.2.14
