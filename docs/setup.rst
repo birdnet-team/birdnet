@@ -79,7 +79,7 @@ Linux & macOS
   cd birdnet
   
   # create virtual environment
-  python3.12 -m venv .venv311
+  python3.12 -m venv .venv312
   source .venv312/bin/activate
   
   # install uv for faster package installation
@@ -263,7 +263,7 @@ To debug BirdNET on a Raspberry Pi, you can use the following command:
 .. code-block:: bash
   
   # copy package and example file to Raspberry Pi
-  scp dist/birdnet-0.2.10-py3-none-any.whl pi@192.168.2.103:/home/pi/birdnet-0.2.10-py3-none-any.whl
+  scp dist/birdnet-<version>-py3-none-any.whl pi@192.168.2.103:/home/pi/birdnet-<version>-py3-none-any.whl
   scp example/soundscape.wav pi@192.168.2.103:/home/pi/soundscape.wav
   
   # setup virtual environment on Raspberry Pi
@@ -279,7 +279,7 @@ To debug BirdNET on a Raspberry Pi, you can use the following command:
   python3.12 -m uv pip uninstall birdnet
   
   # install birdnet package from wheel file
-  python3.12 -m uv pip install /home/pi/birdnet-0.2.10-py3-none-any.whl
+  python3.12 -m uv pip install /home/pi/birdnet-<version>-py3-none-any.whl
   
   # run benchmark script
   birdnet-benchmark /home/pi/soundscape.wav --tf-library litert --precision int8

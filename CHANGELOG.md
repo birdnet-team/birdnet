@@ -9,20 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added an `on_file_complete` callback to acoustic `predict(..)`, `predict_session(..)`, `encode(..)` and `encode_session(..)` (all models: 2.4, 3.0, Perch V2). It fires once per input file the moment that file is fully processed, receiving a single-file result (`AcousticFilePredictionResult` / `AcousticFileEncodingResult`); invalid files are reported with their input marked unprocessable. This enables streaming per-file persistence (e.g. resumable multi-file analysis) and live output. The callback runs on a background thread with a copy of the caller's context, off the inference hot path, so it does not regress throughput. File inputs only (not `run_arrays`); a callback that raises cancels the run.
-- Added support for the BirdNET V3.0 (preview) acoustic model with four backends: TFLite/LiteRT (`tf`), ProtoBuf (`pb`), PyTorch (`pt`) and ONNX (`onnx`). Both `predict(..)` and `encode(..)` are supported on all backends. Load via `birdnet.load("acoustic", "3.0", <backend>)`. The `pt` and `onnx` backends require the new `birdnet[pt]` and `birdnet[onnx]` install extras (#41).
-- Added support for the BirdNET-Geomodel V3.0 (release v3.0.3) with TFLite/LiteRT (`tf`, INT8/FP16/FP32), ProtoBuf (`pb`) and ONNX (`onnx`, FP16/FP32) backends. Load via `birdnet.load("geo", "3.0", <backend>)`. The `onnx` backend requires the `birdnet[onnx]` extra and also lets the geo model run without TensorFlow (e.g. on Python 3.14). A PyTorch backend is not available yet, as the released `.pt` is a training checkpoint rather than a TorchScript model (#41).
-- Added an `apply_softmax` option to acoustic `predict(..)` (all models: 2.4, 3.0, Perch V2), mirroring `apply_sigmoid`. When enabled, output scores are the softmax over the model's logits, which is useful for obtaining confidence scores (e.g. for Perch V2). Defaults to `False` (#54).
-- Added (partial) support for Python 3.14. TensorFlow does not yet ship Python 3.14 wheels, so on 3.14 `birdnet` installs without TensorFlow and supports the models that have a TensorFlow-free backend: the acoustic 3.0 model (`onnx`/`pt`) and the geo 3.0 model (`onnx`). The version cap `<3.14` was lifted and `tensorflow` is now only a dependency on Python ≤3.13. TensorFlow-only paths (`tf`/`pb` backends, the acoustic 2.4, geo 2.4 and Perch models) raise a clear, actionable error on 3.14 instead of an `ImportError`. Full support will follow once TensorFlow provides 3.14 wheels (#55).
+- Added an `on_file_complete` callback to acoustic `predict(..)`/`encode(..)` and their session variants (all models: 2.4, 3.0, Perch V2), fired once per file as soon as it is fully processed with a single-file result, enabling streaming per-file persistence and live output. File inputs only; runs off the inference hot path so throughput is unaffected (#57).
+- Added the BirdNET V3.0 (preview) acoustic model in four backends — `tf`, `pb`, `pt` and `onnx` — all supporting `predict(..)` and `encode(..)`. Load via `birdnet.load("acoustic", "3.0", <backend>)`; `pt`/`onnx` require the new `birdnet[pt]`/`birdnet[onnx]` extras (#41).
+- Added the BirdNET-Geomodel V3.0 (v3.0.3) in the `tf`, `pb` and `onnx` backends (`onnx` requires `birdnet[onnx]` and runs without TensorFlow). Load via `birdnet.load("geo", "3.0", <backend>)`. No PyTorch backend yet — the released `.pt` is a training checkpoint, not TorchScript (#41).
+- Added an `apply_softmax` option to acoustic `predict(..)` (all models), mirroring `apply_sigmoid`, returning a softmax over the model logits — useful for confidence scores (e.g. Perch V2). Defaults to `False` (#54).
+- Added partial Python 3.14 support: as TensorFlow has no 3.14 wheels yet, `birdnet` installs without TensorFlow there and runs the TF-free backends — acoustic 3.0 (`onnx`/`pt`) and geo 3.0 (`onnx`); TensorFlow-only paths raise a clear error instead of an `ImportError` (#55).
 
 ### Changed
 
-- The progress callback now runs on a background worker thread with a copy of the caller's context (contextvars) as captured when the call starts, matching the behavior of the new `on_file_complete` callback (#53).
+- The progress callback now runs on a background thread with a copy of the caller's context (contextvars), matching the new `on_file_complete` callback (#53).
 
 ### Bugfixes
 
-- Fixed corrupt rows in acoustic prediction and encoding output: growing the internal result buffer via `numpy.ndarray.resize` (together with an off-by-one in the initial segment count) could leave stale or uninitialized values in some segments. Buffers are now reallocated and copied, so all output rows are correct (#50).
-- Geo model v3.0 caches now self-heal across releases: previously a cached ProtoBuf SavedModel or generated label files from an older release were never detected as stale, so a geo model version bump could keep serving outdated species labels/counts. The SavedModel now records its source release and the label files are validated against the current labels, so both are re-fetched/regenerated when they no longer match (#41).
+- Fixed corrupt rows in acoustic prediction/encoding output caused by growing the internal result buffer with `numpy.ndarray.resize` (plus an off-by-one in the initial segment count); buffers are now reallocated and copied (#50).
+- Geo model v3.0 caches now self-heal across releases: a cached SavedModel or label files from an older release were not detected as stale, so a version bump could keep serving outdated labels; both are now validated against the current release and re-fetched when they differ (#41).
 
 ## [0.2.16] - 2026-05-09
 

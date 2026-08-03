@@ -1,6 +1,6 @@
 [project]
 name = "birdnet"
-version = "0.2.16"
+version = "1.0.0"
 description = "A Python library for identifying bird species by their sounds."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -16,7 +16,6 @@ keywords = [
   "bioacoustics",
 ]
 classifiers = [
-  "Development Status :: 4 - Beta",
   "Operating System :: OS Independent",
   "Operating System :: MacOS",
   "Operating System :: POSIX",
@@ -43,7 +42,7 @@ dependencies = [
   # Used to download the official models (birdnet.utils.helper.download_file_tqdm).
   # Previously pulled in transitively via TensorFlow; declared explicitly so the
   # TensorFlow-free install on Python 3.14 (onnx/pt backends) can download models.
-  "requests >= 2.27.0",   # 2022/01/05
+  "requests >= 2.27.0", # 2022/01/05
   # TensorFlow has no wheels for Python 3.14+ yet, so it is only required on
   # <=3.13. On Python 3.14 birdnet installs without TensorFlow; the acoustic 3.0
   # model then runs via the optional 'onnx'/'pt' backends. TF/PB backends and all
@@ -87,7 +86,7 @@ repro = [
   "gast == 0.6.0",
   "google-pasta == 0.2.0",
   "grpcio == 1.76.0",
-  "h5py == 3.14.0", # resolved by tensorflow 2.21.0
+  "h5py == 3.14.0",                   # resolved by tensorflow 2.21.0
   "idna == 3.11",
   "keras == 3.12.0",
   "libclang == 18.1.1",
@@ -163,7 +162,7 @@ Homepage = "https://github.com/birdnet-team/birdnet"
 Issues = "https://github.com/birdnet-team/birdnet/issues"
 Documentation = "https://birdnet-team.github.io/birdnet"
 Repository = "https://github.com/birdnet-team/birdnet.git"
-Changelog = "https://github.com/birdnet-team/birdnet/blob/master/CHANGELOG.md"
+Changelog = "https://github.com/birdnet-team/birdnet/blob/main/CHANGELOG.md"
 
 [project.scripts]
 birdnet-benchmark = "birdnet_benchmark.cli:run_benchmark"

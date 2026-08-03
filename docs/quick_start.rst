@@ -56,7 +56,7 @@ Predict species for a given location and time
 
   predictions = model.predict(42.5, -76.45, week=4)
 
-  predictions.to_txt("example/species.txt")
+  predictions.to_csv("example/location.csv")
 
 Predict species with a custom species list
 ------------------------------------------
@@ -69,7 +69,7 @@ Predict species with a custom species list
 
   predictions = model.predict(
       "example/soundscape.wav",
-      custom_species_list="example/species.txt",
+      custom_species_list="example/species_list.txt",
   )
 
   predictions.to_csv("example/predictions.csv")
@@ -77,7 +77,7 @@ Predict species with a custom species list
 Use a different model version or backend
 ----------------------------------------
 
-The ``version`` and ``backend`` arguments of ``birdnet.load`` select the model. Besides V2.4, the V3.0 (preview) acoustic model is available in the ``tf``, ``pb``, ``pt`` and ``onnx`` backends, and the V3.0 geo model in the ``tf`` and ``pb`` backends. See :doc:`models` for the full support matrix.
+The ``version`` and ``backend`` arguments of ``birdnet.load`` select the model. Besides V2.4, the V3.0 (preview) acoustic model is available in the ``tf``, ``pb``, ``pt`` and ``onnx`` backends, and the V3.0 geo model in the ``tf``, ``pb`` and ``onnx`` backends. See :doc:`models` for the full support matrix.
 
 .. code-block:: python
 

@@ -75,10 +75,13 @@ Geo model (species range model) V3.0
 
 * updated species range model covering more than 12,000 classes
 * aligned with the V3.0 acoustic taxonomy
-* available in two backends via the ``backend`` argument of ``birdnet.load``:
+* available in three backends via the ``backend`` argument of ``birdnet.load``:
 
     * ``tf`` - TFLite/LiteRT (CPU only), ``int8``, ``fp16`` and ``fp32``
     * ``pb`` - ProtoBuf (CPU/GPU), ``fp32``
+    * ``onnx`` - ONNX Runtime (CPU/GPU), ``fp16`` and ``fp32``; requires ``pip install birdnet[onnx]``
+
+* there is no PyTorch (``pt``) backend for the geo model yet
 
 .. code-block:: python
 

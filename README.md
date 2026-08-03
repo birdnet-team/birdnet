@@ -17,8 +17,8 @@ The package is also available as an R package at: [birdnetR](https://github.com/
 
 ## Features
 
-* 🐦 Extract **classification scores and embeddings** for 6,522 species from audio recordings
-* 📍 Predict 6,522 **species presence** for a given location and time
+* 🐦 Extract **classification scores and embeddings** from audio recordings — 6,522 species (V2.4) or 11,000+ (V3.0 preview)
+* 📍 Predict **species presence** for a given location and time — 6,522 species (V2.4) or 12,000+ (V3.0)
 * 🧠 Utilize your **custom-trained acoustic models** from BirdNET-Analyzer
 * ⚙️ Support for both **CPU and GPU** execution (including multiple GPUs at the same time)
 * 🚀 **Multiprocessing** support for fast batch analysis of large datasets
@@ -34,11 +34,11 @@ The package is also available as an R package at: [birdnetR](https://github.com/
 
 ## Speed benchmarks
 
-| Device             | Specs       | Disk | OS      | Throughput per second | → predicting 1 h of recording |
-|--------------------|-------------|------|---------|--------------|---|
-| Intel i7 8th Gen   | 4 cores     | NVMe | Windows | 50 s         | 72 s
-| Ryzen 7 3800X      | 8 cores     | NVMe | Linux   | 7 min        | 8.5 s
-| Nvidia Titan RTX   | 24 GB VRAM  | NVMe | Linux   | 41 min       | 1.5 s
+| Device             | Specs       | Disk | OS      | Audio processed per second | Time to predict 1 h |
+|--------------------|-------------|------|---------|----------------------------|---------------------|
+| Intel i7 8th Gen   | 4 cores     | NVMe | Windows | 50 s                       | 72 s                |
+| Ryzen 7 3800X      | 8 cores     | NVMe | Linux   | 7 min                      | 8.5 s               |
+| Nvidia Titan RTX   | 24 GB VRAM  | NVMe | Linux   | 41 min                     | 1.5 s               |
 
 For more detailed benchmarks, please refer to the [documentation](https://birdnet-team.github.io/birdnet/benchmarking.html).
 
@@ -108,7 +108,7 @@ If you encounter issues with audio file reading, please ensure that `libsndfile`
 ### V2.4
 
 | **Model** | Acoustic | Acoustic | Acoustic | Geo | Geo |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | **Backend** | TFLite/<br>LiteRT | ProtoBuf | ProtoBuf<br>Raven* | TFLite/<br>LiteRT | ProtoBuf |
 | `predict(..)` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `encode(..)` | ✅ | ✅ | ❌ | ❌ | ❌ |
@@ -124,7 +124,7 @@ If you encounter issues with audio file reading, please ensure that `libsndfile`
 The V3.0 acoustic model is available in four backends (TFLite/LiteRT, ProtoBuf, PyTorch and ONNX), the V3.0 geo model in three (TFLite/LiteRT, ProtoBuf and ONNX; there is no PyTorch backend for the geo model). The PyTorch backend requires `birdnet[pt]` and the ONNX backend requires `birdnet[onnx]`.
 
 | **Model** | Acoustic | Acoustic | Acoustic | Acoustic | Geo | Geo | Geo |
-|---|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- | --- |
 | **Backend** | TFLite/<br>LiteRT | ProtoBuf | PyTorch | ONNX | TFLite/<br>LiteRT | ProtoBuf | ONNX |
 | `predict(..)` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `encode(..)` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
@@ -139,7 +139,7 @@ Load a V3.0 model by passing the version and backend, e.g. `birdnet.load("acoust
 ### Perch V2
 
 | **Model** | Acoustic | Geo |
-|---|---|---|
+| --- | --- | --- |
 | **Backend** | ProtoBuf | ❌ |
 | `predict(..)` | ✅ | ❌ |
 | `encode(..)` | ✅ | ❌ |
@@ -196,14 +196,14 @@ predictions.to_csv("example/location.csv")
 
 The resulting predictions look like this (excerpt, scores may vary; sorted alphabetically):
 
-| species_name                          | confidence |
-|---------------------------------------|------------|
-| Acanthis flammea_Common Redpoll       | 0.0442     |
-| Accipiter cooperii_Cooper's Hawk      | 0.0812     |
-| Agelaius phoeniceus_Red-winged Blackbird | 0.0996  |
-| Anas platyrhynchos_Mallard            | 0.4468     |
-| Anas rubripes_American Black Duck     | 0.11       |
-| ... | ... |
+| species_name                             | confidence |
+|------------------------------------------|------------|
+| Acanthis flammea_Common Redpoll          | 0.0442     |
+| Accipiter cooperii_Cooper's Hawk         | 0.0812     |
+| Agelaius phoeniceus_Red-winged Blackbird | 0.0996     |
+| Anas platyrhynchos_Mallard               | 0.4468     |
+| Anas rubripes_American Black Duck        | 0.11       |
+| ...                                      | ...        |
 
 The full result is at [example/location.csv](example/location.csv).
 
