@@ -363,6 +363,7 @@ def run_session_process(
   queue.put(result)
 
 
+@pytest.mark.fork
 def test_tflite_fp32_twice_two_sessions_parallel_processes_fork() -> None:
   ensure_not_mac_or_skip() # reason unknown why this hangs on macOS
   use_fork_or_skip()

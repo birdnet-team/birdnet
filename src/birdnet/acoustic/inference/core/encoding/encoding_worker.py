@@ -38,6 +38,7 @@ class EncodingWorker(WorkerBase):
     start_signal: Event,
     finish_signal: Event,
     end_event: Event,
+    start_method: str,
   ) -> None:
     super().__init__(
       session_id=session_id,
@@ -66,6 +67,7 @@ class EncodingWorker(WorkerBase):
       start_signal=start_signal,
       finish_signal=finish_signal,
       end_event=end_event,
+      start_method=start_method,
     )
 
   def _get_block(

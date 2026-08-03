@@ -1,3 +1,4 @@
+import re
 import tempfile
 from pathlib import Path
 
@@ -25,7 +26,10 @@ def test_download_geo_model_to_tmp() -> None:
         description="Downloading model",
       )
     except ValueError as e:
-      # sometimes the server is slow, so we just skip the test then
-      if str(e) == "Failed to download the file. Status code: 503":
-        pytest.skip(f"Download timed out: {e}")
+      # Zenodo answers 503/504 under load; a server-side error is not a library
+      # defect, so skip instead of failing the run. (The error message spans two
+      # lines, so match the status line instead of comparing the whole string.)
+      if re.search(r"Status code: 5\d\d", str(e)):
+        pytest.skip(f"Server-side download error: {e}")
+      raise
     assert output_path.is_file()

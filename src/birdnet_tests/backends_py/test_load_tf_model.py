@@ -8,6 +8,7 @@ from birdnet.utils.local_data import get_model_path
 from birdnet_tests.helper import ensure_litert_or_skip, use_fork_or_skip
 
 
+@pytest.mark.fork
 def test_load_tf_and_litert_after_each_other_is_not_possible() -> None:
   pytest.skip("Does not throw an exception with ai-edge-litert==2.1.4. @stefantaubert")
   # not marked as @pytest.mark.litert because TF is loaded first
@@ -35,6 +36,7 @@ def test_load_tf_and_litert_after_each_other_is_not_possible() -> None:
     pytest.skip("Loading Litert model after TF fails only on Python 3.13")
 
 
+@pytest.mark.fork
 @pytest.mark.litert
 def test_load_litert_and_tf_after_each_other_is_possible() -> None:
   ensure_litert_or_skip()
@@ -48,9 +50,10 @@ def test_load_litert_and_tf_after_each_other_is_possible() -> None:
   assert model_litert is not None
 
   # Load TF model
-  # on macOS it can't be loaded after liteRT
-  if platform.system() == "Darwin":
-    # Loading Litert model after TF fails
+  # On macOS the mixed load is blocked only on Intel; Apple Silicon allows it with
+  # current ai-edge-litert (cf. the skipped test_load_tf_and_litert_..._not_possible).
+  if platform.system() == "Darwin" and platform.machine() == "x86_64":
+    # Loading TF model after liteRT fails on Intel macOS
     with pytest.raises(ImportError):
       load_tf_model(model_path, library="tflite", allocate_tensors=False)
   else:

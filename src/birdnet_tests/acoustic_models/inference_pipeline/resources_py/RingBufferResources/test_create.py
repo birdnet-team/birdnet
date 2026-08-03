@@ -8,7 +8,7 @@ from birdnet.core.base import get_session_id
 
 def test_ring_names_have_max_30_chars() -> None:
   result = RingBufferResources._create(
-    get_session_id(), 4, 1, 48_000 * 3, np.dtype(np.uint32), 1000
+    get_session_id(), 4, 1, 48_000 * 3, np.dtype(np.uint32), 1000, "spawn"
   )
   # on macOS the limit is 31 including "/" at the start
   # e.g., this was too long:

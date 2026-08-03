@@ -101,6 +101,7 @@ def run_session_process(barrier: multiprocessing.synchronize.Barrier) -> None:
     pass
 
 
+@pytest.mark.fork
 def test_tflite_fp32_twice_two_sessions_parallel_processes_fork() -> None:
   use_fork_or_skip()
 

@@ -1,6 +1,4 @@
 import logging
-import multiprocessing as mp
-import multiprocessing.synchronize
 from logging.handlers import QueueHandler
 from multiprocessing import Queue
 
@@ -63,6 +61,7 @@ class LogableProcessBase:
     name: str,
     logging_queue: Queue,
     logging_level: int,
+    start_method: str,
   ) -> None:
     self.__logger: logging.Logger | None = None
     self.__logging_queue = logging_queue
@@ -70,16 +69,22 @@ class LogableProcessBase:
     self.__local_queue_handler: QueueHandler | None = None
     self.__name = name
     self.__session_id = session_id
+    # The session's effective start method is passed in instead of read from
+    # mp.get_start_method(): the global default can differ from the context the
+    # pipeline actually uses (e.g. library default "forkserver" while the
+    # global still says "fork"), and these branches must match the context the
+    # process was really created with.
+    self.__start_method = start_method
     self._session_hash = get_session_id_hash(session_id)
 
   def _init_logging(self) -> None:
-    if mp.get_start_method() in ("spawn", "forkserver"):
+    if self.__start_method in ("spawn", "forkserver"):
       init_session_logger(self.__session_id, self.__logging_level)
       self.__local_queue_handler = add_session_queue_handler(
         self.__session_id, self.__logging_queue
       )
     else:
-      assert mp.get_start_method() == "fork"
+      assert self.__start_method == "fork"
       assert session_queue_handler_exists(self.__session_id, self.__logging_queue)
     self.__logger = get_logger_from_session(self.__session_id, self.__name)
     self.__logger.debug(
@@ -91,11 +96,11 @@ class LogableProcessBase:
     self.__logger.debug(
       f"Uninitializing logging for session {self._session_hash} -> {self.__name}."
     )
-    if mp.get_start_method() in ("spawn", "forkserver"):
+    if self.__start_method in ("spawn", "forkserver"):
       assert self.__local_queue_handler is not None
       remove_session_queue_handler(self.__session_id, self.__local_queue_handler)
     else:
-      assert mp.get_start_method() == "fork"
+      assert self.__start_method == "fork"
       assert self.__local_queue_handler is None
     self.__local_queue_handler = None
     self.__logger = None

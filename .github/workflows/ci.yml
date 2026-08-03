@@ -1,11 +1,27 @@
 name: CI
 
 on:
+  # Only run the (expensive) test matrix when files that can affect the tests or
+  # package change. Docs, license, images and other non-code changes are skipped.
+  # This is an allowlist: anything test-relevant added later (e.g. a new data dir
+  # or a root conftest.py) must be added here or CI will silently skip it.
   push:
     branches: ["main"]
+    paths:
+      - "src/**"                    # birdnet, birdnet_tests (incl. TEST_FILES), birdnet_benchmark
+      - "example/**"                # test data: test_issue29/55 load example/soundscape.wav
+      - "pyproject.toml"            # deps + tox + pytest/ruff/mypy config
+      - "MANIFEST.in"               # packaging -> build/twine check step
+      - ".github/workflows/ci.yml"  # the workflow itself
 
   pull_request:
     branches: ["main"]
+    paths:
+      - "src/**"
+      - "example/**"
+      - "pyproject.toml"
+      - "MANIFEST.in"
+      - ".github/workflows/ci.yml"
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -21,11 +37,27 @@ jobs:
   run-tests:
     runs-on: ${{ matrix.os }}
     continue-on-error: false
-    # Backstop for a wedged run: the fork/TensorFlow deadlock hangs in native code
-    # holding the GIL, which pytest-timeout cannot interrupt in either method, so the
-    # job-level limit is what stops it. Slowest healthy job is ~32 min; 50 leaves
-    # headroom while capping a hang's cost.
+    # Backstop for a wedged job. The library defaults to the "spawn" start method
+    # (see birdnet.core.start_method), which removes the fork-after-TensorFlow
+    # deadlock from the general suite; the isolated fork lanes can still burn up to
+    # the 600 s per-test timeout each when that inherent deadlock fires. Budget is
+    # set by the fattest cell, ubuntu 3.12, which runs three tox envs (py312 +
+    # py312-repro + py312-coverage, ~45 min healthy): 40 was proven too tight when
+    # a repro fork-lane deadlock pushed it over.
     timeout-minutes: 50
+
+    env:
+      # Fixed, cacheable location for birdnet's model/label downloads so the ~11 min
+      # "load_model" download step is skipped on a cache hit. Placed under the
+      # workspace because the `runner` context is not available in job-level env;
+      # this is safe since checkout runs once, before the cache is restored, and is
+      # never re-run. tox forwards this var to the pytest subprocess via `passenv`.
+      BIRDNET_APP_DATA: ${{ github.workspace }}/.birdnet-app-data
+      # Enables the GIL-immune hang watchdog (see birdnet_tests/conftest.py): a
+      # wedged test that survives pytest-timeout gets its thread stacks dumped
+      # here and the process hard-killed shortly after its timeout, instead of
+      # silently burning the job budget. Uploaded as an artifact on failure.
+      BIRDNET_TEST_WATCHDOG_DIR: ${{ github.workspace }}/.watchdog-dumps
 
     strategy:
       fail-fast: false
@@ -73,10 +105,31 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      # Provides the `uv` binary and persists uv's wheel cache across runs, so the
+      # large TensorFlow/torch/cuda downloads are not repeated every run.
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: pyproject.toml
+
+      # Cache the downloaded models/labels. The files are identical across OS and
+      # Python, so we key only on the download *profile* (full vs the TF-free py3.14
+      # surface) plus the model definitions (their URLs/sizes). This keeps the cache
+      # to ~2 entries (~3.6 GB) instead of one ~3 GB copy per (os, python), which
+      # overran the 10 GB repo cache limit and thrashed. A changed definition busts
+      # the key; restore-keys then falls back to the last cache of the same profile
+      # and only the stale models are re-downloaded.
+      - name: Cache downloaded models
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.BIRDNET_APP_DATA }}
+          key: birdnet-models-${{ matrix.python-version == '3.14' && 'notf' || 'full' }}-${{ hashFiles('src/birdnet/**/models/**/*.py') }}
+          restore-keys: |
+            birdnet-models-${{ matrix.python-version == '3.14' && 'notf' || 'full' }}-
+
       - name: Install dependencies
-        run: |
-          python -m pip install uv --upgrade
-          python -m uv pip install --system .[tests]
+        run: uv pip install --system '.[tests]'
 
       - name: Run tests py311
         if: matrix.python-version == '3.11'
@@ -148,3 +201,24 @@ jobs:
         with:
           name: birdnet-log
           path: ${{ steps.extract-log-path.outputs.log_paths }}
+
+      # Diagnostic for silent test-process deaths: rules the kernel OOM killer
+      # in or out directly in the job log. (Checked for the fork-lane wedges:
+      # no OOM kills logged — those are the inherent fork-after-TF child
+      # deadlock, ended by pytest-timeout at the per-test timeout.)
+      - name: Check for OOM kills (Linux)
+        if: failure() && startsWith(matrix.os, 'ubuntu')
+        run: sudo dmesg | grep -iE "out of memory|oom-kill|killed process" || echo "no OOM kills logged"
+
+      # Stack dumps written by the hang watchdog (see BIRDNET_TEST_WATCHDOG_DIR
+      # above); on a wedge they show every thread's stack at kill time.
+      # include-hidden-files is required: upload-artifact skips dotfiles by
+      # default, and the dump dir is hidden (.watchdog-dumps).
+      - name: Upload hang watchdog dumps
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: watchdog-dumps-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: .watchdog-dumps/
+          if-no-files-found: ignore
+          include-hidden-files: true

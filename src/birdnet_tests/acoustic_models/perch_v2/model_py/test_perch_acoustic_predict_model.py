@@ -128,6 +128,7 @@ def run_session_process(
   q.put(result)
 
 
+@pytest.mark.fork
 def test_twice_two_sessions_parallel_processes_fork() -> None:
   ensure_not_mac_or_skip()  # reason unknown why this hangs on macOS
   ensure_not_intel_macos_or_skip()

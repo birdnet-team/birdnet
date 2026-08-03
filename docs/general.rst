@@ -30,6 +30,33 @@ A *Producer* loads only as much audio as the buffer can hold, keeping RAM usage 
 * **Model Backends** – Each worker loads its own instance of the inference model. On the CPU, both **TFLite** and **Protocol Buffers** (Protobuf) models can be used; Protobuf models can optionally run on the GPU.
 * **Best Practice for CPU Inference** – For CPU-only execution on Linux, the number of *Worker* processes should not exceed the number of physical cores, as oversubscription typically leads to reduced performance. When running TFLite, keep the batch size to one (1); larger batches offer no throughput benefit.
 
+Multiprocessing start method
+----------------------------
+
+The pipeline creates its processes with the ``spawn`` start method by default on
+**all** platforms — it does *not* inherit Linux's platform default of ``fork``.
+Forking a process after TensorFlow has started its multi-threaded runtime can
+deadlock the child, so a plain ``model.predict(...)`` is safe out of the box
+even when TensorFlow is already loaded.
+
+The default can be overridden, in order of precedence:
+
+1. Set the ``BIRDNET_START_METHOD`` environment variable to ``spawn``,
+   ``forkserver`` or ``fork``.
+2. Fix the method globally in your application **before** using birdnet, e.g.
+   ``multiprocessing.set_start_method("fork")`` — an explicitly chosen method
+   is always honored.
+
+With ``fork`` (explicit opt-in), workers inherit a model loaded in the parent
+process via copy-on-write, which avoids per-worker model loading — but you are
+responsible for calling the pipeline before TensorFlow spawns threads, or
+accepting the deadlock risk. With ``spawn`` or ``forkserver``, each worker
+loads its model itself.
+
+Because the default is ``spawn``, the standard Python rule for scripts applies
+on every platform (it always did on macOS and Windows): entry-point code must
+be guarded with ``if __name__ == "__main__":``.
+
 Known limitations
 ----
 

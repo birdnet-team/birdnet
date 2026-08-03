@@ -74,8 +74,8 @@ class ResourceManager:
     stats_resources = StatisticsResources.create(
       session_id, self.conf, benchmark_dir_name
     )
-    logging_resources = LoggingResources.create(session_id, stats_resources)
-    processing_resources = ProcessingResources.create()
+    logging_resources = LoggingResources.create(session_id, self.conf, stats_resources)
+    processing_resources = ProcessingResources.create(self.conf)
     analyzer_resources = InputAnalyzerResources.create(self.conf)
     producer_resources = ProducerResources.create(self.conf)
     worker_resources = WorkerResources.create(self.conf)
@@ -124,10 +124,12 @@ class RingBufferResources:
     segment_size_samples: int,
     segments_dtype: np.dtype,
     max_n_files: int,
+    start_method: str,
   ) -> Self:
     # session_id is required to run multiple sessions in parallel
     # in multiple processes or threads in the same session
 
+    ctx = mp.get_context(start_method)
     sid_hash = get_session_id_hash(session_id)
 
     rf_file_indices = RingField(
@@ -176,8 +178,8 @@ class RingBufferResources:
       rf_audio_samples=rf_audio_samples,
       rf_batch_sizes=rf_batch_sizes,
       rf_flags=rf_flags,
-      sem_free_slots=mp.Semaphore(n_slots),
-      sem_filled_slots=CountedSemaphore(0),
+      sem_free_slots=ctx.Semaphore(n_slots),
+      sem_filled_slots=CountedSemaphore(0, ctx=ctx),
     )
 
   @classmethod
@@ -194,6 +196,7 @@ class RingBufferResources:
       segment_size_samples=conf.model_conf.segment_size_samples,
       segments_dtype=analyzer_resources.segments_dtype,
       max_n_files=conf.processing_conf.max_n_files,
+      start_method=conf.start_method,
     )
 
   def reset(self) -> None:
@@ -254,8 +257,9 @@ class ProducerResources:
 
   @classmethod
   def create(cls, conf: InferenceConfig) -> ProducerResources:
+    ctx = mp.get_context(conf.start_method)
     n_producers = conf.processing_conf.producers
-    n_finished_pointer = mp.Value(
+    n_finished_pointer = ctx.Value(
       uint_ctype_from_dtype(get_uint_dtype(n_producers)),  # type: ignore
       0,
       lock=True,
@@ -264,12 +268,12 @@ class ProducerResources:
     return ProducerResources(
       n_producers=n_producers,
       n_finished_pointer=n_finished_pointer,
-      input_queue=Queue(),
-      ring_access_lock=mp.Lock(),
-      all_finished=mp.Event(),
-      start_signals=[mp.Event() for _ in range(n_producers)],
-      finish_signals=[mp.Event() for _ in range(n_producers)],
-      unprocessed_inputs_queue=Queue(),
+      input_queue=ctx.Queue(),
+      ring_access_lock=ctx.Lock(),
+      all_finished=ctx.Event(),
+      start_signals=[ctx.Event() for _ in range(n_producers)],
+      finish_signals=[ctx.Event() for _ in range(n_producers)],
+      unprocessed_inputs_queue=ctx.Queue(),
     )
 
   def collect_unprocessed_inputs(self) -> None:
@@ -291,6 +295,7 @@ class WorkerResources:
 
   @classmethod
   def create(cls, config: InferenceConfig) -> WorkerResources:
+    ctx = mp.get_context(config.start_method)
     n_workers = config.processing_conf.workers
     devices = (
       config.processing_conf.device
@@ -305,12 +310,12 @@ class WorkerResources:
     )
 
     return WorkerResources(
-      results_queue=Queue(),
-      ring_access_lock=mp.Lock(),
+      results_queue=ctx.Queue(),
+      ring_access_lock=ctx.Lock(),
       devices=devices,
       backend_loader=backend_loader,
-      start_signals=[mp.Event() for _ in range(n_workers)],
-      finish_signals=[mp.Event() for _ in range(n_workers)],
+      start_signals=[ctx.Event() for _ in range(n_workers)],
+      finish_signals=[ctx.Event() for _ in range(n_workers)],
     )
 
   def reset(self) -> None:
@@ -384,6 +389,7 @@ class InputAnalyzerResources:
 
   @classmethod
   def create(cls, conf: InferenceConfig) -> InputAnalyzerResources:
+    ctx = mp.get_context(conf.start_method)
     reserve_n_segments = 0
 
     if conf.processing_conf.max_audio_duration_min is not None:
@@ -404,7 +410,7 @@ class InputAnalyzerResources:
       max_segment_ptr_value = 0
 
     segments_code_type = uint_ctype_from_dtype(segments_dtype)
-    max_segment_idx_ptr = mp.RawValue(
+    max_segment_idx_ptr = ctx.RawValue(
       segments_code_type,  # type: ignore
       max_segment_ptr_value,
     )
@@ -412,7 +418,7 @@ class InputAnalyzerResources:
     return InputAnalyzerResources(
       analyzer_queue=queue.Queue(),
       input_queue=queue.Queue(),
-      tot_n_segments_ptr=mp.RawValue(ctypes.c_uint64, 0),
+      tot_n_segments_ptr=ctx.RawValue(ctypes.c_uint64, 0),
       max_segment_idx_ptr=max_segment_idx_ptr,
       segments_dtype=segments_dtype,
       max_segment_idx_init_value=max_segment_ptr_value,
@@ -449,11 +455,12 @@ class ProcessingResources:
     object.__setattr__(self, "current_run_nr", self.current_run_nr + 1)
 
   @classmethod
-  def create(cls) -> ProcessingResources:
+  def create(cls, conf: InferenceConfig) -> ProcessingResources:
+    ctx = mp.get_context(conf.start_method)
     return ProcessingResources(
-      cancel_event=mp.Event(),
-      processing_finished_event=mp.Event(),
-      end_event=mp.Event(),
+      cancel_event=ctx.Event(),
+      processing_finished_event=ctx.Event(),
+      end_event=ctx.Event(),
       current_run_nr=1,
     )
 
@@ -523,6 +530,7 @@ class StatisticsResources:
     conf: InferenceConfig,
     benchmark_dir_name: str,
   ) -> StatisticsResources:
+    ctx = mp.get_context(conf.start_method)
     start = time.perf_counter()
     start_time = time.time()
     start_timepoint = datetime.now()
@@ -539,12 +547,12 @@ class StatisticsResources:
     sem_active_workers = None
 
     if track_performance:
-      perf_res_queue = Queue()
-      perf_res_start_signal = mp.Event()
-      perf_res_finish_signal = mp.Event()
-      wkr_stats_queue = Queue()
-      prd_stats_queue = Queue()
-      sem_active_workers = CountedSemaphore(0)
+      perf_res_queue = ctx.Queue()
+      perf_res_start_signal = ctx.Event()
+      perf_res_finish_signal = ctx.Event()
+      wkr_stats_queue = ctx.Queue()
+      prd_stats_queue = ctx.Queue()
+      sem_active_workers = CountedSemaphore(0, ctx=ctx)
 
     callback_start_signal = None
     callback_finish_signal = None
@@ -554,7 +562,7 @@ class StatisticsResources:
     if use_callback:
       callback_start_signal = threading.Event()
       callback_finish_signal = threading.Event()
-      callback_queue = Queue()
+      callback_queue = ctx.Queue()
       callback_fn = conf.output_conf.progress_callback
 
     benchmark_dir = None
@@ -638,7 +646,7 @@ class FileCompletionResources:
     return FileCompletionResources(
       enabled=True,
       callback_fn=conf.output_conf.file_completion_callback,
-      marker_queue=Queue(),
+      marker_queue=mp.get_context(conf.start_method).Queue(),
       dispatch_queue=queue.Queue(),
       start_signal=threading.Event(),
       finish_signal=threading.Event(),
@@ -681,7 +689,10 @@ class LoggingResources:
 
   @classmethod
   def create(
-    cls, session_id: str, stats_resources: StatisticsResources
+    cls,
+    session_id: str,
+    conf: InferenceConfig,
+    stats_resources: StatisticsResources,
   ) -> LoggingResources:
     session_id_hash = get_session_id_hash(session_id)
     if stats_resources.benchmarking:
@@ -702,7 +713,7 @@ class LoggingResources:
       Path(tempfile.gettempdir()) / f"{PKG_NAME}_session_{session_id}.log"
     )
 
-    logging_queue = Queue()
+    logging_queue = mp.get_context(conf.start_method).Queue()
     queue_handler = add_session_queue_handler(session_id, logging_queue)
 
     return LoggingResources(
