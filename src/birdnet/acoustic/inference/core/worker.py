@@ -265,14 +265,12 @@ class WorkerBase(bn_logging.LogableProcessBase):
       claimed_flag = None
 
       perf_c = time.perf_counter()
-      dur2_search_for_filled_slot = None
       with self._wkr_ring_access_lock:
         for current_slot in range(self._n_slots):
           current_slot_flag = self._ring_flags[current_slot]
 
           # TODO: check if all ring_size slots = DONE
           if current_slot_flag == READABLE_FLAG:
-            dur2_search_for_filled_slot = time.perf_counter() - perf_c
             claimed_slot = current_slot
             claimed_flag = current_slot_flag
             self._ring_flags[claimed_slot] = READING_FLAG
@@ -283,12 +281,15 @@ class WorkerBase(bn_logging.LogableProcessBase):
               WRITING_FLAG,
               READING_FLAG,
             )
-
-      assert dur2_search_for_filled_slot is not None
+      # Timed unconditionally: an empty scan is the shutdown wake-up and must
+      # reach the exit below, not assert on a duration only set when a slot hit.
+      dur2_search_for_filled_slot = time.perf_counter() - perf_c
 
       if claimed_slot is None:
         if self._all_producers_finished.is_set():
           self._log("Producer is done. Exiting worker.")
+          # Pass the wake-up on, or the next worker waits out its poll.
+          self._sem_filled.release()
           self._out_q.put(None)
           break
         # if n_done >= 1:

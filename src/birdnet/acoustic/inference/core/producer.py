@@ -600,6 +600,9 @@ class Producer(bn_logging.LogableProcessBase):
     if is_last_producer:
       self._log("Last producer finished.")
       self._all_finished.set()
+      # A parked worker cannot observe this event: a semaphore wait is not
+      # interruptible. Hand it a permit instead; each worker passes one on.
+      self._sem_filled_slots.release()
       assert_queue_is_empty(self._input_queue)
 
 
