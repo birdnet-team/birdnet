@@ -1,7 +1,6 @@
 graft src/birdnet_tests/
 
 include \
-  pylintrc \
   CHANGELOG.md \
   CODE_OF_CONDUCT.md \
   CONTRIBUTING.md \
@@ -26,3 +25,7 @@ prune **/__pycache__/
 # They live in git for CI and would otherwise push the sdist past PyPI's
 # per-file size limit (the wheel already excludes birdnet_tests entirely).
 prune src/birdnet_tests/TEST_FILES/
+
+# Also drop the consistency-test .npz fixtures (~5 MB of stored arrays); like
+# TEST_FILES they are test data, not needed to build or install from source.
+global-exclude *.npz
