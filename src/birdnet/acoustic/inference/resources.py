@@ -200,7 +200,10 @@ class RingBufferResources:
     )
 
   def reset(self) -> None:
-    pass
+    # Every run starts with an empty ring, so a wake-up permit left over from
+    # the last one is stale and would send a worker to scan it and assert.
+    while self.sem_filled_slots.acquire(block=False):
+      pass
 
   def set_all_flags_writeable(self) -> None:
     assert self._rf_flags_memory is not None

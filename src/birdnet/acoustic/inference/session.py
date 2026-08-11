@@ -105,6 +105,16 @@ class AcousticSessionBase(
     assert self._logger is not None
 
     self._resources.ring_buffer_resources.set_all_flags_writeable()
+    # Drained unconditionally, unlike the full reset below: the shutdown hand-off
+    # leaves one wake-up permit outstanding after every run, while `is_first_run`
+    # only flips at the very end of `_run`. A first run that raises would leave
+    # the permit in place forever, and it would reach a worker on a run whose
+    # producers have not finished -- the "sem_fill was available" abort.
+    # The drain is only reliable once the workers are known to be done. On the
+    # cancel path the parent gets here without `wait_until_all_finished()`, and
+    # `CountedSemaphore.release` bumps its counter before releasing the
+    # semaphore, so a non-blocking drain can miss a permit still on its way.
+    self._resources.ring_buffer_resources.reset()
     if not self._resources.processing_resources.is_first_run:
       self._resources.reset()
 
