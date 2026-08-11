@@ -20,3 +20,9 @@ global-exclude \
 
 prune .*/
 prune **/__pycache__/
+
+# Keep the test .py files in the sdist but exclude the large binary fixtures
+# (custom models, multi-format audio, SavedModels, ~315 MB) grafted above.
+# They live in git for CI and would otherwise push the sdist past PyPI's
+# per-file size limit (the wheel already excludes birdnet_tests entirely).
+prune src/birdnet_tests/TEST_FILES/
