@@ -4,11 +4,18 @@ from birdnet.acoustic.inference.resources import (
   RingBufferResources,
 )
 from birdnet.core.base import get_session_id
+from birdnet.core.start_method import resolve_start_method
 
 
 def _create() -> RingBufferResources:
   return RingBufferResources._create(
-    get_session_id(), 4, 1, 48_000 * 3, np.dtype(np.uint32), 1000, "spawn"
+    session_id=get_session_id(),
+    n_slots=4,
+    batch_size=1,
+    segment_size_samples=48_000 * 3,
+    segments_dtype=np.dtype(np.uint32),
+    max_n_files=1000,
+    start_method=resolve_start_method(),
   )
 
 

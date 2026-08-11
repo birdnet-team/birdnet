@@ -283,6 +283,8 @@ class WorkerBase(bn_logging.LogableProcessBase):
             )
       # Timed unconditionally: an empty scan is the shutdown wake-up and must
       # reach the exit below, not assert on a duration only set when a slot hit.
+      # The window now closes after the lock rather than at the moment the slot
+      # is found, so it also covers the READING_FLAG write and the lock release.
       dur2_search_for_filled_slot = time.perf_counter() - perf_c
 
       if claimed_slot is None:

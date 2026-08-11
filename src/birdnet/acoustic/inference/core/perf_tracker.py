@@ -410,6 +410,10 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
   def _track_semaphore_stats(self) -> None:
     self._wkr_busy_tracker.add_value(self._sem_active_workers.get_value())
+    # Not strictly the number of occupied ring slots: the shutdown wake-up
+    # travels as one extra permit on this semaphore (released by the last
+    # producer, relayed by each exiting worker), so this gauge reads one high
+    # from producer completion until the permit is consumed or drained.
     self._sem_filled_tracker.add_value(self._sem_filled_slots.get_value())
 
   def _track_ring_buffer_stats(self) -> None:
