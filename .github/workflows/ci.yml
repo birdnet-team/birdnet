@@ -91,8 +91,18 @@ jobs:
 
       - name: Install audio system libs (macOS)
         if: startsWith(matrix.os, 'macos')
+        env:
+          # Keep `brew install` from running its own implicit update, which would
+          # reintroduce the tap fetches removed below.
+          HOMEBREW_NO_AUTO_UPDATE: "1"
         run: |
-          brew update
+          # No `brew update` here on purpose. It git-fetches every tap preinstalled
+          # on the runner image -- hashicorp/tap, aws/tap, azure/bicep,
+          # homebrew/core, homebrew/cask -- and exits non-zero if any single fetch
+          # fails, so one transient TLS fault takes the whole job down before
+          # libsndfile is even requested. `brew install` resolves formulae through
+          # the JSON API and pulls bottles from ghcr.io, so the tap checkouts are
+          # not needed to get libsndfile.
           brew install libsndfile
 
       - name: Install audio system libs (Windows)
