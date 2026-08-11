@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-08-05
+## [1.0.0] - 2026-08-11
 
 ### Added
 
@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The inference pipeline now creates its processes with the `spawn` start method by default on all platforms instead of inheriting Linux's platform default of `fork` — forking after TensorFlow has started its multi-threaded runtime could deadlock worker processes. A start method the application has fixed globally (via `multiprocessing.set_start_method`) is honored, and the new `BIRDNET_START_METHOD` environment variable overrides both, so `fork`/`forkserver` remain available via explicit opt-in (`fork` retains copy-on-write model inheritance). See "Multiprocessing start method" in the docs (#63).
 - The progress callback now runs on a background thread with a copy of the caller's context (contextvars), matching the new `on_file_complete` callback (#53).
 
 ### Bugfixes
