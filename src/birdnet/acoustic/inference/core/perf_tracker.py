@@ -198,6 +198,21 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._finish_signal = finish_signal
     self._start = start
 
+    # Same rule the producers and workers follow: only "fork" children inherit
+    # parent state, so only then may logging and the ring flags be set up here
+    # in the parent. Attaching in the child instead is not fork-safe -- see
+    # Producer.__init__ for why resource_tracker.register() can wedge it.
+    self._lazy_init = start_method != "fork"
+
+    if not self._lazy_init:
+      self._init_logging()
+      self._load_ring_buffers()
+
+  def _load_ring_buffers(self) -> None:
+    self._log("Attaching ring flags...")
+    self._shm_ring_flags, self._ring_flags = self._rf_flags.attach_and_get_array()
+    self._log("Attached ring flags.")
+
   def _log(self, message: str) -> None:
     self._logger.debug(f"PT_{os.getpid()}: {message}")
 
@@ -214,10 +229,12 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     return False
 
   def __call__(self) -> None:
-    self._init_logging()
+    if self._lazy_init:
+      self._init_logging()
 
     try:
-      self._shm_ring_flags, self._ring_flags = self._rf_flags.attach_and_get_array()
+      if self._lazy_init:
+        self._load_ring_buffers()
       self.run_main_loop()
     except Exception as e:
       self._logger.exception(
