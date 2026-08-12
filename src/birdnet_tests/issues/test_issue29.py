@@ -28,7 +28,9 @@ import pytest
 
 import birdnet
 
-_PROBE_DELAY_S = 480.0  # well before pytest-timeout's 600 s process kill
+# Snapshot times, all well before pytest-timeout's 600 s process kill. A
+# healthy run takes ~1-6 s, so even the first is >20x past normal.
+_PROBE_DELAYS_S = (120.0, 300.0, 480.0)
 _PY_SPY_TIMEOUT_S = 30
 
 
@@ -108,14 +110,23 @@ def _hang_forensics() -> Iterator[None]:
     return
 
   finished = threading.Event()
+  stamp = datetime.now().strftime("%H%M%S")
 
   def probe() -> None:
-    if finished.wait(_PROBE_DELAY_S):
-      return  # test finished in time; stay inert
-    path = Path(forensics_dir) / f"forensics_issue29_{os.getpid()}.txt"
-    # Diagnostics must never fail or hang the test they observe.
-    with contextlib.suppress(Exception):
-      _write_forensics(path)
+    # Multiple snapshots so a wedge can be told apart from a crawl: frozen
+    # RSS/CPU numbers between dumps mean a deadlock, moving ones a stall.
+    elapsed = 0.0
+    for delay_s in _PROBE_DELAYS_S:
+      if finished.wait(delay_s - elapsed):
+        return  # test finished in time; stay inert
+      elapsed = delay_s
+      path = (
+        Path(forensics_dir)
+        / f"forensics_issue29_{os.getpid()}_{stamp}_t{int(delay_s)}s.txt"
+      )
+      # Diagnostics must never fail or hang the test they observe.
+      with contextlib.suppress(Exception):
+        _write_forensics(path)
 
   t = threading.Thread(target=probe, daemon=True, name="issue29-forensics")
   t.start()
@@ -125,8 +136,14 @@ def _hang_forensics() -> Iterator[None]:
     finished.set()
 
 
+# Five instances instead of one: each spawns the full default pipeline
+# (n_workers=None -> one TF worker per physical core, plus the perf tracker),
+# and xdist distributes them across its workers, so several run concurrently.
+# That exceeds the contention of the runs where the hang was observed and
+# multiplies the trigger chances per CI run.
+@pytest.mark.parametrize("run_nr", [1, 2, 3, 4, 5])
 @pytest.mark.usefixtures("_hang_forensics")
-def test_issue_29() -> None:
+def test_issue_29(run_nr: int) -> None:
   target = "example/soundscape.wav"
   top_k = None
   batch_size = 1
