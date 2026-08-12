@@ -371,8 +371,16 @@ def flat_softmax_fast(x: npt.NDArray) -> npt.NDArray:
 # streams, 5xx) must not fail a model/label download outright: every official
 # model goes through this helper, so a single fault would otherwise surface as
 # a failed `load()`. Client errors (4xx) are permanent and are raised at once.
-_DOWNLOAD_ATTEMPTS = 3
-_DOWNLOAD_RETRY_WAITS_S = (5.0, 15.0)
+#
+# The back-off spans ~110 s in total because the observed failure mode is not a
+# single dropped packet: GitHub's release-download endpoint refuses connections
+# ("Remote end closed connection without response") for tens of seconds at a
+# time. A 20 s window was measured in CI to be too short -- a sibling step
+# retrying the same host after 30 s succeeded on its second try while this
+# helper exhausted three attempts. The wait is only ever paid on a download
+# that is already failing.
+_DOWNLOAD_ATTEMPTS = 5
+_DOWNLOAD_RETRY_WAITS_S = (5.0, 15.0, 30.0, 60.0)
 
 
 def download_file_tqdm(
