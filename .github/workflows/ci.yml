@@ -141,6 +141,12 @@ jobs:
       - name: Install dependencies
         run: uv pip install --system '.[tests]'
 
+      # DIAGNOSTIC for issue #68 (remove with the forensics fixture in
+      # test_issue29.py): lets the in-test probe capture Python stacks of the
+      # spawned pipeline children when the test wedges.
+      - name: Install py-spy (issue 68 hang forensics)
+        run: uv pip install --system py-spy
+
       - name: Run tests py311
         if: matrix.python-version == '3.11'
         run: |
