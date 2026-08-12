@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import ctypes
 import hashlib
+import logging
 import math
 import os
 import tempfile
+import time
 from collections.abc import Generator, Iterable
 from dataclasses import dataclass
 from itertools import islice
@@ -365,7 +367,52 @@ def flat_softmax_fast(x: npt.NDArray) -> npt.NDArray:
   return exp_shifted / np.sum(exp_shifted, axis=1, keepdims=True)
 
 
+# Transient network faults (connection resets, read timeouts, truncated
+# streams, 5xx) must not fail a model/label download outright: every official
+# model goes through this helper, so a single fault would otherwise surface as
+# a failed `load()`. Client errors (4xx) are permanent and are raised at once.
+_DOWNLOAD_ATTEMPTS = 3
+_DOWNLOAD_RETRY_WAITS_S = (5.0, 15.0)
+
+
 def download_file_tqdm(
+  url: str,
+  file_path: Path,
+  *,
+  download_size: int | None = None,
+  description: str | None = None,
+) -> int:
+  import requests
+
+  last_error: Exception | None = None
+  for attempt in range(1, _DOWNLOAD_ATTEMPTS + 1):
+    try:
+      return _download_file_once(
+        url, file_path, download_size=download_size, description=description
+      )
+    except requests.HTTPError as error:
+      status = error.response.status_code if error.response is not None else None
+      if status is not None and 400 <= status < 500:
+        raise
+      last_error = error
+    except (requests.RequestException, ValueError) as error:
+      last_error = error
+
+    if attempt < _DOWNLOAD_ATTEMPTS:
+      wait_s = _DOWNLOAD_RETRY_WAITS_S[
+        min(attempt - 1, len(_DOWNLOAD_RETRY_WAITS_S) - 1)
+      ]
+      logging.getLogger(__name__).warning(
+        f"Download of {url} failed (attempt {attempt}/{_DOWNLOAD_ATTEMPTS}): "
+        f"{last_error}. Retrying in {wait_s:.0f} s..."
+      )
+      time.sleep(wait_s)
+
+  assert last_error is not None
+  raise last_error
+
+
+def _download_file_once(
   url: str,
   file_path: Path,
   *,
@@ -376,6 +423,7 @@ def download_file_tqdm(
   import requests
 
   response = requests.get(url, stream=True, timeout=120)
+  response.raise_for_status()
   total_size = int(response.headers.get("content-length", 0))
   if download_size is not None:
     total_size = download_size
