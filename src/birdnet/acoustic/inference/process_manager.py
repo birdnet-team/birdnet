@@ -6,9 +6,11 @@ import multiprocessing as mp
 import os
 import threading
 import time
+from collections.abc import Iterator
 from contextlib import suppress
 from logging import Logger
 from multiprocessing.process import BaseProcess
+from multiprocessing.synchronize import Event as EventType
 from pathlib import Path
 from queue import Empty
 from typing import TYPE_CHECKING
@@ -46,6 +48,10 @@ if TYPE_CHECKING:
 # die within a moment; this only bounds a child that ignores SIGTERM so teardown
 # can never hang on it.
 _TERMINATE_JOIN_TIMEOUT_S = 5.0
+# How often the parent looks up from an otherwise unbounded wait to check that
+# its children are still alive. Short enough that a dead child is reported
+# promptly, long enough to be free next to the work being waited on.
+_LIVENESS_POLL_INTERVAL_S = 1.0
 
 
 class ProcessManager:
@@ -364,29 +370,76 @@ class ProcessManager:
       assert res.stats_resources.callback_start_signal is not None
       res.stats_resources.callback_start_signal.set()
 
+  def _iter_children_with_finish_signals(
+    self,
+  ) -> Iterator[tuple[BaseProcess, EventType]]:
+    """Every child process paired with the signal it sets when it is done."""
+    res = self._res
+    if self._producer_processes is not None:
+      yield from zip(
+        self._producer_processes, res.producer_resources.finish_signals, strict=False
+      )
+    if self._worker_processes is not None:
+      yield from zip(
+        self._worker_processes, res.worker_resources.finish_signals, strict=False
+      )
+    perf_finish_signal = res.stats_resources.perf_res_finish_signal
+    if self._perf_tracker_process is not None and perf_finish_signal is not None:
+      yield self._perf_tracker_process, perf_finish_signal
+
+  def raise_if_child_died(self) -> None:
+    """Fail fast when a child process is gone without having signalled.
+
+    Every parent-side wait in a healthy run is unbounded on purpose: the run
+    takes as long as the audio requires. That only holds while the children are
+    actually working. A child killed by the OOM killer, or dying in a native
+    crash during its TensorFlow import, never sets its finish signal and never
+    puts its sentinel on the results queue, so an unbounded wait would block
+    forever with no output at all. Checking liveness turns that silent hang
+    into an error naming the process.
+
+    A process that exited *after* setting its finish signal is not an error:
+    that is the normal end-of-session shutdown path.
+    """
+    for process, finish_signal in self._iter_children_with_finish_signals():
+      if process.is_alive() or finish_signal.is_set():
+        continue
+      raise ChildProcessError(
+        f"Pipeline process '{process.name}' exited unexpectedly with exit code "
+        f"{process.exitcode} before it finished its work. This usually means "
+        f"the process was killed from the outside (e.g. by the OOM killer when "
+        f"memory ran out) or crashed in native code. Reducing 'n_workers' or "
+        f"'batch_size' lowers the memory needed per run."
+      )
+
+  def _wait_for_finish_signal(self, finish_signal: EventType | threading.Event) -> None:
+    """Wait for one finish signal, failing fast if a child dies meanwhile."""
+    while not finish_signal.wait(timeout=_LIVENESS_POLL_INTERVAL_S):
+      self.raise_if_child_died()
+
   def wait_until_all_finished(self) -> None:
     res = self._res
 
     # wait for file analyzer to finish
-    res.analyzer_resources.finish_signal.wait(timeout=None)
+    self._wait_for_finish_signal(res.analyzer_resources.finish_signal)
 
     # wait for producers to finish
     for i in range(res.producer_resources.n_producers):
-      res.producer_resources.finish_signals[i].wait(timeout=None)
+      self._wait_for_finish_signal(res.producer_resources.finish_signals[i])
 
     # wait for workers to finish
     for i in range(self._cfg.processing_conf.workers):
-      res.worker_resources.finish_signals[i].wait(timeout=None)
+      self._wait_for_finish_signal(res.worker_resources.finish_signals[i])
 
     # wait for performance tracker to finish
     if res.stats_resources.track_performance:
       assert res.stats_resources.perf_res_finish_signal is not None
-      res.stats_resources.perf_res_finish_signal.wait(timeout=None)
+      self._wait_for_finish_signal(res.stats_resources.perf_res_finish_signal)
 
     # wait for progress dispatcher to finish
     if res.stats_resources.use_callback:
       assert res.stats_resources.callback_finish_signal is not None
-      res.stats_resources.callback_finish_signal.wait(timeout=None)
+      self._wait_for_finish_signal(res.stats_resources.callback_finish_signal)
 
   def run_consumer(
     self,
@@ -408,6 +461,7 @@ class ProcessManager:
       inputs=inputs,
       completion_marker_queue=marker_queue,
       completion_dispatch_queue=dispatch_queue,
+      check_children_alive=self.raise_if_child_died,
     )
     consumer()
 
