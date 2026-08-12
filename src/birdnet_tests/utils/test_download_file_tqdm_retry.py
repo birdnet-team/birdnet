@@ -93,3 +93,46 @@ def test_server_error_is_retried_and_raised_when_attempts_are_exhausted(
     helper.download_file_tqdm("https://example.org/f", tmp_path / "f")
 
   assert len(calls) == helper._DOWNLOAD_ATTEMPTS
+
+
+def test_download_error_stays_a_value_error_and_keeps_the_status_message(
+  monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+  """Callers have always caught `ValueError` with a "Status code: 5xx" message.
+
+  `test_download_file_tqdm.py` relies on exactly that to skip when Zenodo is
+  answering 5xx, so the type and the message must survive the retry loop.
+  """
+
+  def fake_download(*args: object, **kwargs: object) -> int:
+    raise helper.DownloadError(
+      "Failed to download the file. Status code: 503\n"
+      "Expected size: 142 bytes, downloaded size: 0 bytes.",
+      status_code=503,
+    )
+
+  monkeypatch.setattr(helper, "_download_file_once", fake_download)
+
+  with pytest.raises(ValueError, match=r"Status code: 5\d\d"):
+    helper.download_file_tqdm("https://example.org/f", tmp_path / "f")
+
+
+def test_download_error_with_client_status_is_not_retried(
+  monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+  calls: list[int] = []
+
+  def fake_download(*args: object, **kwargs: object) -> int:
+    calls.append(1)
+    raise helper.DownloadError(
+      "Failed to download the file. Status code: 404\n"
+      "Expected size: 142 bytes, downloaded size: 9 bytes.",
+      status_code=404,
+    )
+
+  monkeypatch.setattr(helper, "_download_file_once", fake_download)
+
+  with pytest.raises(ValueError):
+    helper.download_file_tqdm("https://example.org/f", tmp_path / "f")
+
+  assert len(calls) == 1
