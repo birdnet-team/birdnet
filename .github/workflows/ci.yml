@@ -108,7 +108,23 @@ jobs:
       - name: Install audio system libs (Windows)
         if: startsWith(matrix.os, 'windows')
         run: |
-          choco install libsndfile
+          # choco pulls libsndfile from the community repo, which fails
+          # transiently often enough to redden Windows jobs before the tests
+          # even start (observed twice in one day, four jobs total). Same
+          # principle as the macOS step above: one transient fetch fault must
+          # not take the job down, so retry a few times before giving up.
+          $attempts = 0
+          while ($true) {
+            $attempts++
+            choco install libsndfile --no-progress -y
+            if ($LASTEXITCODE -eq 0) { break }
+            if ($attempts -ge 3) {
+              Write-Error "choco install libsndfile failed $attempts times"
+              exit 1
+            }
+            Write-Host "choco install failed (attempt $attempts), retrying in 30 s..."
+            Start-Sleep -Seconds 30
+          }
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6
