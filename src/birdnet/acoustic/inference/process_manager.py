@@ -6,11 +6,12 @@ import multiprocessing as mp
 import os
 import threading
 import time
+from collections.abc import Iterator
 from contextlib import suppress
 from logging import Logger
 from multiprocessing.process import BaseProcess
+from multiprocessing.synchronize import Event as EventType
 from pathlib import Path
-from queue import Empty
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -46,6 +47,10 @@ if TYPE_CHECKING:
 # die within a moment; this only bounds a child that ignores SIGTERM so teardown
 # can never hang on it.
 _TERMINATE_JOIN_TIMEOUT_S = 5.0
+# How often the parent looks up from an otherwise unbounded wait to check that
+# its children are still alive. Short enough that a dead child is reported
+# promptly, long enough to be free next to the work being waited on.
+_LIVENESS_POLL_INTERVAL_S = 1.0
 
 
 class ProcessManager:
@@ -75,6 +80,12 @@ class ProcessManager:
     self._perf_tracker_process: BaseProcess | None = None
     self._producer_processes: list[BaseProcess] | None = None
     self._worker_processes: list[BaseProcess] | None = None
+    self._child_death_error: ChildProcessError | None = None
+
+  @property
+  def child_death_error(self) -> ChildProcessError | None:
+    """Set when a child was found dead; the session surfaces it to the caller."""
+    return self._child_death_error
 
   def start_file_logging_thread(self) -> threading.Thread:
     logging_listener = threading.Thread(
@@ -330,6 +341,14 @@ class ProcessManager:
     self, input_data: list[Path] | list[tuple[np.ndarray, int]]
   ) -> None:
     res = self._res
+    # A reused session must not surface the previous run's diagnosis -- unless
+    # that run is still unresolved. `increment_run_nr` is the last statement of
+    # `_run`, so a failed run leaves `is_first_run` True and the next call
+    # skips `resources.reset()`, keeping the cancel event set. Clearing here
+    # would then replace a precise "worker X died" with a bare "cancelled" on
+    # exactly the retry where the user most needs the reason.
+    if not res.processing_resources.cancel_event.is_set():
+      self._child_death_error = None
     # start file analyzer
     self._logger.debug("[START_SIG] Starting file analyzer...")
     res.analyzer_resources.start_signal.set()
@@ -364,29 +383,145 @@ class ProcessManager:
       assert res.stats_resources.callback_start_signal is not None
       res.stats_resources.callback_start_signal.set()
 
+  def _iter_children_with_finish_signals(
+    self,
+  ) -> Iterator[tuple[BaseProcess, EventType]]:
+    """Every child process paired with the signal it sets when it is done."""
+    res = self._res
+    # strict=True on purpose: the lists are created 1:1 from the same counts, so
+    # a length mismatch is a broken invariant. Silently zipping to the shorter
+    # one would drop a child from the liveness check -- exactly the hang this is
+    # here to prevent -- so fail loudly instead.
+    if self._producer_processes is not None:
+      yield from zip(
+        self._producer_processes, res.producer_resources.finish_signals, strict=True
+      )
+    if self._worker_processes is not None:
+      yield from zip(
+        self._worker_processes, res.worker_resources.finish_signals, strict=True
+      )
+    perf_finish_signal = res.stats_resources.perf_res_finish_signal
+    if self._perf_tracker_process is not None and perf_finish_signal is not None:
+      yield self._perf_tracker_process, perf_finish_signal
+
+  def raise_if_child_died(self) -> None:
+    """Fail fast when a child process is gone without having signalled.
+
+    Every parent-side wait in a healthy run is unbounded on purpose: the run
+    takes as long as the audio requires. That only holds while the children are
+    actually working. A child killed by the OOM killer, or dying in a native
+    crash during its TensorFlow import, never sets its finish signal and never
+    puts its sentinel on the results queue, so an unbounded wait would block
+    forever with no output at all. Checking liveness turns that silent hang
+    into an error naming the process.
+
+    A process that exited *after* setting its finish signal is not an error:
+    that is the normal end-of-session shutdown path.
+
+    Marks the run cancelled before raising. The cancel event is what routes
+    teardown through ``_join_processes_after_cancel``, which drains the
+    child-to-parent queues while joining; the plain path assumes every child
+    still delivers its buffered data, which a dead one never will. Setting it
+    here keeps both callers consistent -- the consumer would set it via its own
+    exception handler, ``wait_until_all_finished`` has no such handler.
+
+    The error is also stored so the session can surface it to the caller: the
+    consumer's broad ``except Exception`` swallows it into a generic
+    "cancelled", and the process name and exit code are the only actionable
+    part.
+    """
+    for process, finish_signal in self._iter_children_with_finish_signals():
+      if process.is_alive() or finish_signal.is_set():
+        continue
+      if process.exitcode == 0:
+        # Children exit cleanly on their own when they see the cancel or end
+        # event while parked (see WorkerBase.run_main_loop). Reaching this
+        # means the session was already torn down and is being reused, which
+        # has nothing to do with memory -- say so rather than blaming the OOM
+        # killer.
+        message = (
+          f"Pipeline process '{process.name}' has already shut down, so this "
+          f"session can no longer run. Usually the session was cancelled or "
+          f"closed and is being reused, which is not supported -- create a "
+          f"new session with 'predict_session(..)'/'encode_session(..)'. If "
+          f"this is the first run, the process failed during start-up "
+          f"instead; the log holds the reason."
+        )
+      else:
+        message = (
+          f"Pipeline process '{process.name}' exited unexpectedly with exit "
+          f"code {process.exitcode} before it finished its work. This usually "
+          f"means the process was killed from the outside (e.g. by the OOM "
+          f"killer when memory ran out) or crashed in native code. Reducing "
+          f"'n_workers' or 'batch_size' lowers the memory needed per run."
+        )
+      self._logger.error(message)
+      error = ChildProcessError(message)
+      self._child_death_error = error
+      self._res.processing_resources.cancel_event.set()
+      raise error
+
+  def _wait_for_finish_signal(self, finish_signal: EventType | threading.Event) -> None:
+    """Wait for one finish signal, giving up if the run cannot finish.
+
+    Two ways it cannot: a child process died, or the run was cancelled.
+
+    The cancel case matters for ``ProgressDispatcher``, which the liveness
+    check cannot see because it is a thread, not a process: its callback is
+    invoked unguarded, so an exception escapes to its handler, which sets the
+    cancel event and returns *without* setting the finish signal. Waiting on
+    that signal would then block forever. (``FileCompletionDispatcher`` catches
+    its callback's exception internally and does signal, so it is safe either
+    way.)
+
+    Both conditions return rather than raise, so the caller's
+    ``_raise_if_cancelled`` reports every failure the same way. Letting the
+    ``ChildProcessError`` escape from here instead would surface an ``OSError``
+    to a caller that gets a ``RuntimeError`` from every other path.
+    """
+    while not finish_signal.wait(timeout=_LIVENESS_POLL_INTERVAL_S):
+      if self._res.processing_resources.cancel_event.is_set():
+        self._logger.debug("Run cancelled while waiting for a finish signal.")
+        return
+      try:
+        self.raise_if_child_died()
+      except ChildProcessError:
+        # Already logged, stored and marked cancelled by the check itself.
+        return
+
+  def wait_for_completion_dispatcher(
+    self, finish_signal: EventType | threading.Event
+  ) -> None:
+    """Wait for the per-file completion dispatcher, cancel- and liveness-aware.
+
+    Same guard as the finish-signal waits: this dispatcher is a thread, so a
+    callback that raises sets the cancel event and returns without signalling.
+    """
+    self._wait_for_finish_signal(finish_signal)
+
   def wait_until_all_finished(self) -> None:
     res = self._res
 
     # wait for file analyzer to finish
-    res.analyzer_resources.finish_signal.wait(timeout=None)
+    self._wait_for_finish_signal(res.analyzer_resources.finish_signal)
 
     # wait for producers to finish
     for i in range(res.producer_resources.n_producers):
-      res.producer_resources.finish_signals[i].wait(timeout=None)
+      self._wait_for_finish_signal(res.producer_resources.finish_signals[i])
 
     # wait for workers to finish
     for i in range(self._cfg.processing_conf.workers):
-      res.worker_resources.finish_signals[i].wait(timeout=None)
+      self._wait_for_finish_signal(res.worker_resources.finish_signals[i])
 
     # wait for performance tracker to finish
     if res.stats_resources.track_performance:
       assert res.stats_resources.perf_res_finish_signal is not None
-      res.stats_resources.perf_res_finish_signal.wait(timeout=None)
+      self._wait_for_finish_signal(res.stats_resources.perf_res_finish_signal)
 
     # wait for progress dispatcher to finish
     if res.stats_resources.use_callback:
       assert res.stats_resources.callback_finish_signal is not None
-      res.stats_resources.callback_finish_signal.wait(timeout=None)
+      self._wait_for_finish_signal(res.stats_resources.callback_finish_signal)
 
   def run_consumer(
     self,
@@ -408,6 +543,7 @@ class ProcessManager:
       inputs=inputs,
       completion_marker_queue=marker_queue,
       completion_dispatch_queue=dispatch_queue,
+      check_children_alive=self.raise_if_child_died,
     )
     consumer()
 
@@ -521,7 +657,17 @@ class ProcessManager:
         break
 
       for q in queues:
-        with suppress(Empty):
+        # Best-effort by design: this drain only exists to unblock the children
+        # so they can exit, and the run has already failed. A payload that
+        # arrived intact but cannot be deserialized surfaces as any number of
+        # exceptions, and letting one escape would abort __exit__ before the
+        # shared memory is released -- so none of them are enumerated.
+        #
+        # This does NOT cover a frame truncated by a child killed mid-``put``:
+        # get_nowait() only checks that *some* bytes are available and then
+        # blocks in _recv_bytes() for the rest, which never arrives. Nothing is
+        # raised, so no handler here can help; see issue #77.
+        with suppress(Exception):
           while True:
             q.get_nowait()
 
