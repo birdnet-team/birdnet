@@ -200,7 +200,10 @@ class RingBufferResources:
     )
 
   def reset(self) -> None:
-    pass
+    # Every run starts with an empty ring, so a wake-up permit left over from
+    # the last one is stale and would send a worker to scan it and assert.
+    while self.sem_filled_slots.acquire(block=False):
+      pass
 
   def set_all_flags_writeable(self) -> None:
     assert self._rf_flags_memory is not None
@@ -611,6 +614,24 @@ class StatisticsResources:
     object.__setattr__(self, "start", start)
     object.__setattr__(self, "start_time", start_time)
     object.__setattr__(self, "start_timepoint", start_timepoint)
+
+    # PerformanceTracker re-sets this on every run, so leaving it set would
+    # make the parent's wait return instantly on every run after the first --
+    # the run would proceed while the tracker was still working, and the
+    # liveness check on that wait would never execute.
+    if self.perf_res_finish_signal is not None:
+      self.perf_res_finish_signal.clear()
+
+    # Cleared for the same reason. It was previously left set because the
+    # dispatcher could fail to signal at all (a run with no stats never
+    # reached its exit), which made a stale signal the only thing keeping a
+    # reused session moving. Now that the closing stats are always published
+    # and the dispatcher also stops on the end event, leaving it set would
+    # mean the parent never actually waits for the dispatcher on any run
+    # after the first -- so runs 2+ would get no closing callback and the
+    # dispatcher could drift a run behind (#75).
+    if self.callback_finish_signal is not None:
+      self.callback_finish_signal.clear()
 
 
 @dataclass(frozen=True)

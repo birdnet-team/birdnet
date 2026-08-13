@@ -105,6 +105,16 @@ class AcousticSessionBase(
     assert self._logger is not None
 
     self._resources.ring_buffer_resources.set_all_flags_writeable()
+    # Drained unconditionally, unlike the full reset below: the shutdown hand-off
+    # leaves one wake-up permit outstanding after every run, while `is_first_run`
+    # only flips at the very end of `_run`. A first run that raises would leave
+    # the permit in place forever, and it would reach a worker on a run whose
+    # producers have not finished -- the "sem_fill was available" abort.
+    # The drain is only reliable once the workers are known to be done. On the
+    # cancel path the parent gets here without `wait_until_all_finished()`, and
+    # `CountedSemaphore.release` bumps its counter before releasing the
+    # semaphore, so a non-blocking drain can miss a permit still on its way.
+    self._resources.ring_buffer_resources.reset()
     if not self._resources.processing_resources.is_first_run:
       self._resources.reset()
 
@@ -145,11 +155,18 @@ class AcousticSessionBase(
     self._resources.processing_resources.processing_finished_event.set()
     self._process_manager.wait_until_all_finished()
 
+    # A child dying or a dispatcher callback raising during the waits above
+    # only sets the cancel event; without this the run would carry on into the
+    # collect_* calls below, which block on queues the dead child never fills.
+    self._raise_if_cancelled()
+
     # Ensure every per-file callback has fired before returning the aggregate
     # result, so the caller can rely on all files being persisted.
     if completion_active:
       assert self._resources.file_completion_resources.finish_signal is not None
-      self._resources.file_completion_resources.finish_signal.wait(timeout=None)
+      self._process_manager.wait_for_completion_dispatcher(
+        self._resources.file_completion_resources.finish_signal
+      )
 
       # The completion dispatcher runs on a background thread, so a callback
       # that raises can set cancel_event only now — after the check above, while
@@ -190,12 +207,26 @@ class AcousticSessionBase(
     return result
 
   def _raise_if_cancelled(self) -> None:
-    if self._resources.processing_resources.cancel_event.is_set():
-      raise RuntimeError(
-        f"Analysis was cancelled. "
-        f"Please check the logs: "
-        f"{self._resources.logging_resources.session_log_file.absolute()}"
-      )
+    if not self._resources.processing_resources.cancel_event.is_set():
+      return
+
+    message = (
+      f"Analysis was cancelled. "
+      f"Please check the logs: "
+      f"{self._resources.logging_resources.session_log_file.absolute()}"
+    )
+    # A child dying is detected deep inside the consumer, whose broad
+    # ``except Exception`` turns every failure into "cancelled". Without this
+    # the process name and exit code -- the only actionable part -- would reach
+    # the log but never the caller.
+    cause = (
+      self._process_manager.child_death_error
+      if self._process_manager is not None
+      else None
+    )
+    if cause is not None:
+      raise RuntimeError(f"{cause}\n\n{message}") from cause
+    raise RuntimeError(message)
 
   def cancel(self) -> None:
     if not self._is_initialized:

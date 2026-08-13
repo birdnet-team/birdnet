@@ -198,6 +198,21 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._finish_signal = finish_signal
     self._start = start
 
+    # Same rule the producers and workers follow: only "fork" children inherit
+    # parent state, so only then may logging and the ring flags be set up here
+    # in the parent. Attaching in the child instead is not fork-safe -- see
+    # Producer.__init__ for why resource_tracker.register() can wedge it.
+    self._lazy_init = start_method != "fork"
+
+    if not self._lazy_init:
+      self._init_logging()
+      self._load_ring_buffers()
+
+  def _load_ring_buffers(self) -> None:
+    self._log("Attaching ring flags...")
+    self._shm_ring_flags, self._ring_flags = self._rf_flags.attach_and_get_array()
+    self._log("Attached ring flags.")
+
   def _log(self, message: str) -> None:
     self._logger.debug(f"PT_{os.getpid()}: {message}")
 
@@ -214,10 +229,12 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     return False
 
   def __call__(self) -> None:
-    self._init_logging()
+    if self._lazy_init:
+      self._init_logging()
 
     try:
-      self._shm_ring_flags, self._ring_flags = self._rf_flags.attach_and_get_array()
+      if self._lazy_init:
+        self._load_ring_buffers()
       self.run_main_loop()
     except Exception as e:
       self._logger.exception(
@@ -340,6 +357,12 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
       if self._processing_finished_event.wait(self._update_every) and was_empty:
         self._log("Processing finished and queues empty.")
+        # `was_empty` was measured *before* the wait above, so everything the
+        # workers reported during it is still unread. On a short run that is
+        # every stat they ever send, which is why the closing update used to
+        # say "finished, nothing processed, 0%" for a run that processed
+        # everything. Drain once more so the last update is truthful.
+        self._track_stats()
         self._callback_stats(finished=True)
         break
       else:
@@ -410,6 +433,10 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
   def _track_semaphore_stats(self) -> None:
     self._wkr_busy_tracker.add_value(self._sem_active_workers.get_value())
+    # Not strictly the number of occupied ring slots: the shutdown wake-up
+    # travels as one extra permit on this semaphore (released by the last
+    # producer, relayed by each exiting worker), so this gauge reads one high
+    # from producer completion until the permit is consumed or drained.
     self._sem_filled_tracker.add_value(self._sem_filled_slots.get_value())
 
   def _track_ring_buffer_stats(self) -> None:
@@ -565,7 +592,12 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
   def _callback_stats(self, finished: bool) -> None:
     received_at_least_one_prediction = len(self._wkr_wall_times) > 0
-    if not received_at_least_one_prediction:
+    # The final stats are always published, even with nothing to report. The
+    # progress dispatcher only stops once it sees them, so skipping them left
+    # it looping forever and its finish signal never set -- the parent then
+    # waited on that signal for good (issue #75). Intermediate updates are
+    # still skipped while there is nothing to say.
+    if not received_at_least_one_prediction and not finished:
       return
 
     p_stats = ProducerStats(
@@ -853,8 +885,13 @@ class ProgressDispatcher:
       latest = self.get_last_stats()
 
       if latest is None:
-        # it has started, so ending is not possible, only canceling
         if self._check_cancel_event():
+          return
+        # Also stop when the session is closing. Without this the only exits
+        # are a cancel or stats flagged finished, so a dispatcher that fell out
+        # of step with the runs (see the finish-signal reset) could never end
+        # and `ProcessManager.join()` would block on it for good.
+        if self._check_end_event():
           return
       else:
         self._log("Received stats. Call callback function.")

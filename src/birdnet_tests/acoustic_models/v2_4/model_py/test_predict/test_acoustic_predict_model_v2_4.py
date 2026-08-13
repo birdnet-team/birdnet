@@ -28,6 +28,13 @@ from birdnet_tests.test_files import (
   TEST_FILE_SHORT_SCORE_SHAPE,
 )
 
+# Two independent TFLite/PB interpreter instances are not guaranteed to produce
+# bit-identical output for the same input: XNNPACK sizes its thread pool from
+# the cores it can see, and a different thread count changes the reduction
+# order. Comparisons that span sessions, processes or threads therefore use a
+# tolerance; a comparison served by a single interpreter stays exact.
+_CROSS_INSTANCE_MAX_ABS_DIFF = 1e-6
+
 
 def test_pb_cpu_fp32() -> None:
   model = load("acoustic", "2.4", "pb", precision="fp32")
@@ -339,7 +346,9 @@ def test_tflite_fp32_twice_two_sessions() -> None:
     res1 = session.run(TEST_FILE_SHORT)
   with model.predict_session(n_workers=1, top_k=None) as session:
     res2 = session.run(TEST_FILE_SHORT)
-  assert_prediction_result_is_equal(res1, res2)
+  assert_prediction_result_is_close(
+    res1, res2, max_abs_diff=_CROSS_INSTANCE_MAX_ABS_DIFF
+  )
 
 
 @pytest.mark.litert
@@ -350,7 +359,9 @@ def test_litert_fp32_twice_two_sessions() -> None:
     res1 = session.run(TEST_FILE_SHORT)
   with model.predict_session(n_workers=1, top_k=None) as session:
     res2 = session.run(TEST_FILE_SHORT)
-  assert_prediction_result_is_equal(res1, res2)
+  assert_prediction_result_is_close(
+    res1, res2, max_abs_diff=_CROSS_INSTANCE_MAX_ABS_DIFF
+  )
 
 
 def run_session_process(
@@ -365,7 +376,7 @@ def run_session_process(
 
 @pytest.mark.fork
 def test_tflite_fp32_twice_two_sessions_parallel_processes_fork() -> None:
-  ensure_not_mac_or_skip() # reason unknown why this hangs on macOS
+  ensure_not_mac_or_skip()  # reason unknown why this hangs on macOS
   use_fork_or_skip()
 
   with multiprocessing.Manager() as manager:
@@ -384,7 +395,9 @@ def test_tflite_fp32_twice_two_sessions_parallel_processes_fork() -> None:
     p1.join()
     p2.join()
 
-  assert_prediction_result_is_equal(res1, res2)
+  assert_prediction_result_is_close(
+    res1, res2, max_abs_diff=_CROSS_INSTANCE_MAX_ABS_DIFF
+  )
 
 
 def test_tflite_fp32_twice_two_sessions_parallel_processes_forkserver() -> None:
@@ -405,7 +418,9 @@ def test_tflite_fp32_twice_two_sessions_parallel_processes_forkserver() -> None:
     p1.join()
     p2.join()
 
-  assert_prediction_result_is_equal(res1, res2)
+  assert_prediction_result_is_close(
+    res1, res2, max_abs_diff=_CROSS_INSTANCE_MAX_ABS_DIFF
+  )
 
 
 def test_tflite_fp32_twice_two_sessions_parallel_processes_spawn() -> None:
@@ -426,7 +441,9 @@ def test_tflite_fp32_twice_two_sessions_parallel_processes_spawn() -> None:
     p1.join()
     p2.join()
 
-  assert_prediction_result_is_equal(res1, res2)
+  assert_prediction_result_is_close(
+    res1, res2, max_abs_diff=_CROSS_INSTANCE_MAX_ABS_DIFF
+  )
 
 
 def run_session_thread(barrier: threading.Barrier, queue: queue.Queue) -> None:
@@ -468,7 +485,9 @@ def xtest_tflite_fp32_twice_two_sessions_parallel_threads() -> None:
     t.join()
 
   for i in range(1, n_threads):
-    assert_prediction_result_is_equal(results[0], results[i])
+    assert_prediction_result_is_close(
+      results[0], results[i], max_abs_diff=_CROSS_INSTANCE_MAX_ABS_DIFF
+    )
 
 
 def test_tflite_fp32_twice_same_session() -> None:
@@ -485,7 +504,9 @@ def test_pb_cpu_fp32_twice_two_sessions() -> None:
     res1 = session.run(TEST_FILE_SHORT)
   with model.predict_session(n_workers=1, top_k=None) as session:
     res2 = session.run(TEST_FILE_SHORT)
-  assert_prediction_result_is_equal(res1, res2)
+  assert_prediction_result_is_close(
+    res1, res2, max_abs_diff=_CROSS_INSTANCE_MAX_ABS_DIFF
+  )
 
 
 @pytest.mark.gpu

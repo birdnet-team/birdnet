@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-08-11
+## [1.0.0] - 2026-08-14
 
 ### Added
 
@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bugfixes
 
+- A pipeline process that dies mid-run — typically killed by the operating system when memory runs out — is now reported with its name and exit code instead of leaving the call hanging forever. A worker killed *while processing a batch* is not covered: it still deadlocks the surviving workers on Linux and macOS (#73).
+- Fixed the progress callback's closing update. It reported zero processed segments for runs that had processed everything, and for a run that produced no predictions it published nothing at all — which left the call waiting indefinitely. The closing update is now always published and reflects what actually ran (#75).
+- Model, label and taxonomy downloads now survive transient network faults. A connection reset, read timeout, truncated stream or server-side 5xx during the first `load()` of a model used to fail the call outright; downloads are now retried with a growing back-off, while permanent client errors still fail immediately.
+- Removed a fixed ~1 s barrier from every `run_arrays(..)` call. On a warm session a 3 s clip went from 1069 ms to 39 ms and a 30 s clip from 1358 ms to 315 ms. This covers normal completion; a cancelled run still tears down on the poll interval.
+- Fixed an assertion firing in the prediction and encoding workers when the ring-buffer scan finds no readable slot, which aborted the run instead of letting the worker take the clean exit that was already there.
+- Producers and the performance tracker no longer attach the ring buffers from inside a `fork` child. `SharedMemory(create=False)` takes a lock that CPython does not reinitialize after `fork`, so such a child could block on the attach forever; the workers already avoided this by inheriting the parent's mappings.
 - Fixed corrupt rows in acoustic prediction/encoding output caused by growing the internal result buffer with `numpy.ndarray.resize` (plus an off-by-one in the initial segment count); buffers are now reallocated and copied (#50).
 - Geo model v3.0 caches now self-heal across releases: a cached SavedModel or label files from an older release were not detected as stale, so a version bump could keep serving outdated labels; both are now validated against the current release and re-fetched when they differ (#41).
 

@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import ctypes
 import hashlib
+import logging
 import math
 import os
 import tempfile
+import time
 from collections.abc import Generator, Iterable
 from dataclasses import dataclass
 from itertools import islice
@@ -365,7 +367,82 @@ def flat_softmax_fast(x: npt.NDArray) -> npt.NDArray:
   return exp_shifted / np.sum(exp_shifted, axis=1, keepdims=True)
 
 
+# Transient network faults (connection resets, read timeouts, truncated
+# streams, 5xx) must not fail a model/label download outright: every official
+# model goes through this helper, so a single fault would otherwise surface as
+# a failed `load()`. Client errors (4xx) are permanent and are raised at once.
+#
+# The back-off spans ~110 s in total because the observed failure mode is not a
+# single dropped packet: GitHub's release-download endpoint refuses connections
+# ("Remote end closed connection without response") for tens of seconds at a
+# time. A 20 s window was measured in CI to be too short -- a sibling step
+# retrying the same host after 30 s succeeded on its second try while this
+# helper exhausted three attempts. The wait is only ever paid on a download
+# that is already failing.
+_DOWNLOAD_ATTEMPTS = 5
+_DOWNLOAD_RETRY_WAITS_S = (5.0, 15.0, 30.0, 60.0)
+
+
+class DownloadError(ValueError):
+  """A download did not complete successfully.
+
+  Subclasses ``ValueError`` because that is what this helper has always raised
+  for a failed download; ``status_code`` is exposed so callers (and the retry
+  loop below) can tell a permanent client error from a retriable one.
+  """
+
+  def __init__(self, message: str, *, status_code: int | None = None) -> None:
+    super().__init__(message)
+    self.status_code = status_code
+
+
+def _is_retriable_download_error(error: Exception) -> bool:
+  import requests
+
+  status: int | None = None
+  if isinstance(error, DownloadError):
+    status = error.status_code
+  elif isinstance(error, requests.HTTPError) and error.response is not None:
+    status = error.response.status_code
+
+  # 4xx means we asked for something that does not exist or may not be read;
+  # repeating the request cannot change that. Everything else -- connection
+  # resets, timeouts, truncated streams, 5xx -- is worth another attempt.
+  is_client_error = status is not None and 400 <= status < 500
+  return not is_client_error
+
+
 def download_file_tqdm(
+  url: str,
+  file_path: Path,
+  *,
+  download_size: int | None = None,
+  description: str | None = None,
+) -> int:
+  import requests
+
+  attempt = 0
+  while True:
+    attempt += 1
+    try:
+      return _download_file_once(
+        url, file_path, download_size=download_size, description=description
+      )
+    except (requests.RequestException, ValueError) as error:
+      # Re-raise from inside the handler so the original traceback survives.
+      if attempt >= _DOWNLOAD_ATTEMPTS or not _is_retriable_download_error(error):
+        raise
+      wait_s = _DOWNLOAD_RETRY_WAITS_S[
+        min(attempt - 1, len(_DOWNLOAD_RETRY_WAITS_S) - 1)
+      ]
+      logging.getLogger(__name__).warning(
+        f"Download of {url} failed (attempt {attempt}/{_DOWNLOAD_ATTEMPTS}): "
+        f"{error}. Retrying in {wait_s:.0f} s..."
+      )
+      time.sleep(wait_s)
+
+
+def _download_file_once(
   url: str,
   file_path: Path,
   *,
@@ -399,9 +476,10 @@ def download_file_tqdm(
         file.write(data)
 
     if response.status_code != 200 or (total_size not in (0, tqdm_bar.n)):
-      raise ValueError(
+      raise DownloadError(
         f"Failed to download the file. Status code: {response.status_code}\n"
-        f"Expected size: {total_size} bytes, downloaded size: {tqdm_bar.n} bytes."
+        f"Expected size: {total_size} bytes, downloaded size: {tqdm_bar.n} bytes.",
+        status_code=response.status_code,
       )
 
     temp_path.replace(file_path)

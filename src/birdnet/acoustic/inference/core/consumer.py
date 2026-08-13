@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import queue
+from collections.abc import Callable
 from multiprocessing import Queue
 from multiprocessing.synchronize import Event
 from pathlib import Path
@@ -25,12 +26,16 @@ class Consumer:
     inputs: list[Path] | None = None,
     completion_marker_queue: Queue | None = None,
     completion_dispatch_queue: queue.Queue | None = None,
+    check_children_alive: Callable[[], None] | None = None,
   ) -> None:
     self._n_workers = n_workers
     self._queue = worker_queue
     self._tensor = tensor
     self._cancel_event = cancel_event
     self._logger = get_logger_from_session(session_id, __name__)
+    # Called on every idle poll below; raises if a worker died without putting
+    # its sentinel on the queue, which would otherwise wait here forever.
+    self._check_children_alive = check_children_alive
 
     # Per-file completion tracking (``on_file_complete``). Fully inert unless a
     # marker queue is provided, so the default hot path is byte-for-byte
@@ -84,6 +89,8 @@ class Consumer:
           if self._cancel_event.is_set():
             self._log("Cancel event set. Exiting.")
             return
+          if self._check_children_alive is not None:
+            self._check_children_alive()
 
       if self._cancel_event.is_set():
         self._log("Cancel event set. Exiting.")

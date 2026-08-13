@@ -154,7 +154,21 @@ class Producer(bn_logging.LogableProcessBase):
 
     self._cancel_event = cancel_event
 
+    # Same rule the workers follow (see WorkerBase.__init__): only "fork"
+    # children inherit parent state, so only then may logging and the ring
+    # buffers be set up here in the parent. Attaching them in the child instead
+    # is not fork-safe -- SharedMemory(create=False) calls
+    # resource_tracker.register(), which takes a module-level threading lock
+    # that CPython does not reinitialize after fork. A child that inherits it
+    # held by a thread which no longer exists blocks on the attach forever.
+    self._lazy_init = start_method != "fork"
+
+    if not self._lazy_init:
+      self._init_logging()
+      self._load_ring_buffers()
+
   def _load_ring_buffers(self) -> None:
+    self._log("Attaching ring buffers...")
     self._shm_file_indices, self._ring_file_indices = (
       self._rf_file_indices.attach_and_get_array()
     )
@@ -168,6 +182,7 @@ class Producer(bn_logging.LogableProcessBase):
       self._rf_batch_sizes.attach_and_get_array()
     )
     self._shm_ring_flags, self._ring_flags = self._rf_flags.attach_and_get_array()
+    self._log("Attached ring buffers.")
 
   def get_segments_from_input(
     self, input_idx: int, inp_data: Path | tuple[np.ndarray, int]
@@ -541,10 +556,12 @@ class Producer(bn_logging.LogableProcessBase):
     self._logger.debug(f"P_{os.getpid()}: {message}")
 
   def __call__(self) -> None:
-    self._init_logging()
+    if self._lazy_init:
+      self._init_logging()
 
     try:
-      self._load_ring_buffers()
+      if self._lazy_init:
+        self._load_ring_buffers()
 
       self._run_main_loop()
     except Exception as e:
@@ -600,6 +617,9 @@ class Producer(bn_logging.LogableProcessBase):
     if is_last_producer:
       self._log("Last producer finished.")
       self._all_finished.set()
+      # A parked worker cannot observe this event: a semaphore wait is not
+      # interruptible. Hand it a permit instead; each worker passes one on.
+      self._sem_filled_slots.release()
       assert_queue_is_empty(self._input_queue)
 
 
