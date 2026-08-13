@@ -615,6 +615,17 @@ class StatisticsResources:
     object.__setattr__(self, "start_time", start_time)
     object.__setattr__(self, "start_timepoint", start_timepoint)
 
+    # Both are re-set by their owner on every run (PerformanceTracker and
+    # ProgressDispatcher clear the start signal and set the finish signal per
+    # run). Leaving them set here would make the parent's wait for them return
+    # instantly on every run after the first -- so the run would proceed while
+    # they were still working, and any liveness check on that wait would never
+    # execute.
+    if self.perf_res_finish_signal is not None:
+      self.perf_res_finish_signal.clear()
+    if self.callback_finish_signal is not None:
+      self.callback_finish_signal.clear()
+
 
 @dataclass(frozen=True)
 class FileCompletionResources:

@@ -4,6 +4,7 @@ import contextvars
 import functools
 import multiprocessing as mp
 import os
+import pickle
 import threading
 import time
 from collections.abc import Iterator
@@ -81,6 +82,12 @@ class ProcessManager:
     self._perf_tracker_process: BaseProcess | None = None
     self._producer_processes: list[BaseProcess] | None = None
     self._worker_processes: list[BaseProcess] | None = None
+    self._child_death_error: ChildProcessError | None = None
+
+  @property
+  def child_death_error(self) -> ChildProcessError | None:
+    """Set when a child was found dead; the session surfaces it to the caller."""
+    return self._child_death_error
 
   def start_file_logging_thread(self) -> threading.Thread:
     logging_listener = threading.Thread(
@@ -336,6 +343,8 @@ class ProcessManager:
     self, input_data: list[Path] | list[tuple[np.ndarray, int]]
   ) -> None:
     res = self._res
+    # A reused session must not surface the previous run's diagnosis.
+    self._child_death_error = None
     # start file analyzer
     self._logger.debug("[START_SIG] Starting file analyzer...")
     res.analyzer_resources.start_signal.set()
@@ -411,25 +420,67 @@ class ProcessManager:
     still delivers its buffered data, which a dead one never will. Setting it
     here keeps both callers consistent -- the consumer would set it via its own
     exception handler, ``wait_until_all_finished`` has no such handler.
+
+    The error is also stored so the session can surface it to the caller: the
+    consumer's broad ``except Exception`` swallows it into a generic
+    "cancelled", and the process name and exit code are the only actionable
+    part.
     """
     for process, finish_signal in self._iter_children_with_finish_signals():
       if process.is_alive() or finish_signal.is_set():
         continue
-      message = (
-        f"Pipeline process '{process.name}' exited unexpectedly with exit code "
-        f"{process.exitcode} before it finished its work. This usually means "
-        f"the process was killed from the outside (e.g. by the OOM killer when "
-        f"memory ran out) or crashed in native code. Reducing 'n_workers' or "
-        f"'batch_size' lowers the memory needed per run."
-      )
+      if process.exitcode == 0:
+        # Children exit cleanly on their own when they see the cancel or end
+        # event while parked (see WorkerBase.run_main_loop). Reaching this
+        # means the session was already torn down and is being reused, which
+        # has nothing to do with memory -- say so rather than blaming the OOM
+        # killer.
+        message = (
+          f"Pipeline process '{process.name}' has already shut down, so this "
+          f"session can no longer run. A session whose run was cancelled (or "
+          f"that was closed) cannot be reused; create a new session with "
+          f"'predict_session(..)'/'encode_session(..)'."
+        )
+      else:
+        message = (
+          f"Pipeline process '{process.name}' exited unexpectedly with exit "
+          f"code {process.exitcode} before it finished its work. This usually "
+          f"means the process was killed from the outside (e.g. by the OOM "
+          f"killer when memory ran out) or crashed in native code. Reducing "
+          f"'n_workers' or 'batch_size' lowers the memory needed per run."
+        )
       self._logger.error(message)
+      error = ChildProcessError(message)
+      self._child_death_error = error
       self._res.processing_resources.cancel_event.set()
-      raise ChildProcessError(message)
+      raise error
 
   def _wait_for_finish_signal(self, finish_signal: EventType | threading.Event) -> None:
-    """Wait for one finish signal, failing fast if a child dies meanwhile."""
+    """Wait for one finish signal, giving up if the run cannot finish.
+
+    Two ways it cannot: a child process died (liveness check), or the run was
+    cancelled. The cancel case matters for the thread-backed children -- the
+    progress and file-completion dispatchers -- which the liveness check cannot
+    see because they are not processes. Both set the cancel event when their
+    callback raises and then return *without* setting their finish signal, so
+    waiting on it would block forever. Returning here lets the caller's
+    ``_raise_if_cancelled`` report it instead.
+    """
     while not finish_signal.wait(timeout=_LIVENESS_POLL_INTERVAL_S):
+      if self._res.processing_resources.cancel_event.is_set():
+        self._logger.debug("Run cancelled while waiting for a finish signal.")
+        return
       self.raise_if_child_died()
+
+  def wait_for_completion_dispatcher(
+    self, finish_signal: EventType | threading.Event
+  ) -> None:
+    """Wait for the per-file completion dispatcher, cancel- and liveness-aware.
+
+    Same guard as the finish-signal waits: this dispatcher is a thread, so a
+    callback that raises sets the cancel event and returns without signalling.
+    """
+    self._wait_for_finish_signal(finish_signal)
 
   def wait_until_all_finished(self) -> None:
     res = self._res
@@ -589,7 +640,12 @@ class ProcessManager:
         break
 
       for q in queues:
-        with suppress(Empty):
+        # Empty ends the drain normally. The rest cover a child killed
+        # mid-``put``: the pipe then holds a truncated pickle, so the next read
+        # raises instead of returning an item. Letting that escape would abort
+        # __exit__ before the shared memory is released, replacing the real
+        # diagnosis with an unpickling traceback.
+        with suppress(Empty, EOFError, OSError, pickle.UnpicklingError):
           while True:
             q.get_nowait()
 

@@ -36,6 +36,7 @@ class _StubManager:
     self._pairs = pairs
     self._logger = logging.getLogger(f"{__name__}.stub")
     self.cancel_event = threading.Event()
+    self._child_death_error: ChildProcessError | None = None
     self._res = SimpleNamespace(
       processing_resources=SimpleNamespace(cancel_event=self.cancel_event)
     )
@@ -44,6 +45,34 @@ class _StubManager:
     return iter(self._pairs)
 
   raise_if_child_died = ProcessManager.raise_if_child_died
+
+
+class _PairsStub:
+  """Exercises the real `_iter_children_with_finish_signals`.
+
+  The manager attributes it reads are set directly, so the pairing logic and
+  its `strict=True` invariant are tested rather than replaced by a stub.
+  """
+
+  def __init__(
+    self,
+    producers: list[_FakeProcess] | None,
+    producer_signals: list[threading.Event],
+    workers: list[_FakeProcess] | None,
+    worker_signals: list[threading.Event],
+    tracker: _FakeProcess | None = None,
+    tracker_signal: threading.Event | None = None,
+  ) -> None:
+    self._producer_processes = producers
+    self._worker_processes = workers
+    self._perf_tracker_process = tracker
+    self._res = SimpleNamespace(
+      producer_resources=SimpleNamespace(finish_signals=producer_signals),
+      worker_resources=SimpleNamespace(finish_signals=worker_signals),
+      stats_resources=SimpleNamespace(perf_res_finish_signal=tracker_signal),
+    )
+
+  _iter_children_with_finish_signals = ProcessManager._iter_children_with_finish_signals
 
 
 def _signal(*, is_set: bool) -> threading.Event:
@@ -127,3 +156,70 @@ def test_healthy_children_do_not_mark_the_run_cancelled() -> None:
   manager.raise_if_child_died()
 
   assert not manager.cancel_event.is_set()
+
+
+def test_a_child_that_shut_down_cleanly_is_not_blamed_on_memory() -> None:
+  """Exit code 0 means the child saw cancel/end while parked and left.
+
+  Reached when a session whose run was cancelled is used again: every child is
+  already gone and `reset()` has cleared the finish signals. Reporting that as
+  an OOM kill would send users tuning `n_workers` for no reason.
+  """
+  manager = _StubManager(
+    [(_FakeProcess("Worker-0", alive=False, exitcode=0), _signal(is_set=False))]
+  )
+
+  with pytest.raises(ChildProcessError, match="can no longer run") as excinfo:
+    manager.raise_if_child_died()
+
+  assert "OOM" not in str(excinfo.value)
+  assert "n_workers" not in str(excinfo.value)
+
+
+def test_the_reported_error_is_stored_for_the_session_to_surface() -> None:
+  """The consumer swallows the exception, so the session reads it from here."""
+  manager = _StubManager(
+    [(_FakeProcess("Worker-1", alive=False, exitcode=-9), _signal(is_set=False))]
+  )
+
+  with pytest.raises(ChildProcessError) as excinfo:
+    manager.raise_if_child_died()
+
+  assert manager._child_death_error is excinfo.value
+
+
+# --- the real pairing logic (no stub for _iter_children_with_finish_signals) --
+
+
+def test_pairing_covers_producers_workers_and_the_tracker() -> None:
+  stub = _PairsStub(
+    [_FakeProcess("P0", alive=True)],
+    [_signal(is_set=False)],
+    [_FakeProcess("W0", alive=True), _FakeProcess("W1", alive=True)],
+    [_signal(is_set=False), _signal(is_set=False)],
+    _FakeProcess("PT", alive=True),
+    _signal(is_set=False),
+  )
+
+  names = [p.name for p, _ in stub._iter_children_with_finish_signals()]
+
+  assert names == ["P0", "W0", "W1", "PT"]
+
+
+def test_pairing_skips_process_groups_that_were_never_started() -> None:
+  stub = _PairsStub(None, [], None, [], None, None)
+
+  assert list(stub._iter_children_with_finish_signals()) == []
+
+
+def test_pairing_fails_loudly_when_counts_diverge() -> None:
+  """strict=True: zipping to the shorter list would silently drop a child."""
+  stub = _PairsStub(
+    [_FakeProcess("P0", alive=True), _FakeProcess("P1", alive=True)],
+    [_signal(is_set=False)],  # one signal for two producers
+    None,
+    [],
+  )
+
+  with pytest.raises(ValueError, match="argument"):
+    list(stub._iter_children_with_finish_signals())
