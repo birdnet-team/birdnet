@@ -4,7 +4,6 @@ import contextvars
 import functools
 import multiprocessing as mp
 import os
-import pickle
 import threading
 import time
 from collections.abc import Iterator
@@ -13,7 +12,6 @@ from logging import Logger
 from multiprocessing.process import BaseProcess
 from multiprocessing.synchronize import Event as EventType
 from pathlib import Path
-from queue import Empty
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -343,8 +341,14 @@ class ProcessManager:
     self, input_data: list[Path] | list[tuple[np.ndarray, int]]
   ) -> None:
     res = self._res
-    # A reused session must not surface the previous run's diagnosis.
-    self._child_death_error = None
+    # A reused session must not surface the previous run's diagnosis -- unless
+    # that run is still unresolved. `increment_run_nr` is the last statement of
+    # `_run`, so a failed run leaves `is_first_run` True and the next call
+    # skips `resources.reset()`, keeping the cancel event set. Clearing here
+    # would then replace a precise "worker X died" with a bare "cancelled" on
+    # exactly the retry where the user most needs the reason.
+    if not res.processing_resources.cancel_event.is_set():
+      self._child_death_error = None
     # start file analyzer
     self._logger.debug("[START_SIG] Starting file analyzer...")
     res.analyzer_resources.start_signal.set()
@@ -437,9 +441,11 @@ class ProcessManager:
         # killer.
         message = (
           f"Pipeline process '{process.name}' has already shut down, so this "
-          f"session can no longer run. A session whose run was cancelled (or "
-          f"that was closed) cannot be reused; create a new session with "
-          f"'predict_session(..)'/'encode_session(..)'."
+          f"session can no longer run. Usually the session was cancelled or "
+          f"closed and is being reused, which is not supported -- create a "
+          f"new session with 'predict_session(..)'/'encode_session(..)'. If "
+          f"this is the first run, the process failed during start-up "
+          f"instead; the log holds the reason."
         )
       else:
         message = (
@@ -458,19 +464,30 @@ class ProcessManager:
   def _wait_for_finish_signal(self, finish_signal: EventType | threading.Event) -> None:
     """Wait for one finish signal, giving up if the run cannot finish.
 
-    Two ways it cannot: a child process died (liveness check), or the run was
-    cancelled. The cancel case matters for the thread-backed children -- the
-    progress and file-completion dispatchers -- which the liveness check cannot
-    see because they are not processes. Both set the cancel event when their
-    callback raises and then return *without* setting their finish signal, so
-    waiting on it would block forever. Returning here lets the caller's
-    ``_raise_if_cancelled`` report it instead.
+    Two ways it cannot: a child process died, or the run was cancelled.
+
+    The cancel case matters for ``ProgressDispatcher``, which the liveness
+    check cannot see because it is a thread, not a process: its callback is
+    invoked unguarded, so an exception escapes to its handler, which sets the
+    cancel event and returns *without* setting the finish signal. Waiting on
+    that signal would then block forever. (``FileCompletionDispatcher`` catches
+    its callback's exception internally and does signal, so it is safe either
+    way.)
+
+    Both conditions return rather than raise, so the caller's
+    ``_raise_if_cancelled`` reports every failure the same way. Letting the
+    ``ChildProcessError`` escape from here instead would surface an ``OSError``
+    to a caller that gets a ``RuntimeError`` from every other path.
     """
     while not finish_signal.wait(timeout=_LIVENESS_POLL_INTERVAL_S):
       if self._res.processing_resources.cancel_event.is_set():
         self._logger.debug("Run cancelled while waiting for a finish signal.")
         return
-      self.raise_if_child_died()
+      try:
+        self.raise_if_child_died()
+      except ChildProcessError:
+        # Already logged, stored and marked cancelled by the check itself.
+        return
 
   def wait_for_completion_dispatcher(
     self, finish_signal: EventType | threading.Event
@@ -640,12 +657,15 @@ class ProcessManager:
         break
 
       for q in queues:
-        # Empty ends the drain normally. The rest cover a child killed
-        # mid-``put``: the pipe then holds a truncated pickle, so the next read
-        # raises instead of returning an item. Letting that escape would abort
-        # __exit__ before the shared memory is released, replacing the real
-        # diagnosis with an unpickling traceback.
-        with suppress(Empty, EOFError, OSError, pickle.UnpicklingError):
+        # Best-effort by design: this drain only exists to unblock the children
+        # so they can exit, and the run has already failed. A child killed
+        # mid-``put`` can leave a partial message, and what that surfaces as
+        # depends on how far the write got -- EOFError, an unpickling error, or
+        # any exception the payload's own __setstate__ raises. Enumerating them
+        # would be guesswork; letting any of them escape would abort __exit__
+        # before the shared memory is released, replacing the real diagnosis
+        # with an unpickling traceback.
+        with suppress(Exception):
           while True:
             q.get_nowait()
 

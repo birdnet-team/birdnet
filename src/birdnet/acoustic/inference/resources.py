@@ -615,16 +615,22 @@ class StatisticsResources:
     object.__setattr__(self, "start_time", start_time)
     object.__setattr__(self, "start_timepoint", start_timepoint)
 
-    # Both are re-set by their owner on every run (PerformanceTracker and
-    # ProgressDispatcher clear the start signal and set the finish signal per
-    # run). Leaving them set here would make the parent's wait for them return
-    # instantly on every run after the first -- so the run would proceed while
-    # they were still working, and any liveness check on that wait would never
-    # execute.
+    # PerformanceTracker re-sets this on every run, so leaving it set would
+    # make the parent's wait return instantly on every run after the first --
+    # the run would proceed while the tracker was still working, and the
+    # liveness check on that wait would never execute.
     if self.perf_res_finish_signal is not None:
       self.perf_res_finish_signal.clear()
-    if self.callback_finish_signal is not None:
-      self.callback_finish_signal.clear()
+
+    # callback_finish_signal is deliberately NOT cleared. ProgressDispatcher
+    # only returns once it receives stats marked finished, and no stats are
+    # produced at all when a run makes no predictions (PerformanceTracker
+    # ._callback_stats returns early while no worker timings exist, e.g. every
+    # input unprocessable). It then loops forever and never signals. Clearing
+    # here would turn such a run -- which currently completes, because the
+    # signal is still set from the previous one -- into a permanent hang. See
+    # issue #75; once the dispatcher always signals, this should be cleared
+    # alongside the tracker's.
 
 
 @dataclass(frozen=True)

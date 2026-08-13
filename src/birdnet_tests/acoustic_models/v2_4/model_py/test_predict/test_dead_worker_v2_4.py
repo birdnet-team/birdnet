@@ -140,6 +140,13 @@ def test_healthy_run_is_unaffected_and_the_check_polls_rather_than_per_block(
   assert len(result.unprocessable_inputs) == 0
   assert result.species_probs.shape[1] == _EXPECTED_SEGMENTS
 
+  # Lower bound first: without it every assertion here would still pass with
+  # the check deleted from the pipeline entirely. A session's first run always
+  # idles while the workers load their models, so it must fire at least once.
+  assert calls, (
+    "the liveness check never ran, so it is not wired into the pipeline at all"
+  )
+
   # One waiter can fire at most once per second; a couple of waits overlap
   # (consumer, then the tail signals), so allow a small constant on top.
   budget = int(elapsed_s) + 4
