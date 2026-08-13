@@ -375,13 +375,17 @@ class ProcessManager:
   ) -> Iterator[tuple[BaseProcess, EventType]]:
     """Every child process paired with the signal it sets when it is done."""
     res = self._res
+    # strict=True on purpose: the lists are created 1:1 from the same counts, so
+    # a length mismatch is a broken invariant. Silently zipping to the shorter
+    # one would drop a child from the liveness check -- exactly the hang this is
+    # here to prevent -- so fail loudly instead.
     if self._producer_processes is not None:
       yield from zip(
-        self._producer_processes, res.producer_resources.finish_signals, strict=False
+        self._producer_processes, res.producer_resources.finish_signals, strict=True
       )
     if self._worker_processes is not None:
       yield from zip(
-        self._worker_processes, res.worker_resources.finish_signals, strict=False
+        self._worker_processes, res.worker_resources.finish_signals, strict=True
       )
     perf_finish_signal = res.stats_resources.perf_res_finish_signal
     if self._perf_tracker_process is not None and perf_finish_signal is not None:
@@ -400,17 +404,27 @@ class ProcessManager:
 
     A process that exited *after* setting its finish signal is not an error:
     that is the normal end-of-session shutdown path.
+
+    Marks the run cancelled before raising. The cancel event is what routes
+    teardown through ``_join_processes_after_cancel``, which drains the
+    child-to-parent queues while joining; the plain path assumes every child
+    still delivers its buffered data, which a dead one never will. Setting it
+    here keeps both callers consistent -- the consumer would set it via its own
+    exception handler, ``wait_until_all_finished`` has no such handler.
     """
     for process, finish_signal in self._iter_children_with_finish_signals():
       if process.is_alive() or finish_signal.is_set():
         continue
-      raise ChildProcessError(
+      message = (
         f"Pipeline process '{process.name}' exited unexpectedly with exit code "
         f"{process.exitcode} before it finished its work. This usually means "
         f"the process was killed from the outside (e.g. by the OOM killer when "
         f"memory ran out) or crashed in native code. Reducing 'n_workers' or "
         f"'batch_size' lowers the memory needed per run."
       )
+      self._logger.error(message)
+      self._res.processing_resources.cancel_event.set()
+      raise ChildProcessError(message)
 
   def _wait_for_finish_signal(self, finish_signal: EventType | threading.Event) -> None:
     """Wait for one finish signal, failing fast if a child dies meanwhile."""

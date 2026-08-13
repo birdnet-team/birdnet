@@ -10,7 +10,9 @@ error; the end-to-end proof is in
 
 from __future__ import annotations
 
+import logging
 import threading
+from types import SimpleNamespace
 
 import pytest
 
@@ -28,10 +30,15 @@ class _FakeProcess:
 
 
 class _StubManager:
-  """Only what `raise_if_child_died` touches: the child/signal pairs."""
+  """Only what `raise_if_child_died` touches: pairs, logger, cancel event."""
 
   def __init__(self, pairs: list[tuple[_FakeProcess, threading.Event]]) -> None:
     self._pairs = pairs
+    self._logger = logging.getLogger(f"{__name__}.stub")
+    self.cancel_event = threading.Event()
+    self._res = SimpleNamespace(
+      processing_resources=SimpleNamespace(cancel_event=self.cancel_event)
+    )
 
   def _iter_children_with_finish_signals(self):  # noqa: ANN202
     return iter(self._pairs)
@@ -91,3 +98,32 @@ def test_child_that_exited_zero_without_signalling_is_reported() -> None:
 
 def test_no_children_is_not_an_error() -> None:
   _StubManager([]).raise_if_child_died()
+
+
+def test_reporting_a_dead_child_marks_the_run_cancelled() -> None:
+  """The cancel event routes teardown through the queue-draining join.
+
+  `wait_until_all_finished` has no exception handler of its own, so without
+  this the error would escape with the run still marked healthy and `join()`
+  would take the path that waits for buffered data a dead child never sends --
+  moving the hang to teardown instead of removing it.
+  """
+  manager = _StubManager(
+    [(_FakeProcess("Worker-0", alive=False, exitcode=-9), _signal(is_set=False))]
+  )
+  assert not manager.cancel_event.is_set()
+
+  with pytest.raises(ChildProcessError):
+    manager.raise_if_child_died()
+
+  assert manager.cancel_event.is_set()
+
+
+def test_healthy_children_do_not_mark_the_run_cancelled() -> None:
+  manager = _StubManager(
+    [(_FakeProcess("Worker-0", alive=True), _signal(is_set=False))]
+  )
+
+  manager.raise_if_child_died()
+
+  assert not manager.cancel_event.is_set()
