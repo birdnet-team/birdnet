@@ -102,12 +102,7 @@ class ValueTracker:
 
   @property
   def last_val(self) -> float:
-    # nan rather than an assertion when nothing was ever tracked, matching
-    # median_val. A run can legitimately produce no values at all (e.g. every
-    # input unprocessable), and the stats built from these are reported, not
-    # computed with.
-    if len(self._values) == 0:
-      return float(np.nan)
+    assert len(self._values) > 0
     return self._values[-1]
 
   @property
@@ -362,6 +357,12 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
       if self._processing_finished_event.wait(self._update_every) and was_empty:
         self._log("Processing finished and queues empty.")
+        # `was_empty` was measured *before* the wait above, so everything the
+        # workers reported during it is still unread. On a short run that is
+        # every stat they ever send, which is why the closing update used to
+        # say "finished, nothing processed, 0%" for a run that processed
+        # everything. Drain once more so the last update is truthful.
+        self._track_stats()
         self._callback_stats(finished=True)
         break
       else:
@@ -884,8 +885,13 @@ class ProgressDispatcher:
       latest = self.get_last_stats()
 
       if latest is None:
-        # it has started, so ending is not possible, only canceling
         if self._check_cancel_event():
+          return
+        # Also stop when the session is closing. Without this the only exits
+        # are a cancel or stats flagged finished, so a dispatcher that fell out
+        # of step with the runs (see the finish-signal reset) could never end
+        # and `ProcessManager.join()` would block on it for good.
+        if self._check_end_event():
           return
       else:
         self._log("Received stats. Call callback function.")
