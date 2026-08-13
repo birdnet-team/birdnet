@@ -508,7 +508,11 @@ class AcousticModelV3_0(AcousticModelBase):
 
     ``n_workers`` sets the number of inference worker processes. Its default value,
     ``None``, uses the number of physical CPU cores. Pass a fixed integer to meet a
-    scheduler or container process limit.
+    scheduler or container process limit. Each worker holds its own copy of the
+    model, so a high count raises peak memory use. If the operating system kills
+    a worker to reclaim memory while it is processing a batch, the run can stop
+    making progress instead of raising on Linux and macOS (see issue #73);
+    lowering ``n_workers`` or ``batch_size`` avoids getting close to that limit.
 
     This method creates one prediction session for the call. That session shuts down
     its producer and worker processes before this method returns, including when

@@ -521,6 +521,12 @@ class AcousticModelV2_4(AcousticModelBase):
       n_producers: Threads tasked with producing audio batches.
       n_workers: Number of inference worker processes. ``None`` uses the number of
         physical CPU cores. Pass a fixed integer to meet a process limit.
+        Each worker holds its own copy of the model, so a high count raises
+        peak memory use. If the operating system kills a worker to reclaim
+        memory while it is processing a batch, the run can stop making
+        progress instead of raising on Linux and macOS (see issue #73);
+        lowering ``n_workers`` or ``batch_size`` avoids getting close to that
+        limit.
       batch_size: Number of records evaluated per inference call.
       prefetch_ratio: How many batches to decode ahead of processing.
       overlap_duration_s: Seconds of overlap between sliding windows.
