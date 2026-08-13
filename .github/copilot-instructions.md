@@ -21,12 +21,27 @@ when reviewing PRs. Everything here can be verified from the diff text alone.
 - **Timing tests.** Latency/duration assertions must test invariants — e.g. the
   minimum of several samples against a floor — never a mean or median, which
   flakes on loaded CI runners.
+- **Cross-instance result comparisons.** A test comparing results produced by
+  *different* interpreter instances — separate sessions, separate processes,
+  separate threads, or `n_workers > 1` — must use a tolerance
+  (`assert_prediction_result_is_close`), never exact float equality. Two
+  interpreters need not agree to the last bit, because the thread pool is sized
+  from the visible cores and that changes the reduction order. Exact equality is
+  correct only when a single interpreter produced both results (one session,
+  `n_workers=1`).
+- **Tests for a hang.** A test whose failure mode is the pipeline not returning
+  must run the session in a worker thread behind a deadline, so a regression
+  fails with a readable message instead of wedging until the suite timeout.
 
 ## Context to avoid false positives
 
-- Red `fork`-lane CI (600 s timeouts in `*_parallel_processes_fork` tests or
-  `test_pb_cpu_fork` on macOS) is a known pre-existing race. Before attributing
-  it to the PR, check whether the same failure signature occurs on `main`.
+- A red `fork` lane on Linux or Windows is *not* expected any more. The
+  intermittent 600 s wedges there were fixed by moving the ring-buffer attach out
+  of the fork children (#67), and the lane has been green since. Treat one as a
+  real finding rather than known noise.
+- The exception is macOS `test_pb_cpu_fork`, which can still die in a native
+  TensorFlow crash inside a forked child. That is the fork-after-TensorFlow
+  limitation `birdnet_tests/conftest.py` documents, not something a PR caused.
 - Coverage warnings on fork-only branches are structural: the coverage lane
   cannot exercise every start method. Do not request tests solely to satisfy
   patch coverage there.
