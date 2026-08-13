@@ -102,7 +102,12 @@ class ValueTracker:
 
   @property
   def last_val(self) -> float:
-    assert len(self._values) > 0
+    # nan rather than an assertion when nothing was ever tracked, matching
+    # median_val. A run can legitimately produce no values at all (e.g. every
+    # input unprocessable), and the stats built from these are reported, not
+    # computed with.
+    if len(self._values) == 0:
+      return float(np.nan)
     return self._values[-1]
 
   @property
@@ -586,7 +591,12 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
   def _callback_stats(self, finished: bool) -> None:
     received_at_least_one_prediction = len(self._wkr_wall_times) > 0
-    if not received_at_least_one_prediction:
+    # The final stats are always published, even with nothing to report. The
+    # progress dispatcher only stops once it sees them, so skipping them left
+    # it looping forever and its finish signal never set -- the parent then
+    # waited on that signal for good (issue #75). Intermediate updates are
+    # still skipped while there is nothing to say.
+    if not received_at_least_one_prediction and not finished:
       return
 
     p_stats = ProducerStats(
