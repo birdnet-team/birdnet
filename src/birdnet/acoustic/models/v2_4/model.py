@@ -522,11 +522,12 @@ class AcousticModelV2_4(AcousticModelBase):
       n_workers: Number of inference worker processes. ``None`` uses the number of
         physical CPU cores. Pass a fixed integer to meet a process limit.
         Each worker holds its own copy of the model, so a high count raises
-        peak memory use. If the operating system kills a worker to reclaim
-        memory while it is processing a batch, the run can stop making
-        progress instead of raising on Linux and macOS (see issue #73);
-        lowering ``n_workers`` or ``batch_size`` avoids getting close to that
-        limit.
+        peak memory use. On Linux and macOS, a worker killed by the operating
+        system to reclaim memory *while processing a batch* deadlocks the run:
+        the killed process never releases the lock it was holding, so the
+        remaining workers wait on it forever and the call never returns (see
+        issue #73). Lowering ``n_workers`` or ``batch_size`` reduces peak
+        memory and with it how likely such a kill is, but cannot rule it out.
       batch_size: Number of records evaluated per inference call.
       prefetch_ratio: How many batches to decode ahead of processing.
       overlap_duration_s: Seconds of overlap between sliding windows.
