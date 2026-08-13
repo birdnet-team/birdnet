@@ -658,13 +658,15 @@ class ProcessManager:
 
       for q in queues:
         # Best-effort by design: this drain only exists to unblock the children
-        # so they can exit, and the run has already failed. A child killed
-        # mid-``put`` can leave a partial message, and what that surfaces as
-        # depends on how far the write got -- EOFError, an unpickling error, or
-        # any exception the payload's own __setstate__ raises. Enumerating them
-        # would be guesswork; letting any of them escape would abort __exit__
-        # before the shared memory is released, replacing the real diagnosis
-        # with an unpickling traceback.
+        # so they can exit, and the run has already failed. A payload that
+        # arrived intact but cannot be deserialized surfaces as any number of
+        # exceptions, and letting one escape would abort __exit__ before the
+        # shared memory is released -- so none of them are enumerated.
+        #
+        # This does NOT cover a frame truncated by a child killed mid-``put``:
+        # get_nowait() only checks that *some* bytes are available and then
+        # blocks in _recv_bytes() for the rest, which never arrives. Nothing is
+        # raised, so no handler here can help; see issue #77.
         with suppress(Exception):
           while True:
             q.get_nowait()
