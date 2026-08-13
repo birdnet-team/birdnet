@@ -622,15 +622,16 @@ class StatisticsResources:
     if self.perf_res_finish_signal is not None:
       self.perf_res_finish_signal.clear()
 
-    # callback_finish_signal is deliberately NOT cleared. ProgressDispatcher
-    # only returns once it receives stats marked finished, and no stats are
-    # produced at all when a run makes no predictions (PerformanceTracker
-    # ._callback_stats returns early while no worker timings exist, e.g. every
-    # input unprocessable). It then loops forever and never signals. Clearing
-    # here would turn such a run -- which currently completes, because the
-    # signal is still set from the previous one -- into a permanent hang. See
-    # issue #75; once the dispatcher always signals, this should be cleared
-    # alongside the tracker's.
+    # Cleared for the same reason. It was previously left set because the
+    # dispatcher could fail to signal at all (a run with no stats never
+    # reached its exit), which made a stale signal the only thing keeping a
+    # reused session moving. Now that the closing stats are always published
+    # and the dispatcher also stops on the end event, leaving it set would
+    # mean the parent never actually waits for the dispatcher on any run
+    # after the first -- so runs 2+ would get no closing callback and the
+    # dispatcher could drift a run behind (#75).
+    if self.callback_finish_signal is not None:
+      self.callback_finish_signal.clear()
 
 
 @dataclass(frozen=True)
