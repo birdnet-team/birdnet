@@ -25,6 +25,7 @@ CLIP_DURATION_S = 30.0
 EXPECTED_N_SEGMENTS = 10
 N_WORKERS = 2
 N_CALLS = 5
+_MAX_ABS_DIFF = 1e-6
 
 
 def _noise_clip() -> tuple[np.ndarray, int]:
@@ -43,8 +44,15 @@ def test_reused_session_with_multiple_workers_keeps_returning_full_results() -> 
 
     for call_nr in range(2, N_CALLS + 1):
       current = session.run_arrays(audio)
-      np.testing.assert_array_equal(
+      # Not bit-exact: with two workers a segment can be inferred by either
+      # interpreter instance, and two instances need not agree to the last bit
+      # (XNNPACK sizes its thread pool from the visible cores, which changes
+      # the reduction order). The invariant under test is that a reused session
+      # keeps returning the same results, not that floats are identical.
+      np.testing.assert_allclose(
         current.species_probs,
         first.species_probs,
+        rtol=0,
+        atol=_MAX_ABS_DIFF,
         err_msg=f"call {call_nr} of {N_CALLS} disagrees with the first call",
       )
