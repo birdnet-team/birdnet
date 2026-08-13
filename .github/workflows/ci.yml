@@ -42,9 +42,14 @@ jobs:
     # deadlock from the general suite; the isolated fork lanes can still burn up to
     # the 600 s per-test timeout each when that inherent deadlock fires. Budget is
     # set by the fattest cell, ubuntu 3.12, which runs three tox envs (py312 +
-    # py312-repro + py312-coverage, ~45 min healthy): 40 was proven too tight when
-    # a repro fork-lane deadlock pushed it over.
-    timeout-minutes: 50
+    # py312-repro + py312-coverage): 40 was proven too tight when a repro
+    # fork-lane deadlock pushed it over, and 50 then expired 9 s after that cell
+    # had finished every step successfully (run 31711506220: 50 min 09 s, all
+    # steps green, killed during post-job cleanup) -- the suite has simply grown.
+    # Note the wall time is dominated by running the same tests three times over;
+    # splitting the three envs into separate jobs would cut it rather than raise
+    # the ceiling again.
+    timeout-minutes: 65
 
     env:
       # Fixed, cacheable location for birdnet's model/label downloads so the ~11 min
