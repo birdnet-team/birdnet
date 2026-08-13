@@ -45,6 +45,7 @@ class _StubManager:
     return iter(self._pairs)
 
   raise_if_child_died = ProcessManager.raise_if_child_died
+  _wait_for_finish_signal = ProcessManager._wait_for_finish_signal
 
 
 class _PairsStub:
@@ -223,3 +224,61 @@ def test_pairing_fails_loudly_when_counts_diverge() -> None:
 
   with pytest.raises(ValueError, match="argument"):
     list(stub._iter_children_with_finish_signals())
+
+
+# --- _wait_for_finish_signal: it must give up, never raise and never block ---
+#
+# Both exits below were added because the caller (`session._run`) always calls
+# `_raise_if_cancelled` straight after, which turns the stored error into the
+# same RuntimeError every other failure path produces. Mutation testing showed
+# neither exit was covered: deleting either left the whole suite green.
+
+
+def _never_set() -> threading.Event:
+  return threading.Event()
+
+
+def test_wait_gives_up_when_a_child_dies_rather_than_raising() -> None:
+  """Raising here would surface an OSError where callers expect RuntimeError.
+
+  It must also not keep waiting: the signal in this test is never set, so a
+  wait that ignored the dead child would hang the test.
+  """
+  manager = _StubManager(
+    [(_FakeProcess("Worker-0", alive=False, exitcode=-9), _signal(is_set=False))]
+  )
+
+  manager._wait_for_finish_signal(_never_set())
+
+  assert manager.cancel_event.is_set(), "the run must be marked cancelled"
+  assert manager._child_death_error is not None, (
+    "the diagnosis must be stored for the session to surface"
+  )
+
+
+def test_wait_gives_up_when_the_run_was_cancelled() -> None:
+  """ProgressDispatcher sets the cancel event and returns without signalling.
+
+  It is a thread, so the liveness check cannot see it; without this exit the
+  wait for its finish signal would never return.
+  """
+  manager = _StubManager(
+    [(_FakeProcess("Worker-0", alive=True), _signal(is_set=False))]
+  )
+  manager.cancel_event.set()
+
+  manager._wait_for_finish_signal(_never_set())
+
+  assert manager._child_death_error is None, (
+    "a plain cancellation must not be reported as a dead child"
+  )
+
+
+def test_wait_returns_promptly_once_the_signal_is_set() -> None:
+  manager = _StubManager(
+    [(_FakeProcess("Worker-0", alive=True), _signal(is_set=False))]
+  )
+
+  manager._wait_for_finish_signal(_signal(is_set=True))
+
+  assert not manager.cancel_event.is_set()
