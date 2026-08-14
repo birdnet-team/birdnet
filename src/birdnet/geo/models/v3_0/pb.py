@@ -25,8 +25,8 @@ from birdnet.utils.local_data import get_lang_dir, get_model_path
 
 _YEAR_ROUND_WEEK_INPUTS = tuple(float(week) for week in range(1, 49))
 
-_PB_DL_URL = "https://github.com/birdnet-team/geomodel/releases/download/v3.0.3/BirdNET+_Geomodel_V3.0.3_Global_12K_FP32_TF.zip"
-_PB_DL_SIZE = 64757796
+_PB_DL_URL = "https://github.com/birdnet-team/geomodel/releases/download/v3.0.4/BirdNET+_Geomodel_V3.0.4_Global_14K_FP32_TF.zip"
+_PB_DL_SIZE = 14196836
 # Written into the extracted model directory to record which release it came from.
 # The on-disk directory name is generic (model-fp32), so unlike the size-checked
 # .tflite/.onnx files a SavedModel cached from an older release would otherwise
@@ -80,7 +80,7 @@ class GeoPBDownloaderV3_0(GeoDownloaderBaseV3_0):
       with zipfile.ZipFile(zip_download_path, "r") as zip_ref:
         zip_ref.extractall(extract_dir)
 
-      geo_model_dl_dir = extract_dir / "BirdNET+_Geomodel_V3.0.3_Global_12K_FP32_TF"
+      geo_model_dl_dir = extract_dir / "BirdNET+_Geomodel_V3.0.4_Global_14K_FP32_TF"
       geo_model_dir = cls._get_model_path()
       geo_model_dir.parent.mkdir(parents=True, exist_ok=True)
       shutil.rmtree(geo_model_dir, ignore_errors=True)

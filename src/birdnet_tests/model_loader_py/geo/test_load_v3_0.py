@@ -5,7 +5,11 @@ from requests import ReadTimeout
 
 from birdnet.geo.models.v3_0.model import GeoModelV3_0
 from birdnet.model_loader import load
-from birdnet_tests.helper import geo_v3_0_litert_not_supported_skip
+from birdnet_tests.helper import (
+  ensure_torch_or_skip,
+  ensure_v3_0_torch_backend_or_skip,
+  geo_v3_0_litert_not_supported_skip,
+)
 
 
 def test_pb_v3_0_with_library_raises_error() -> None:
@@ -20,6 +24,17 @@ def test_pb_v3_0_with_library_raises_error() -> None:
 def test_v3_0_pb() -> None:
   try:
     model = load("geo", "3.0", "pb", precision="fp32")
+  except ReadTimeout as e:
+    pytest.fail(f"Model download timed out: {e}. Try again later.")
+  assert isinstance(model, GeoModelV3_0)
+
+
+@pytest.mark.load_model
+def test_v3_0_pt() -> None:
+  ensure_torch_or_skip()
+  ensure_v3_0_torch_backend_or_skip()
+  try:
+    model = load("geo", "3.0", "pt", precision="fp32")
   except ReadTimeout as e:
     pytest.fail(f"Model download timed out: {e}. Try again later.")
   assert isinstance(model, GeoModelV3_0)

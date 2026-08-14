@@ -32,11 +32,15 @@ from birdnet.utils.taxonomy_v3 import (
   ensure_taxonomy_v3_available,
   get_taxonomy_v3_path,
   taxonomy_v3_available,
+  taxonomy_v3_marker_matches,
+  write_taxonomy_v3_marker,
 )
 
-_LABELS_DL_URL = "https://github.com/birdnet-team/geomodel/releases/download/v3.0.3/BirdNET+_Geomodel_V3.0.3_Global_12K_Labels.txt"
-_LABELS_DL_SIZE = 585766
+_LABELS_DL_URL = "https://github.com/birdnet-team/geomodel/releases/download/v3.0.4/BirdNET+_Geomodel_V3.0.4_Global_14K_Labels.txt"
+_LABELS_DL_SIZE = 671823
 
+# Estonian ("et") was dropped with the v0.2-Jun2026 taxonomy: it no longer has a
+# common_name_et column, so every Estonian name would silently be the English one.
 _LANGUAGE_TO_COLUMN: dict[str, str] = {
   "en_us": "com_name",
   "de": "common_name_de",
@@ -67,7 +71,6 @@ _LANGUAGE_TO_COLUMN: dict[str, str] = {
   "lt": "common_name_lt",
   "fa": "common_name_fa",
   "cy": "common_name_cy",
-  "et": "common_name_et",
 }
 
 _GEO_V3_0_BASE_DIR = APP_DIR / "geo-models" / "v3.0"
@@ -140,6 +143,10 @@ class GeoDownloaderBaseV3_0:
       (lang_dir / f"{lang}.txt").is_file() for lang in cls.AVAILABLE_LANGUAGES
     ):
       return False
+    # The lang files carry no trace of the taxonomy they were built from, so a
+    # taxonomy bump alone would otherwise leave them serving the old names.
+    if not taxonomy_v3_marker_matches(lang_dir):
+      return False
     # Guard against lang files left over from an older labels version: they exist
     # but carry a different species count. Lang files are generated together from
     # the raw labels (one entry per raw line), so any file whose line count differs
@@ -186,13 +193,29 @@ class GeoDownloaderBaseV3_0:
         parts = line.rstrip("\n").split("\t")
         species_order.append((parts[0], parts[1], parts[2]))
 
+    # The labels join to the taxonomy on the species code, which is the stable
+    # key - scientific names change between taxonomy versions while codes do not.
+    # (The acoustic model has to join on sci_name; see the module docstring of
+    # birdnet/utils/taxonomy_v3.py for why the two differ.)
+    # Upstream does occasionally reuse one code for two species though (in
+    # v0.2-Jun2026: y01249 and grsbop1), and then the row that happens to come
+    # last would hand this species the other one's localized names. Prefer the row
+    # whose scientific name is the one the labels use for that code; with no such
+    # row the last one still wins.
+    label_sci_name_by_code = {code: sci_name for code, sci_name, _ in species_order}
     taxonomy: dict[str, dict[str, str]] = {}
     with open(get_taxonomy_v3_path(), encoding="utf-8", newline="") as f:
       reader = csv.DictReader(f)
       for row in reader:
         code = row.get("species_code", "").strip()
-        if code:
-          taxonomy[code] = dict(row)
+        if not code:
+          continue
+        kept = taxonomy.get(code)
+        if kept is not None and kept.get("sci_name", "").strip() == (
+          label_sci_name_by_code.get(code)
+        ):
+          continue
+        taxonomy[code] = dict(row)
 
     lang_dir = cls._get_lang_dir()
     lang_dir.mkdir(parents=True, exist_ok=True)
@@ -206,6 +229,7 @@ class GeoDownloaderBaseV3_0:
           localized_name = en_us_name
         lines.append(f"{sci_name}_{localized_name}")
       _write_text_atomic(lang_file, "\n".join(lines), encoding="utf-8")
+    write_taxonomy_v3_marker(lang_dir)
 
   @classmethod
   def get_lang_file(cls, lang: str) -> Path:

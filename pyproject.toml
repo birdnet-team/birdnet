@@ -311,9 +311,10 @@ commands =
   
 [testenv:py314]
 # Python 3.14 has no TensorFlow wheels yet (issue #55). Install the TF-free
-# surface (onnx backend) and exercise it plus the friendly errors on TF paths.
+# surface (onnx and pt backends) and exercise it plus the friendly errors on TF
+# paths. torch does ship 3.14 wheels, so both backends are testable here.
 deps =
-  .[tests,onnx]
+  .[tests,onnx,pt]
 commands =
   pytest -m "no_tf" -n auto
   pyproject-build -o dist/

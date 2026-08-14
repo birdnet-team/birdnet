@@ -10,7 +10,9 @@ from pathlib import Path
 import pytest
 
 import birdnet.geo.models.v3_0.model as geo_model
+import birdnet.utils.taxonomy_v3 as taxonomy_v3
 from birdnet.geo.models.v3_0.model import GeoDownloaderBaseV3_0
+from birdnet.globals import VALID_MODEL_LANGUAGES_V3_0
 
 RAW_LABELS = "code1\tScivia one\tRobin\ncode2\tScivia two\tSparrow\ncode9\tScivia nine\tEagle\n"  # noqa: E501
 
@@ -76,6 +78,36 @@ def test_generate_lang_files_en_us_uses_com_name(
   ]
 
 
+def test_generate_lang_files_disambiguates_a_reused_species_code(
+  downloader: type[GeoDownloaderBaseV3_0],
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  """Upstream reuses a species code for two species (e.g. y01249 in v0.2-Jun2026).
+
+  The matching row is not necessarily the last one, so keying on the code alone
+  hands this species the other one's localized names.
+  """
+  taxonomy_path = geo_model.get_taxonomy_v3_path()
+  taxonomy_path.write_text(
+    "species_code,sci_name,com_name,common_name_de\n"
+    "code1,Scivia one,Robin US,Rotkehlchen\n"  # the species the labels mean
+    "code1,Scivia other,Other US,Anderer Name\n",  # shares the code, wins on order
+    encoding="utf-8",
+  )
+
+  downloader._generate_lang_files()
+
+  assert _read_lines(downloader.get_lang_file("de"))[0] == "Scivia one_Rotkehlchen"
+
+
+def test_available_languages_match_the_public_language_list() -> None:
+  # The two are edited by hand in different files; a divergence would otherwise
+  # only surface as a bare AssertionError inside the downloaders.
+  assert set(GeoDownloaderBaseV3_0.AVAILABLE_LANGUAGES) == set(
+    VALID_MODEL_LANGUAGES_V3_0
+  )
+
+
 def test_generate_lang_files_writes_all_languages(
   downloader: type[GeoDownloaderBaseV3_0],
 ) -> None:
@@ -96,6 +128,24 @@ def test_check_labels_available_true_when_consistent(
   downloader._generate_lang_files()
 
   assert downloader._check_labels_available()
+
+
+def test_check_labels_available_detects_a_changed_taxonomy(
+  downloader: type[GeoDownloaderBaseV3_0],
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  """A taxonomy-only bump leaves the lang files intact but their names outdated.
+
+  The taxonomy is shared between the v3.0 models, so another model can already
+  have fetched the new one - the file is then "available" while these lang files
+  still hold the names built from the previous release.
+  """
+  downloader._generate_lang_files()
+  assert downloader._check_labels_available()
+
+  monkeypatch.setattr(taxonomy_v3, "_TAXONOMY_V3_DL_URL", "https://example.test/v9.csv")
+
+  assert not downloader._check_labels_available()
 
 
 def test_check_labels_available_detects_stale_lang_file(
