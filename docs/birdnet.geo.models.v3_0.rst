@@ -28,6 +28,22 @@ birdnet.geo.models.v3\_0.pb module
    :show-inheritance:
    :undoc-members:
 
+birdnet.geo.models.v3\_0.pt module
+-----------------------------------
+
+.. automodule:: birdnet.geo.models.v3_0.pt
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+birdnet.geo.models.v3\_0.onnx module
+-------------------------------------
+
+.. automodule:: birdnet.geo.models.v3_0.onnx
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 Module contents
 ---------------
 

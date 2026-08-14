@@ -293,6 +293,17 @@ class TorchBackend(Backend, ABC):
   @abstractmethod
   def probe_input_size_samples(cls) -> int: ...
 
+  @classmethod
+  def prediction_needs_sigmoid(cls) -> bool:
+    """Whether the model's prediction head returns logits instead of probabilities.
+
+    The exported TorchScript modules are not consistent about this: the acoustic
+    model applies the activation itself, the geo model does not. Backends whose
+    model returns logits declare it here so that all backends of a model yield
+    the same probabilities.
+    """
+    return False
+
   def load(self) -> None:
     assert self._model is None
 
@@ -319,12 +330,16 @@ class TorchBackend(Backend, ABC):
     with torch.inference_mode():
       outputs = self._model(batch)
 
-    if not isinstance(outputs, (tuple, list)):
+    result: TorchTensor
+    if isinstance(outputs, (tuple, list)):
+      result = outputs[out_idx]
+    elif out_idx == 0 and not self.supports_encoding():
+      # Single-head models (e.g. the geo model) return the tensor directly.
+      result = outputs
+    else:
       raise ValueError(
-        "PyTorch model is expected to return a tuple of (embeddings, predictions)."
+        "PyTorch model is expected to return a tuple of (predictions, embeddings)."
       )
-
-    result = outputs[out_idx]
     if not isinstance(result, torch.Tensor):
       raise ValueError("PyTorch model output is expected to be a torch.Tensor.")
     assert result.dtype == torch.float32
@@ -356,7 +371,13 @@ class TorchBackend(Backend, ABC):
 
   @final
   def predict(self, batch: TorchTensor) -> TorchTensor:
-    return self._infer(batch, self.prediction_out_idx())
+    import torch
+
+    result = self._infer(batch, self.prediction_out_idx())
+    if self.prediction_needs_sigmoid():
+      with torch.inference_mode():
+        result = torch.sigmoid(result)
+    return result
 
   @final
   def encode(self, batch: TorchTensor) -> TorchTensor:

@@ -154,6 +154,16 @@ def load(
 def load(
   model_type: Literal["geo"],
   version: Literal["3.0"],
+  backend: Literal["pt"],
+  /,
+  *,
+  precision: Literal["fp32"] = MODEL_PRECISION_FP32,
+  lang: MODEL_LANGUAGES_V3_0 = MODEL_LANGUAGE_EN_US,
+) -> GeoModelV3_0: ...
+@overload
+def load(
+  model_type: Literal["geo"],
+  version: Literal["3.0"],
   backend: Literal["onnx"],
   /,
   *,
@@ -161,12 +171,12 @@ def load(
   lang: MODEL_LANGUAGES_V3_0 = MODEL_LANGUAGE_EN_US,
 ) -> GeoModelV3_0: ...
 
-# NOTE: to see "tf", "pb" and "onnx" overloads in the IDE
+# NOTE: to see "tf", "pb", "pt" and "onnx" overloads in the IDE
 @overload
 def load(
   model_type: Literal["geo"],
   version: Literal["3.0"],
-  backend: Literal["tf", "pb", "onnx"],
+  backend: Literal["tf", "pb", "pt", "onnx"],
   /,
   *,
   precision: MODEL_PRECISIONS = MODEL_PRECISION_FP32,
@@ -322,6 +332,18 @@ def load_custom(
 def load_custom(
   model_type: Literal["geo"],
   version: Literal["3.0"],
+  backend: Literal["pt"],
+  model: str | PathLike[str],
+  species_list: str | PathLike[str],
+  /,
+  *,
+  precision: Literal["fp32"] = MODEL_PRECISION_FP32,
+  check_validity: bool = True,
+) -> GeoModelV3_0: ...
+@overload
+def load_custom(
+  model_type: Literal["geo"],
+  version: Literal["3.0"],
   backend: Literal["onnx"],
   model: str | PathLike[str],
   species_list: str | PathLike[str],
@@ -331,12 +353,12 @@ def load_custom(
   check_validity: bool = True,
 ) -> GeoModelV3_0: ...
 
-# NOTE: to see "tf", "pb" and "onnx" overloads in the IDE
+# NOTE: to see "tf", "pb", "pt" and "onnx" overloads in the IDE
 @overload
 def load_custom(
   model_type: Literal["geo"],
   version: Literal["3.0"],
-  backend: Literal["tf", "pb", "onnx"],
+  backend: Literal["tf", "pb", "pt", "onnx"],
   model: str | PathLike[str],
   species_list: str | PathLike[str],
   /,

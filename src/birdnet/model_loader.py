@@ -82,6 +82,7 @@ from birdnet.geo.models.v3_0.onnx import (
   GeoOnnxDownloaderV3_0,
 )
 from birdnet.geo.models.v3_0.pb import GeoPBBackendFP32V3_0, GeoPBDownloaderV3_0
+from birdnet.geo.models.v3_0.pt import GeoPTBackendFP32V3_0, GeoPTDownloaderV3_0
 from birdnet.geo.models.v3_0.tf import (
   GeoTFBackendFP16V3_0,
   GeoTFBackendFP32V3_0,
@@ -335,8 +336,8 @@ def _validate_tf_backend_runtime(backend: MODEL_BACKENDS) -> None:
   else:
     reason = "Install it (e.g. reinstall birdnet, or 'pip install tensorflow'). "
   alternative = (
-    "Alternatively, use the 'onnx' backend, available for the acoustic 3.0 "
-    "model (also 'pt') and the geo 3.0 model, e.g. "
+    "Alternatively, use the 'onnx' backend, available for the acoustic 3.0 and "
+    "geo 3.0 models (both also offer 'pt'), e.g. "
     "birdnet.load('geo', '3.0', 'onnx'); the acoustic 2.4, geo 2.4 and Perch "
     "models are TensorFlow-only."
   )
@@ -1092,6 +1093,25 @@ def _load_geo_model_V3_0(
       backend_type=GeoPBBackendFP32V3_0,
       backend_kwargs={},
     )
+  elif backend == MODEL_BACKEND_PT:
+    if precision != MODEL_PRECISION_FP32:
+      raise ValueError(
+        f"Unsupported model precision for geo pt model: {precision}. "
+        f"Currently supported precision is: {MODEL_PRECISION_FP32}."
+      )
+
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, None)
+    _validate_optional_backend_runtime(backend)
+
+    model_path, species_list = GeoPTDownloaderV3_0.get_model_path_and_labels(
+      lang, precision
+    )
+    return GeoModelV3_0.load(
+      model_path,
+      species_list,
+      backend_type=GeoPTBackendFP32V3_0,
+      backend_kwargs={},
+    )
   elif backend == MODEL_BACKEND_ONNX:
     if precision == MODEL_PRECISION_FP32:
       backend_type = GeoOnnxBackendFP32V3_0
@@ -1121,7 +1141,7 @@ def _load_geo_model_V3_0(
       MODEL_TYPE_GEO,
       GEO_MODEL_VERSION_V3_0,
       backend,
-      (MODEL_BACKEND_TF, MODEL_BACKEND_PB, MODEL_BACKEND_ONNX),
+      (MODEL_BACKEND_TF, MODEL_BACKEND_PB, MODEL_BACKEND_PT, MODEL_BACKEND_ONNX),
     )
 
 
@@ -1176,6 +1196,24 @@ def _load_custom_geo_model_V3_0(
       backend_kwargs={},
       check_validity=check_validity,
     )
+  elif backend == MODEL_BACKEND_PT:
+    if precision != MODEL_PRECISION_FP32:
+      raise ValueError(
+        f"Unsupported model precision for geo pt model: {precision}. "
+        f"Currently supported precision is: {MODEL_PRECISION_FP32}."
+      )
+
+    model = _validate_pt_file(model)
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, None)
+    _validate_optional_backend_runtime(backend)
+
+    return GeoModelV3_0.load_custom(
+      model,
+      species_list,
+      backend_type=GeoPTBackendFP32V3_0,
+      backend_kwargs={},
+      check_validity=check_validity,
+    )
   elif backend == MODEL_BACKEND_ONNX:
     if precision == MODEL_PRECISION_FP32:
       backend_type = GeoOnnxBackendFP32V3_0
@@ -1204,5 +1242,5 @@ def _load_custom_geo_model_V3_0(
       MODEL_TYPE_GEO,
       GEO_MODEL_VERSION_V3_0,
       backend,
-      (MODEL_BACKEND_TF, MODEL_BACKEND_PB, MODEL_BACKEND_ONNX),
+      (MODEL_BACKEND_TF, MODEL_BACKEND_PB, MODEL_BACKEND_PT, MODEL_BACKEND_ONNX),
     )

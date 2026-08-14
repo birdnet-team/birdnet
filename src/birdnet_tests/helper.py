@@ -308,6 +308,27 @@ def ensure_tf_2_19_or_2_18() -> None:
     pytest.skip("TensorFlow 2.18 or 2.19 is required for this test")
 
 
+def ensure_tf_2_18_or_skip() -> None:
+  """Skip where the TFLite runtime is too old to even parse the current models.
+
+  The macOS Intel wheels are pinned to TensorFlow <2.17, whose interpreter cannot
+  open the geo v3.0 INT8 export ("Didn't find op for builtin opcode
+  'FULLY_CONNECTED' version '12'"). The geo v3.0 TF backend requires 2.18/2.19
+  anyway, so there is nothing to verify on such a runtime.
+  """
+  import tensorflow as tf
+
+  version: str = tf.__version__
+  version_parts = version.split(".")
+  try:
+    major_minor = int(version_parts[0]), int(version_parts[1])
+  except (IndexError, ValueError):
+    pytest.skip(f"Unsupported TensorFlow version string for this test: {version!r}")
+
+  if major_minor < (2, 18):
+    pytest.skip("TensorFlow >= 2.18 is required to load the geo v3.0 models")
+
+
 def ensure_tf_2_20_or_skip() -> None:
   import tensorflow as tf
 

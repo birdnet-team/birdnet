@@ -56,6 +56,15 @@ class GeoSessionBase(SessionBase, ABC):
     self._is_initialized = True
     return self
 
+  def _predict(self, samples: np.ndarray) -> np.ndarray:
+    # Go through the backend's transfer methods instead of handing it the NumPy
+    # array directly: the TF/ONNX backends pass it through, while the PB and PT
+    # backends need their own tensor type on the target device.
+    assert self._backend is not None
+    batch = self._backend.copy_to_device(samples)
+    prediction = self._backend.predict(batch)
+    return self._backend.copy_from_device(prediction)
+
   def _run(self, run_config: RunConfig) -> GeoPredictionResult:
     assert self._is_initialized
     assert self._backend is not None
@@ -69,7 +78,7 @@ class GeoSessionBase(SessionBase, ABC):
         ],
         dtype=np.float32,
       )
-      res_batch = self._backend.predict(samples)
+      res_batch = self._predict(samples)
       if len(week_inputs) == 1:
         res = np.squeeze(res_batch, axis=0)
       else:
@@ -86,8 +95,7 @@ class GeoSessionBase(SessionBase, ABC):
         ),
         0,
       )
-      res = self._backend.predict(sample)
-      res = np.squeeze(res, axis=0)
+      res = np.squeeze(self._predict(sample), axis=0)
       result_week = run_config.week
 
     n_species = self._conf.model_conf.n_species

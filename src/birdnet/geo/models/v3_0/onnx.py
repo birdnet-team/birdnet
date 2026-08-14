@@ -28,16 +28,16 @@ _YEAR_ROUND_WEEK_INPUTS = tuple(float(week) for week in range(1, 49))
 
 models = {
   MODEL_PRECISION_FP32: ModelInfo(
-    dl_url="https://github.com/birdnet-team/geomodel/releases/download/v3.0.3/BirdNET+_Geomodel_V3.0.3_Global_12K_FP32.onnx",
-    dl_file_name="BirdNET+_Geomodel_V3.0.3_Global_12K_FP32.onnx",
-    dl_size=28205553,
-    file_size=28205553,
+    dl_url="https://github.com/birdnet-team/geomodel/releases/download/v3.0.4/BirdNET+_Geomodel_V3.0.4_Global_14K_FP32.onnx",
+    dl_file_name="BirdNET+_Geomodel_V3.0.4_Global_14K_FP32.onnx",
+    dl_size=15503473,
+    file_size=15503473,
   ),
   MODEL_PRECISION_FP16: ModelInfo(
-    dl_url="https://github.com/birdnet-team/geomodel/releases/download/v3.0.3/BirdNET+_Geomodel_V3.0.3_Global_12K_FP16.onnx",
-    dl_file_name="BirdNET+_Geomodel_V3.0.3_Global_12K_FP16.onnx",
-    dl_size=14260107,
-    file_size=14260107,
+    dl_url="https://github.com/birdnet-team/geomodel/releases/download/v3.0.4/BirdNET+_Geomodel_V3.0.4_Global_14K_FP16.onnx",
+    dl_file_name="BirdNET+_Geomodel_V3.0.4_Global_14K_FP16.onnx",
+    dl_size=7885053,
+    file_size=7885053,
   ),
 }
 
