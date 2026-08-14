@@ -29,6 +29,13 @@ when reviewing PRs. Everything here can be verified from the diff text alone.
   from the visible cores and that changes the reduction order. Exact equality is
   correct only when a single interpreter produced both results (one session,
   `n_workers=1`).
+- **V3.0 taxonomy and language changes.** A diff touching `_LANGUAGE_TO_COLUMN` in
+  `acoustic/models/v3_0/model.py` or `geo/models/v3_0/model.py` must move the
+  language lists in `globals.py` (`MODEL_LANGUAGES_V3_0`,
+  `VALID_MODEL_LANGUAGES_V3_0`) with it — both models share them. A diff changing
+  the taxonomy URL or size in `utils/taxonomy_v3.py` must keep every mapped column
+  available in the new file: a missing column does not raise, it silently yields a
+  complete file of English names.
 - **Tests for a hang.** A test whose failure mode is the pipeline not returning
   must run the session in a worker thread behind a deadline, so a regression
   fails with a readable message instead of wedging until the suite timeout.

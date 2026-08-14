@@ -4,7 +4,7 @@ Guidance for AI coding agents working in this repository.
 
 ## Project
 
-Python library (`src` layout) for identifying bird species by their sounds (BirdNET). Python 3.11–3.14 (3.14 is the TensorFlow-free surface only: onnx backend + friendly errors on TF paths).
+Python library (`src` layout) for identifying bird species by their sounds (BirdNET). Python 3.11–3.14 (3.14 is the TensorFlow-free surface only: onnx/pt backends + friendly errors on TF paths).
 
 - `src/birdnet` — the library
 - `src/birdnet_tests` — pytest suite (not shipped)
@@ -59,4 +59,5 @@ Per-test timeout is 600 s (thread method, kills the process on hang); worker res
 - `core/backends.py` holds the backend abstraction: `TFBackend` (TFLite/LiteRT), `PBBackend` (ProtoBuf SavedModel), `TorchBackend`, `OnnxBackend`, plus `BackendLoader` and TF/torch/onnx device + import helpers. Torch and ONNX are optional extras (`pt`, `onnx`); LiteRT availability is platform-dependent.
 - Acoustic inference runs through session objects (`AcousticPredictionSession`, `AcousticEncodingSession`) driven by prediction/encoding strategies and multiprocessing (`acoustic/inference/process_manager.py`). Result objects export to CSV/Parquet/Arrow/etc.
 - Official models auto-download on first load (what `load_model` tests exercise).
+- V3.0 species labels are generated, not shipped: one `<lang>.txt` per language, built from each model's own label file plus a taxonomy CSV shared by the acoustic and geo V3.0 models (`utils/taxonomy_v3.py`). The two models join to that taxonomy on different keys deliberately — geo on `species_code`, acoustic on `sci_name` — and a species the taxonomy cannot resolve silently falls back to its English name. Read that module's docstring before changing anything about labels, languages or the taxonomy.
 - Runtime log file: `%TEMP%\birdnet.log` (Windows) or `/tmp/birdnet.log`.

@@ -4,11 +4,14 @@ import pytest
 
 from birdnet.geo.models.v3_0.model import GeoModelV3_0
 from birdnet.geo.models.v3_0.pb import GeoPBDownloaderV3_0
+from birdnet.geo.models.v3_0.pt import GeoPTDownloaderV3_0
 from birdnet.geo.models.v3_0.tf import GeoTFDownloaderV3_0
 from birdnet.model_loader import load_custom
 from birdnet.utils.local_data import get_lang_dir, get_model_path
 from birdnet_tests.helper import (
   ensure_tf_2_19_or_2_18,
+  ensure_torch_or_skip,
+  ensure_v3_0_torch_backend_or_skip,
   geo_v3_0_litert_not_supported_skip,
 )
 from birdnet_tests.model_loader_py.acoustic.test_acoustic_load_custom import (
@@ -160,6 +163,41 @@ def test_pb_type_is_correct() -> None:
         "pb",
         get_model_path("geo", "3.0", "pb", "fp32"),
         get_lang_dir("geo", "3.0", "pb") / "en_us.txt",
+        check_validity=False,
+      )
+    )
+    is GeoModelV3_0
+  )
+
+
+def test_load_custom_geo_model_v3_0_pt_fp32() -> None:
+  ensure_torch_or_skip()
+  ensure_v3_0_torch_backend_or_skip()
+  GeoPTDownloaderV3_0.get_model_path_and_labels("en_us", "fp32")
+  model = load_custom(
+    "geo",
+    "3.0",
+    "pt",
+    get_model_path("geo", "3.0", "pt", "fp32"),
+    get_lang_dir("geo", "3.0", "pt") / "en_us.txt",
+    precision="fp32",
+    check_validity=check_validity(),
+  )
+  assert isinstance(model, GeoModelV3_0)
+
+
+def test_pt_type_is_correct() -> None:
+  ensure_torch_or_skip()
+  ensure_v3_0_torch_backend_or_skip()
+  GeoPTDownloaderV3_0.get_model_path_and_labels("en_us", "fp32")
+  assert (
+    type(
+      load_custom(
+        "geo",
+        "3.0",
+        "pt",
+        get_model_path("geo", "3.0", "pt", "fp32"),
+        get_lang_dir("geo", "3.0", "pt") / "en_us.txt",
         check_validity=False,
       )
     )

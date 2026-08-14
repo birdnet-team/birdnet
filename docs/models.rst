@@ -73,21 +73,24 @@ Technical details
 Geo model (species range model) V3.0
 ------------------------------------
 
-* updated species range model covering more than 12,000 classes
+* updated species range model (release v3.0.4) covering 14,082 classes - birds, insects, amphibians and mammals
 * aligned with the V3.0 acoustic taxonomy
-* available in three backends via the ``backend`` argument of ``birdnet.load``:
+* available in four backends via the ``backend`` argument of ``birdnet.load``:
 
-    * ``tf`` - TFLite/LiteRT (CPU only), ``int8``, ``fp16`` and ``fp32``
+    * ``tf`` - TFLite (CPU only), ``int8``, ``fp16`` and ``fp32``
     * ``pb`` - ProtoBuf (CPU/GPU), ``fp32``
+    * ``pt`` - PyTorch/TorchScript (CPU/GPU), ``fp32``; requires ``pip install birdnet[pt]``
     * ``onnx`` - ONNX Runtime (CPU/GPU), ``fp16`` and ``fp32``; requires ``pip install birdnet[onnx]``
 
-* there is no PyTorch (``pt``) backend for the geo model yet
+The model's ``.tflite`` files contain select TensorFlow ops, so the ``tf`` backend
+requires TensorFlow 2.18 or 2.19 and is not available via ``ai_edge_litert``
+(``library="litert"``). On other TensorFlow versions use ``pb``, ``onnx`` or ``pt``.
 
 .. code-block:: python
 
   import birdnet
 
-  model = birdnet.load("geo", "3.0", "tf")
+  model = birdnet.load("geo", "3.0", "onnx")
   predictions = model.predict(42.5, -76.45, week=4)
 
 Using older models

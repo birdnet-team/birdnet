@@ -5,10 +5,10 @@ birdnet installs *without* TensorFlow. This module documents and pins the
 TensorFlow-free surface:
 
 - ``import birdnet`` works without TensorFlow installed.
-- The acoustic 3.0 model runs via the ``onnx`` (and ``pt``) backend.
-- Every TensorFlow-only path (``tf``/``pb`` backends, all geo models, the
-  acoustic 2.4 and Perch models) fails with a clear, actionable ``ValueError``
-  instead of a bare ``ModuleNotFoundError``.
+- The acoustic 3.0 and geo 3.0 models run via the ``onnx`` and ``pt`` backends.
+- Every TensorFlow-only path (``tf``/``pb`` backends, the acoustic 2.4, geo 2.4
+  and Perch models) fails with a clear, actionable ``ValueError`` instead of a
+  bare ``ModuleNotFoundError``.
 
 The tests only run when TensorFlow is absent (i.e. on Python 3.14); they are
 skipped on 3.11-3.13 where TensorFlow is installed.
@@ -17,7 +17,7 @@ skipped on 3.11-3.13 where TensorFlow is installed.
 import pytest
 
 import birdnet
-from birdnet.core.backends import onnxruntime_installed, tf_installed
+from birdnet.core.backends import onnxruntime_installed, tf_installed, torch_installed
 
 pytestmark = [
   pytest.mark.no_tf,
@@ -69,4 +69,18 @@ def test_acoustic_v3_onnx_predicts_without_tensorflow() -> None:
 def test_geo_v3_onnx_predicts_without_tensorflow() -> None:
   model = birdnet.load("geo", "3.0", "onnx")
   predictions = model.predict(42.5, -76.45, week=4)
+  assert predictions is not None
+
+
+@pytest.mark.skipif(not torch_installed(), reason="torch not installed")
+def test_geo_v3_pt_predicts_without_tensorflow() -> None:
+  model = birdnet.load("geo", "3.0", "pt")
+  predictions = model.predict(42.5, -76.45, week=4)
+  assert predictions is not None
+
+
+@pytest.mark.skipif(not torch_installed(), reason="torch not installed")
+def test_acoustic_v3_pt_predicts_without_tensorflow() -> None:
+  model = birdnet.load("acoustic", "3.0", "pt")
+  predictions = model.predict("example/soundscape.wav")
   assert predictions is not None

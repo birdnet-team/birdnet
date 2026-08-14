@@ -11,27 +11,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added an `on_file_complete` callback to acoustic `predict(..)`/`encode(..)` and their session variants (all models: 2.4, 3.0, Perch V2), fired once per file as soon as it is fully processed with a single-file result, enabling streaming per-file persistence and live output. File inputs only; runs off the inference hot path so throughput is unaffected (#57).
+- Added an `on_file_complete` callback to acoustic `predict(..)`/`encode(..)` and their session variants (all models: 2.4, 3.0, Perch V2), fired once per file as soon as it is fully processed with a single-file result — enabling streaming per-file persistence and live output. File inputs only; runs off the inference hot path, so throughput is unaffected (#57).
 - Added the BirdNET V3.0 (preview) acoustic model in four backends — `tf`, `pb`, `pt` and `onnx` — all supporting `predict(..)` and `encode(..)`. Load via `birdnet.load("acoustic", "3.0", <backend>)`; `pt`/`onnx` require the new `birdnet[pt]`/`birdnet[onnx]` extras (#41).
-- Added the BirdNET-Geomodel V3.0 (v3.0.3) in the `tf`, `pb` and `onnx` backends (`onnx` requires `birdnet[onnx]` and runs without TensorFlow). Load via `birdnet.load("geo", "3.0", <backend>)`. No PyTorch backend yet — the released `.pt` is a training checkpoint, not TorchScript (#41).
-- Added an `apply_softmax` option to acoustic `predict(..)` (all models), mirroring `apply_sigmoid`, returning a softmax over the model logits — useful for confidence scores (e.g. Perch V2). Defaults to `False` (#54).
-- Added partial Python 3.14 support: as TensorFlow has no 3.14 wheels yet, `birdnet` installs without TensorFlow there and runs the TF-free backends — acoustic 3.0 (`onnx`/`pt`) and geo 3.0 (`onnx`); TensorFlow-only paths raise a clear error instead of an `ImportError` (#55).
+- Added the BirdNET-Geomodel V3.0 (v3.0.4, 14,082 classes covering birds, insects, amphibians and mammals) in the `tf`, `pb`, `pt` and `onnx` backends. Load via `birdnet.load("geo", "3.0", <backend>)`; `pt`/`onnx` require the matching extras and run without TensorFlow. The `pt` backend applies the sigmoid the TorchScript export omits, so all four backends return the same probabilities (#41).
+- Added an `apply_softmax` option to acoustic `predict(..)` (all models), mirroring `apply_sigmoid`: scores become a softmax over the model logits, useful for confidence scores (e.g. Perch V2). Defaults to `False` (#54).
+- Added partial Python 3.14 support: as TensorFlow has no 3.14 wheels yet, `birdnet` installs without TensorFlow there and runs the TF-free backends — acoustic 3.0 and geo 3.0 via `onnx`/`pt`; TensorFlow-only paths raise a clear error instead of an `ImportError` (#55).
 
 ### Changed
 
-- The inference pipeline now creates its processes with the `spawn` start method by default on all platforms instead of inheriting Linux's platform default of `fork` — forking after TensorFlow has started its multi-threaded runtime could deadlock worker processes. A start method the application has fixed globally (via `multiprocessing.set_start_method`) is honored, and the new `BIRDNET_START_METHOD` environment variable overrides both, so `fork`/`forkserver` remain available via explicit opt-in (`fork` retains copy-on-write model inheritance). See "Multiprocessing start method" in the docs (#63).
+- The inference pipeline now creates its processes with `spawn` by default on all platforms instead of inheriting Linux's `fork`, which could deadlock workers after TensorFlow had started its multi-threaded runtime. A start method the application fixed globally is honored, and `BIRDNET_START_METHOD` overrides both, so `fork`/`forkserver` remain available by explicit opt-in (#63).
+- The V3.0 models now share the geomodel's versioned taxonomy (`taxonomy_v0.2-Jun2026.csv`), which resolves every geo label and matches the acoustic label file more closely than the previous pin. Estonian (`et`) was dropped from the V3.0 language list, as the new taxonomy has no Estonian column (#41).
 - The progress callback now runs on a background thread with a copy of the caller's context (contextvars), matching the new `on_file_complete` callback (#53).
 
 ### Bugfixes
 
-- A pipeline process that dies mid-run — typically killed by the operating system when memory runs out — is now reported with its name and exit code instead of leaving the call hanging forever. A worker killed *while processing a batch* is not covered: it still deadlocks the surviving workers on Linux and macOS (#73).
-- Fixed the progress callback's closing update. It reported zero processed segments for runs that had processed everything, and for a run that produced no predictions it published nothing at all — which left the call waiting indefinitely. The closing update is now always published and reflects what actually ran (#75).
-- Model, label and taxonomy downloads now survive transient network faults. A connection reset, read timeout, truncated stream or server-side 5xx during the first `load()` of a model used to fail the call outright; downloads are now retried with a growing back-off, while permanent client errors still fail immediately.
-- Removed a fixed ~1 s barrier from every `run_arrays(..)` call. On a warm session a 3 s clip went from 1069 ms to 39 ms and a 30 s clip from 1358 ms to 315 ms. This covers normal completion; a cancelled run still tears down on the poll interval.
-- Fixed an assertion firing in the prediction and encoding workers when the ring-buffer scan finds no readable slot, which aborted the run instead of letting the worker take the clean exit that was already there.
-- Producers and the performance tracker no longer attach the ring buffers from inside a `fork` child. `SharedMemory(create=False)` takes a lock that CPython does not reinitialize after `fork`, so such a child could block on the attach forever; the workers already avoided this by inheriting the parent's mappings.
-- Fixed corrupt rows in acoustic prediction/encoding output caused by growing the internal result buffer with `numpy.ndarray.resize` (plus an off-by-one in the initial segment count); buffers are now reallocated and copied (#50).
-- Geo model v3.0 caches now self-heal across releases: a cached SavedModel or label files from an older release were not detected as stale, so a version bump could keep serving outdated labels; both are now validated against the current release and re-fetched when they differ (#41).
+- A pipeline process that dies mid-run — typically killed by the operating system when memory runs out — is now reported with its name and exit code instead of leaving the call hanging forever. Not covered: a worker killed *while processing a batch* still deadlocks the surviving workers on Linux and macOS (#73).
+- Fixed the progress callback's closing update: it reported zero processed segments for runs that had processed everything, and for a run without predictions published nothing at all, leaving the call waiting indefinitely (#75).
+- Model, label and taxonomy downloads now retry with a growing back-off instead of failing on the first transient network fault; permanent client errors still fail immediately.
+- Removed a fixed ~1 s barrier from every `run_arrays(..)` call — on a warm session a 3 s clip went from 1069 ms to 39 ms. Cancelled runs still tear down on the poll interval.
+- Fixed an assertion firing in the prediction and encoding workers when the ring-buffer scan finds no readable slot, which aborted the run instead of taking the clean exit that was already there.
+- Producers and the performance tracker no longer attach the ring buffers from inside a `fork` child, where `SharedMemory(create=False)` could block forever on a lock CPython does not reinitialize after `fork`.
+- Fixed corrupt rows in acoustic prediction/encoding output caused by growing the internal result buffer with `numpy.ndarray.resize`, plus an off-by-one in the initial segment count (#50).
+- Geo model v3.0 caches now self-heal across releases: a cached SavedModel or label files from an older release were not detected as stale, so a version bump could keep serving outdated labels (#41).
+- V3.0 label files now record which taxonomy they were generated from and are regenerated when it changes. The taxonomy is shared, so the first model to fetch a new one made it look current for every other model, which kept serving the previous release's localized names (#41).
 
 ## [0.2.16] - 2026-05-09
 

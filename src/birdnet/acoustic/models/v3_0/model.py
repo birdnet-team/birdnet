@@ -36,6 +36,8 @@ from birdnet.utils.taxonomy_v3 import (
   ensure_taxonomy_v3_available,
   get_taxonomy_v3_path,
   taxonomy_v3_available,
+  taxonomy_v3_marker_matches,
+  write_taxonomy_v3_marker,
 )
 
 _LABELS_DL_URL = "https://zenodo.org/records/20703646/files/BirdNET+_V3.0-preview3.1_Global_11K_Labels.csv"
@@ -43,6 +45,8 @@ _LABELS_DL_SIZE = 809172
 _DEFAULT_SEGMENT_SIZE_S = 3.0
 _DEFAULT_SEGMENT_SIZE_SAMPLES = 96_000
 
+# Estonian ("et") was dropped with the v0.2-Jun2026 taxonomy: it no longer has a
+# common_name_et column, so every Estonian name would silently be the English one.
 _LANGUAGE_TO_COLUMN: dict[str, str] = {
   "bg": "common_name_bg",
   "ca": "common_name_ca",
@@ -55,7 +59,6 @@ _LANGUAGE_TO_COLUMN: dict[str, str] = {
   "es_ec": "common_name_es_EC",
   "es_es": "common_name_es_ES",
   "es_mx": "common_name_es_MX",
-  "et": "common_name_et",
   "fa": "common_name_fa",
   "fi": "common_name_fi",
   "fr": "common_name_fr",
@@ -116,7 +119,13 @@ class AcousticDownloaderBaseV3_0:
     lang_dir = cls._get_lang_dir()
     if not lang_dir.is_dir():
       return False
-    return all((lang_dir / f"{lang}.txt").is_file() for lang in cls.AVAILABLE_LANGUAGES)
+    if not all(
+      (lang_dir / f"{lang}.txt").is_file() for lang in cls.AVAILABLE_LANGUAGES
+    ):
+      return False
+    # The lang files carry no trace of the taxonomy they were built from, so a
+    # taxonomy bump alone would otherwise leave them serving the old names.
+    return taxonomy_v3_marker_matches(lang_dir)
 
   @classmethod
   def ensure_labels_available(cls) -> None:
@@ -140,11 +149,14 @@ class AcousticDownloaderBaseV3_0:
       ensure_taxonomy_v3_available()
       needs_regen = True
 
+    lang_dir = cls._get_lang_dir()
     lang_files_missing = not all(
-      (cls._get_lang_dir() / f"{lang}.txt").is_file()
-      for lang in cls.AVAILABLE_LANGUAGES
+      (lang_dir / f"{lang}.txt").is_file() for lang in cls.AVAILABLE_LANGUAGES
     )
-    if needs_regen or lang_files_missing:
+    # Another model may have fetched the new taxonomy already, which makes
+    # taxonomy_stale False while these lang files still hold the old names.
+    taxonomy_changed = not taxonomy_v3_marker_matches(lang_dir)
+    if needs_regen or lang_files_missing or taxonomy_changed:
       cls._generate_lang_files()
 
   @classmethod
@@ -158,6 +170,10 @@ class AcousticDownloaderBaseV3_0:
         if sci_name and en_us_name:
           species_order.append((sci_name, en_us_name))
 
+    # Joined on the scientific name because these labels carry no code the
+    # taxonomy shares - unlike the geo model, which joins on species_code. See
+    # the module docstring of birdnet/utils/taxonomy_v3.py; the two keys are
+    # deliberate and the trade-off is described there.
     taxonomy: dict[str, dict[str, str]] = {}
     with open(get_taxonomy_v3_path(), encoding="utf-8", newline="") as f:
       reader = csv.DictReader(f)
@@ -178,6 +194,7 @@ class AcousticDownloaderBaseV3_0:
           localized_name = en_us_name
         lines.append(f"{sci_name}_{localized_name}")
       _write_text_atomic(lang_file, "\n".join(lines), encoding="utf-8")
+    write_taxonomy_v3_marker(lang_dir)
 
   @classmethod
   def get_lang_file(cls, lang: str) -> Path:
