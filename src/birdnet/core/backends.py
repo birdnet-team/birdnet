@@ -338,7 +338,7 @@ class TorchBackend(Backend, ABC):
       result = outputs
     else:
       raise ValueError(
-        "PyTorch model is expected to return a tuple of (embeddings, predictions)."
+        "PyTorch model is expected to return a tuple of (predictions, embeddings)."
       )
     if not isinstance(result, torch.Tensor):
       raise ValueError("PyTorch model output is expected to be a torch.Tensor.")
