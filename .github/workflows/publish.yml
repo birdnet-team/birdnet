@@ -1,0 +1,40 @@
+name: Publish to PyPI
+
+# `release` events run the workflow file from the default branch, not the tag.
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/birdnet
+
+    permissions:
+      # Trusted publishing: PyPI checks this run's OIDC identity, so no token.
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install build tooling
+        run: python -m pip install --upgrade pip build twine
+
+      # `python -m build` breaks when a build/ directory shadows the module.
+      - name: Build sdist and wheel
+        run: pyproject-build -o dist/
+
+      # Rejects bad metadata before an upload that cannot be redone.
+      - name: Check the artifacts
+        run: python -m twine check dist/*
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
