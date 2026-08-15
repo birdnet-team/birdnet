@@ -8,25 +8,33 @@ waited forever with no output at all: the user saw birdnet freeze with no way
 to tell a dead worker from a working one.
 
 Killing the worker with SIGKILL is exactly what the OOM killer does, so this
-reproduces the real failure rather than a simulation of it. The worker is
-killed while parked rather than mid-batch -- see the comment at the kill for
-why the mid-batch variant is untestable rather than merely awkward.
+reproduces the real failure rather than a simulation of it. Two kills are
+covered: one while the worker is parked on its start signal, which pins the
+diagnosis deterministically because the worker then holds nothing, and one
+mid-batch, which is the realistic memory-pressure case and is where a killed
+worker can leave a lock held (#73) or a half-written message in a queue (#77).
 """
 
+import faulthandler
 import re
 import shutil
+import sys
 import threading
 import time
 from pathlib import Path
 
 import pytest
 
+from birdnet.globals import READING_FLAG
 from birdnet.model_loader import load
 from birdnet_tests.test_files import TEST_FILE_LONG
 
 # Generous upper bound: without the liveness check this never returns at all.
 # The check reports within one poll interval once the results queue goes quiet.
-_FAILURE_DEADLINE_S = 120.0
+# Sized for the mid-batch kill below, whose worst legitimate teardown is the
+# 30 s terminate grace plus the bounded joins that follow it -- roughly 70 s --
+# so a run that merely tears down the slow way must not be read as a wedge.
+_FAILURE_DEADLINE_S = 180.0
 # TEST_FILE_LONG is 120 s and the model's segment is 3 s.
 _EXPECTED_SEGMENTS = 40
 
@@ -56,13 +64,10 @@ def test_killed_worker_fails_the_run_with_a_diagnosis(tmp_path: Path) -> None:
         workers = session._process_manager._worker_processes
         assert workers is not None
         # Killed while parked on its start signal, before any work is handed
-        # out. A worker killed *mid-batch* would be holding the ring-buffer
-        # lock, and a multiprocessing.Lock is a POSIX semaphore: the owner
-        # dying never releases it, so the survivors deadlock and teardown can
-        # never complete. (On Windows the mutex is merely abandoned and the
-        # next waiter proceeds, which is why that variant passed locally and
-        # hung every POSIX CI lane.) The child is just as dead either way,
-        # which is all the liveness check cares about.
+        # out, so it holds nothing: whatever the diagnosis says here is about
+        # the liveness check alone. The mid-batch kill, where the worker can
+        # die holding a lock or half-way through a queue message, is covered
+        # by the test below.
         workers[0].kill()
         workers[0].join(timeout=30)
         assert not workers[0].is_alive(), "the worker did not actually die"
@@ -98,6 +103,104 @@ def test_killed_worker_fails_the_run_with_a_diagnosis(tmp_path: Path) -> None:
   assert re.search(r"Worker|worker", message), f"process not named: {message!r}"
   assert isinstance(error.__cause__, ChildProcessError), (
     f"the ChildProcessError should be chained as the cause, got {error.__cause__!r}"
+  )
+
+
+def test_worker_killed_mid_batch_fails_the_run_and_tears_down(
+  tmp_path: Path,
+) -> None:
+  """The realistic OOM path: killed while it is doing work, not while parked.
+
+  A worker killed here can be anywhere -- scanning the ring under the shared
+  lock, updating a counter, or half-way through writing a result to its queue.
+  None of those recover on their own: the lock is a semaphore nobody will post
+  again, and a truncated queue message stops a reader for good with nothing
+  raised.
+
+  Read this as a broad regression test against wedging, not as the proof of
+  either fix. What it pins is that a mid-run SIGKILL still ends in a returned
+  RuntimeError; it deliberately does not assert *how long* teardown took,
+  because the pre-existing grace period would terminate a wedged survivor after
+  30 s and let this pass either way. The fix for the leaked lock is pinned
+  deterministically, on exit codes, in test_leaked_ring_lock_v2_4.py, and the
+  diagnosis is pinned by the parked-kill test above.
+
+  Two workers on purpose: with one, the killed worker leaves no survivors, and
+  the lock it may be holding has nobody left to block. Which of the two ends up
+  holding what at kill time is not controllable from here.
+
+  The kill is triggered by a slot going READING, not by a progress callback:
+  that happens on the first batch rather than on the first stats interval a
+  second later. A fast runner finishes this much audio inside that second, and
+  killing a worker that has already signalled it is done proves nothing -- it
+  is not an error, so the run rightly succeeded and the test failed.
+  """
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
+  files = _copies(Path(TEST_FILE_LONG), tmp_path, 4)
+
+  outcome: dict = {}
+  finished = threading.Event()
+  killed = threading.Event()
+  started = threading.Event()
+
+  def kill_a_worker_once_the_pipeline_is_working() -> None:
+    assert started.wait(timeout=_FAILURE_DEADLINE_S)
+    ring = outcome["ring"]
+    flags = ring.rf_flags.get_array(ring._rf_flags_memory)
+    finish_signals = outcome["finish_signals"]
+    workers = outcome["workers"]
+    deadline = time.monotonic() + _FAILURE_DEADLINE_S
+    while time.monotonic() < deadline:
+      if finish_signals[0].is_set():
+        # It got through all its work first; killing it now would be the
+        # ordinary end-of-run shutdown, not a death.
+        return
+      if any(flag == READING_FLAG for flag in flags):
+        workers[0].kill()
+        killed.set()
+        return
+      time.sleep(0.01)
+
+  def run() -> None:
+    # As above: the session must be entered and exited from one thread only.
+    try:
+      with model.predict_session(n_workers=2, top_k=None) as session:
+        resources = session._resources
+        outcome["workers"] = list(session._process_manager._worker_processes or [])
+        outcome["finish_signals"] = resources.worker_resources.finish_signals
+        outcome["ring"] = resources.ring_buffer_resources
+        started.set()
+        session.run(files)
+    except BaseException as e:  # noqa: BLE001 - recorded and asserted on below
+      outcome["error"] = e
+    finally:
+      finished.set()
+
+  killer = threading.Thread(
+    target=kill_a_worker_once_the_pipeline_is_working,
+    name="dead-worker-killer",
+    daemon=True,
+  )
+  runner = threading.Thread(target=run, name="dead-worker-midbatch", daemon=True)
+  killer.start()
+  runner.start()
+
+  if not finished.wait(timeout=_FAILURE_DEADLINE_S):
+    # The stacks are the only usable evidence for a wedge like this, and a
+    # hanging daemon thread produces no traceback of its own.
+    faulthandler.dump_traceback(file=sys.stderr, all_threads=True)
+    raise AssertionError(
+      f"the run did not finish within {_FAILURE_DEADLINE_S:.0f} s after a "
+      f"worker was killed mid-batch; thread stacks dumped above"
+    )
+
+  assert killed.is_set(), (
+    "no worker was ever killed while the pipeline had work in flight, so "
+    "nothing was tested"
+  )
+  error = outcome.get("error")
+  assert isinstance(error, RuntimeError), (
+    f"the run must fail rather than return a partial result, got {error!r}"
   )
 
 

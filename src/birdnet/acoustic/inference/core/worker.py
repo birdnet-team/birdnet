@@ -13,7 +13,11 @@ from numpy.typing import DTypeLike
 
 import birdnet.acoustic.inference.core.logs as bn_logging
 from birdnet.acoustic.inference.core.shm import RingField
-from birdnet.acoustic.inference.core.sync import CountedSemaphore, abandon_queue_feeders
+from birdnet.acoustic.inference.core.sync import (
+  CountedSemaphore,
+  abandon_queue_feeders,
+  acquire_or_give_up_when_cancelled,
+)
 from birdnet.core.backends import BackendLoader, BatchT, VersionedBackendProtocol
 from birdnet.globals import (
   READABLE_FLAG,
@@ -213,6 +217,10 @@ class WorkerBase(bn_logging.LogableProcessBase):
 
     self._uninit_logging()
 
+    # Last, and only now that the handler is gone: see _abandon_logging_feeder.
+    if self._cancel_event.is_set():
+      self._abandon_logging_feeder()
+
   def run_main_loop(self) -> None:
     while True:
       self._log("Waiting for start signal...")
@@ -265,7 +273,16 @@ class WorkerBase(bn_logging.LogableProcessBase):
       claimed_flag = None
 
       perf_c = time.perf_counter()
-      with self._wkr_ring_access_lock:
+      # Never a plain ``with``: the holder of this lock can be killed mid-scan,
+      # and the lock is then held for good on every platform (see
+      # acquire_or_give_up_when_cancelled). Giving up turns "every surviving
+      # worker wedges" into "the run ends with the reason the parent recorded".
+      if not acquire_or_give_up_when_cancelled(
+        self._wkr_ring_access_lock, self._cancel_event
+      ):
+        self._log("Gave up waiting for the ring lock; the run was cancelled.")
+        return
+      try:
         for current_slot in range(self._n_slots):
           current_slot_flag = self._ring_flags[current_slot]
 
@@ -281,6 +298,8 @@ class WorkerBase(bn_logging.LogableProcessBase):
               WRITING_FLAG,
               READING_FLAG,
             )
+      finally:
+        self._wkr_ring_access_lock.release()
       # Timed unconditionally: an empty scan is the shutdown wake-up and must
       # reach the exit below, not assert on a duration only set when a slot hit.
       # The window now closes after the lock rather than at the moment the slot

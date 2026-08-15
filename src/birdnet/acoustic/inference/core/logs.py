@@ -2,6 +2,7 @@ import logging
 from logging.handlers import QueueHandler
 from multiprocessing import Queue
 
+from birdnet.acoustic.inference.core.sync import abandon_queue_feeders
 from birdnet.core.base import get_session_id_hash
 from birdnet.utils.logging_utils import get_package_logger, init_package_logger
 
@@ -90,6 +91,23 @@ class LogableProcessBase:
     self.__logger.debug(
       f"Initialized logging for session {self._session_hash} -> {self.__name}."
     )
+
+  def _abandon_logging_feeder(self) -> None:
+    """Let this process exit without flushing the logging queue.
+
+    Call last, on the cancellation path only. Every child writes to this one
+    queue, and a `multiprocessing.Queue` holds a write lock around the actual
+    pipe write on POSIX. A child killed inside that write never releases the
+    lock, so every surviving child's logging feeder thread is stuck on it --
+    and `multiprocessing` joins that feeder when the process exits, so the
+    survivors cannot leave and the parent has to terminate them.
+
+    Only what is still buffered here is dropped, not the records already sent.
+    The feeder drains continuously while the parent's log writer is reading, so
+    on an ordinary cancellation that tail is next to nothing; in the case this
+    exists for, the writer is wedged and could not have read it anyway.
+    """
+    abandon_queue_feeders(self.__logging_queue)
 
   def _uninit_logging(self) -> None:
     assert self.__logger is not None
