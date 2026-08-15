@@ -1,6 +1,18 @@
-# Agents
-.claude
-CLAUDE.md
+# AI agents: AGENTS.md (canonical) and CLAUDE.md (import shim) are checked in.
+# Everything below is per-user local state, never shared.
+.claude/
+CLAUDE.local.md
+.aider*
+.codex/
+.gemini/
+.cursor/
+.windsurf/
+.roo/
+.clinerules/
+.continue/
+.opencode/
+.serena/
+.specstory/
 
 # Custom
 *.ods*#

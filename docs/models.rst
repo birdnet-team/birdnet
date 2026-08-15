@@ -79,8 +79,8 @@ Geo model (species range model) V3.0
 
     * ``tf`` - TFLite (CPU only), ``int8``, ``fp16`` and ``fp32``
     * ``pb`` - ProtoBuf (CPU/GPU), ``fp32``
-    * ``pt`` - PyTorch/TorchScript (CPU/GPU), ``fp32``
-    * ``onnx`` - ONNX (CPU/GPU), ``fp16`` and ``fp32``
+    * ``pt`` - PyTorch/TorchScript (CPU/GPU), ``fp32``; requires ``pip install birdnet[pt]``
+    * ``onnx`` - ONNX Runtime (CPU/GPU), ``fp16`` and ``fp32``; requires ``pip install birdnet[onnx]``
 
 The model's ``.tflite`` files contain select TensorFlow ops, so the ``tf`` backend
 requires TensorFlow 2.18 or 2.19 and is not available via ``ai_edge_litert``

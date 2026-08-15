@@ -58,7 +58,7 @@ on every platform (it always did on macOS and Windows): entry-point code must
 be guarded with ``if __name__ == "__main__":``.
 
 Known limitations
-----
+-----------------
 
 **End-time precision on the last segment of short files (≤ ~34 minutes).**
 For memory efficiency, per-file durations are stored in the smallest float

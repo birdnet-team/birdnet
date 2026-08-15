@@ -1,0 +1,63 @@
+# AGENTS.md
+
+Guidance for AI coding agents working in this repository.
+
+## Project
+
+Python library (`src` layout) for identifying bird species by their sounds (BirdNET). Python 3.11–3.14 (3.14 is the TensorFlow-free surface only: onnx/pt backends + friendly errors on TF paths).
+
+- `src/birdnet` — the library
+- `src/birdnet_tests` — pytest suite (not shipped)
+- `src/birdnet_benchmark` — benchmark CLI (`birdnet-benchmark` entry point)
+- `src/birdnet/playground*.py` — scratch files, not part of the API
+
+## Environment setup
+
+- System dependency: libsndfile (`apt-get install libsndfile1` / `brew install libsndfile` / `choco install libsndfile`).
+- Install: `uv pip install -e '.[tests]'` (or plain pip). Optional extras: `pt` (torch), `onnx`; the `repro` extra pins exact versions and conflicts with normal dev.
+- Official models auto-download on first load (~3 GB for the full set). The cache location is controlled by the `BIRDNET_APP_DATA` env var — set it to a persistent path in ephemeral environments. `pytest -m "not repro and load_model" -n auto` prefetches everything the tests need.
+
+## Commands
+
+```sh
+# lint / format / type check (2-space indent, line length 88; ruff requires type annotations)
+ruff check src/birdnet
+ruff format src/birdnet
+mypy   # configured via pyproject to check the birdnet package
+
+# fast local test run (skips model downloads, litert, gpu, repro, fork)
+pytest -m "not repro and not load_model and not litert and not gpu and not fork" -n auto
+
+# single test
+pytest src/birdnet_tests/path/to/test_file.py::test_name
+
+# full matrix (py311-314 + py312-repro), used by CI
+tox
+```
+
+### Test markers (ordering matters)
+
+- `load_model` — downloads all models; run first before other tests.
+- `litert` — must run in a separate pytest process: `ai_edge_litert` cannot be imported after TensorFlow (`pytest -m litert -n auto`).
+- `gpu` — run sequentially (`-n 1`).
+- `repro` — requires the exact pinned versions from the `repro` extra (Python 3.12, CPU only, not macOS Intel).
+- `fork` — forces the fork start method; must run serially and in-process (`-n 0`), never in the parallel phase: forking after TensorFlow is loaded can wedge or segfault the child (see `conftest.py`). Fork support is best-effort — a hung fork test on macOS is likely the known TF limitation, not your change.
+- `no_tf` — the TensorFlow-free surface; the only tests that run on Python 3.14.
+
+Per-test timeout is 600 s (thread method, kills the process on hang); worker restarts are disabled (`--max-worker-restart=0`).
+
+## Conventions
+
+- User-facing fixes and features get a `CHANGELOG.md` entry under `[Unreleased]` (Keep a Changelog format): a self-contained paragraph explaining cause and effect, not just "fixed X".
+- Tests mirror the source layout: `<module>_py/` directories, one file per method/behavior, optionally grouped in a `ClassName/` directory (e.g. `inference_pipeline/resources_py/RingBufferResources/test_reset.py`).
+- Timing-sensitive tests assert invariants, not distributions — e.g. guard a latency floor with `min(durations)`, not a mean/median, so a loaded CI runner cannot flake it.
+
+## Architecture
+
+- Two model domains with parallel structure: `acoustic/` (species classification + embeddings from audio) and `geo/` (species presence from lat/lon/week). Each has `models/` (per version: `v2_4`, `v3_0`, plus acoustic-only `perch_v2`) and `inference/`.
+- Public API is exported from `birdnet/__init__.py`. Entry points are `birdnet.load(model_type, version, backend)`, `load_custom`, and `load_perch_v2` in `model_loader.py` — keep the `model_loader.pyi` stub in sync when changing signatures.
+- `core/backends.py` holds the backend abstraction: `TFBackend` (TFLite/LiteRT), `PBBackend` (ProtoBuf SavedModel), `TorchBackend`, `OnnxBackend`, plus `BackendLoader` and TF/torch/onnx device + import helpers. Torch and ONNX are optional extras (`pt`, `onnx`); LiteRT availability is platform-dependent.
+- Acoustic inference runs through session objects (`AcousticPredictionSession`, `AcousticEncodingSession`) driven by prediction/encoding strategies and multiprocessing (`acoustic/inference/process_manager.py`). Result objects export to CSV/Parquet/Arrow/etc.
+- Official models auto-download on first load (what `load_model` tests exercise).
+- V3.0 species labels are generated, not shipped: one `<lang>.txt` per language, built from each model's own label file plus a taxonomy CSV shared by the acoustic and geo V3.0 models (`utils/taxonomy_v3.py`). The two models join to that taxonomy on different keys deliberately — geo on `species_code`, acoustic on `sci_name` — and a species the taxonomy cannot resolve silently falls back to its English name. Read that module's docstring before changing anything about labels, languages or the taxonomy.
+- Runtime log file: `%TEMP%\birdnet.log` (Windows) or `/tmp/birdnet.log`.
