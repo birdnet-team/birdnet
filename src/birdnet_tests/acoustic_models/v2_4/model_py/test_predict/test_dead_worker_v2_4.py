@@ -25,7 +25,7 @@ from pathlib import Path
 
 import pytest
 
-from birdnet.acoustic.inference.core.perf_tracker import AcousticProgressStats
+from birdnet.globals import READING_FLAG
 from birdnet.model_loader import load
 from birdnet_tests.test_files import TEST_FILE_LONG
 
@@ -117,7 +117,15 @@ def test_worker_killed_mid_batch_fails_the_run_and_tears_down(
   and the diagnosis is checked by the parked-kill test above.
 
   Two workers on purpose: with one, the killed worker leaves no survivors, and
-  the lock it may be holding has nobody left to block.
+  the lock it may be holding has nobody left to block. Which of the two ends up
+  holding what at kill time is not controllable from here -- the leaked lock
+  itself is pinned deterministically in test_leaked_ring_lock_v2_4.py.
+
+  The kill is triggered by a slot going READING, not by a progress callback:
+  that happens on the first batch rather than on the first stats interval a
+  second later. A fast runner finishes this much audio inside that second, and
+  killing a worker that has already signalled it is done proves nothing -- it
+  is not an error, so the run rightly succeeded and the test failed.
   """
   model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
   files = _copies(Path(TEST_FILE_LONG), tmp_path, 4)
@@ -125,33 +133,48 @@ def test_worker_killed_mid_batch_fails_the_run_and_tears_down(
   outcome: dict = {}
   finished = threading.Event()
   killed = threading.Event()
+  started = threading.Event()
 
-  def on_progress(stats: AcousticProgressStats) -> None:
-    # Fires once at least one prediction has been made, so the pipeline is up
-    # and the workers are cycling through batches.
-    workers = outcome.get("workers")
-    if not workers or killed.is_set():
-      return
-    killed.set()
-    workers[0].kill()
+  def kill_a_worker_once_the_pipeline_is_working() -> None:
+    assert started.wait(timeout=_FAILURE_DEADLINE_S)
+    ring = outcome["ring"]
+    flags = ring.rf_flags.get_array(ring._rf_flags_memory)
+    finish_signals = outcome["finish_signals"]
+    workers = outcome["workers"]
+    deadline = time.monotonic() + _FAILURE_DEADLINE_S
+    while time.monotonic() < deadline:
+      if finish_signals[0].is_set():
+        # It got through all its work first; killing it now would be the
+        # ordinary end-of-run shutdown, not a death.
+        return
+      if any(flag == READING_FLAG for flag in flags):
+        workers[0].kill()
+        killed.set()
+        return
+      time.sleep(0.01)
 
   def run() -> None:
     # As above: the session must be entered and exited from one thread only.
     try:
-      with model.predict_session(
-        n_workers=2,
-        top_k=None,
-        show_stats="progress",
-        progress_callback=on_progress,
-      ) as session:
+      with model.predict_session(n_workers=2, top_k=None) as session:
+        resources = session._resources
         outcome["workers"] = list(session._process_manager._worker_processes or [])
+        outcome["finish_signals"] = resources.worker_resources.finish_signals
+        outcome["ring"] = resources.ring_buffer_resources
+        started.set()
         session.run(files)
     except BaseException as e:  # noqa: BLE001 - recorded and asserted on below
       outcome["error"] = e
     finally:
       finished.set()
 
+  killer = threading.Thread(
+    target=kill_a_worker_once_the_pipeline_is_working,
+    name="dead-worker-killer",
+    daemon=True,
+  )
   runner = threading.Thread(target=run, name="dead-worker-midbatch", daemon=True)
+  killer.start()
   runner.start()
 
   if not finished.wait(timeout=_FAILURE_DEADLINE_S):
@@ -163,7 +186,10 @@ def test_worker_killed_mid_batch_fails_the_run_and_tears_down(
       f"worker was killed mid-batch; thread stacks dumped above"
     )
 
-  assert killed.is_set(), "the worker was never killed, so nothing was tested"
+  assert killed.is_set(), (
+    "no worker was ever killed while the pipeline had work in flight, so "
+    "nothing was tested"
+  )
   error = outcome.get("error")
   assert isinstance(error, RuntimeError), (
     f"the run must fail rather than return a partial result, got {error!r}"
