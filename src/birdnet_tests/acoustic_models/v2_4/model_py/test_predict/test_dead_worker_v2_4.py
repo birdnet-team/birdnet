@@ -8,19 +8,24 @@ waited forever with no output at all: the user saw birdnet freeze with no way
 to tell a dead worker from a working one.
 
 Killing the worker with SIGKILL is exactly what the OOM killer does, so this
-reproduces the real failure rather than a simulation of it. The worker is
-killed while parked rather than mid-batch -- see the comment at the kill for
-why the mid-batch variant is untestable rather than merely awkward.
+reproduces the real failure rather than a simulation of it. Two kills are
+covered: one while the worker is parked on its start signal, which pins the
+diagnosis deterministically because the worker then holds nothing, and one
+mid-batch, which is the realistic memory-pressure case and is where a killed
+worker can leave a lock held (#73) or a half-written message in a queue (#77).
 """
 
+import faulthandler
 import re
 import shutil
+import sys
 import threading
 import time
 from pathlib import Path
 
 import pytest
 
+from birdnet.acoustic.inference.core.perf_tracker import AcousticProgressStats
 from birdnet.model_loader import load
 from birdnet_tests.test_files import TEST_FILE_LONG
 
@@ -56,13 +61,10 @@ def test_killed_worker_fails_the_run_with_a_diagnosis(tmp_path: Path) -> None:
         workers = session._process_manager._worker_processes
         assert workers is not None
         # Killed while parked on its start signal, before any work is handed
-        # out. A worker killed *mid-batch* would be holding the ring-buffer
-        # lock, and a multiprocessing.Lock is a POSIX semaphore: the owner
-        # dying never releases it, so the survivors deadlock and teardown can
-        # never complete. (On Windows the mutex is merely abandoned and the
-        # next waiter proceeds, which is why that variant passed locally and
-        # hung every POSIX CI lane.) The child is just as dead either way,
-        # which is all the liveness check cares about.
+        # out, so it holds nothing: whatever the diagnosis says here is about
+        # the liveness check alone. The mid-batch kill, where the worker can
+        # die holding a lock or half-way through a queue message, is covered
+        # by the test below.
         workers[0].kill()
         workers[0].join(timeout=30)
         assert not workers[0].is_alive(), "the worker did not actually die"
@@ -98,6 +100,73 @@ def test_killed_worker_fails_the_run_with_a_diagnosis(tmp_path: Path) -> None:
   assert re.search(r"Worker|worker", message), f"process not named: {message!r}"
   assert isinstance(error.__cause__, ChildProcessError), (
     f"the ChildProcessError should be chained as the cause, got {error.__cause__!r}"
+  )
+
+
+def test_worker_killed_mid_batch_fails_the_run_and_tears_down(
+  tmp_path: Path,
+) -> None:
+  """The realistic OOM path: killed while it is doing work, not while parked.
+
+  A worker killed here can be anywhere -- scanning the ring under the shared
+  lock, updating a counter, or half-way through writing a result to its queue.
+  On POSIX none of those recover on their own: the lock is a semaphore nobody
+  will post again, and a truncated queue message stops a reader for good with
+  nothing raised. This ran the whole run to the suite timeout on every POSIX CI
+  lane before #73 and #77 were fixed; that it now *returns* is the assertion,
+  and the diagnosis is checked by the parked-kill test above.
+
+  Two workers on purpose: with one, the killed worker leaves no survivors, and
+  the lock it may be holding has nobody left to block.
+  """
+  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
+  files = _copies(Path(TEST_FILE_LONG), tmp_path, 4)
+
+  outcome: dict = {}
+  finished = threading.Event()
+  killed = threading.Event()
+
+  def on_progress(stats: AcousticProgressStats) -> None:
+    # Fires once at least one prediction has been made, so the pipeline is up
+    # and the workers are cycling through batches.
+    workers = outcome.get("workers")
+    if not workers or killed.is_set():
+      return
+    killed.set()
+    workers[0].kill()
+
+  def run() -> None:
+    # As above: the session must be entered and exited from one thread only.
+    try:
+      with model.predict_session(
+        n_workers=2,
+        top_k=None,
+        show_stats="progress",
+        progress_callback=on_progress,
+      ) as session:
+        outcome["workers"] = list(session._process_manager._worker_processes or [])
+        session.run(files)
+    except BaseException as e:  # noqa: BLE001 - recorded and asserted on below
+      outcome["error"] = e
+    finally:
+      finished.set()
+
+  runner = threading.Thread(target=run, name="dead-worker-midbatch", daemon=True)
+  runner.start()
+
+  if not finished.wait(timeout=_FAILURE_DEADLINE_S):
+    # The stacks are the only usable evidence for a wedge like this, and a
+    # hanging daemon thread produces no traceback of its own.
+    faulthandler.dump_traceback(file=sys.stderr, all_threads=True)
+    raise AssertionError(
+      f"the run did not finish within {_FAILURE_DEADLINE_S:.0f} s after a "
+      f"worker was killed mid-batch; thread stacks dumped above"
+    )
+
+  assert killed.is_set(), "the worker was never killed, so nothing was tested"
+  error = outcome.get("error")
+  assert isinstance(error, RuntimeError), (
+    f"the run must fail rather than return a partial result, got {error!r}"
   )
 
 

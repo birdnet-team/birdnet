@@ -19,7 +19,11 @@ import soundfile
 
 import birdnet.acoustic.inference.core.logs as bn_logging
 from birdnet.acoustic.inference.core.shm import RingField
-from birdnet.acoustic.inference.core.sync import CountedSemaphore, abandon_queue_feeders
+from birdnet.acoustic.inference.core.sync import (
+  CountedSemaphore,
+  abandon_queue_feeders,
+  acquire_or_give_up_when_cancelled,
+)
 from birdnet.globals import (
   READABLE_FLAG,
   READING_FLAG,
@@ -434,7 +438,15 @@ class Producer(bn_logging.LogableProcessBase):
       claimed_slot = None
 
       perf_c = time.perf_counter()
-      with self._prd_ring_access_lock:
+      # Never a plain ``with``: the holder of this lock can be killed mid-scan,
+      # and on POSIX the lock is then held for good (see
+      # acquire_or_give_up_when_cancelled).
+      if not acquire_or_give_up_when_cancelled(
+        self._prd_ring_access_lock, self._cancel_event
+      ):
+        self._log("Gave up waiting for the ring lock; the run was cancelled.")
+        return
+      try:
         for current_slot in range(self._n_slots):
           current_slot_flag = self._ring_flags[current_slot]
           if current_slot_flag == WRITABLE_FLAG:
@@ -449,6 +461,8 @@ class Producer(bn_logging.LogableProcessBase):
               READING_FLAG,
               WRITING_FLAG,
             )
+      finally:
+        self._prd_ring_access_lock.release()
       free_slot_search_time = time.perf_counter() - perf_c
 
       if claimed_slot is None:

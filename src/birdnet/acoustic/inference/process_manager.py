@@ -51,6 +51,38 @@ _TERMINATE_JOIN_TIMEOUT_S = 5.0
 # its children are still alive. Short enough that a dead child is reported
 # promptly, long enough to be free next to the work being waited on.
 _LIVENESS_POLL_INTERVAL_S = 1.0
+# How long teardown waits for the queue drainers to notice they are done. They
+# only ever have one ``get_nowait`` left to finish, so anything still running
+# after this is stuck for good and is left to the daemon-thread machinery.
+_DRAIN_STOP_TIMEOUT_S = 1.0
+# How long teardown waits for the log writer to drain the logging queue and
+# stop. It polls the stop event every second and normally leaves right after
+# it, so this only bounds a writer that cannot return at all.
+_LOGGING_JOIN_TIMEOUT_S = 30.0
+
+
+def _drain_queue(q: Queue, stop: threading.Event) -> None:
+  """Discard everything a queue holds until told to stop.
+
+  Runs on its own thread, one per queue, and never on the teardown path itself.
+  ``get_nowait`` is not actually non-blocking: it checks that *some* bytes are
+  available and then waits for the rest of the frame, so a child killed
+  mid-``put`` leaves a truncated message that stops the call for good. Nothing
+  is raised -- the other children still hold the pipe's write end, so there is
+  no EOF either -- which means no handler can recover from it and only keeping
+  it off the teardown path can (issue #77). One thread per queue so a queue that
+  does wedge cannot stop the others from being drained.
+  """
+  while not stop.is_set():
+    # Best-effort by design: this drain only exists to unblock the children so
+    # they can exit, and the run has already failed. A payload that arrived
+    # intact but cannot be deserialized surfaces as any number of exceptions,
+    # and letting one escape would leave the drain dead while teardown still
+    # expects it -- so none of them are enumerated.
+    with suppress(Exception):
+      while not stop.is_set():
+        q.get_nowait()
+    stop.wait(0.05)
 
 
 class ProcessManager:
@@ -81,6 +113,7 @@ class ProcessManager:
     self._producer_processes: list[BaseProcess] | None = None
     self._worker_processes: list[BaseProcess] | None = None
     self._child_death_error: ChildProcessError | None = None
+    self._undrainable_queues: list[Queue] = []
 
   @property
   def child_death_error(self) -> ChildProcessError | None:
@@ -624,6 +657,12 @@ class ProcessManager:
     joining so the children can flush and exit, and terminate any process
     that still lingers after the grace period. The drained data is discarded,
     which is fine: the run was cancelled.
+
+    The drain runs on background threads rather than here, because a single
+    ``get_nowait`` can block for good on a message truncated by a killed child
+    (see ``_drain_queue``). Teardown must stay bounded whatever the drain does,
+    so it only ever *starts* and *stops* the drainers and never waits on their
+    progress.
     """
     logger.debug("Joining processes after cancellation (draining queues)...")
 
@@ -636,7 +675,7 @@ class ProcessManager:
       processes.append(self._perf_tracker_process)
 
     stats_res = self._res.stats_resources
-    queues: list[Queue] = [
+    optional_queues: list[Queue | None] = [
       self._res.producer_resources.unprocessed_inputs_queue,
       self._res.worker_resources.results_queue,
       self._res.file_completion_resources.marker_queue,
@@ -645,42 +684,43 @@ class ProcessManager:
       stats_res.perf_res_queue,
       stats_res.callback_queue,
     ]
-    queues = [q for q in queues if q is not None]
+    queues: list[Queue] = [q for q in optional_queues if q is not None]
+
+    stop_draining = threading.Event()
+    drainers = [
+      threading.Thread(
+        target=_drain_queue,
+        args=(q, stop_draining),
+        name=f"{self._session_hash}-CancelDrain-{i}",
+        daemon=True,
+      )
+      for i, q in enumerate(queues)
+    ]
+    for drainer in drainers:
+      drainer.start()
 
     deadline = time.monotonic() + grace_period_s
     terminated = False
 
-    while True:
-      alive = [p for p in processes if p.is_alive()]
+    try:
+      while True:
+        alive = [p for p in processes if p.is_alive()]
 
-      if not alive:
-        break
+        if not alive:
+          break
 
-      for q in queues:
-        # Best-effort by design: this drain only exists to unblock the children
-        # so they can exit, and the run has already failed. A payload that
-        # arrived intact but cannot be deserialized surfaces as any number of
-        # exceptions, and letting one escape would abort __exit__ before the
-        # shared memory is released -- so none of them are enumerated.
-        #
-        # This does NOT cover a frame truncated by a child killed mid-``put``:
-        # get_nowait() only checks that *some* bytes are available and then
-        # blocks in _recv_bytes() for the rest, which never arrives. Nothing is
-        # raised, so no handler here can help; see issue #77.
-        with suppress(Exception):
-          while True:
-            q.get_nowait()
+        if time.monotonic() >= deadline:
+          for p in alive:
+            logger.warning(
+              f"Process '{p.name}' did not exit after cancellation; terminating."
+            )
+            p.terminate()
+          terminated = True
+          break
 
-      if time.monotonic() >= deadline:
-        for p in alive:
-          logger.warning(
-            f"Process '{p.name}' did not exit after cancellation; terminating."
-          )
-          p.terminate()
-        terminated = True
-        break
-
-      time.sleep(0.05)
+        time.sleep(0.05)
+    finally:
+      stop_draining.set()
 
     # Reap every process. Ones that exited on their own join instantly; ones we
     # just terminated get a bounded wait and are then SIGKILLed if they ignored
@@ -693,14 +733,56 @@ class ProcessManager:
         p.join()
       logger.debug(f"Process '{p.name}' finished.")
 
+    self._collect_wedged_drainers(logger, queues, drainers)
+
     self._producer_processes = None
     self._worker_processes = None
     self._perf_tracker_process = None
     logger.debug("All processes finished after cancellation.")
 
+  def _collect_wedged_drainers(
+    self, logger: Logger, queues: list[Queue], drainers: list[threading.Thread]
+  ) -> None:
+    """Note which queues a drainer is still stuck inside, and why it matters.
+
+    A drainer blocked on a truncated message holds the queue's reader. Closing
+    that reader would not wake it -- a blocked ``read`` is not interrupted by
+    the descriptor being closed -- but it would free the descriptor number for
+    reuse, and the stuck thread would then be reading from whatever the process
+    opens next. Leaving those queues open costs two descriptors and a parked
+    daemon thread per teardown that hits this; closing them risks silent data
+    corruption elsewhere in the process, so the queues stay open.
+    """
+    deadline = time.monotonic() + _DRAIN_STOP_TIMEOUT_S
+    for q, drainer in zip(queues, drainers, strict=True):
+      drainer.join(timeout=max(0.0, deadline - time.monotonic()))
+      if drainer.is_alive():
+        logger.warning(
+          f"Queue drain '{drainer.name}' is still blocked on a message a "
+          f"killed child never finished writing; leaving that queue open."
+        )
+        self._undrainable_queues.append(q)
+
   def join_logging(self) -> None:
+    """Wait for the log writer, but never on something that cannot finish.
+
+    The writer reads the shared logging queue with a blocking ``get``, and a
+    child killed mid-``put`` leaves a message whose remainder never arrives:
+    the read then blocks for good, with no exception to catch, exactly as on
+    the cancel-path drain (issue #77). It is a daemon thread, so leaving it
+    parked costs the tail of the session log and nothing else -- whereas
+    waiting on it costs the whole teardown.
+    """
     assert self._logging_thread is not None
-    self._logging_thread.join()
+    self._logging_thread.join(timeout=_LOGGING_JOIN_TIMEOUT_S)
+    if self._logging_thread.is_alive():
+      self._logger.warning(
+        "The log writer is still blocked reading the logging queue; the "
+        "session log may be missing its last lines."
+      )
+      # Its queue must stay open for the same reason a wedged drainer's does;
+      # see _collect_wedged_drainers.
+      self._undrainable_queues.append(self._res.logging_resources.logging_queue)
     self._logging_thread = None
 
   def close_queues(self) -> None:
@@ -711,6 +793,10 @@ class ProcessManager:
     ``close`` never waits on a feeder) and lets the OS reclaim the pipes and
     semaphores promptly instead of leaving it to garbage collection -- which the
     caller may skip entirely (e.g. ``os._exit``).
+
+    A queue whose drainer is still wedged is skipped; see
+    ``_collect_wedged_drainers`` for why closing it would be worse than leaking
+    it.
     """
     res = self._res
     stats = res.stats_resources
@@ -726,6 +812,9 @@ class ProcessManager:
       stats.callback_queue,
     ]
     for q in queues:
-      if q is not None:
-        q.cancel_join_thread()
-        q.close()
+      if q is None:
+        continue
+      if any(q is wedged for wedged in self._undrainable_queues):
+        continue
+      q.cancel_join_thread()
+      q.close()
