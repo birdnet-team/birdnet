@@ -137,7 +137,13 @@ class CountedSemaphore:
       lock.release()
 
   def get_value(self) -> int:
-    return self._counter.value
+    # Deliberately not ``self._counter.value``: that property takes the counter
+    # lock, which is exactly the lock a killed process leaves held -- and this
+    # is read by the performance tracker on every stats interval, so it would
+    # simply move the block from the writers to the reader. A gauge does not
+    # need the lock: reads of a C int do not tear, and a count that is one
+    # behind costs a progress line nothing.
+    return self._counter.get_obj().value
 
   def __enter__(self) -> bool:
     return self.acquire()
