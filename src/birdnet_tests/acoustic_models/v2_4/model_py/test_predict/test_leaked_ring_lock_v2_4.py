@@ -14,6 +14,10 @@ which is the same situation the workers see and, unlike killing a worker at
 exactly the right microsecond, is reproducible. The cancellation is supplied by
 the test rather than by the liveness check, so what is pinned is the workers'
 half of the chain; the parent's half is covered in test_dead_worker_v2_4.py.
+
+Only `worker_resources.ring_access_lock` is leaked here. The producers' own
+ring lock and their done-counter take the same give-up path but are covered
+only by the unit tests for it, not end-to-end.
 """
 
 import shutil

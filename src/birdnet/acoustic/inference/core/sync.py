@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 import multiprocessing as mp
 import multiprocessing.synchronize
 from multiprocessing import Queue
 from multiprocessing.context import BaseContext
 from multiprocessing.sharedctypes import Synchronized
 from types import TracebackType
+
+_LOGGER = logging.getLogger(__name__)
 
 # How long a waiter blocks on a cross-process lock before looking up to see
 # whether the run is still alive. Long enough that normal contention never
@@ -55,7 +58,18 @@ def acquire_or_give_up_when_cancelled(
   within a second and sets the cancel event, and every waiter here then leaves
   on its own. Returns ``False`` when it gave up, in which case the caller has
   *not* got the lock and must not touch what the lock protects.
+
+  The non-blocking attempt first is not an optimization for its own sake. macOS
+  has no ``sem_timedwait``, so CPython emulates *any* timed acquire with a
+  poll loop that sleeps in steps of up to 20 ms -- which would put that latency
+  on a per-batch path, and replace the kernel's wait queue with a free-for-all
+  that can starve a waiter. ``acquire(block=False)`` is a plain ``sem_trywait``
+  on every platform, so an uncontended take -- effectively all of them, the
+  protected sections being microseconds -- costs exactly what it did before,
+  and only a genuinely contended one falls back to polling.
   """
+  if lock.acquire(block=False):
+    return True
   while not lock.acquire(timeout=poll_interval_s):
     if cancel_event.is_set():
       return False
@@ -100,11 +114,22 @@ class CountedSemaphore:
     if self._counter_lock_lost:
       return
     lock = self._counter.get_lock()
-    if not lock.acquire(timeout=LOCK_POLL_INTERVAL_S):
+    # Non-blocking first, for the reason given in
+    # acquire_or_give_up_when_cancelled: this runs on every permit handed
+    # between a producer and a worker, and a timed acquire is a poll loop on
+    # macOS.
+    if not lock.acquire(block=False) and not lock.acquire(timeout=LOCK_POLL_INTERVAL_S):
       # A microsecond-long critical section that cannot be entered within a
       # second is not contention, it is a lock that nobody will release again.
-      # Stop trying, or every later call pays the same second.
+      # Stop trying, or every later call pays the same second. Said out loud
+      # because the gauges silently freeze from here on, and a reader of the
+      # progress output has no other way to know.
       self._counter_lock_lost = True
+      _LOGGER.warning(
+        "Gave up on the slot-counter lock; it is held by a process that will "
+        "not release it. The slot and busy-worker gauges are frozen for the "
+        "rest of this process."
+      )
       return
     try:
       self._counter.value += delta

@@ -31,7 +31,10 @@ from birdnet_tests.test_files import TEST_FILE_LONG
 
 # Generous upper bound: without the liveness check this never returns at all.
 # The check reports within one poll interval once the results queue goes quiet.
-_FAILURE_DEADLINE_S = 120.0
+# Sized for the mid-batch kill below, whose worst legitimate teardown is the
+# 30 s terminate grace plus the bounded joins that follow it -- roughly 70 s --
+# so a run that merely tears down the slow way must not be read as a wedge.
+_FAILURE_DEADLINE_S = 180.0
 # TEST_FILE_LONG is 120 s and the model's segment is 3 s.
 _EXPECTED_SEGMENTS = 40
 

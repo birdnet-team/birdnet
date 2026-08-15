@@ -138,16 +138,28 @@ def _logger() -> logging.Logger:
 
 
 def test_a_drain_that_never_returns_does_not_stop_teardown() -> None:
-  """The whole point: this hangs forever if the drain moves back inline."""
+  """The whole point: teardown must not wait on a drain that never returns.
+
+  The release timer is what makes this a *failing* test rather than a hanging
+  one if the drain moves back onto the teardown path. Without it the assertion
+  below could never be evaluated -- the call would simply never return, and
+  pytest-timeout would take the whole xdist worker with it.
+  """
   wedged = _WedgedQueue()
   process = _FakeProcess("Producer-0", alive_polls=2)
   stub = _Stub([process], [wedged])
 
+  # Comfortably past the deadline, so a teardown that does wait for the drain
+  # is released late enough to fail the assertion rather than pass slowly.
+  release = threading.Timer(_TEARDOWN_DEADLINE_S * 2, wedged.released.set)
+  release.daemon = True
+  release.start()
   try:
     start = time.monotonic()
     stub._join_processes_after_cancel(_logger())
     elapsed_s = time.monotonic() - start
   finally:
+    release.cancel()
     wedged.released.set()
 
   assert elapsed_s < _TEARDOWN_DEADLINE_S, (

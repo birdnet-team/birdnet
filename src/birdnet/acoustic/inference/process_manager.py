@@ -59,6 +59,9 @@ _DRAIN_STOP_TIMEOUT_S = 1.0
 # stop. It polls the stop event every second and normally leaves right after
 # it, so this only bounds a writer that cannot return at all.
 _LOGGING_JOIN_TIMEOUT_S = 30.0
+# The same bound for the dispatcher threads, which read their queues on a one
+# second poll and stop within one of it once the run ends.
+_READER_JOIN_TIMEOUT_S = 30.0
 
 
 def _drain_queue(q: Queue, stop: threading.Event) -> None:
@@ -82,6 +85,11 @@ def _drain_queue(q: Queue, stop: threading.Event) -> None:
     with suppress(Exception):
       while True:
         q.get_nowait()
+        # A child that keeps writing would otherwise hold this loop past the
+        # stop, and teardown would then record a perfectly healthy drainer as
+        # wedged and never close its queue.
+        if stop.is_set():
+          return
     # Checked after a pass, never before one: children that exit on the first
     # liveness poll stop this thread within milliseconds of starting it, and a
     # pre-check would then let it finish without having drained anything.
@@ -637,16 +645,47 @@ class ProcessManager:
     if self._res.stats_resources.use_callback:
       logger.debug("Joining dispatcher thread...")
       assert self._progress_dispatcher_thread is not None
-      self._progress_dispatcher_thread.join()
+      self._join_reader_thread(
+        logger,
+        self._progress_dispatcher_thread,
+        self._res.stats_resources.callback_queue,
+      )
       self._progress_dispatcher_thread = None
       logger.debug("Dispatcher thread finished.")
 
     if self._res.file_completion_resources.enabled:
       logger.debug("Joining file completion dispatcher thread...")
       assert self._file_completion_thread is not None
-      self._file_completion_thread.join()
+      # Its queue is an in-process queue.Queue, which cannot carry a half-
+      # written message, so there is nothing to leave open.
+      self._join_reader_thread(logger, self._file_completion_thread, None)
       self._file_completion_thread = None
       logger.debug("File completion dispatcher thread finished.")
+
+  def _join_reader_thread(
+    self, logger: Logger, thread: threading.Thread, q: Queue | None
+  ) -> None:
+    """Join a thread that reads a child-to-parent queue, without waiting forever.
+
+    ``ProgressDispatcher`` reads its queue with ``get(block=True, timeout=..)``,
+    and that timeout bounds acquiring the read lock and the poll but *not*
+    ``_recv_bytes``. So a performance tracker killed mid-``put`` leaves a
+    message this thread can never finish reading, with nothing raised -- the
+    same trap as the cancel-path drain (issue #77). These are daemon threads,
+    so parking one costs the closing progress callback; joining it costs
+    teardown.
+    """
+    thread.join(timeout=_READER_JOIN_TIMEOUT_S)
+    if not thread.is_alive():
+      return
+    logger.warning(
+      f"'{thread.name}' is still blocked reading its queue; continuing "
+      f"teardown without it."
+    )
+    if q is not None:
+      # Left open for the same reason a wedged drainer's queue is; see
+      # _collect_wedged_drainers.
+      self._undrainable_queues.append(q)
 
   def _join_processes_after_cancel(
     self, logger: Logger, grace_period_s: float = 30.0

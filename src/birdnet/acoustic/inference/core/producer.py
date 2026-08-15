@@ -596,6 +596,10 @@ class Producer(bn_logging.LogableProcessBase):
 
     self._uninit_logging()
 
+    # Last, and only now that the handler is gone: see _abandon_logging_feeder.
+    if self._cancel_event.is_set():
+      self._abandon_logging_feeder()
+
   def _run_main_loop(self) -> None:
     while True:
       self._log("Waiting for start signal...")
@@ -623,10 +627,19 @@ class Producer(bn_logging.LogableProcessBase):
     if self._check_cancel_event():
       return
 
-    with self._prod_done_ptr:
+    # Same reasoning as the ring lock: a producer killed inside this counter's
+    # lock would leave every other producer here for the rest of the run.
+    if not acquire_or_give_up_when_cancelled(
+      self._prod_done_ptr.get_lock(), self._cancel_event
+    ):
+      self._log("Gave up waiting for the producer counter; the run was cancelled.")
+      return
+    try:
       self._prod_done_ptr.value = self._prod_done_ptr.value + 1
       self._log(f"Set prod_done_ptr to {self._prod_done_ptr.value}.")
       is_last_producer = self._prod_done_ptr.value == self._n_producers
+    finally:
+      self._prod_done_ptr.get_lock().release()
 
     if is_last_producer:
       self._log("Last producer finished.")
