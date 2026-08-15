@@ -73,15 +73,20 @@ def _drain_queue(q: Queue, stop: threading.Event) -> None:
   it off the teardown path can (issue #77). One thread per queue so a queue that
   does wedge cannot stop the others from being drained.
   """
-  while not stop.is_set():
+  while True:
     # Best-effort by design: this drain only exists to unblock the children so
     # they can exit, and the run has already failed. A payload that arrived
     # intact but cannot be deserialized surfaces as any number of exceptions,
     # and letting one escape would leave the drain dead while teardown still
     # expects it -- so none of them are enumerated.
     with suppress(Exception):
-      while not stop.is_set():
+      while True:
         q.get_nowait()
+    # Checked after a pass, never before one: children that exit on the first
+    # liveness poll stop this thread within milliseconds of starting it, and a
+    # pre-check would then let it finish without having drained anything.
+    if stop.is_set():
+      return
     stop.wait(0.05)
 
 
@@ -753,9 +758,12 @@ class ProcessManager:
     daemon thread per teardown that hits this; closing them risks silent data
     corruption elsewhere in the process, so the queues stay open.
     """
-    deadline = time.monotonic() + _DRAIN_STOP_TIMEOUT_S
     for q, drainer in zip(queues, drainers, strict=True):
-      drainer.join(timeout=max(0.0, deadline - time.monotonic()))
+      # Each drainer gets the full timeout rather than a share of one budget: a
+      # single wedged drainer would otherwise spend it all and leave the rest
+      # with none, so a healthy one that had simply not been rescheduled yet
+      # would be recorded as wedged and its queue never closed.
+      drainer.join(timeout=_DRAIN_STOP_TIMEOUT_S)
       if drainer.is_alive():
         logger.warning(
           f"Queue drain '{drainer.name}' is still blocked on a message a "
@@ -814,7 +822,11 @@ class ProcessManager:
     for q in queues:
       if q is None:
         continue
+      # Always cancelled, even on a queue left open below: it only drops the
+      # writer-side join, and leaving that registered would make the interpreter
+      # join this queue's feeder thread at exit -- which blocks if the feeder is
+      # itself stuck on a pipe nobody drains.
+      q.cancel_join_thread()
       if any(q is wedged for wedged in self._undrainable_queues):
         continue
-      q.cancel_join_thread()
       q.close()

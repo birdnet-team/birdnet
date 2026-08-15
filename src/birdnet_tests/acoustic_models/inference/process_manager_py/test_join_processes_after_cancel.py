@@ -22,10 +22,10 @@ from types import SimpleNamespace
 
 from birdnet.acoustic.inference.process_manager import ProcessManager
 
-# Teardown here does no real work: the only waits are the drain-stop timeout and
-# the poll interval. Generous enough that a loaded runner cannot flake it, far
-# below the "blocked for good" the tests are about.
-_TEARDOWN_DEADLINE_S = 30.0
+# Teardown here does no real work: the only waits are the drain-stop timeout
+# (1 s) and a few 50 ms polls. Kept close to that so a regression to the 30 s
+# terminate grace period is caught, but loose enough for a loaded runner.
+_TEARDOWN_DEADLINE_S = 10.0
 
 
 class _FakeProcess:
@@ -61,6 +61,7 @@ class _WedgedQueue:
   def __init__(self) -> None:
     self.released = threading.Event()
     self.entered = threading.Event()
+    self.join_cancelled = False
 
   def get_nowait(self) -> object:
     self.entered.set()
@@ -68,7 +69,7 @@ class _WedgedQueue:
     raise queue.Empty
 
   def cancel_join_thread(self) -> None:
-    raise AssertionError("a wedged queue must not be touched during close")
+    self.join_cancelled = True
 
   def close(self) -> None:
     raise AssertionError("a wedged queue must not be closed")
@@ -167,9 +168,13 @@ def test_a_wedged_queue_is_recorded_and_never_closed() -> None:
     assert any(q is wedged for q in stub._undrainable_queues), (
       "the wedged queue must be remembered so close_queues can skip it"
     )
-    # _WedgedQueue raises from close()/cancel_join_thread(), so this only
-    # returns if the queue really is skipped.
+    # _WedgedQueue raises from close(), so this only returns if it is skipped.
     stub.close_queues()
+    # ...but the writer-side join must still be cancelled, or the interpreter
+    # joins this queue's feeder thread at exit and blocks there.
+    assert wedged.join_cancelled, (
+      "cancel_join_thread must be called even on a queue that is left open"
+    )
   finally:
     wedged.released.set()
 

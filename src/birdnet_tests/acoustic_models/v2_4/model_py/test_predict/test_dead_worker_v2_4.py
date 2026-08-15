@@ -110,16 +110,21 @@ def test_worker_killed_mid_batch_fails_the_run_and_tears_down(
 
   A worker killed here can be anywhere -- scanning the ring under the shared
   lock, updating a counter, or half-way through writing a result to its queue.
-  On POSIX none of those recover on their own: the lock is a semaphore nobody
-  will post again, and a truncated queue message stops a reader for good with
-  nothing raised. This ran the whole run to the suite timeout on every POSIX CI
-  lane before #73 and #77 were fixed; that it now *returns* is the assertion,
-  and the diagnosis is checked by the parked-kill test above.
+  None of those recover on their own: the lock is a semaphore nobody will post
+  again, and a truncated queue message stops a reader for good with nothing
+  raised.
+
+  Read this as a broad regression test against wedging, not as the proof of
+  either fix. What it pins is that a mid-run SIGKILL still ends in a returned
+  RuntimeError; it deliberately does not assert *how long* teardown took,
+  because the pre-existing grace period would terminate a wedged survivor after
+  30 s and let this pass either way. The fix for the leaked lock is pinned
+  deterministically, on exit codes, in test_leaked_ring_lock_v2_4.py, and the
+  diagnosis is pinned by the parked-kill test above.
 
   Two workers on purpose: with one, the killed worker leaves no survivors, and
   the lock it may be holding has nobody left to block. Which of the two ends up
-  holding what at kill time is not controllable from here -- the leaked lock
-  itself is pinned deterministically in test_leaked_ring_lock_v2_4.py.
+  holding what at kill time is not controllable from here.
 
   The kill is triggered by a slot going READING, not by a progress callback:
   that happens on the first batch rather than on the first stats interval a

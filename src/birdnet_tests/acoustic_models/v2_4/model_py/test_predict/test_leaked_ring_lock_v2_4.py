@@ -1,7 +1,8 @@
 """A ring-buffer lock nobody will release again must not wedge the workers.
 
-`multiprocessing.Lock` is a POSIX semaphore. A worker killed while scanning the
-ring for a readable slot -- SIGKILL from the OOM killer, a native crash -- never
+`multiprocessing.Lock` is a semaphore on every platform, and a semaphore has no
+owner to abandon it to the next waiter. A worker killed while scanning the ring
+for a readable slot -- SIGKILL from the OOM killer, a native crash -- never
 posts it again, so every surviving worker blocks on the next scan forever. The
 parent's liveness check (#72) reports the child that died but cannot free the
 survivors: they are alive, just stuck. Before the fix that ended in the parent
@@ -10,7 +11,9 @@ cancelled and leave on their own (issue #73).
 
 The lock is leaked here by taking it in the parent and never releasing it,
 which is the same situation the workers see and, unlike killing a worker at
-exactly the right microsecond, is reproducible.
+exactly the right microsecond, is reproducible. The cancellation is supplied by
+the test rather than by the liveness check, so what is pinned is the workers'
+half of the chain; the parent's half is covered in test_dead_worker_v2_4.py.
 """
 
 import shutil

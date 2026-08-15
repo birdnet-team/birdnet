@@ -439,7 +439,7 @@ class Producer(bn_logging.LogableProcessBase):
 
       perf_c = time.perf_counter()
       # Never a plain ``with``: the holder of this lock can be killed mid-scan,
-      # and on POSIX the lock is then held for good (see
+      # and the lock is then held for good on every platform (see
       # acquire_or_give_up_when_cancelled).
       if not acquire_or_give_up_when_cancelled(
         self._prd_ring_access_lock, self._cancel_event

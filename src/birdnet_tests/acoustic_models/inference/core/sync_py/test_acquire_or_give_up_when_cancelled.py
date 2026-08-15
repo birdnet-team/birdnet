@@ -1,11 +1,12 @@
 """A leaked cross-process lock must end the run, not wedge every waiter.
 
-`multiprocessing.Lock` is a POSIX semaphore: a process killed while holding one
-never posts it again, so every other process blocking on it blocks forever. The
-parent's liveness check reports the child that died, but the survivors are
-alive -- just stuck -- so nothing else can free them (issue #73). Waiting in
-bounded steps and giving up when the run is cancelled is what makes the leak
-survivable.
+`multiprocessing.Lock` is a semaphore on every platform -- POSIX or Windows --
+and a semaphore has no owner to abandon it to the next waiter. A process killed
+while holding one never posts it again, so every other process blocking on it
+blocks forever. The parent's liveness check reports the child that died, but
+the survivors are alive -- just stuck -- so nothing else can free them
+(issue #73). Waiting in bounded steps and giving up when the run is cancelled
+is what makes the leak survivable.
 """
 
 from __future__ import annotations

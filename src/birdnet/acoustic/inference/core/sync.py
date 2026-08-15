@@ -43,11 +43,11 @@ def acquire_or_give_up_when_cancelled(
 ) -> bool:
   """Take a cross-process lock, giving up if the run has been cancelled.
 
-  A ``multiprocessing.Lock`` is a POSIX semaphore, and a semaphore held by a
-  process that is killed -- SIGKILL from the OOM killer, a native crash -- is
-  never posted again, so every other process blocking on it blocks for good.
-  (Windows differs: a mutex owned by a dead process is *abandoned* and the next
-  waiter acquires it, which is why the same run recovers there.) Blocking
+  A ``multiprocessing.Lock`` is a semaphore on every platform -- a POSIX
+  semaphore, or a Windows kernel semaphore (``CreateSemaphore``), not a mutex.
+  Neither is released when its holder is killed by SIGKILL from the OOM killer
+  or by a native crash, and semaphores have no owner to abandon them to the
+  next waiter, so every other process blocking on one blocks for good. Blocking
   outright would therefore turn one dead child into a wedged pipeline that no
   liveness check can report, because the survivors are alive -- just stuck.
 
@@ -92,10 +92,10 @@ class CountedSemaphore:
     """Move the mirrored counter without ever blocking indefinitely on it.
 
     The counter is only a gauge for the progress display -- the semaphore is
-    what the pipeline actually runs on. Its lock is a POSIX semaphore all the
-    same, so a process killed while holding it would otherwise stop every other
+    what the pipeline actually runs on. Its lock is a semaphore all the same,
+    so a process killed while holding it would otherwise stop every other
     process here for the rest of the run. Giving up costs a gauge that reads a
-    few counts off; blocking would cost the run.
+    few counts off from then on; blocking would cost the run.
     """
     if self._counter_lock_lost:
       return
