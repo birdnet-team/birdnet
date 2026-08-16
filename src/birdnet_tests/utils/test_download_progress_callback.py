@@ -129,6 +129,67 @@ def test_unknown_total_size_reports_none(
   assert events[-1].bytes_done == len(body)
 
 
+def test_zero_byte_content_length_reports_a_real_zero_not_unknown(
+  tmp_path: Path,
+) -> None:
+  events: list[DownloadProgress] = []
+  helper.set_download_progress_callback(events.append)
+
+  with _running_server(b"", send_content_length=True, chunk_size=100) as url:
+    download_file_tqdm(url, tmp_path / "f.bin")
+
+  assert events[-1].status == "finished"
+  assert events[-1].bytes_total == 0
+  assert events[-1].bytes_done == 0
+
+
+def test_response_is_closed_even_if_content_length_header_is_malformed(
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+  # A response acquired but never closed (e.g. because parsing its headers
+  # raised before the code that closes it was reached) leaks the underlying
+  # connection on every failed attempt.
+  monkeypatch.setattr(helper.time, "sleep", lambda _s: None)
+  closes: list[bool] = []
+
+  class BadHeaderResponse(_FakeResponse):
+    def close(self) -> None:
+      closes.append(True)
+
+  def fake_get(_url: str, **_kwargs: object) -> BadHeaderResponse:
+    response = BadHeaderResponse([b"x"])
+    response.headers = {"content-length": "not-a-number"}
+    return response
+
+  monkeypatch.setattr(requests, "get", fake_get)
+
+  with pytest.raises(ValueError):
+    download_file_tqdm("http://example.invalid/f", tmp_path / "f.bin")
+
+  assert len(closes) == helper._DOWNLOAD_ATTEMPTS
+
+
+def test_tqdm_is_disabled_while_a_callback_is_registered(
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+  captured_disable: list[bool] = []
+
+  class SpyTqdm(helper.tqdm):
+    def __init__(self, *args: object, **kwargs: object) -> None:
+      captured_disable.append(bool(kwargs.get("disable")))
+      super().__init__(*args, **kwargs)
+
+  monkeypatch.setattr(helper, "tqdm", SpyTqdm)
+
+  body = b"x" * 200
+  with _running_server(body, send_content_length=True, chunk_size=50) as url:
+    download_file_tqdm(url, tmp_path / "no_cb.bin")
+    helper.set_download_progress_callback(lambda _progress: None)
+    download_file_tqdm(url, tmp_path / "with_cb.bin")
+
+  assert captured_disable == [False, True]
+
+
 def test_download_progress_throttle_only_reports_after_min_interval(
   monkeypatch: pytest.MonkeyPatch,
 ) -> None:

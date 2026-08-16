@@ -492,6 +492,11 @@ def _report_download_progress(progress: DownloadProgress) -> None:
     )
 
 
+def _has_download_progress_callback() -> bool:
+  with _download_progress_lock:
+    return _download_progress_callback is not None
+
+
 class _DownloadProgressThrottle:
   def __init__(self, min_interval_s: float) -> None:
     self._min_interval_s = min_interval_s
@@ -575,46 +580,64 @@ def _download_file_once(
 
   try:
     response = requests.get(url, stream=True, timeout=120)
-    total_size = int(response.headers.get("content-length", 0))
-    if download_size is not None:
-      total_size = download_size
-    bytes_total = total_size or None
-
-    block_size = 1024
-    fd, temp_name = tempfile.mkstemp(
-      dir=file_path.parent,
-      prefix=f"{file_path.name}.",
-      suffix=".tmp",
-    )
-    os.close(fd)
-    temp_path = Path(temp_name)
-
-    throttle = _DownloadProgressThrottle(_DOWNLOAD_PROGRESS_MIN_INTERVAL_S)
     try:
-      with (
-        tqdm(
-          total=total_size, unit="iB", unit_scale=True, desc=description
-        ) as tqdm_bar,
-        open(temp_path, "wb") as file,
-      ):
-        for data in response.iter_content(block_size):
-          tqdm_bar.update(len(data))
-          file.write(data)
-          bytes_done = tqdm_bar.n
-          if throttle.should_report():
-            report("progress")
+      content_length = response.headers.get("content-length")
+      if download_size is not None:
+        total_size = download_size
+        bytes_total = download_size
+      elif content_length is not None:
+        total_size = int(content_length)
+        bytes_total = total_size
+      else:
+        total_size = 0
+        bytes_total = None
 
-      if response.status_code != 200 or (total_size not in (0, tqdm_bar.n)):
-        raise DownloadError(
-          f"Failed to download the file. Status code: {response.status_code}\n"
-          f"Expected size: {total_size} bytes, downloaded size: {tqdm_bar.n} bytes.",
-          status_code=response.status_code,
-        )
+      block_size = 1024
+      fd, temp_name = tempfile.mkstemp(
+        dir=file_path.parent,
+        prefix=f"{file_path.name}.",
+        suffix=".tmp",
+      )
+      os.close(fd)
+      temp_path = Path(temp_name)
 
-      temp_path.replace(file_path)
-    except Exception:
-      temp_path.unlink(missing_ok=True)
-      raise
+      throttle = _DownloadProgressThrottle(_DOWNLOAD_PROGRESS_MIN_INTERVAL_S)
+      downloaded_size = 0
+      try:
+        with (
+          tqdm(
+            total=total_size,
+            unit="iB",
+            unit_scale=True,
+            desc=description,
+            disable=_has_download_progress_callback(),
+          ) as tqdm_bar,
+          open(temp_path, "wb") as file,
+        ):
+          for data in response.iter_content(block_size):
+            # Track bytes ourselves rather than reading `tqdm_bar.n`: tqdm's
+            # `update()` is a full no-op while `disable=True`, so it would
+            # never advance and both the size check below and every
+            # "progress" report's `bytes_done` would stay stuck at 0.
+            tqdm_bar.update(len(data))
+            file.write(data)
+            downloaded_size += len(data)
+            bytes_done = downloaded_size
+            if throttle.should_report():
+              report("progress")
+
+        if response.status_code != 200 or (total_size not in (0, downloaded_size)):
+          raise DownloadError(
+            f"Failed to download the file. Status code: {response.status_code}\n"
+            f"Expected size: {total_size} bytes, "
+            f"downloaded size: {downloaded_size} bytes.",
+            status_code=response.status_code,
+          )
+
+        temp_path.replace(file_path)
+      except Exception:
+        temp_path.unlink(missing_ok=True)
+        raise
     finally:
       response.close()
   except Exception as error:
