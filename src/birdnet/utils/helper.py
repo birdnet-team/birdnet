@@ -6,14 +6,16 @@ import logging
 import math
 import os
 import tempfile
+import threading
 import time
-from collections.abc import Generator, Iterable
+from collections.abc import Callable, Generator, Iterable
+from contextlib import contextmanager
 from dataclasses import dataclass
 from itertools import islice
 from multiprocessing import Queue
 from pathlib import Path
 from queue import Empty
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import numpy.typing as npt
@@ -412,6 +414,101 @@ def _is_retriable_download_error(error: Exception) -> bool:
   return not is_client_error
 
 
+DownloadStatus = Literal["started", "progress", "finished", "failed"]
+
+
+@dataclass(frozen=True)
+class DownloadProgress:
+  """One update from a model/label/taxonomy download.
+
+  ``status`` is ``"started"`` once per attempt (including retries -- a fresh
+  ``"started"`` with a higher ``attempt`` and ``bytes_done`` reset to 0 *is*
+  the retry notification), ``"progress"`` while it runs, and exactly one of
+  ``"finished"``/``"failed"`` to close out the attempt. A ``"failed"`` update
+  does not by itself mean the overall download gave up -- it may still be
+  retried -- only the exception raised by the call that started the download
+  is authoritative about that.
+  """
+
+  description: str
+  url: str
+  bytes_done: int
+  bytes_total: int | None
+  attempt: int
+  max_attempts: int
+  status: DownloadStatus
+  error: str | None = None
+
+
+_download_progress_lock = threading.Lock()
+_download_progress_callback: Callable[[DownloadProgress], None] | None = None
+_DOWNLOAD_PROGRESS_MIN_INTERVAL_S = 0.1
+
+
+def set_download_progress_callback(
+  callback: Callable[[DownloadProgress], None] | None,
+) -> None:
+  """Register a process-wide callback for model/label download progress.
+
+  Pass ``None`` to unregister. With no callback registered (the default),
+  downloads behave exactly as before (a tqdm bar on stderr). Exceptions raised
+  by the callback are logged and otherwise ignored -- they never interrupt or
+  corrupt the download.
+  """
+  global _download_progress_callback
+  with _download_progress_lock:
+    _download_progress_callback = callback
+
+
+@contextmanager
+def download_progress_callback(
+  callback: Callable[[DownloadProgress], None],
+) -> Generator[None, None, None]:
+  """Scoped alternative to `set_download_progress_callback`.
+
+  Registers `callback` for the duration of the `with` block and restores
+  whatever was registered before on exit (including ``None``).
+  """
+  global _download_progress_callback
+  with _download_progress_lock:
+    previous = _download_progress_callback
+    _download_progress_callback = callback
+  try:
+    yield
+  finally:
+    with _download_progress_lock:
+      _download_progress_callback = previous
+
+
+def _report_download_progress(progress: DownloadProgress) -> None:
+  with _download_progress_lock:
+    callback = _download_progress_callback
+  if callback is None:
+    return
+  try:
+    callback(progress)
+  except Exception:
+    logging.getLogger(__name__).exception(
+      "Download progress callback raised; ignoring it and continuing the download."
+    )
+
+
+class _DownloadProgressThrottle:
+  def __init__(self, min_interval_s: float) -> None:
+    self._min_interval_s = min_interval_s
+    self._last_reported_at: float | None = None
+
+  def should_report(self) -> bool:
+    now = time.monotonic()
+    if (
+      self._last_reported_at is None
+      or now - self._last_reported_at >= self._min_interval_s
+    ):
+      self._last_reported_at = now
+      return True
+    return False
+
+
 def download_file_tqdm(
   url: str,
   file_path: Path,
@@ -426,7 +523,11 @@ def download_file_tqdm(
     attempt += 1
     try:
       return _download_file_once(
-        url, file_path, download_size=download_size, description=description
+        url,
+        file_path,
+        download_size=download_size,
+        description=description,
+        attempt=attempt,
       )
     except (requests.RequestException, ValueError) as error:
       # Re-raise from inside the handler so the original traceback survives.
@@ -448,47 +549,80 @@ def _download_file_once(
   *,
   download_size: int | None = None,
   description: str | None = None,
+  attempt: int = 1,
 ) -> int:
   assert file_path.parent.is_dir()
   import requests
 
-  response = requests.get(url, stream=True, timeout=120)
-  total_size = int(response.headers.get("content-length", 0))
-  if download_size is not None:
-    total_size = download_size
+  progress_description = description or url
+  bytes_done = 0
+  bytes_total = download_size
 
-  block_size = 1024
-  fd, temp_name = tempfile.mkstemp(
-    dir=file_path.parent,
-    prefix=f"{file_path.name}.",
-    suffix=".tmp",
-  )
-  os.close(fd)
-  temp_path = Path(temp_name)
+  def report(status: DownloadStatus, *, error: str | None = None) -> None:
+    _report_download_progress(
+      DownloadProgress(
+        description=progress_description,
+        url=url,
+        bytes_done=bytes_done,
+        bytes_total=bytes_total,
+        attempt=attempt,
+        max_attempts=_DOWNLOAD_ATTEMPTS,
+        status=status,
+        error=error,
+      )
+    )
+
+  report("started")
 
   try:
-    with (
-      tqdm(total=total_size, unit="iB", unit_scale=True, desc=description) as tqdm_bar,
-      open(temp_path, "wb") as file,
-    ):
-      for data in response.iter_content(block_size):
-        tqdm_bar.update(len(data))
-        file.write(data)
+    response = requests.get(url, stream=True, timeout=120)
+    total_size = int(response.headers.get("content-length", 0))
+    if download_size is not None:
+      total_size = download_size
+    bytes_total = total_size or None
 
-    if response.status_code != 200 or (total_size not in (0, tqdm_bar.n)):
-      raise DownloadError(
-        f"Failed to download the file. Status code: {response.status_code}\n"
-        f"Expected size: {total_size} bytes, downloaded size: {tqdm_bar.n} bytes.",
-        status_code=response.status_code,
-      )
+    block_size = 1024
+    fd, temp_name = tempfile.mkstemp(
+      dir=file_path.parent,
+      prefix=f"{file_path.name}.",
+      suffix=".tmp",
+    )
+    os.close(fd)
+    temp_path = Path(temp_name)
 
-    temp_path.replace(file_path)
-  except Exception:
-    temp_path.unlink(missing_ok=True)
+    throttle = _DownloadProgressThrottle(_DOWNLOAD_PROGRESS_MIN_INTERVAL_S)
+    try:
+      with (
+        tqdm(
+          total=total_size, unit="iB", unit_scale=True, desc=description
+        ) as tqdm_bar,
+        open(temp_path, "wb") as file,
+      ):
+        for data in response.iter_content(block_size):
+          tqdm_bar.update(len(data))
+          file.write(data)
+          bytes_done = tqdm_bar.n
+          if throttle.should_report():
+            report("progress")
+
+      if response.status_code != 200 or (total_size not in (0, tqdm_bar.n)):
+        raise DownloadError(
+          f"Failed to download the file. Status code: {response.status_code}\n"
+          f"Expected size: {total_size} bytes, downloaded size: {tqdm_bar.n} bytes.",
+          status_code=response.status_code,
+        )
+
+      temp_path.replace(file_path)
+    except Exception:
+      temp_path.unlink(missing_ok=True)
+      raise
+    finally:
+      response.close()
+  except Exception as error:
+    report("failed", error=str(error))
     raise
-  finally:
-    response.close()
 
+  report("finished")
   return total_size
 
 
