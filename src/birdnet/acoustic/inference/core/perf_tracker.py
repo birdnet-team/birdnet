@@ -362,10 +362,9 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       if self._processing_finished_event.wait(self._update_every) and was_empty:
         self._log("Processing finished and queues empty.")
         # `was_empty` was measured *before* the wait above, so everything the
-        # workers reported during it is still unread. On a short run that is
-        # every stat they ever send, which is why the closing update used to
-        # say "finished, nothing processed, 0%" for a run that processed
-        # everything. Drain once more so the last update is truthful.
+        # workers reported during it is still unread -- on a short run, every
+        # stat they ever send. Drain once more so the closing update cannot
+        # report 0% for a run that processed everything.
         self._track_stats()
         self._callback_stats(finished=True)
         break

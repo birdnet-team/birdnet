@@ -45,8 +45,8 @@ _LABELS_DL_SIZE = 809172
 _DEFAULT_SEGMENT_SIZE_S = 3.0
 _DEFAULT_SEGMENT_SIZE_SAMPLES = 96_000
 
-# Estonian ("et") was dropped with the v0.2-Jun2026 taxonomy: it no longer has a
-# common_name_et column, so every Estonian name would silently be the English one.
+# No Estonian ("et"): the v0.2-Jun2026 taxonomy has no common_name_et column,
+# so every Estonian name would silently be the English one.
 _LANGUAGE_TO_COLUMN: dict[str, str] = {
   "bg": "common_name_bg",
   "ca": "common_name_ca",

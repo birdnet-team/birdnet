@@ -18,7 +18,7 @@ from birdnet.acoustic.inference.core.perf_tracker import AcousticProgressStats
 from birdnet.model_loader import load
 from birdnet_tests.test_files import TEST_FILE_SHORT
 
-# A healthy empty run takes a couple of seconds; without the fix it never ends.
+# A healthy empty run takes a couple of seconds; the guarded regression hangs.
 _DEADLINE_S = 90.0
 # Enough reuse for the dispatcher to fall a run behind if it can.
 _N_RUNS = 3
@@ -67,9 +67,8 @@ def test_run_without_predictions_finishes_and_reports_finished(tmp_path: Path) -
   result = outcome["result"]
   assert result.get_unprocessed_files() == {Path(broken).absolute()}
 
-  # The callback contract is that the final stats always arrive. Before the fix
-  # this run produced no callback at all, so asserting only that the run
-  # completes would miss half the defect.
+  # The callback contract is that the final stats always arrive - a regression
+  # can complete the run yet publish no callback at all.
   assert seen, "the progress callback was never called"
   assert seen[-1].finished, (
     f"the last stats were not flagged finished: {seen[-1].finished}"
