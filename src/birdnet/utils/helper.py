@@ -124,8 +124,7 @@ def get_supported_audio_files_recursive(folder: Path) -> Generator[Path, None, N
 
 
 def assert_queue_is_empty(queue: Queue) -> None:
-  # qsize() doesn't work on macOS:
-  # assert self._files_queue.qsize() == 0
+  # qsize() doesn't work on macOS
   try:
     queue.get_nowait()
     raise AssertionError("Queue is not empty!")

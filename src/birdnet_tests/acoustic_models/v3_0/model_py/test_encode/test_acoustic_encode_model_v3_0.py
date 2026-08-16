@@ -22,6 +22,13 @@ _PT_ONNX_ENCODING_MAX_ABS_DIFF = 1e-4
 _PT_ONNX_ENCODING_MEAN_ABS_DIFF = 1e-5
 _PB_ONNX_ENCODING_MAX_ABS_DIFF = 1e-4
 _PB_ONNX_ENCODING_MEAN_ABS_DIFF = 1e-5
+_TF_ONNX_ENCODING_MAX_ABS_DIFF = 1e-4
+_TF_ONNX_ENCODING_MEAN_ABS_DIFF = 1e-5
+# On the silence-padded final segment the per-segment normalization amplifies
+# fp16 rounding to ~0.033 (both fp16 exports; <=0.005 on real audio). The wide
+# max absorbs that; the tight mean still rejects a wrong tensor.
+_FP16_ENCODING_MAX_ABS_DIFF = 5e-2
+_FP16_ENCODING_MEAN_ABS_DIFF = 2e-3
 
 
 def _load_model(backend: _Backend) -> AcousticModelV3_0:
@@ -88,8 +95,8 @@ def test_v3_0_encode_respects_segment_size(
 
 
 def test_v3_0_encode_pb_and_onnx_are_close() -> None:
-  # The v3.0 SavedModel has no separate "embeddings" signature; the pb backend
-  # reads embeddings from "serving_default" and once died with a KeyError here.
+  # The v3.0 SavedModel has no separate "embeddings" signature; embeddings
+  # come from "serving_default".
   ensure_onnxruntime_or_skip()
   ensure_tf_2_18_or_skip()
 
@@ -108,6 +115,75 @@ def test_v3_0_encode_pb_and_onnx_are_close() -> None:
     onnx_result,
     max_abs_diff=_PB_ONNX_ENCODING_MAX_ABS_DIFF,
     mean_abs_diff=_PB_ONNX_ENCODING_MEAN_ABS_DIFF,
+  )
+
+
+def test_v3_0_encode_tf_and_onnx_are_close() -> None:
+  # The TFLite backend reads embeddings by hardcoded tensor index
+  # (encoding_out_idx); a stale index returns the wrong tensor silently.
+  ensure_onnxruntime_or_skip()
+  ensure_tf_2_18_or_skip()
+
+  tf_model = load("acoustic", "3.0", "tf", precision="fp32", library="tflite")
+  onnx_model = load("acoustic", "3.0", "onnx", precision="fp32")
+
+  with tf_model.encode_session(n_workers=1) as tf_session:
+    tf_result = tf_session.run(TEST_FILE_SHORT)
+
+  with onnx_model.encode_session(n_workers=1) as onnx_session:
+    onnx_result = onnx_session.run(TEST_FILE_SHORT)
+
+  assert tf_result.embeddings.shape == _DEFAULT_EMB_SHAPE
+  assert_encoding_result_is_close(
+    tf_result,
+    onnx_result,
+    max_abs_diff=_TF_ONNX_ENCODING_MAX_ABS_DIFF,
+    mean_abs_diff=_TF_ONNX_ENCODING_MEAN_ABS_DIFF,
+  )
+
+
+def test_v3_0_encode_tf_fp16_and_onnx_are_close() -> None:
+  # The fp16 TFLite export has its own encoding_out_idx, unexercised elsewhere.
+  ensure_onnxruntime_or_skip()
+  ensure_tf_2_18_or_skip()
+
+  tf_model = load("acoustic", "3.0", "tf", precision="fp16", library="tflite")
+  onnx_model = load("acoustic", "3.0", "onnx", precision="fp32")
+
+  with tf_model.encode_session(n_workers=1) as tf_session:
+    tf_result = tf_session.run(TEST_FILE_SHORT)
+
+  with onnx_model.encode_session(n_workers=1) as onnx_session:
+    onnx_result = onnx_session.run(TEST_FILE_SHORT)
+
+  assert tf_result.embeddings.shape == _DEFAULT_EMB_SHAPE
+  assert_encoding_result_is_close(
+    tf_result,
+    onnx_result,
+    max_abs_diff=_FP16_ENCODING_MAX_ABS_DIFF,
+    mean_abs_diff=_FP16_ENCODING_MEAN_ABS_DIFF,
+  )
+
+
+def test_v3_0_encode_onnx_fp16_and_fp32_are_close() -> None:
+  # The fp16 onnx export has its own encoding_out_idx, unexercised elsewhere.
+  ensure_onnxruntime_or_skip()
+
+  fp16_model = load("acoustic", "3.0", "onnx", precision="fp16")
+  fp32_model = load("acoustic", "3.0", "onnx", precision="fp32")
+
+  with fp16_model.encode_session(n_workers=1) as fp16_session:
+    fp16_result = fp16_session.run(TEST_FILE_SHORT)
+
+  with fp32_model.encode_session(n_workers=1) as fp32_session:
+    fp32_result = fp32_session.run(TEST_FILE_SHORT)
+
+  assert fp16_result.embeddings.shape == _DEFAULT_EMB_SHAPE
+  assert_encoding_result_is_close(
+    fp16_result,
+    fp32_result,
+    max_abs_diff=_FP16_ENCODING_MAX_ABS_DIFF,
+    mean_abs_diff=_FP16_ENCODING_MEAN_ABS_DIFF,
   )
 
 

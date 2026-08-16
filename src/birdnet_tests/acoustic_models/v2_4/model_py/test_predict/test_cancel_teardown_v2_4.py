@@ -33,7 +33,7 @@ def test_cancel_from_progress_callback_tears_down_cleanly(tmp_path: Path) -> Non
   # Enough audio across multiple workers that the run lasts well beyond the first
   # progress callback, so cancelling then reliably lands mid-run with many
   # segments (and buffered result batches) still outstanding -- exactly the state
-  # that used to deadlock teardown. The run is cancelled almost immediately, so
+  # where teardown can deadlock. The run is cancelled almost immediately, so
   # the large file list does not make the test slow.
   #
   # validate_input_files de-duplicates inputs by absolute path (it collects them

@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from birdnet.acoustic.inference.core.encoding.encoding_result import (
   AcousticEncodingResultBase,
@@ -342,7 +343,8 @@ def test_end_time_clipping_multiple_segments_float32() -> None:
   assert result.input_durations.dtype == np.float32
 
 
-def xtest_end_time_clipping_multiple_segments_float64() -> None:
+@pytest.mark.skip(reason="2**25 segments; takes too long")
+def test_end_time_clipping_multiple_segments_float64() -> None:
   result = _test_end_time_clipping_multiple_segments(2**25)
   assert result.input_durations.dtype == np.float64
 

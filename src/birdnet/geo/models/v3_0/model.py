@@ -39,8 +39,8 @@ from birdnet.utils.taxonomy_v3 import (
 _LABELS_DL_URL = "https://github.com/birdnet-team/geomodel/releases/download/v3.0.4/BirdNET+_Geomodel_V3.0.4_Global_14K_Labels.txt"
 _LABELS_DL_SIZE = 671823
 
-# Estonian ("et") was dropped with the v0.2-Jun2026 taxonomy: it no longer has a
-# common_name_et column, so every Estonian name would silently be the English one.
+# No Estonian ("et"): the v0.2-Jun2026 taxonomy has no common_name_et column,
+# so every Estonian name would silently be the English one.
 _LANGUAGE_TO_COLUMN: dict[str, str] = {
   "en_us": "com_name",
   "de": "common_name_de",

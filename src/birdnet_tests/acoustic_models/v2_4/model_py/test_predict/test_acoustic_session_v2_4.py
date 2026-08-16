@@ -159,8 +159,8 @@ def run_session_thread(barrier: threading.Barrier) -> None:
     pass
 
 
-def xtest_tflite_fp32_twice_two_sessions_parallel_threads() -> None:
-  # Disabled test because it hangs sometimes, reason unknown.
+@pytest.mark.skip(reason="hangs sometimes, reason unknown")
+def test_tflite_fp32_twice_two_sessions_parallel_threads() -> None:
   n_threads = 10
 
   barrier = threading.Barrier(n_threads)
