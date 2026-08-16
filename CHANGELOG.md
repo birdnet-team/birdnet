@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added `birdnet.set_download_progress_callback(cb)` (and a scoped `birdnet.download_progress_callback(cb)` context manager) so embedding applications — e.g. a GUI with stderr diverted to a log file — can render their own progress for first-run model/label downloads instead of a tqdm bar nobody sees. Defaults to today's behavior when unregistered.
+
 ### Bugfixes
 
 - Acoustic V3.0 confidences were sigmoid-squashed twice: the V3.0 exports already apply the sigmoid in-graph, so the pipeline's default sigmoid compressed every score into [0.5, 0.73]. `predict(..)` now returns the model's probabilities unchanged; `sigmoid_sensitivity` values other than 1.0 and `apply_softmax=True` raise a `ValueError` for V3.0, since both need logits the exports do not expose. A calibration test now pins an absolute confidence per backend.

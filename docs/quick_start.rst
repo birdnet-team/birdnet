@@ -108,6 +108,39 @@ Predict species with a custom species list
 
   predictions.to_csv("example/predictions.csv")
 
+Show model download progress
+-----------------------------
+
+Official models are downloaded on first use. By default progress is only shown as a ``tqdm`` bar on stderr, which is invisible to a GUI application (e.g. one that redirects stderr to a log file). Register a callback to drive your own progress UI instead — it receives a ``DownloadProgress`` update at the start and end of every download attempt, plus periodic updates while it runs:
+
+.. code-block:: python
+
+  import birdnet
+
+  def on_download_progress(progress: birdnet.DownloadProgress) -> None:
+      if progress.status == "started":
+          print(f"Downloading {progress.description} (attempt {progress.attempt}/{progress.max_attempts})...")
+      elif progress.status == "progress" and progress.bytes_total is not None:
+          pct = progress.bytes_done / progress.bytes_total * 100
+          print(f"{progress.description}: {pct:.0f}%")
+      elif progress.status == "failed":
+          print(f"{progress.description} failed: {progress.error}")
+      elif progress.status == "finished":
+          print(f"{progress.description} done.")
+
+  birdnet.set_download_progress_callback(on_download_progress)
+
+  model = birdnet.load("acoustic", "2.4", "tf")
+
+Use ``birdnet.download_progress_callback(cb)`` as a ``with`` block instead if the callback should only apply to a specific piece of code:
+
+.. code-block:: python
+
+  import birdnet
+
+  with birdnet.download_progress_callback(on_download_progress):
+      model = birdnet.load("acoustic", "3.0", "onnx")
+
 Use a different model version or backend
 ----------------------------------------
 

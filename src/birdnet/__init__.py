@@ -21,6 +21,11 @@ from birdnet.geo.inference.prediction_result import GeoPredictionResult
 from birdnet.geo.inference.session import GeoPredictionSession
 from birdnet.geo.models.v2_4.model import GeoModelV2_4
 from birdnet.model_loader import load, load_custom, load_perch_v2  # noqa: F401
+from birdnet.utils.helper import (
+  DownloadProgress,
+  download_progress_callback,
+  set_download_progress_callback,
+)
 from birdnet.utils.logging_utils import get_package_logger, init_package_logger
 
 init_package_logger(logging.INFO)
@@ -31,6 +36,10 @@ __all__ = [
   "load",
   "load_custom",
   "load_perch_v2",
+  # download progress
+  "DownloadProgress",
+  "download_progress_callback",
+  "set_download_progress_callback",
   # acoustic encoding
   "AcousticEncodingSession",
   "AcousticEncodingResultBase",
