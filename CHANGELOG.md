@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added `birdnet.set_download_progress_callback(cb)` (and a scoped `birdnet.download_progress_callback(cb)` context manager) so embedding applications — e.g. a GUI with stderr diverted to a log file — can render their own progress for first-run model/label downloads instead of a tqdm bar nobody sees. Defaults to today's behavior when unregistered.
+- Added `birdnet.set_download_progress_callback(cb)` (and a scoped `birdnet.download_progress_callback(cb)` context manager) so embedding applications — e.g. a GUI with stderr diverted to a log file — can render their own progress for first-run model/label downloads instead of a tqdm bar nobody sees. The callback receives a `DownloadProgress` snapshot on `started` (once per attempt), throttled `progress`, `retrying` (with the error and the back-off in seconds) and exactly one terminal `finished`/`failed`. Unregistered, downloads behave as before; while a callback is registered the tqdm bar is silenced. A callback that raises aborts the download cleanly (no partial file, no retry) and its exception surfaces from `load(..)`, which doubles as a cancel.
 
 ### Bugfixes
 

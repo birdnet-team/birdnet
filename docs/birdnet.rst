@@ -53,6 +53,14 @@ birdnet.globals module
    :show-inheritance:
    :undoc-members:
 
+birdnet.utils.download\_progress module
+---------------------------------------
+
+.. automodule:: birdnet.utils.download_progress
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 birdnet.utils.helper module
 ---------------------------
 
