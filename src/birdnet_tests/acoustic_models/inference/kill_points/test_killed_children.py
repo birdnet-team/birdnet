@@ -26,7 +26,7 @@ from birdnet.acoustic.inference.session import AcousticSessionBase
 from birdnet_tests.fake_acoustic_backend import (
   fake_encode_session,
   fake_predict_session,
-  write_silence,
+  write_marked_audio,
 )
 
 # The fake backend is pure numpy, so these exercise the pipeline on the
@@ -40,7 +40,7 @@ _DEADLINE_S = 60.0
 _STALL_S = 0.5
 
 
-def _corpus(tmp_path: Path, n_files: int = 2, seconds: float = 12.0) -> list[str]:
+def _corpus(tmp_path: Path, n_files: int = 2, n_segments: int = 4) -> list[str]:
   """Just enough work that the kill lands mid-run.
 
   Sized deliberately: with `seconds_per_batch` set, every extra segment is
@@ -48,7 +48,10 @@ def _corpus(tmp_path: Path, n_files: int = 2, seconds: float = 12.0) -> list[str
   against a kill at 0.5 s, which leaves plenty outstanding without paying for
   audio nobody looks at.
   """
-  return [str(write_silence(tmp_path / f"in_{i}.wav", seconds)) for i in range(n_files)]
+  return [
+    str(write_marked_audio(tmp_path / f"in_{i}.wav", n_segments))
+    for i in range(n_files)
+  ]
 
 
 def _run_in_thread(
@@ -87,6 +90,14 @@ def _kill_after(
 
   def kill(session: AcousticSessionBase) -> None:
     target = process_getter(session)
+
+    if delay_s <= 0:
+      # Synchronously, before the run starts. Handing this to a thread would
+      # race the run and could kill a worker that has already finished -- the
+      # same mistake that made an earlier version of the end-to-end test pass
+      # while proving nothing.
+      target.kill()
+      return
 
     def later() -> None:
       time.sleep(delay_s)

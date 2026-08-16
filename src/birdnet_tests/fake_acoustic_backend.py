@@ -81,8 +81,11 @@ class FakeAcousticBackend:
 
   def predict(self, batch: np.ndarray) -> np.ndarray:
     self._stall()
-    # Deterministic and per-segment distinct, so a test can tell which segments
-    # actually made it into the result rather than only how many.
+    # Uniform across the batch, deliberately. Prediction output goes through a
+    # sigmoid and top-k selection before it reaches the result tensor, which
+    # discards row identity anyway -- a marker here could not be asserted on at
+    # the far end. Use an encoding session to check *which* segments landed
+    # where; see `encode` below.
     out = np.empty((batch.shape[0], self.n_species_out), dtype=np.float32)
     out[:] = np.linspace(0.0, 1.0, self.n_species_out, dtype=np.float32)
     return out
@@ -91,6 +94,12 @@ class FakeAcousticBackend:
     self._stall()
     out = np.empty((batch.shape[0], self.emb_dim_out), dtype=np.float32)
     out[:] = np.linspace(0.0, 1.0, self.emb_dim_out, dtype=np.float32)
+    # Embeddings reach the result tensor untouched, so the segment marker that
+    # `write_marked_audio` put into the audio can be carried straight through.
+    # That is what lets a test assert a segment landed in the right row rather
+    # than only that the right number of rows arrived -- the failure mode of a
+    # result path that reorders or drops work is silent otherwise.
+    out[:, 0] = batch[:, 0]
     return out
 
   @classmethod
@@ -220,11 +229,35 @@ def fake_encode_session(
   )
 
 
-def write_silence(path: Path, seconds: float, sample_rate: int = 48_000) -> Path:
-  """A wav file of a known length, so segment counts are predictable."""
+def segment_marker(segment_index: int) -> float:
+  """The constant sample value carried by one segment of marked audio."""
+  return (segment_index + 1) / 1000.0
+
+
+def write_marked_audio(
+  path: Path,
+  n_segments: int,
+  segment_size_s: float = 3.0,
+  sample_rate: int = 48_000,
+) -> Path:
+  """A wav file whose every segment is a constant identifying that segment.
+
+  The pipeline is configured here so nothing alters the samples on the way in:
+  the file's rate matches the model's, speed is 1.0, and the bandpass bounds
+  equal the model's own, which is what switches filtering off. So the value the
+  backend sees is the value written here, and `encode` can hand it back as the
+  first element of the embedding.
+  """
   import soundfile as sf
 
-  sf.write(path, np.zeros(int(seconds * sample_rate), dtype=np.float32), sample_rate)
+  per_segment = int(segment_size_s * sample_rate)
+  samples = np.empty(n_segments * per_segment, dtype=np.float32)
+  for i in range(n_segments):
+    samples[i * per_segment : (i + 1) * per_segment] = segment_marker(i)
+  # Float samples, not the wav default of PCM-16, so the marker survives the
+  # file exactly: at 16 bits a marker of 0.001 comes back as 32/32768.
+  # Quantisation would only force the assertions to guess at a tolerance.
+  sf.write(path, samples, sample_rate, subtype="FLOAT")
   return path
 
 
