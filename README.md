@@ -48,21 +48,21 @@ For more detailed benchmarks, please refer to the [documentation](https://birdne
 
 | Platform | Architecture | ProtoBuf-CPU | ProtoBuf-GPU | TFLite | LiteRT |
 | ----------- | ------------ | ---------------- | ---------------- | ---------------- | ---------------- |
-| **Linux** | x86_64 | 3.11, 3.12, 3.13 | 3.11, 3.12, 3.13 | 3.11, 3.12, 3.13 | 3.11, 3.12 |
-| | ARM64 | 3.11, 3.12, 3.13 | / | 3.11, 3.12, 3.13 | 3.11, 3.12 |
+| **Linux** | x86_64 | 3.11, 3.12, 3.13 | 3.11, 3.12, 3.13 | 3.11, 3.12, 3.13 | 3.11, 3.12, 3.13, 3.14 |
+| | ARM64 | 3.11, 3.12, 3.13 | / | 3.11, 3.12, 3.13 | 3.11, 3.12, 3.13, 3.14 |
 | **MacOS** | x86_64 | 3.11, 3.12 | / | 3.11, 3.12 | / |
-| | ARM64 | 3.11, 3.12, 3.13 | / | 3.11, 3.12, 3.13 | / |
-| **Windows** | x86_64 | 3.11, 3.12, 3.13 | / | 3.11, 3.12, 3.13 | / |
+| | ARM64 | 3.11, 3.12, 3.13 | / | 3.11, 3.12, 3.13 | 3.11, 3.12, 3.13, 3.14 |
+| **Windows** | x86_64 | 3.11, 3.12, 3.13 | / | 3.11, 3.12, 3.13 | 3.11, 3.12, 3.13, 3.14 |
 | | ARM64 | / | / | / | / |
 
-For details see the official [TensorFlow](https://www.tensorflow.org/install/pip#package_location) documentation.
+For details see the official [TensorFlow](https://www.tensorflow.org/install/pip#package_location) documentation. LiteRT (`ai-edge-litert`) is installed automatically on the platforms listed; it runs the same `.tflite` models as TFLite (pass `library="litert"` to `birdnet.load(..)`; the geo 3.0 model is the exception) and does not need TensorFlow, so it also works in environments where TensorFlow is not installed.
 
 #### Python 3.14
 
-TensorFlow does not yet publish wheels for Python 3.14, so the table above (all TensorFlow-based backends: ProtoBuf, TFLite/LiteRT) is limited to Python 3.11–3.13. On Python 3.14, `birdnet` installs *without* TensorFlow and supports the models that have a TensorFlow-free backend: the **acoustic 3.0 model** and the **geo 3.0 model** (both via `onnx` or `pt`):
+TensorFlow does not yet publish wheels for Python 3.14, so the TensorFlow-based backends in the table above (ProtoBuf, TFLite) are limited to Python 3.11–3.13. On Python 3.14, `birdnet` installs *without* TensorFlow and supports the models that have a TensorFlow-free backend: the **acoustic 3.0 model** and the **geo 3.0 model** (both via `onnx` or `pt`), plus the **acoustic 2.4 model**, **custom 2.4 classifiers** and the **geo 2.4 model** via the `tf` backend on LiteRT (`library="litert"`):
 
 ```sh
-pip install birdnet[onnx] --user   # or birdnet[pt]
+pip install birdnet[onnx] --user   # or birdnet[pt]; LiteRT is included
 ```
 
 ```py
@@ -71,11 +71,14 @@ import birdnet
 model = birdnet.load("acoustic", "3.0", "onnx")  # 'pt' also works
 predictions = model.predict("example/soundscape.wav")
 
+model_2_4 = birdnet.load("acoustic", "2.4", "tf", library="litert")
+predictions_2_4 = model_2_4.predict("example/soundscape.wav")
+
 geo = birdnet.load("geo", "3.0", "onnx")  # 'pt' also works
 geo_predictions = geo.predict(42.5, -76.45, week=4)
 ```
 
-The TensorFlow-only paths — the `tf`/`pb` backends, the acoustic 2.4 and Perch models, and the geo 2.4 model — raise a clear error on Python 3.14. To use them, install `birdnet` on Python 3.11–3.13. Full 3.14 support will follow once TensorFlow ships Python 3.14 wheels.
+The TensorFlow-only paths — the `pb` backend, the `tf` backend with the default `tflite` interpreter, and the Perch model — raise a clear error on Python 3.14. To use them, install `birdnet` on Python 3.11–3.13. Full 3.14 support will follow once TensorFlow ships Python 3.14 wheels.
 
 ### Instructions
 

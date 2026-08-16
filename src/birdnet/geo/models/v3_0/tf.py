@@ -32,7 +32,8 @@ def check_tf_library_for_v3_0(library: LIBRARY_TYPES) -> None:
   if library == LIBRARY_LITERT:
     raise RuntimeError(
       "The geo model v3.0 TF backend is not supported with ai_edge_litert. "
-      "Use library='tflite' or load('geo', '3.0', 'pb', ...)."
+      "Use library='tflite' or another backend, e.g. load('geo', '3.0', 'pb', ...) "
+      "or, without TensorFlow, load('geo', '3.0', 'onnx', ...) / 'pt'."
     )
 
 

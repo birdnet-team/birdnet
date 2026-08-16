@@ -58,7 +58,10 @@ def test_litert_library_unavailable_raises_error(
 ) -> None:
   monkeypatch.setattr("birdnet.model_loader.litert_installed", lambda: False)
 
-  with pytest.raises(ValueError, match=r"Install birdnet with \[litert\] option\."):
+  with pytest.raises(
+    ValueError,
+    match=r"Library 'litert' requires ai-edge-litert, which is not installed",
+  ):
     load("acoustic", "2.4", "tf", library="litert")
 
 
