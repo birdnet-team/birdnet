@@ -1,9 +1,7 @@
 import contextlib
 import ctypes
-import importlib.util
 import multiprocessing as mp
 import os
-import subprocess
 import threading
 import time
 from collections.abc import Callable, Generator
@@ -262,23 +260,6 @@ def ensure_v3_0_torch_backend_or_skip() -> None:
   # the session is cancelled. The onnx backend works on the same machines.
   if check_is_intel_macos():
     pytest.skip("Acoustic model v3.0 needs a newer torch than Intel macOS provides")
-
-
-def ensure_gpu_or_skip_smi() -> None:
-  gpu_available = False
-  try:
-    subprocess.check_output("nvidia-smi")
-    gpu_available = True
-  except Exception:
-    pass
-  if not gpu_available:
-    pytest.skip("Nvidia GPU not available")
-
-
-def ensure_gpu_or_skip_old() -> None:
-  cuda_available = importlib.util.find_spec("nvidia", "cuda_runtime") is not None
-  if not cuda_available:
-    pytest.skip("Nvidia CUDA runtime not available")
 
 
 def ensure_litert_or_skip() -> None:

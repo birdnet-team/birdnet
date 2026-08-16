@@ -1,11 +1,13 @@
+import pytest
+
 from birdnet.geo.models.v3_0.pb import GeoPBDownloaderV3_0
 
 
-def xtest_double_download() -> None:
-  # takes too long to run normally
+@pytest.mark.skip(reason="re-downloads the model; run manually via __main__")
+def test_double_download() -> None:
   GeoPBDownloaderV3_0._download_model()
   GeoPBDownloaderV3_0._download_model()
 
 
 if __name__ == "__main__":
-  xtest_double_download()
+  test_double_download()

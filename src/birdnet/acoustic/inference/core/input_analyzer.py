@@ -87,7 +87,6 @@ class InputAnalyzer:
       self._log("InputAnalyzer waiting for inputs...")
       while not self._start_signal.wait(timeout=1.0):
         if self._check_cancel_event():
-          # self._uninit_logging()
           return
         if self._check_end_event():
           return

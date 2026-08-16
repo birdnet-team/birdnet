@@ -264,7 +264,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       self._log("Waiting for start signal...")
       while not self._start_signal.wait(timeout=1.0):
         if self._check_cancel_event():
-          # self._uninit_logging()
           return
         if self._check_end_event():
           return
@@ -386,7 +385,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       worker_speed_xrt_max=worker_speed_xrt_max,
       total_segments_processed=self._wkr_total_segments_processed,
       total_batches_processed=self._wkr_6_add_to_queue_dur_tracker.n_vals,
-      # summed_prediction_duration_s=self._summed_worker_raw_pred_duration,
       n_usage_recordings=self._memory_usage_MiB_tracker.n_vals,
       max_memory_usages_MiB=self._memory_usage_MiB_tracker.max_val,
       avg_memory_usages_MiB=self._memory_usage_MiB_tracker.avg_val,
@@ -397,22 +395,10 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       avg_preloaded_slots=self._rng_preloaded_slots_tracker.avg_val,
       avg_busy_workers=self._wkr_busy_tracker.avg_val,
       avg_wait_time_ms=self._wkr_1_wait_dur_for_filled_slot_tracker.avg_val * 1000,
-      # avg_pred_dur_last_s=np.mean(self._pred_dur_deque) if self._pred_dur_deque else 0,
-      # avg_wait_dur_last_ms=(
-      #   np.mean(self._wait_dur_deque) * 1000 if self._wait_dur_deque else 0
-      # ),
-      # avg_free_slots_last=np.mean(free_slots) if free_slots else 0,
-      # avg_busy_slots_last=np.mean(busy_slots) if busy_slots else 0,
-      # avg_preloaded_slots_last=np.mean(preloaded_slots) if preloaded_slots else 0,
-      # avg_busy_workers_last=np.mean(busy_workers) if busy_workers else 0,
-      # max_raw_segments_per_s=max_raw_segments_per_s,
-      # avg_segments_per_s_last=(np.mean(avg_segments_per_s) if avg_segments_per_s else 0),
     )
 
     self._log("Putting performance tracking result into queue.")
     self._perf_res.put(stats, block=True)
-    # self._perf_res.close()
-    # self._perf_res.join_thread()
     self._log("Done putting performance tracking result into queue.")
 
   def _track_stats(self) -> bool:
@@ -506,7 +492,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
     while True:
       queue_entry = self._wkr_stats_queue.get(block=True)
-      if is_end_marker := queue_entry is end_marker:
+      if queue_entry is end_marker:
         break
       is_empty = False
       n_received += 1
@@ -525,14 +511,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         dur_add_to_queue,
         batch_size,
       ) = stats
-      # self._log(
-      #   f"Received prediction duration from worker {worker_pid}: "
-      #   f"wall time: {wall_time:.3f}s, "
-      #   f"wait for filled slot: {dur_wait_for_filled_slot:.3f}s, "
-      #   f"find filled slot: {dur_search_for_filled_slot:.3f}s, "
-      #   f"inference: {dur_inference:.3f}s, add to queue: {dur_add_to_queue}s, "
-      #   f"batch size: {batch_size}"
-      # )
       self._wkr_wall_times[worker_pid] = wall_time
       self._wkr_total_segments_processed += batch_size
 
@@ -559,7 +537,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
     while True:
       queue_entry = self._prd_stats_queue.get(block=True)
-      if is_end_marker := queue_entry is end_marker:
+      if queue_entry is end_marker:
         break
       is_empty = False
       n_received += 1
@@ -573,13 +551,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         flush_duration,
         n,
       ) = stats
-      # self._log(
-      #   f"Received producer stats from producer {prod_pid}: "
-      #   f"process: {process_total_duration:.3f}s, "
-      #   f"batch loading: {batch_loading_duration:.3f}s, "
-      #   f"wait for free slot: {wait_time_for_free_slot:.3f}s, "
-      #   f"flush: {flush_duration:.3f}s, n: {n}"
-      # )
       self._prd_wall_times[prod_pid] = process_total_duration
       self._prd_total_segments_processed += n
 
@@ -860,7 +831,6 @@ class ProgressDispatcher:
     while True:
       while not self._start_signal.wait(timeout=1.0):
         if self._check_cancel_event():
-          # self._uninit_logging()
           return
         if self._check_end_event():
           return

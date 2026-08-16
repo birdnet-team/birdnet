@@ -605,7 +605,6 @@ class Producer(bn_logging.LogableProcessBase):
       self._log("Waiting for start signal...")
       while not self._start_signal.wait(timeout=1.0):
         if self._check_cancel_event():
-          # self._uninit_logging()
           return
         if self._check_end_event():
           return
@@ -818,16 +817,13 @@ def get_segments_with_overlap_samples(
   target_n_samples is the number of samples after speed adjustment
   """
   assert 1 / segment_samples <= speed <= n_samples
-  # assert speed >= 0.01
 
   n_samples_orig = n_samples
   n_samples_orig_seg = segment_samples
   n_samples_orig_overlap = overlap_samples
-  # n_samples_orig_scaled = round(n_samples_orig / speed)
   n_samples_orig_scaled = apply_speed_to_samples(n_samples_orig, 1 / speed)
 
   # Playback duration after speed adjustment: slower -> longer, faster -> shorter.
-  # n_samples_scaled = round(n_samples_orig * speed)
   n_samples_scaled_seg = apply_speed_to_samples(segment_samples, speed)
   n_samples_scaled_overlap = apply_speed_to_samples(overlap_samples, speed)
 

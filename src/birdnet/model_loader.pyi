@@ -87,15 +87,6 @@ def load(
 
 # if new versions are added, add this overload (also on the other places)
 # @overload
-# def load(
-#   model_type: Literal["acoustic"],
-#   version: ACOUSTIC_MODEL_VERSIONS,
-#   backend: MODEL_BACKENDS,
-#   /,
-#   *,
-#   precision: MODEL_PRECISIONS = MODEL_PRECISION_FLOAT32,
-#   lang: MODEL_LANGUAGES_V2_4 = MODEL_LANGUAGE_EN_US,
-# ) -> AcousticModelBase: ...
 @overload
 def load(
   model_type: Literal["geo"],
