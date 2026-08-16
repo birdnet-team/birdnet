@@ -19,6 +19,8 @@ _DEFAULT_SCORE_SHAPE = (1, 3, 11560)
 _TWO_ARRAY_SCORE_SHAPE = (2, 3, 11560)
 _PT_ONNX_PREDICTION_MAX_ABS_DIFF = 1e-4
 _PT_ONNX_PREDICTION_MEAN_ABS_DIFF = 1e-5
+_PB_ONNX_PREDICTION_MAX_ABS_DIFF = 1e-4
+_PB_ONNX_PREDICTION_MEAN_ABS_DIFF = 1e-5
 
 
 def _load_model(backend: _Backend) -> AcousticModelV3_0:
@@ -96,6 +98,38 @@ def test_v3_0_predict_respects_segment_size(
 
   assert res.species_probs.shape == (1, expected_segments, 11560)
   assert res.segment_duration_s == segment_size_s
+
+
+def test_v3_0_predict_pb_and_onnx_are_close() -> None:
+  # Exercises the real SavedModel signature ("serving_default"/"x"/"predictions"):
+  # the pb backend once shipped v2.4's signature names and every predict died with
+  # KeyError('basic') in the worker, which no load-only test caught.
+  ensure_onnxruntime_or_skip()
+
+  pb_model = load("acoustic", "3.0", "pb", precision="fp32")
+  onnx_model = load("acoustic", "3.0", "onnx", precision="fp32")
+
+  with pb_model.predict_session(
+    n_workers=1,
+    top_k=None,
+    default_confidence_threshold=-float("inf"),
+  ) as pb_session:
+    pb_result = pb_session.run(TEST_FILE_SHORT)
+
+  with onnx_model.predict_session(
+    n_workers=1,
+    top_k=None,
+    default_confidence_threshold=-float("inf"),
+  ) as onnx_session:
+    onnx_result = onnx_session.run(TEST_FILE_SHORT)
+
+  assert pb_result.species_probs.shape == _DEFAULT_SCORE_SHAPE
+  assert_prediction_result_is_close(
+    pb_result,
+    onnx_result,
+    max_abs_diff=_PB_ONNX_PREDICTION_MAX_ABS_DIFF,
+    mean_abs_diff=_PB_ONNX_PREDICTION_MEAN_ABS_DIFF,
+  )
 
 
 def test_v3_0_predict_pt_and_onnx_are_close() -> None:

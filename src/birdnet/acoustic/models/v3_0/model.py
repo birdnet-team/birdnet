@@ -10,7 +10,7 @@ from typing import Any, Literal, final
 import numpy.typing as npt
 from ordered_set import OrderedSet
 
-from birdnet.acoustic.inference.configs import InferenceConfig
+from birdnet.acoustic.inference.configs import InferenceConfig, PredictionConfig
 from birdnet.acoustic.inference.core.encoding.encoding_result import (
   AcousticEncodingResultBase,
   AcousticFileEncodingResult,
@@ -376,6 +376,36 @@ class AcousticModelV3_0(AcousticModelBase):
     segment_size_s: float = _DEFAULT_SEGMENT_SIZE_S,
     on_file_complete: Callable[[AcousticFilePredictionResult], None] | None = None,
   ) -> AcousticPredictionSession:
+    """Create a prediction session for the BirdNET 3.0 model.
+
+    Scores: every V3.0 export (tf, pb, pt, onnx — official and custom alike)
+    applies the sigmoid inside the model graph, so scores leave the model as
+    probabilities. ``apply_sigmoid=True`` (the default) returns them unchanged —
+    no second sigmoid is applied — and ``apply_sigmoid=False`` returns the
+    identical raw model output. Because the model does not expose logits,
+    ``sigmoid_sensitivity`` values other than ``1.0`` and ``apply_softmax=True``
+    raise a ``ValueError``.
+    """
+    if apply_softmax:
+      raise ValueError(
+        "apply_softmax is not supported for acoustic V3.0 models: the exports "
+        "apply a sigmoid inside the model graph, so the logits a softmax needs "
+        "are not available."
+      )
+    if apply_sigmoid:
+      sigmoid_sensitivity = PredictionConfig.validate_sigmoid_sensitivity(
+        sigmoid_sensitivity
+      )
+      if sigmoid_sensitivity != 1.0:
+        raise ValueError(
+          "sigmoid_sensitivity is not supported for acoustic V3.0 models: the "
+          "exports apply a plain sigmoid inside the model graph, so a scaled "
+          "sigmoid cannot be applied. Leave it at its default of 1.0."
+        )
+      # The model output is already a probability; applying the pipeline
+      # sigmoid on top would squash every score into [0.5, 0.73].
+      apply_sigmoid = False
+      sigmoid_sensitivity = None
     return AcousticPredictionSession(
       species_list=self.species_list,
       model_path=self.model_path,
@@ -522,6 +552,14 @@ class AcousticModelV3_0(AcousticModelBase):
     on_file_complete: Callable[[AcousticFilePredictionResult], None] | None = None,
   ) -> AcousticPredictionResultBase:
     """Run prediction with the BirdNET 3.0 model on files or paths.
+
+    Scores are probabilities as the model emits them: the V3.0 exports apply
+    the sigmoid inside the model graph. ``apply_sigmoid=True`` (the default)
+    returns them unchanged and ``apply_sigmoid=False`` returns the identical
+    raw model output, so confidence thresholds are probabilities either way.
+    ``sigmoid_sensitivity`` values other than ``1.0`` and ``apply_softmax=True``
+    raise a ``ValueError``, because both need the logits the exports do not
+    expose. Custom V3.0 models are expected to output probabilities as well.
 
     ``n_workers`` sets the number of inference worker processes. Its default value,
     ``None``, uses the number of physical CPU cores. Pass a fixed integer to meet a

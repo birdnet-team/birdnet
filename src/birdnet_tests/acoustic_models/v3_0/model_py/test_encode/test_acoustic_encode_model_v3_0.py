@@ -19,6 +19,8 @@ _DEFAULT_EMB_SHAPE = (1, 3, 1280)
 _TWO_ARRAY_EMB_SHAPE = (2, 3, 1280)
 _PT_ONNX_ENCODING_MAX_ABS_DIFF = 1e-4
 _PT_ONNX_ENCODING_MEAN_ABS_DIFF = 1e-5
+_PB_ONNX_ENCODING_MAX_ABS_DIFF = 1e-4
+_PB_ONNX_ENCODING_MEAN_ABS_DIFF = 1e-5
 
 
 def _load_model(backend: _Backend) -> AcousticModelV3_0:
@@ -82,6 +84,29 @@ def test_v3_0_encode_respects_segment_size(
 
   assert res.embeddings.shape == (1, expected_segments, 1280)
   assert res.segment_duration_s == segment_size_s
+
+
+def test_v3_0_encode_pb_and_onnx_are_close() -> None:
+  # The v3.0 SavedModel has no separate "embeddings" signature; the pb backend
+  # reads embeddings from "serving_default" and once died with a KeyError here.
+  ensure_onnxruntime_or_skip()
+
+  pb_model = load("acoustic", "3.0", "pb", precision="fp32")
+  onnx_model = load("acoustic", "3.0", "onnx", precision="fp32")
+
+  with pb_model.encode_session(n_workers=1) as pb_session:
+    pb_result = pb_session.run(TEST_FILE_SHORT)
+
+  with onnx_model.encode_session(n_workers=1) as onnx_session:
+    onnx_result = onnx_session.run(TEST_FILE_SHORT)
+
+  assert pb_result.embeddings.shape == _DEFAULT_EMB_SHAPE
+  assert_encoding_result_is_close(
+    pb_result,
+    onnx_result,
+    max_abs_diff=_PB_ONNX_ENCODING_MAX_ABS_DIFF,
+    mean_abs_diff=_PB_ONNX_ENCODING_MEAN_ABS_DIFF,
+  )
 
 
 def test_v3_0_encode_pt_and_onnx_are_close() -> None:
