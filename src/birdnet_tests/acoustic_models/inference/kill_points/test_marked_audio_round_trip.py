@@ -30,13 +30,16 @@ _N_FILES = 3
 _N_SEGMENTS = 6
 
 
-@pytest.mark.parametrize("n_workers", [1, 3])
+@pytest.mark.parametrize("n_workers", [1, 2])
 def test_each_segment_lands_in_its_own_row(tmp_path: Path, n_workers: int) -> None:
   """The marker written into segment i must come back in row i of file f.
 
-  Several workers on purpose: blocks arrive interleaved from different
-  processes, so this is the assertion that the ordering does not depend on
-  which worker happened to finish first.
+  More than one worker on purpose: blocks then arrive interleaved from
+  different processes, so this is the assertion that ordering does not depend
+  on which worker happened to finish first. Two is enough for that — three
+  only adds load, and the smallest CI runners have three or four cores shared
+  with xdist, where the extra pipeline processes are enough to push a lane
+  that already runs near the per-test timeout over it.
   """
   files = [
     str(write_marked_audio(tmp_path / f"in_{i}.wav", _N_SEGMENTS))
