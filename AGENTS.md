@@ -48,7 +48,7 @@ Per-test timeout is 600 s (thread method, kills the process on hang); worker res
 
 ## Conventions
 
-- User-facing fixes and features get a `CHANGELOG.md` entry under `[Unreleased]` (Keep a Changelog format): a self-contained paragraph explaining cause and effect, not just "fixed X".
+- User-facing fixes and features get a `CHANGELOG.md` entry under `[Unreleased]` (Keep a Changelog format): 1–3 sentences covering cause and effect, not just "fixed X" — but keep it short, matching the released sections (e.g. `[1.0.0]`). Deep mechanics belong in the commit message, not the changelog.
 - Tests mirror the source layout: `<module>_py/` directories, one file per method/behavior, optionally grouped in a `ClassName/` directory (e.g. `inference_pipeline/resources_py/RingBufferResources/test_reset.py`).
 - Timing-sensitive tests assert invariants, not distributions — e.g. guard a latency floor with `min(durations)`, not a mean/median, so a loaded CI runner cannot flake it.
 

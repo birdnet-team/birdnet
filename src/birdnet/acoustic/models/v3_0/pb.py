@@ -11,7 +11,6 @@ from birdnet.core.backends import (
   VersionedAcousticBackendProtocol,
 )
 from birdnet.globals import (
-  MODEL_BACKEND_PB,
   MODEL_PRECISION_FP32,
   MODEL_PRECISIONS,
 )
@@ -103,6 +102,9 @@ class AcousticPBDownloaderV3_0(AcousticDownloaderBaseV3_0):
 
 
 class AcousticPBBackendFP32V3_0(PBBackend, VersionedAcousticBackendProtocol):
+  # Unlike the v2.4 SavedModel (separate "basic" and "embeddings" signatures),
+  # the v3.0 export exposes a single "serving_default" signature whose input is
+  # "x" and which returns both "predictions" and "embeddings".
   def __init__(
     self, model_path: Path, device_name: str, half_precision: bool, **kwargs: dict
   ) -> None:
@@ -110,46 +112,7 @@ class AcousticPBBackendFP32V3_0(PBBackend, VersionedAcousticBackendProtocol):
 
   @classmethod
   def input_key(cls) -> str:
-    return "inputs"
-
-  @classmethod
-  def prediction_signature_name(cls) -> str:
-    return "basic"
-
-  @classmethod
-  def prediction_key(cls) -> str:
-    return "scores"
-
-  @classmethod
-  def supports_encoding(cls) -> bool:
-    return True
-
-  @classmethod
-  def encoding_signature_name(cls) -> str | None:
-    return "embeddings"
-
-  @classmethod
-  def encoding_key(cls) -> str | None:
-    return "embeddings"
-
-  @classmethod
-  def precision(cls) -> MODEL_PRECISIONS:
-    return MODEL_PRECISION_FP32
-
-
-class AcousticRavenBackendFP32V3_0(PBBackend, VersionedAcousticBackendProtocol):
-  def __init__(
-    self, model_path: Path, device_name: str, half_precision: bool, **kwargs: dict
-  ) -> None:
-    super().__init__(model_path, device_name, half_precision, **kwargs)
-
-  @classmethod
-  def name(cls) -> str:
-    return f"{MODEL_BACKEND_PB}-raven"
-
-  @classmethod
-  def input_key(cls) -> str:
-    return "inputs"
+    return "x"
 
   @classmethod
   def prediction_signature_name(cls) -> str:
@@ -157,19 +120,19 @@ class AcousticRavenBackendFP32V3_0(PBBackend, VersionedAcousticBackendProtocol):
 
   @classmethod
   def prediction_key(cls) -> str:
-    return "scores"
+    return "predictions"
 
   @classmethod
   def supports_encoding(cls) -> bool:
-    return False
+    return True
 
   @classmethod
   def encoding_signature_name(cls) -> str | None:
-    return None
+    return "serving_default"
 
   @classmethod
   def encoding_key(cls) -> str | None:
-    return None
+    return "embeddings"
 
   @classmethod
   def precision(cls) -> MODEL_PRECISIONS:
