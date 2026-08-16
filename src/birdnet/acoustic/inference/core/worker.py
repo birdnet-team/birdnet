@@ -108,7 +108,6 @@ class WorkerBase(bn_logging.LogableProcessBase):
     self._ring_batch_sizes: np.ndarray | None = None
     self._ring_flags: np.ndarray | None = None
     self._device_name = device
-    # self._mm: mmap.mmap | None = None
 
     self._cancel_event = cancel_event
 
@@ -226,7 +225,6 @@ class WorkerBase(bn_logging.LogableProcessBase):
       self._log("Waiting for start signal...")
       while not self._start_signal.wait(timeout=1.0):
         if self._check_cancel_event():
-          # self._uninit_logging()
           return
         if self._check_end_event():
           return
@@ -313,12 +311,6 @@ class WorkerBase(bn_logging.LogableProcessBase):
           self._sem_filled.release()
           self._out_q.put(None)
           break
-        # if n_done >= 1:
-        #   self._log_debug(
-        #     f"Slots are DONE_FLAG {claimed_slot}. No more work to d. Exiting."
-        #   )
-        #   self._out_q.put(None)
-        #   break
         else:
           raise AssertionError(
             "No slot found in the ring buffer but sem_fill was available!"

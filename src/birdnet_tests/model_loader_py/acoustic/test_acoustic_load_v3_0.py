@@ -76,6 +76,17 @@ def test_v3_0_onnx() -> None:
   assert isinstance(model, AcousticModelV3_0)
 
 
+@pytest.mark.load_model
+def test_v3_0_onnx_fp16() -> None:
+  ensure_onnxruntime_or_skip()
+
+  try:
+    model = load("acoustic", "3.0", "onnx", precision="fp16")
+  except ReadTimeout as e:
+    pytest.fail(f"Model download timed out: {e}. Try again later.")
+  assert isinstance(model, AcousticModelV3_0)
+
+
 def test_v3_0_pt_with_library_raises_error() -> None:
   with pytest.raises(
     ValueError,

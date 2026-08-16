@@ -15,18 +15,18 @@ from birdnet_tests.helper import (
 )
 from birdnet_tests.test_files import TEST_FILE_SHORT
 
-# Deliberately no `load_model` marker: that marker is only for the download
-# tests that run in the first phase. Like the other closeness/predict tests,
-# the calibration test below uses the models that phase already fetched.
+# Deliberately no `load_model` marker: that phase holds only the download
+# tests; these use the models it already fetched.
 _Backend = Literal["pt", "onnx", "tf", "pb"]
 
-# The v3.0 exports apply the sigmoid inside the model graph, so the pipeline
-# must not apply a second one: doubly squashed scores all land in [0.5, 0.73].
-# Anchoring an absolute value catches that entire failure class - two backends
-# that are wrong identically still agree with each other, but not with this.
+# The exports bake in the sigmoid; a second one squashes every score into
+# [0.5, 0.73]. An absolute anchor catches that class - backends that are wrong
+# identically still agree with each other, but not with this.
 _EXPECTED_TOP_SPECIES = "Poecile atricapillus_Black-capped Chickadee"
 _EXPECTED_TOP_CONFIDENCE = 0.918
 _CONFIDENCE_ABS_TOL = 0.01
+# fp16 deviates up to ~0.003 from fp32 here; leave headroom for kernel spread.
+_CONFIDENCE_ABS_TOL_FP16 = 0.02
 
 
 def _fake_model(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> AcousticModelV3_0:
@@ -68,34 +68,45 @@ def test_v3_0_apply_sigmoid_skips_the_pipeline_sigmoid(
   tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
   model = _fake_model(tmp_path, monkeypatch)
-  # The session is inspected without entering it: the asserted fields are pure
-  # parent-side config, and entering would spawn workers that all crash on the
-  # fake model file.
+  # Not entered: the fields are parent-side config; entering would spawn
+  # workers that crash on the fake model file.
   session = model.predict_session(top_k=None)
   assert session._specific_config.apply_sigmoid is False
   assert session._specific_config.sigmoid_sensitivity is None
 
 
-def _load_model(backend: _Backend) -> AcousticModelV3_0:
+def _load_model(backend: _Backend, precision: str) -> AcousticModelV3_0:
   if backend == "pt":
     ensure_torch_or_skip()
     ensure_v3_0_torch_backend_or_skip()
-    return load("acoustic", "3.0", "pt", precision="fp32")
+    return load("acoustic", "3.0", "pt", precision=precision)
   if backend == "onnx":
     ensure_onnxruntime_or_skip()
-    return load("acoustic", "3.0", "onnx", precision="fp32")
-  # Like the geo v3.0 exports, the acoustic ones need a TF runtime newer than
-  # the macOS Intel pin (<2.17) can provide.
+    return load("acoustic", "3.0", "onnx", precision=precision)
+  # The v3.0 exports need a newer TF than the macOS Intel pin (<2.17).
   if backend == "tf":
     ensure_tf_2_18_or_skip()
-    return load("acoustic", "3.0", "tf", precision="fp32", library="tflite")
+    return load("acoustic", "3.0", "tf", precision=precision, library="tflite")
   ensure_tf_2_18_or_skip()
-  return load("acoustic", "3.0", "pb", precision="fp32")
+  return load("acoustic", "3.0", "pb", precision=precision)
 
 
-@pytest.mark.parametrize("backend", ["pt", "onnx", "tf", "pb"])
-def test_v3_0_predict_default_confidence_is_calibrated(backend: _Backend) -> None:
-  model = _load_model(backend)
+# fp16 variants are separate export files with their own output indices.
+@pytest.mark.parametrize(
+  ("backend", "precision"),
+  [
+    ("pt", "fp32"),
+    ("onnx", "fp32"),
+    ("onnx", "fp16"),
+    ("tf", "fp32"),
+    ("tf", "fp16"),
+    ("pb", "fp32"),
+  ],
+)
+def test_v3_0_predict_default_confidence_is_calibrated(
+  backend: _Backend, precision: str
+) -> None:
+  model = _load_model(backend, precision)
   with model.predict_session(
     n_workers=1,
     top_k=None,
@@ -108,7 +119,6 @@ def test_v3_0_predict_default_confidence_is_calibrated(backend: _Backend) -> Non
   first_segment = np.asarray(res.species_probs)[0, 0]
   top_slot = int(np.argmax(first_segment))
   top_species_id = int(np.asarray(res.species_ids)[0, 0, top_slot])
+  tol = _CONFIDENCE_ABS_TOL_FP16 if precision == "fp16" else _CONFIDENCE_ABS_TOL
   assert list(res.species_list)[top_species_id] == _EXPECTED_TOP_SPECIES
-  assert first_segment[top_slot] == pytest.approx(
-    _EXPECTED_TOP_CONFIDENCE, abs=_CONFIDENCE_ABS_TOL
-  )
+  assert first_segment[top_slot] == pytest.approx(_EXPECTED_TOP_CONFIDENCE, abs=tol)

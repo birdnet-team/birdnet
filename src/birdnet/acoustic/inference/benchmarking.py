@@ -93,7 +93,6 @@ def _create_benchmark_statistics(
 
   benchmark_dir = resources.stats_resources.benchmark_dir
   benchmark_session_dir = resources.stats_resources.benchmark_session_dir
-  # iso_time = resources.stats_resources.start_iso_time
   run_name = f"run-{resources.processing_resources.current_run_nr}"
   session_id_hash = get_session_id_hash(session_id)
   benchmark_run_dir = benchmark_session_dir / run_name

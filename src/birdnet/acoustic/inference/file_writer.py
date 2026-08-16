@@ -32,7 +32,6 @@ class QueueFileWriter:
   def __call__(self) -> None:
     f = logging.Formatter(
       "%(asctime)s %(processName)-10s %(message)s",
-      # "%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s"
       "%H:%M:%S",
     )
 
@@ -52,17 +51,7 @@ class QueueFileWriter:
 
     self._run_main_loop()
 
-    # print(time.time(), "flushing on close")
     mh.close()
-
-    # print(time.time(), "done flushing")
-    # lines = self._log_file.read_text(encoding="utf-8").splitlines()
-    # sorted_lines = sorted(lines, key=lambda x: x.split()[:2])
-    # self._log_file.write_text("\n".join(sorted_lines), encoding="utf-8")
-    # print(
-    #   f"Finished writing logs to {self._log_file.absolute()}.
-    # Total lines: {len(sorted_lines)}."
-    # )
 
   def _run_main_loop(self) -> None:
     assert len(self._logger.handlers) == 1
@@ -79,14 +68,13 @@ class QueueFileWriter:
 
         while True:
           queue_entry = self._log_queue.get(block=True)
-          if is_end_marker := queue_entry is get_end_marker:
+          if queue_entry is get_end_marker:
             break
           is_empty = False
           n_received += 1
 
           record: logging.LogRecord = queue_entry
           self._logger.handle(record)
-        # print("Received", n_received, "log records.")
         memory_handler.flush()
 
         if is_empty:
@@ -118,5 +106,3 @@ class QueueFileWriter:
         traceback.print_exc(file=sys.stderr)
         self._cancel_event.set()
         break
-      # if not self._logging_stop_event.is_set():
-      # sleep(self._get_logs_interval)

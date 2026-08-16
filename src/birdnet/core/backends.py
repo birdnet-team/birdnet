@@ -219,7 +219,6 @@ class TFBackend(Backend, ABC):
       self._interp.resize_tensor_input(self.in_idx(), shape, strict=True)
       self._interp.allocate_tensors()
       self._cached_shape = shape
-    # self._in_view[:n, :] = batch
     self._interp.set_tensor(self.in_idx(), batch)
 
   def _infer(self, batch: np.ndarray, out_idx: int) -> np.ndarray:
@@ -798,24 +797,11 @@ def _detect_tflite_custom_classifier(
 
 def import_tf() -> None:
   disable_tf_logging()
-  # import absl.logging
-
-  # absl_verbosity_before = absl.logging.get_verbosity()
-  # absl.logging.set_verbosity(absl.logging.ERROR)
-  # tf_verbosity_before = logging.getLogger("tensorflow").level
-  # logging.getLogger("tensorflow").setLevel(logging.ERROR)
-  # os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
   import tensorflow  # noqa: F401
 
-  # did not help for
-  # WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
-  # I0000 00:00:1764672082.602233  623540 gpu_device.cc:2020] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 22495 MB memory:  -> device: 0, name: NVIDIA RTX A5000, pci bus id: 0000:31:00.0, compute capability: 8.6
-  # tensorflow.get_logger().setLevel("ERROR")
-  # os.environ["XLA_FLAGS"] = "--xla_hlo_profile=false"
-  # os.environ["XLA_FLAGS"] = "--xla_gpu_cuda_data_dir=/dev/null"
-
-  # absl.logging.set_verbosity(absl_verbosity_before)
-  # logging.getLogger("tensorflow").setLevel(tf_verbosity_before)
+  # The "WARNING: All log messages before absl::InitializeLog() is called are
+  # written to STDERR" line (and the device-creation I-lines that follow it)
+  # cannot be suppressed from Python.
 
 
 def set_cpu_device_tf() -> str:
@@ -827,7 +813,6 @@ def set_cpu_device_tf() -> str:
   # cudaSetDevice() on GPU:0 failed. Status: out of memory
   # at call of tensorflow.config.list_logical_devices("CPU")
   os.environ["CUDA_VISIBLE_DEVICES"] = ""
-  # tf.config.set_visible_devices([], "GPU")
 
   logical_devices = list_logical_devices("CPU")
 
@@ -850,7 +835,6 @@ def set_cpu_device_tf() -> str:
 def set_gpu_device_tf(device: str, memory_growth: bool) -> str:
   device_index = int(device.split(":")[1]) if ":" in device else 0
   os.environ["CUDA_VISIBLE_DEVICES"] = str(device_index)
-  # tf.config.set_visible_devices("/device:GPU:1", "GPU")
 
   # Note: memory growth needs to be set before loading the model and
   # only once in the main process
@@ -875,22 +859,12 @@ def set_gpu_device_tf(device: str, memory_growth: bool) -> str:
   assert len(logical_devices) == 1
   dev = logical_devices[0]
   return dev.name
-  # all_devices_with_name = [
-  #   log_dev
-  #   for log_dev in tensorflow.config.list_logical_devices("GPU")
-  #   if device_name in log_dev.name
-  # ]
-  # assert len(all_devices_with_name) != 0
-  # self._logical_device = all_devices_with_name[0]
 
 
 def disable_tf_logging() -> None:
   import absl.logging
 
-  absl_verbosity_before = absl.logging.get_verbosity()
   absl.logging.set_verbosity(absl.logging.ERROR)
-  tf_verbosity_before = logging.getLogger("tensorflow").level
-
   logging.getLogger("tensorflow").setLevel(logging.ERROR)
   os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
@@ -907,43 +881,6 @@ def load_pb_model(model_path: Path, logical_device_name: str) -> Any:
   logger.debug(
     f"Model loaded from {model_path.absolute()} in {end - start:.2f} seconds."
   )
-  return model
-
-
-def load_pb_model_legacy(model_path: Path, device: str) -> Any:
-  import absl.logging
-
-  absl_verbosity_before = absl.logging.get_verbosity()
-  absl.logging.set_verbosity(absl.logging.ERROR)
-  tf_verbosity_before = logging.getLogger("tensorflow").level
-  logging.getLogger("tensorflow").setLevel(logging.ERROR)
-  os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-  import tensorflow as tf
-
-  # tf.random.set_seed(0)
-  start = time.perf_counter()
-  # with tf.device(device):  # type: ignore
-
-  device_index = int(device.split(":")[1]) if ":" in device else 0
-  os.environ["CUDA_VISIBLE_DEVICES"] = str(device_index)
-  # tf.config.set_visible_devices("/device:GPU:1", "GPU")
-
-  # Note: memory growth needs to be set before loading the model and
-  # maybe only once in the main process
-  physical_devices = tf.config.list_physical_devices("GPU")
-  assert len(physical_devices) == 1
-  tf.config.experimental.set_memory_growth(physical_devices[0], True)
-
-  with tf.device("GPU:0"):  # type: ignore
-    model = tf.saved_model.load(str(model_path.absolute()))
-  end = time.perf_counter()
-  logger = get_logger_for_package(__name__)
-  logger.debug(
-    f"Model loaded from {model_path.absolute()} in {end - start:.2f} seconds."
-  )
-
-  absl.logging.set_verbosity(absl_verbosity_before)
-  logging.getLogger("tensorflow").setLevel(tf_verbosity_before)
   return model
 
 
@@ -994,9 +931,6 @@ def load_lib_tf_model(
   # `import tensorflow.lite.python.interpreter as tflite`
   from tensorflow.lite.python import interpreter as tflite
 
-  # memory_map not working for TF 2.15.1:
-  # f = open(self._model_path, "rb")
-  # self._mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
   start = time.perf_counter()
 
   import warnings
@@ -1009,13 +943,6 @@ def load_lib_tf_model(
   # Warning: tf.lite.Interpreter is deprecated and is scheduled for deletion in TF 2.20.
   # Please use the LiteRT interpreter from the ai_edge_litert package.
   # See the [migration guide](https://ai.google.dev/edge/litert/migration) for details."
-  # warnings.filterwarnings(
-  #   "ignore",
-  #   message=r".*tf\.lite\.Interpreter is deprecated.*",
-  #   category=UserWarning,
-  #   module="tensorflow.lite.python.interpreter",
-  # )
-  # ---
   with warnings.catch_warnings():
     warnings.filterwarnings(
       "ignore",

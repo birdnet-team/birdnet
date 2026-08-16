@@ -102,9 +102,8 @@ def test_v3_0_predict_respects_segment_size(
 
 
 def test_v3_0_predict_pb_and_onnx_are_close() -> None:
-  # Exercises the real SavedModel signature ("serving_default"/"x"/"predictions"):
-  # the pb backend once shipped v2.4's signature names and every predict died with
-  # KeyError('basic') in the worker, which no load-only test caught.
+  # Runs the real SavedModel end to end: stale signature names or keys, which
+  # no load-only test can catch, fail here against onnx.
   ensure_onnxruntime_or_skip()
   ensure_tf_2_18_or_skip()
 

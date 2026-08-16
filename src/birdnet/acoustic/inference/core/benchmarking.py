@@ -275,12 +275,6 @@ class FullBenchmarkMetaBase(MinimalBenchmarkMetaBase):
   mem_shm_slots_average_busy: float
   mem_shm_slots_average_buffered: float
 
-  # avg_free_slots_last: float
-  # avg_filled_slots_last: float
-  # avg_busy_slots_last: float
-  # avg_preloaded_slots_last: float
-  # avg_busy_workers_last: float
-
   def to_dict(self) -> dict[str, Any]:
     result = asdict(self)
     del_keys = [k for k in result if k.startswith("_")]
