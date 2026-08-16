@@ -9,6 +9,7 @@ from birdnet.model_loader import load
 from birdnet_tests.helper import (
   assert_prediction_result_is_close,
   ensure_onnxruntime_or_skip,
+  ensure_tf_2_18_or_skip,
   ensure_torch_or_skip,
   ensure_v3_0_torch_backend_or_skip,
 )
@@ -105,6 +106,7 @@ def test_v3_0_predict_pb_and_onnx_are_close() -> None:
   # the pb backend once shipped v2.4's signature names and every predict died with
   # KeyError('basic') in the worker, which no load-only test caught.
   ensure_onnxruntime_or_skip()
+  ensure_tf_2_18_or_skip()
 
   pb_model = load("acoustic", "3.0", "pb", precision="fp32")
   onnx_model = load("acoustic", "3.0", "onnx", precision="fp32")

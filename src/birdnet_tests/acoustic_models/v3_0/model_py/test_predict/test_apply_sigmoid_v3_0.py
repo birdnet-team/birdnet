@@ -9,11 +9,15 @@ from birdnet.acoustic.models.v3_0.model import AcousticModelV3_0
 from birdnet.model_loader import load
 from birdnet_tests.helper import (
   ensure_onnxruntime_or_skip,
+  ensure_tf_2_18_or_skip,
   ensure_torch_or_skip,
   ensure_v3_0_torch_backend_or_skip,
 )
 from birdnet_tests.test_files import TEST_FILE_SHORT
 
+# Deliberately no `load_model` marker: that marker is only for the download
+# tests that run in the first phase. Like the other closeness/predict tests,
+# the calibration test below uses the models that phase already fetched.
 _Backend = Literal["pt", "onnx", "tf", "pb"]
 
 # The v3.0 exports apply the sigmoid inside the model graph, so the pipeline
@@ -52,13 +56,24 @@ def test_v3_0_non_default_sigmoid_sensitivity_raises_error(
     model.predict_session(sigmoid_sensitivity=0.9)
 
 
+def test_v3_0_non_default_sigmoid_sensitivity_raises_even_without_apply_sigmoid(
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+  model = _fake_model(tmp_path, monkeypatch)
+  with pytest.raises(ValueError, match=r"sigmoid_sensitivity is not supported"):
+    model.predict_session(apply_sigmoid=False, sigmoid_sensitivity=0.9)
+
+
 def test_v3_0_apply_sigmoid_skips_the_pipeline_sigmoid(
   tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
   model = _fake_model(tmp_path, monkeypatch)
-  with model.predict_session(top_k=None) as session:
-    assert session._specific_config.apply_sigmoid is False
-    assert session._specific_config.sigmoid_sensitivity is None
+  # The session is inspected without entering it: the asserted fields are pure
+  # parent-side config, and entering would spawn workers that all crash on the
+  # fake model file.
+  session = model.predict_session(top_k=None)
+  assert session._specific_config.apply_sigmoid is False
+  assert session._specific_config.sigmoid_sensitivity is None
 
 
 def _load_model(backend: _Backend) -> AcousticModelV3_0:
@@ -69,8 +84,12 @@ def _load_model(backend: _Backend) -> AcousticModelV3_0:
   if backend == "onnx":
     ensure_onnxruntime_or_skip()
     return load("acoustic", "3.0", "onnx", precision="fp32")
+  # Like the geo v3.0 exports, the acoustic ones need a TF runtime newer than
+  # the macOS Intel pin (<2.17) can provide.
   if backend == "tf":
+    ensure_tf_2_18_or_skip()
     return load("acoustic", "3.0", "tf", precision="fp32", library="tflite")
+  ensure_tf_2_18_or_skip()
   return load("acoustic", "3.0", "pb", precision="fp32")
 
 

@@ -396,16 +396,18 @@ class AcousticModelV3_0(AcousticModelBase):
       sigmoid_sensitivity = PredictionConfig.validate_sigmoid_sensitivity(
         sigmoid_sensitivity
       )
-      if sigmoid_sensitivity != 1.0:
-        raise ValueError(
-          "sigmoid_sensitivity is not supported for acoustic V3.0 models: the "
-          "exports apply a plain sigmoid inside the model graph, so a scaled "
-          "sigmoid cannot be applied. Leave it at its default of 1.0."
-        )
-      # The model output is already a probability; applying the pipeline
-      # sigmoid on top would squash every score into [0.5, 0.73].
-      apply_sigmoid = False
-      sigmoid_sensitivity = None
+    # the sensitivity can never take effect for V3.0, so a non-default value
+    # is rejected rather than silently ignored even when apply_sigmoid=False.
+    if sigmoid_sensitivity is not None and sigmoid_sensitivity != 1.0:
+      raise ValueError(
+        "sigmoid_sensitivity is not supported for acoustic V3.0 models: the "
+        "exports apply a plain sigmoid inside the model graph, so a scaled "
+        "sigmoid cannot be applied. Leave it at its default of 1.0."
+      )
+    # The model output is already a probability; applying the pipeline
+    # sigmoid on top would squash every score into [0.5, 0.73].
+    apply_sigmoid = False
+    sigmoid_sensitivity = None
     return AcousticPredictionSession(
       species_list=self.species_list,
       model_path=self.model_path,
