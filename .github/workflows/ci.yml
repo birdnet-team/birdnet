@@ -201,4 +201,5 @@ jobs:
           name: watchdog-dumps-${{ matrix.os }}-py${{ matrix.python-version }}
           path: .watchdog-dumps/
           if-no-files-found: ignore
+          # dot-dir: upload-artifact skips hidden files by default, silently here.
           include-hidden-files: true

@@ -9,15 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added `birdnet.set_download_progress_callback(cb)` (and a scoped `birdnet.download_progress_callback(cb)` context manager) so embedding applications — e.g. a GUI with stderr diverted to a log file — can render their own progress for first-run model/label downloads instead of a tqdm bar nobody sees. Defaults to today's behavior when unregistered.
-
-### Changed
-
-- On Python 3.14, `ai-edge-litert` is now installed with `birdnet` (it ships 3.14 wheels since 2.1.5), so the acoustic 2.4 model, custom 2.4 classifiers and the geo 2.4 model are available there via `birdnet.load(.., "tf", library="litert")` — TensorFlow itself still has no 3.14 wheels.
+- Added birdnet.set_download_progress_callback(cb) (and a scoped birdnet.download_progress_callback(cb) context manager) so embedding applications — e.g. a GUI with stderr diverted to a log file — can render their own progress and failure UI for first-run model/label downloads instead of a tqdm bar nobody sees. The callback receives DownloadProgress snapshots (start, throttled progress, retry, and exactly one finished/failed); a raising callback cancels the download cleanly. Unregistered, downloads behave as before.
 
 ### Bugfixes
 
-- `birdnet.load(.., "tf", library="litert")` no longer fails in environments without TensorFlow: the loader's TensorFlow guard rejected every `tf` load, although the LiteRT interpreter (`ai-edge-litert`) never imports TensorFlow. The guard now requires TensorFlow only for the default `tflite` interpreter and for `pb`, so the acoustic 2.4 model, custom 2.4 classifiers and the geo 2.4 model run in a TensorFlow-free install (~750 MB instead of ~2.7 GB); when TensorFlow is missing, the error names `library="litert"` as an alternative if it is installed. The default interpreter stays `tflite`.
+- `birdnet.load(.., "tf", library="litert")` no longer fails in environments without TensorFlow: the loader's guard rejected every `tf` load, although the LiteRT interpreter (`ai-edge-litert`) never imports TensorFlow. TensorFlow is now required only for the default `tflite` interpreter and for `pb`, so the acoustic 2.4 model, custom 2.4 classifiers and the geo 2.4 model run in a TensorFlow-free install (also on Python 3.14 after `pip install ai-edge-litert`), and the TensorFlow-missing error points to `library="litert"`. The default interpreter stays `tflite`.
 - Acoustic V3.0 confidences were sigmoid-squashed twice: the V3.0 exports already apply the sigmoid in-graph, so the pipeline's default sigmoid compressed every score into [0.5, 0.73]. `predict(..)` now returns the model's probabilities unchanged; `sigmoid_sensitivity` values other than 1.0 and `apply_softmax=True` raise a `ValueError` for V3.0, since both need logits the exports do not expose. A calibration test now pins an absolute confidence per backend.
 - The acoustic V3.0 `pb` backend requested v2.4's SavedModel signatures, so every `predict(..)`/`encode(..)` died with `KeyError: 'basic'`. It now reads the V3.0 export's single `serving_default` signature, and new integration tests run the real SavedModel against the `onnx` backend.
 - A worker killed while processing a batch — the realistic out-of-memory case — no longer wedges the surviving workers: a killed process leaves the shared ring-buffer lock permanently held, so waiters now notice a cancelled run and shut down cleanly, letting the liveness check report the death instead of hanging the call (#73).

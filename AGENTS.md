@@ -14,7 +14,7 @@ Python library (`src` layout) for identifying bird species by their sounds (Bird
 ## Environment setup
 
 - System dependency: libsndfile (`apt-get install libsndfile1` / `brew install libsndfile` / `choco install libsndfile`).
-- Install: `uv pip install -e '.[tests]'` (or plain pip). Optional extras: `pt` (torch), `onnx`; the `repro` extra pins exact versions and conflicts with normal dev.
+- Install: `uv pip install -e '.[tests]'` (or plain pip). Optional extras: `pt` (torch), `onnx`; the `repro` extra pins exact versions and conflicts with normal dev. On Python 3.14 add `ai-edge-litert` by hand (tox does) or the litert `no_tf` tests skip.
 - Official models auto-download on first load (~3 GB for the full set). The cache location is controlled by the `BIRDNET_APP_DATA` env var — set it to a persistent path in ephemeral environments. `pytest -m "not repro and load_model" -n auto` prefetches everything the tests need.
 
 ## Commands

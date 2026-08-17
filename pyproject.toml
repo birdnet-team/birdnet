@@ -45,9 +45,9 @@ dependencies = [
   # No TensorFlow wheels for Python 3.14+.
   "tensorflow >= 2.8.0 ; (sys_platform != 'darwin' or platform_machine != 'x86_64') and python_version < '3.14'",                                                                                                # 2022/02/02
   "tensorflow >= 2.8.0, <2.17 ; sys_platform == 'darwin' and platform_machine == 'x86_64' and python_version < '3.14'",
-  # Only platforms/Pythons with ai-edge-litert wheels: it has no sdist, so an
-  # unguarded marker makes birdnet itself uninstallable there.
-  "ai-edge-litert >= 2.0.2 ; python_version < '3.15' and (sys_platform == 'linux' or (sys_platform == 'darwin' and platform_machine == 'arm64') or (sys_platform == 'win32' and platform_machine == 'AMD64'))", # 2026/05/12
+  # Only platforms with ai-edge-litert wheels: it has no sdist, so an unguarded
+  # marker makes birdnet itself uninstallable there.
+  "ai-edge-litert >= 2.0.2 ; python_version <= '3.13' and (sys_platform == 'linux' or (sys_platform == 'darwin' and platform_machine == 'arm64') or (sys_platform == 'win32' and platform_machine == 'AMD64'))", # 2026/05/12
 ]
 
 [project.optional-dependencies]
@@ -287,6 +287,7 @@ commands =
 # TensorFlow-free surface only; the lane that proves the litert path needs no TensorFlow.
 deps =
   .[tests,onnx,pt]
+  ai-edge-litert
 commands =
   pytest -m "no_tf" -n auto
   pyproject-build -o dist/

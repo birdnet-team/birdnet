@@ -164,14 +164,15 @@ def test_pb_message_offers_tf_backend_with_litert_when_installed(
     load("acoustic", "2.4", "pb")
 
 
-def test_message_omits_litert_when_not_installed(
+def test_message_suggests_installing_litert_when_not_installed(
   _no_tf: None, _no_litert: None
 ) -> None:
   with pytest.raises(ValueError) as exc_info:
     load("acoustic", "2.4", "tf")
 
   message = str(exc_info.value)
-  assert "litert" not in message
+  assert "pip install ai-edge-litert" in message
+  assert "which is installed" not in message
   assert "onnx" in message
 
 

@@ -287,12 +287,19 @@ def _validate_library(
       raise ValueError(_tensorflow_missing_message(MODEL_BACKEND_TF))
   elif validated_library == LIBRARY_LITERT:
     if not litert_installed():
-      raise ValueError(
+      message = (
         f"Parameter '{LIBRARY_TF_PARAM}': Library '{LIBRARY_LITERT}' requires "
         "ai-edge-litert, which is not installed. Install it ('pip install "
-        f"ai-edge-litert') or use the default library '{LIBRARY_TFLITE}', which "
-        "needs TensorFlow instead."
+        "ai-edge-litert')"
       )
+      if tf_installed():
+        message += (
+          f" or use the default library '{LIBRARY_TFLITE}', which runs on the "
+          "installed TensorFlow."
+        )
+      else:
+        message += "."
+      raise ValueError(message)
   else:
     raise AssertionError()
   return validated_library
@@ -356,29 +363,29 @@ def _tensorflow_missing_message(backend: str) -> str:
     )
   else:
     reason = "Install it (e.g. reinstall birdnet, or 'pip install tensorflow'). "
-  onnx_alternative = (
-    "use the 'onnx' backend, available for the acoustic 3.0 and geo 3.0 models "
-    "(both also offer 'pt'), e.g. birdnet.load('geo', '3.0', 'onnx')"
-  )
+  if backend == MODEL_BACKEND_TF:
+    how = f"pass {LIBRARY_TF_PARAM}='{LIBRARY_LITERT}'"
+  else:
+    how = (
+      f"use the '{MODEL_BACKEND_TF}' backend with {LIBRARY_TF_PARAM}='{LIBRARY_LITERT}'"
+    )
   if litert_installed():
-    if backend == MODEL_BACKEND_TF:
-      how = f"pass {LIBRARY_TF_PARAM}='{LIBRARY_LITERT}'"
-    else:
-      how = (
-        f"use the '{MODEL_BACKEND_TF}' backend with "
-        f"{LIBRARY_TF_PARAM}='{LIBRARY_LITERT}'"
-      )
-    alternative = (
-      f"Alternatively, {how} to run the TFLite model on ai-edge-litert, which is "
-      "installed and needs no TensorFlow (e.g. birdnet.load('acoustic', '2.4', "
-      "'tf', library='litert'); not supported by the geo 3.0 model), or "
-      f"{onnx_alternative}. The Perch model is TensorFlow-only."
+    litert_alternative = (
+      f"{how} to run the TFLite model on ai-edge-litert, which is installed and "
+      "needs no TensorFlow"
     )
   else:
-    alternative = (
-      f"Alternatively, {onnx_alternative}; the acoustic 2.4, geo 2.4 and Perch "
-      "models have no onnx/pt backend."
+    litert_alternative = (
+      f"install ai-edge-litert ('pip install ai-edge-litert', where wheels exist) "
+      f"and {how} to run the TFLite model without TensorFlow"
     )
+  alternative = (
+    f"Alternatively, {litert_alternative} (e.g. birdnet.load('acoustic', '2.4', "
+    "'tf', library='litert'); not supported by the geo 3.0 model), or use the "
+    "'onnx' backend, available for the acoustic 3.0 and geo 3.0 models (both also "
+    "offer 'pt'), e.g. birdnet.load('geo', '3.0', 'onnx'). The Perch model is "
+    "TensorFlow-only."
+  )
   return base + reason + alternative
 
 
