@@ -1,6 +1,7 @@
 import faulthandler
 import logging
 import os
+import time
 from multiprocessing import set_start_method
 from pathlib import Path
 from typing import IO
@@ -44,7 +45,8 @@ WATCHDOG_IDLE_S = 900
 
 _watchdog_file: IO[str] | None = None
 _watchdog_test_timeouts: dict[str, float] = {}
-# Tests currently between logstart and logfinish, mapped to their timeout.
+# Tests currently between logstart and logfinish, mapped to the absolute
+# (time.monotonic) instant each is due.
 _watchdog_in_flight: dict[str, float] = {}
 # Deadline used when a nodeid is missing from the map. Under xdist only the
 # workers collect, so the controller's map is always empty and every logstart
@@ -94,21 +96,27 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
     _watchdog_test_timeouts[item.nodeid] = _effective_test_timeout(item)
 
 
-def _watchdog_deadline(in_flight: dict[str, float]) -> float:
-  """Deadline covering every test currently running, or the idle one if none is."""
-  if in_flight:
-    return max(in_flight.values()) + WATCHDOG_MARGIN_S
-  return WATCHDOG_IDLE_S
+def _watchdog_deadline(in_flight: dict[str, float], now: float) -> float:
+  """Seconds until the last running test is due, or the idle deadline if none is.
+
+  Deadlines are absolute because `_watchdog_arm` schedules relative to the moment
+  it is called: re-arming with a duration would let every event from another
+  worker push a running test's deadline further out, so a wedged one would never
+  be caught while its siblings keep reporting.
+  """
+  if not in_flight:
+    return WATCHDOG_IDLE_S
+  return max(0.0, max(in_flight.values()) - now) + WATCHDOG_MARGIN_S
 
 
 def pytest_runtest_logstart(nodeid: str, location: tuple) -> None:
   if _watchdog_file is not None:
     _watchdog_file.write(f"===== STARTING: {nodeid} =====\n")
     _watchdog_file.flush()
-  _watchdog_in_flight[nodeid] = _watchdog_test_timeouts.get(
-    nodeid, _watchdog_fallback_s
-  )
-  _watchdog_arm(_watchdog_deadline(_watchdog_in_flight))
+  now = time.monotonic()
+  timeout = _watchdog_test_timeouts.get(nodeid, _watchdog_fallback_s)
+  _watchdog_in_flight[nodeid] = now + timeout
+  _watchdog_arm(_watchdog_deadline(_watchdog_in_flight, now))
 
 
 def pytest_runtest_logfinish(nodeid: str, location: tuple) -> None:
@@ -116,7 +124,7 @@ def pytest_runtest_logfinish(nodeid: str, location: tuple) -> None:
   # concurrently, so finishing one test must not drop the deadline back to the
   # idle one while another worker is still inside a long load_model download.
   _watchdog_in_flight.pop(nodeid, None)
-  _watchdog_arm(_watchdog_deadline(_watchdog_in_flight))
+  _watchdog_arm(_watchdog_deadline(_watchdog_in_flight, time.monotonic()))
 
 
 def pytest_unconfigure() -> None:
