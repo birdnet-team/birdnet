@@ -1,6 +1,7 @@
 import faulthandler
 import logging
 import os
+import time
 from multiprocessing import set_start_method
 from pathlib import Path
 from typing import IO
@@ -30,9 +31,13 @@ LOAD_MODEL_TIMEOUT_S = 1800
 # native crash (observed with a fork-lane worker on macOS: instant death, no
 # Python traceback) can leave the controller waiting on the dead node forever
 # with zero output. The controller re-arms on the logstart/logfinish events the
-# workers forward, so when those stop, it dumps its own stacks and exits at the
-# idle deadline instead of burning the job budget. Per-test deadlines come from
-# a nodeid -> timeout map built at collection, because the logstart hook only
+# workers forward, so when those stop it dumps its own stacks and exits instead
+# of burning the job budget -- at the idle deadline when nothing is running, or
+# at the last in-flight test's own deadline when the events stop mid-test. That
+# second case is up to LOAD_MODEL_TIMEOUT_S because the controller cannot see a
+# nodeid's real timeout (only workers collect), and is the price of not killing
+# a healthy worker that is quietly downloading. Per-test deadlines come from a
+# nodeid -> timeout map built at collection, because the logstart hook only
 # receives the nodeid. faulthandler.enable() additionally catches hard crashes
 # (SIGSEGV/SIGABRT/SIGBUS) with a stack in the same dump file.
 #
@@ -45,6 +50,9 @@ WATCHDOG_IDLE_S = 900
 
 _watchdog_file: IO[str] | None = None
 _watchdog_test_timeouts: dict[str, float] = {}
+# Tests currently between logstart and logfinish, mapped to the absolute
+# (time.monotonic) instant each is due.
+_watchdog_in_flight: dict[str, float] = {}
 # Deadline used when a nodeid is missing from the map. Under xdist only the
 # workers collect, so the controller's map is always empty and every logstart
 # falls back to this value. It must therefore cover the longest legitimate
@@ -112,16 +120,47 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
     _watchdog_test_timeouts[item.nodeid] = _effective_test_timeout(item)
 
 
+def _watchdog_deadline(in_flight: dict[str, float], now: float) -> float:
+  """Seconds until the last running test is due, or the idle deadline if none is.
+
+  Deadlines are absolute because `_watchdog_arm` schedules relative to the moment
+  it is called: re-arming with a duration would let every event from another
+  worker push a running test's deadline further out, so a wedged one would never
+  be caught while its siblings keep reporting.
+  """
+  if not in_flight:
+    return WATCHDOG_IDLE_S
+  return max(0.0, max(in_flight.values()) - now) + WATCHDOG_MARGIN_S
+
+
 def pytest_runtest_logstart(nodeid: str, location: tuple) -> None:
   if _watchdog_file is not None:
     _watchdog_file.write(f"===== STARTING: {nodeid} =====\n")
     _watchdog_file.flush()
-    timeout = _watchdog_test_timeouts.get(nodeid, _watchdog_fallback_s)
-    _watchdog_arm(timeout + WATCHDOG_MARGIN_S)
+  now = time.monotonic()
+  timeout = _watchdog_test_timeouts.get(nodeid, _watchdog_fallback_s)
+  _watchdog_in_flight[nodeid] = now + timeout
+  _watchdog_arm(_watchdog_deadline(_watchdog_in_flight, now))
 
 
 def pytest_runtest_logfinish(nodeid: str, location: tuple) -> None:
-  _watchdog_arm(WATCHDOG_IDLE_S)
+  # The controller sees the events of every worker, and xdist runs tests
+  # concurrently, so finishing one test must not drop the deadline back to the
+  # idle one while another worker is still inside a long load_model download.
+  _watchdog_in_flight.pop(nodeid, None)
+  _watchdog_arm(_watchdog_deadline(_watchdog_in_flight, time.monotonic()))
+
+
+def pytest_handlecrashitem(
+  crashitem: str, report: pytest.TestReport, sched: object
+) -> None:
+  # A worker killed mid-test (pytest-timeout, the worker's own watchdog, a
+  # native crash or the OOM killer) is reported to the controller through this
+  # hook alone -- no logfinish follows it. Without this the entry would stay in
+  # flight forever, and once its deadline passed every later arm would collapse
+  # to the bare margin while the session is still shutting down.
+  _watchdog_in_flight.pop(crashitem, None)
+  _watchdog_arm(_watchdog_deadline(_watchdog_in_flight, time.monotonic()))
 
 
 def pytest_unconfigure() -> None:

@@ -21,10 +21,15 @@ from birdnet.globals import (
 )
 from birdnet.utils.helper import (
   check_protobuf_model_files_exist,
+  check_source_marker,
   download_file_tqdm,
   get_species_from_file,
+  write_source_marker,
 )
 from birdnet.utils.local_data import get_lang_dir, get_model_path
+
+_PB_DL_URL = "https://zenodo.org/records/15050749/files/BirdNET_v2.4_protobuf.zip"
+_PB_DL_SIZE = 124522908
 
 
 class AcousticPBDownloaderV2_4(AcousticDownloaderBaseV2_4):
@@ -41,6 +46,7 @@ class AcousticPBDownloaderV2_4(AcousticDownloaderBaseV2_4):
     model_is_downloaded = True
     model_is_downloaded &= model_path.is_dir()
     model_is_downloaded &= check_protobuf_model_files_exist(model_path)
+    model_is_downloaded &= check_source_marker(model_path, _PB_DL_URL)
 
     model_is_downloaded &= lang_dir.is_dir()
     for lang in cls.AVAILABLE_LANGUAGES:
@@ -50,15 +56,12 @@ class AcousticPBDownloaderV2_4(AcousticDownloaderBaseV2_4):
 
   @classmethod
   def _download_model(cls) -> None:
-    dl_url = "https://zenodo.org/records/15050749/files/BirdNET_v2.4_protobuf.zip"
-    dl_size = 124522908
-
     with tempfile.TemporaryDirectory(prefix="birdnet_download") as temp_dir:
       zip_download_path = Path(temp_dir) / "download.zip"
       download_file_tqdm(
-        dl_url,
+        _PB_DL_URL,
         zip_download_path,
-        download_size=dl_size,
+        download_size=_PB_DL_SIZE,
         description="Downloading acoustic model v2.4 (pb)",
       )
 
@@ -75,6 +78,7 @@ class AcousticPBDownloaderV2_4(AcousticDownloaderBaseV2_4):
       acoustic_model_dir.parent.mkdir(parents=True, exist_ok=True)
       shutil.rmtree(acoustic_model_dir, ignore_errors=True)
       shutil.move(acoustic_model_dl_dir, acoustic_model_dir)
+      write_source_marker(acoustic_model_dir, _PB_DL_URL)
 
       acoustic_lang_dir.parent.mkdir(parents=True, exist_ok=True)
       shutil.rmtree(acoustic_lang_dir, ignore_errors=True)

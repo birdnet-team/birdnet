@@ -18,8 +18,10 @@ from birdnet.globals import (
 )
 from birdnet.utils.helper import (
   check_protobuf_model_files_exist,
+  check_source_marker,
   download_file_tqdm,
   get_species_from_file,
+  write_source_marker,
 )
 from birdnet.utils.local_data import get_lang_dir, get_model_path
 
@@ -27,11 +29,6 @@ _YEAR_ROUND_WEEK_INPUTS = tuple(float(week) for week in range(1, 49))
 
 _PB_DL_URL = "https://github.com/birdnet-team/geomodel/releases/download/v3.0.4/BirdNET+_Geomodel_V3.0.4_Global_14K_FP32_TF.zip"
 _PB_DL_SIZE = 14196836
-# Written into the extracted model directory to record which release it came from.
-# The on-disk directory name is generic (model-fp32), so unlike the size-checked
-# .tflite/.onnx files a SavedModel cached from an older release would otherwise
-# never be detected as stale and re-downloaded on upgrade.
-_SOURCE_MARKER_NAME = ".birdnet_source"
 
 
 class GeoPBDownloaderV3_0(GeoDownloaderBaseV3_0):
@@ -51,17 +48,10 @@ class GeoPBDownloaderV3_0(GeoDownloaderBaseV3_0):
       return False
     if not check_protobuf_model_files_exist(model_path):
       return False
-    if not cls._check_source_marker(model_path):
+    if not check_source_marker(model_path, _PB_DL_URL):
       return False
 
     return cls._check_labels_available()
-
-  @classmethod
-  def _check_source_marker(cls, model_path: Path) -> bool:
-    marker = model_path / _SOURCE_MARKER_NAME
-    if not marker.is_file():
-      return False
-    return marker.read_text(encoding="utf-8").strip() == _PB_DL_URL
 
   @classmethod
   def _download_model(cls) -> None:
@@ -85,7 +75,7 @@ class GeoPBDownloaderV3_0(GeoDownloaderBaseV3_0):
       geo_model_dir.parent.mkdir(parents=True, exist_ok=True)
       shutil.rmtree(geo_model_dir, ignore_errors=True)
       shutil.move(geo_model_dl_dir, geo_model_dir)
-      (geo_model_dir / _SOURCE_MARKER_NAME).write_text(_PB_DL_URL, encoding="utf-8")
+      write_source_marker(geo_model_dir, _PB_DL_URL)
       print("Extracted.")  # noqa: T201
 
   @classmethod
