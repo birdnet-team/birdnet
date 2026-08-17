@@ -82,8 +82,42 @@ def test_logfinish_keeps_the_deadline_of_a_still_running_test(
   conftest.pytest_runtest_logstart("short", ())
   conftest.pytest_runtest_logfinish("short", ())
 
-  assert armed[-1] == pytest.approx(LOAD_MODEL_TIMEOUT_S + WATCHDOG_MARGIN_S, abs=5)
+  assert armed[-1] == pytest.approx(LOAD_MODEL_TIMEOUT_S + WATCHDOG_MARGIN_S, abs=1)
 
   conftest.pytest_runtest_logfinish("download", ())
 
+  assert armed[-1] == WATCHDOG_IDLE_S
+
+
+def test_controller_uses_the_fallback_when_the_nodeid_is_unknown(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  """Only workers collect, so every controller lookup misses the timeout map."""
+  armed: list[float] = []
+  monkeypatch.setattr(conftest, "_watchdog_file", None)
+  monkeypatch.setattr(conftest, "_watchdog_in_flight", {})
+  monkeypatch.setattr(conftest, "_watchdog_arm", armed.append)
+  monkeypatch.setattr(conftest, "_watchdog_test_timeouts", {})
+  monkeypatch.setattr(conftest, "_watchdog_fallback_s", LOAD_MODEL_TIMEOUT_S)
+
+  conftest.pytest_runtest_logstart("some/unknown/test.py::test_x", ())
+
+  assert armed[-1] == pytest.approx(LOAD_MODEL_TIMEOUT_S + WATCHDOG_MARGIN_S, abs=1)
+
+
+def test_a_crashed_test_is_dropped_from_the_in_flight_set(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  """xdist reports a killed worker's test through handlecrashitem, not logfinish."""
+  armed: list[float] = []
+  in_flight: dict[str, float] = {}
+  monkeypatch.setattr(conftest, "_watchdog_file", None)
+  monkeypatch.setattr(conftest, "_watchdog_in_flight", in_flight)
+  monkeypatch.setattr(conftest, "_watchdog_arm", armed.append)
+  monkeypatch.setattr(conftest, "_watchdog_test_timeouts", {"doomed": _SHORT})
+
+  conftest.pytest_runtest_logstart("doomed", ())
+  conftest.pytest_handlecrashitem("doomed", report=None, sched=None)  # type: ignore[arg-type]
+
+  assert in_flight == {}
   assert armed[-1] == WATCHDOG_IDLE_S

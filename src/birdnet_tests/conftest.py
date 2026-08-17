@@ -30,9 +30,13 @@ LOAD_MODEL_TIMEOUT_S = 1800
 # native crash (observed with a fork-lane worker on macOS: instant death, no
 # Python traceback) can leave the controller waiting on the dead node forever
 # with zero output. The controller re-arms on the logstart/logfinish events the
-# workers forward, so when those stop, it dumps its own stacks and exits at the
-# idle deadline instead of burning the job budget. Per-test deadlines come from
-# a nodeid -> timeout map built at collection, because the logstart hook only
+# workers forward, so when those stop it dumps its own stacks and exits instead
+# of burning the job budget -- at the idle deadline when nothing is running, or
+# at the last in-flight test's own deadline when the events stop mid-test. That
+# second case is up to LOAD_MODEL_TIMEOUT_S because the controller cannot see a
+# nodeid's real timeout (only workers collect), and is the price of not killing
+# a healthy worker that is quietly downloading. Per-test deadlines come from a
+# nodeid -> timeout map built at collection, because the logstart hook only
 # receives the nodeid. faulthandler.enable() additionally catches hard crashes
 # (SIGSEGV/SIGABRT/SIGBUS) with a stack in the same dump file.
 #
@@ -124,6 +128,18 @@ def pytest_runtest_logfinish(nodeid: str, location: tuple) -> None:
   # concurrently, so finishing one test must not drop the deadline back to the
   # idle one while another worker is still inside a long load_model download.
   _watchdog_in_flight.pop(nodeid, None)
+  _watchdog_arm(_watchdog_deadline(_watchdog_in_flight, time.monotonic()))
+
+
+def pytest_handlecrashitem(
+  crashitem: str, report: pytest.TestReport, sched: object
+) -> None:
+  # A worker killed mid-test (pytest-timeout, the worker's own watchdog, a
+  # native crash or the OOM killer) is reported to the controller through this
+  # hook alone -- no logfinish follows it. Without this the entry would stay in
+  # flight forever, and once its deadline passed every later arm would collapse
+  # to the bare margin while the session is still shutting down.
+  _watchdog_in_flight.pop(crashitem, None)
   _watchdog_arm(_watchdog_deadline(_watchdog_in_flight, time.monotonic()))
 
 
