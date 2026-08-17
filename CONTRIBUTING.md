@@ -18,7 +18,7 @@ cd birdnet
 python3.11 -m venv .venv311
 source .venv311/bin/activate
 python3.11 -m pip install uv
-python3.11 -m uv pip install -e .[tests,dev,and-cuda,litert]
+python3.11 -m uv pip install -e .[tests,dev,and-cuda]
 ```
 
 ## Running the tests

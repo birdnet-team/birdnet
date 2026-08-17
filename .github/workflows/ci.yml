@@ -1,18 +1,14 @@
 name: CI
 
 on:
-  # Only run the (expensive) test matrix when files that can affect the tests or
-  # package change. Docs, license, images and other non-code changes are skipped.
-  # This is an allowlist: anything test-relevant added later (e.g. a new data dir
-  # or a root conftest.py) must be added here or CI will silently skip it.
   push:
     branches: ["main"]
     paths:
-      - "src/**"                    # birdnet, birdnet_tests (incl. TEST_FILES), birdnet_benchmark
-      - "example/**"                # test data: test_issue29/55 load example/soundscape.wav
-      - "pyproject.toml"            # deps + tox + pytest/ruff/mypy config
-      - "MANIFEST.in"               # packaging -> build/twine check step
-      - ".github/workflows/ci.yml"  # the workflow itself
+      - "src/**"
+      - "example/**"      # test data
+      - "pyproject.toml"
+      - "MANIFEST.in"     # packaging check
+      - ".github/workflows/ci.yml"
 
   pull_request:
     branches: ["main"]
@@ -23,12 +19,8 @@ on:
       - "MANIFEST.in"
       - ".github/workflows/ci.yml"
 
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# Cancel a running PR check when new commits are pushed, so a wedged run does not
-# keep burning runner hours after it has been superseded. Pushes to main still run
-# to completion.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -37,31 +29,15 @@ jobs:
   run-tests:
     runs-on: ${{ matrix.os }}
     continue-on-error: false
-    # Backstop for a wedged job. The library defaults to the "spawn" start method
-    # (see birdnet.core.start_method), which removes the fork-after-TensorFlow
-    # deadlock from the general suite; the isolated fork lanes can still burn up to
-    # the 600 s per-test timeout each when that inherent deadlock fires. Budget is
-    # set by the fattest cell, ubuntu 3.12, which runs three tox envs (py312 +
-    # py312-repro + py312-coverage): 40 was proven too tight when a repro
-    # fork-lane deadlock pushed it over, and 50 then expired 9 s after that cell
-    # had finished every step successfully (run 31711506220: 50 min 09 s, all
-    # steps green, killed during post-job cleanup) -- the suite has simply grown.
-    # Note the wall time is dominated by running the same tests three times over;
-    # splitting the three envs into separate jobs would cut it rather than raise
-    # the ceiling again.
+    # Backstop for a wedged job, sized for the fattest cell (ubuntu 3.12: py312 +
+    # py312-repro + py312-coverage, >50 min when healthy) plus one 600 s
+    # fork-lane deadlock.
     timeout-minutes: 65
 
     env:
-      # Fixed, cacheable location for birdnet's model/label downloads so the ~11 min
-      # "load_model" download step is skipped on a cache hit. Placed under the
-      # workspace because the `runner` context is not available in job-level env;
-      # this is safe since checkout runs once, before the cache is restored, and is
-      # never re-run. tox forwards this var to the pytest subprocess via `passenv`.
+      # Under the workspace because job-level env has no `runner` context.
       BIRDNET_APP_DATA: ${{ github.workspace }}/.birdnet-app-data
-      # Enables the GIL-immune hang watchdog (see birdnet_tests/conftest.py): a
-      # wedged test that survives pytest-timeout gets its thread stacks dumped
-      # here and the process hard-killed shortly after its timeout, instead of
-      # silently burning the job budget. Uploaded as an artifact on failure.
+      # Enables the hang watchdog in birdnet_tests/conftest.py.
       BIRDNET_TEST_WATCHDOG_DIR: ${{ github.workspace }}/.watchdog-dumps
 
     strategy:
@@ -97,27 +73,16 @@ jobs:
       - name: Install audio system libs (macOS)
         if: startsWith(matrix.os, 'macos')
         env:
-          # Keep `brew install` from running its own implicit update, which would
-          # reintroduce the tap fetches removed below.
           HOMEBREW_NO_AUTO_UPDATE: "1"
         run: |
-          # No `brew update` here on purpose. It git-fetches every tap preinstalled
-          # on the runner image -- hashicorp/tap, aws/tap, azure/bicep,
-          # homebrew/core, homebrew/cask -- and exits non-zero if any single fetch
-          # fails, so one transient TLS fault takes the whole job down before
-          # libsndfile is even requested. `brew install` resolves formulae through
-          # the JSON API and pulls bottles from ghcr.io, so the tap checkouts are
-          # not needed to get libsndfile.
+          # No `brew update`: it fetches every preinstalled tap and fails the job on
+          # one transient fetch error; `brew install` alone gets the bottle.
           brew install libsndfile
 
       - name: Install audio system libs (Windows)
         if: startsWith(matrix.os, 'windows')
         run: |
-          # choco pulls libsndfile from the community repo, which fails
-          # transiently often enough to redden Windows jobs before the tests
-          # even start (observed twice in one day, four jobs total). Same
-          # principle as the macOS step above: one transient fetch fault must
-          # not take the job down, so retry a few times before giving up.
+          # The choco community repo fails transiently.
           $attempts = 0
           while ($true) {
             $attempts++
@@ -136,28 +101,23 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      # Provides the `uv` binary and persists uv's wheel cache across runs, so the
-      # large TensorFlow/torch/cuda downloads are not repeated every run.
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
           cache-dependency-glob: pyproject.toml
 
-      # Cache the downloaded models/labels. The files are identical across OS and
-      # Python, so we key only on the download *profile* (full vs the TF-free py3.14
-      # surface) plus the model definitions (their URLs/sizes). This keeps the cache
-      # to ~2 entries (~3.6 GB) instead of one ~3 GB copy per (os, python), which
-      # overran the 10 GB repo cache limit and thrashed. A changed definition busts
-      # the key; restore-keys then falls back to the last cache of the same profile
-      # and only the stale models are re-downloaded.
+      # Keyed on the download profile (full vs the TF-free py3.14 set) plus the
+      # model definitions: the files are identical across cells, and one copy per
+      # cell overran the 10 GB cache limit. A primary-key hit is never re-saved,
+      # so rename the profile when its download set grows.
       - name: Cache downloaded models
         uses: actions/cache@v4
         with:
           path: ${{ env.BIRDNET_APP_DATA }}
-          key: birdnet-models-${{ matrix.python-version == '3.14' && 'notf' || 'full' }}-${{ hashFiles('src/birdnet/**/models/**/*.py') }}
+          key: birdnet-models-${{ matrix.python-version == '3.14' && 'notf-litert' || 'full' }}-${{ hashFiles('src/birdnet/**/models/**/*.py') }}
           restore-keys: |
-            birdnet-models-${{ matrix.python-version == '3.14' && 'notf' || 'full' }}-
+            birdnet-models-${{ matrix.python-version == '3.14' && 'notf-litert' || 'full' }}-
 
       - name: Install dependencies
         run: uv pip install --system '.[tests]'
@@ -177,9 +137,6 @@ jobs:
         run: |
           python -m tox -e py313
 
-      # TensorFlow has no Python 3.14 wheels yet (issue #55), so 3.14 installs
-      # without it and only the TensorFlow-free surface (acoustic 3.0 via onnx)
-      # is exercised here.
       - name: Run tests py314
         if: matrix.python-version == '3.14'
         run: |
@@ -233,18 +190,10 @@ jobs:
           name: birdnet-log
           path: ${{ steps.extract-log-path.outputs.log_paths }}
 
-      # Diagnostic for silent test-process deaths: rules the kernel OOM killer
-      # in or out directly in the job log. (Checked for the fork-lane wedges:
-      # no OOM kills logged — those are the inherent fork-after-TF child
-      # deadlock, ended by pytest-timeout at the per-test timeout.)
       - name: Check for OOM kills (Linux)
         if: failure() && startsWith(matrix.os, 'ubuntu')
         run: sudo dmesg | grep -iE "out of memory|oom-kill|killed process" || echo "no OOM kills logged"
 
-      # Stack dumps written by the hang watchdog (see BIRDNET_TEST_WATCHDOG_DIR
-      # above); on a wedge they show every thread's stack at kill time.
-      # include-hidden-files is required: upload-artifact skips dotfiles by
-      # default, and the dump dir is hidden (.watchdog-dumps).
       - name: Upload hang watchdog dumps
         if: failure()
         uses: actions/upload-artifact@v7
@@ -252,4 +201,5 @@ jobs:
           name: watchdog-dumps-${{ matrix.os }}-py${{ matrix.python-version }}
           path: .watchdog-dumps/
           if-no-files-found: ignore
+          # dot-dir: upload-artifact skips hidden files by default, silently here.
           include-hidden-files: true

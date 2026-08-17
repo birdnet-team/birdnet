@@ -40,16 +40,13 @@ dependencies = [
   "pandas >= 1.4.0",      # 2022/02/22
   "psutil >= 5.9.0",      # 2021/12/29
   "pyarrow >= 7.0.0",     # 2022/02/03
-  # Used to download the official models (birdnet.utils.helper.download_file_tqdm).
-  # Previously pulled in transitively via TensorFlow; declared explicitly so the
-  # TensorFlow-free install on Python 3.14 (onnx/pt backends) can download models.
+  # Model downloads; explicit because a TensorFlow-free install has no transitive requests.
   "requests >= 2.27.0", # 2022/01/05
-  # TensorFlow has no wheels for Python 3.14+ yet, so it is only required on
-  # <=3.13. On Python 3.14 birdnet installs without TensorFlow; the acoustic 3.0
-  # model then runs via the optional 'onnx'/'pt' backends. TF/PB backends and all
-  # geo models raise a clear error there until TF ships cp314 wheels (issue #55).
+  # No TensorFlow wheels for Python 3.14+.
   "tensorflow >= 2.8.0 ; (sys_platform != 'darwin' or platform_machine != 'x86_64') and python_version < '3.14'",                                                                                                # 2022/02/02
   "tensorflow >= 2.8.0, <2.17 ; sys_platform == 'darwin' and platform_machine == 'x86_64' and python_version < '3.14'",
+  # Only platforms with ai-edge-litert wheels: it has no sdist, so an unguarded
+  # marker makes birdnet itself uninstallable there.
   "ai-edge-litert >= 2.0.2 ; python_version <= '3.13' and (sys_platform == 'linux' or (sys_platform == 'darwin' and platform_machine == 'arm64') or (sys_platform == 'win32' and platform_machine == 'AMD64'))", # 2026/05/12
 ]
 
@@ -70,10 +67,7 @@ repro = [
   "pandas == 2.3.3",
   "psutil == 7.1.3",
   "pyarrow == 22.0.0",
-  # 2.20.0 wedged indefinitely inside native eager execution on macOS arm64 when a
-  # process mixed tflite-interpreter, keras and SavedModel use under parallel test
-  # load (worker stack: quick_execute never returning during a pb predict). 2.21.0
-  # with the identical remaining pins does not hang; only h5py moved with it.
+  # Not 2.20.0: it can wedge in eager execution on macOS arm64 under parallel test load.
   "tensorflow == 2.21.0 ; sys_platform == 'linux' or (sys_platform == 'darwin' and platform_machine == 'arm64') or (sys_platform == 'windows' and platform_machine == 'amd64')",
   "ai-edge-litert == 2.0.3 ; python_version < '3.13' and sys_platform == 'linux'",
   # Indirect dependencies
@@ -186,17 +180,11 @@ namespaces = true
 [tool.pytest.ini_options]
 log_cli = true
 log_level = "DEBUG"
-# Hang backstop, not a speed budget. 600 because the slowest healthy tests (TF
-# SavedModel "pb" loads, acoustic v3 onnx predict) take ~140-250 s on an idle dev
-# machine and CI runners are slower and run several xdist workers concurrently:
-# at 300 they were killed at exactly 300 s under contention, which the thread
-# timeout method turns into an opaque xdist "node down: Not properly terminated"
-# worker crash. A genuine hang still dies here long before the job-level limit.
+# Hang backstop, not a speed budget: the slowest healthy tests (pb loads, acoustic
+# v3 onnx predict) take ~140-250 s idle, and CI runs several xdist workers at once.
 timeout = 600
-# The signal method cannot interrupt a thread blocked in a C call, so a deadlocked
-# fork child let the run hang until the job limit killed it hours later. The thread
-# method kills the process instead, turning such hangs into a failure with a stack
-# dump. Windows already uses it, since it has no SIGALRM.
+# "signal" cannot interrupt a thread blocked in a C call; "thread" kills the
+# process with a stack dump instead.
 timeout_method = "thread"
 addopts = ["--max-worker-restart=0"]
 testpaths = ["src/birdnet_tests"]
@@ -259,9 +247,6 @@ package = wheel
 allowlist_externals = uv, pyproject-build
 install_command = uv pip install {opts} {packages}
 skip_missing_interpreters = true
-# Forward the model-cache location and the hang-watchdog dir (set in CI) into
-# the test subprocess; tox strips unlisted env vars, which would defeat the
-# model cache and silently disable the watchdog.
 passenv =
   BIRDNET_APP_DATA
   BIRDNET_TEST_WATCHDOG_DIR
@@ -276,20 +261,12 @@ commands =
   pytest -m "not repro and not load_model and (not litert and not gpu and not fork)" -n auto
   pytest -m "not repro and not load_model and litert and not fork" -n auto
   pytest -m "not repro and not load_model and gpu" -n 1
-  # Fork tests run last, serially, in a fresh process (see the `fork` marker and
-  # conftest.py). A fork-after-TensorFlow deadlock here can only wedge this isolated
-  # lane, not the parallel general phase, whose results are already recorded. The
-  # litert/non-litert split mirrors the phases above (litert can't load after TF).
-  # -n 0 (in-process, no xdist worker) on purpose: when a forked child wedges and
-  # pytest-timeout kills the test process, an xdist worker's timeout report is lost
-  # with the worker, and the orphaned child keeps the worker's execnet socket open
-  # so the controller sits blind until the watchdog's idle deadline. In-process,
-  # the timeout report lands in the log and the run ends at the test timeout.
+  # Fork lanes last, isolated and -n 0 on purpose: a fork-after-TensorFlow deadlock
+  # must not wedge the parallel phase, and an xdist worker loses its timeout report
+  # when a forked child wedges.
   pytest -m "not repro and not load_model and fork and not litert and not gpu" -n 0
   pytest -m "not repro and not load_model and fork and litert and not gpu" -n 0
-  # build and check package
-  # note `python -m build` uses the isolated build folder which results in import error:
-  # 'No module named build.__main__; 'build' is a package and cannot be directly executed'
+  # pyproject-build, not `python -m build`: the build/ dir shadows the module.
   pyproject-build -o dist/
   python -m twine check dist/*
 
@@ -298,23 +275,19 @@ deps =
   .[tests,repro]
 commands = 
   pytest -m "load_model" -n auto
-  # run normal tests including repro tests
   pytest -m "not load_model and (not litert and not gpu and not fork)" -n auto
-  # run litert tests including repro tests
   pytest -m "not load_model and litert and not fork" -n auto
-  # fork tests isolated + serial (see the `fork` marker and conftest.py)
   pytest -m "not load_model and fork and not litert and not gpu" -n 0
   pytest -m "not load_model and fork and litert and not gpu" -n 0
-  # gpu tests are not supported to be run with repro environment
+  # no gpu lane: not supported with the repro pins
   pyproject-build -o dist/
   python -m twine check dist/*
   
 [testenv:py314]
-# Python 3.14 has no TensorFlow wheels yet (issue #55). Install the TF-free
-# surface (onnx and pt backends) and exercise it plus the friendly errors on TF
-# paths. torch does ship 3.14 wheels, so both backends are testable here.
+# TensorFlow-free surface only; the lane that proves the litert path needs no TensorFlow.
 deps =
   .[tests,onnx,pt]
+  ai-edge-litert
 commands =
   pytest -m "no_tf" -n auto
   pyproject-build -o dist/
@@ -329,7 +302,6 @@ commands =
   pytest -m "not repro and not load_model and (not litert and not gpu and not fork)" -n auto --cov=src/birdnet --cov-append --cov-report=
   pytest -m "not repro and not load_model and litert and not fork" -n auto --cov=src/birdnet --cov-append --cov-report=
   pytest -m "not repro and not load_model and gpu" -n 1 --cov=src/birdnet --cov-append --cov-report=
-  # fork tests isolated + serial (see the `fork` marker and conftest.py)
   pytest -m "not repro and not load_model and fork and not litert and not gpu" -n 0 --cov=src/birdnet --cov-append --cov-report=
   pytest -m "not repro and not load_model and fork and litert and not gpu" -n 0 --cov=src/birdnet --cov-append --cov-report=
   coverage report

@@ -283,13 +283,23 @@ def _validate_library(
     compatibility_check(validated_library)
 
   if validated_library == LIBRARY_TFLITE:
-    assert tf_installed()  # default
+    if not tf_installed():
+      raise ValueError(_tensorflow_missing_message(MODEL_BACKEND_TF))
   elif validated_library == LIBRARY_LITERT:
     if not litert_installed():
-      raise ValueError(
-        f"Parameter 'library': Library '{LIBRARY_LITERT}' is not available. "
-        "Install birdnet with [litert] option."
+      message = (
+        f"Parameter '{LIBRARY_TF_PARAM}': Library '{LIBRARY_LITERT}' requires "
+        "ai-edge-litert, which is not installed. Install it ('pip install "
+        "ai-edge-litert')"
       )
+      if tf_installed():
+        message += (
+          f" or use the default library '{LIBRARY_TFLITE}', which runs on the "
+          "installed TensorFlow."
+        )
+      else:
+        message += "."
+      raise ValueError(message)
   else:
     raise AssertionError()
   return validated_library
@@ -308,24 +318,42 @@ def _validate_optional_backend_runtime(backend: MODEL_BACKENDS) -> None:
     )
 
 
-def _validate_tf_backend_runtime(backend: MODEL_BACKENDS) -> None:
-  """Guard the TensorFlow-backed backends when TensorFlow is unavailable.
+def _validate_tf_backend_runtime(
+  backend: MODEL_BACKENDS, model_kwargs: dict[str, object]
+) -> None:
+  """Fail early when TensorFlow is missing but the requested backend needs it.
 
-  The 'tf' (TFLite/LiteRT) and 'pb' (SavedModel) backends both require
-  TensorFlow. Fail early with an actionable message instead of a bare
-  ImportError deep in the backend (issue #55). The advice depends on the
-  running interpreter: TensorFlow has no wheels for Python 3.14+, so there it
-  cannot be installed; on 3.11-3.13 it merely needs to be installed.
+  'pb' (SavedModel) always runs on TensorFlow. 'tf' runs the .tflite model on
+  the interpreter chosen by the 'library' kwarg: the default 'tflite' lives
+  inside the tensorflow package, while 'litert' is the separate ai-edge-litert
+  package and never imports TensorFlow, so it must pass here without it. The
+  kwarg is only peeked at; _validate_library validates it (and litert's
+  presence) once the model-specific code has accepted it. Raising here, before
+  any download, gives an actionable message instead of a bare ImportError deep
+  in the backend (issue #55).
   """
-  if backend not in (MODEL_BACKEND_TF, MODEL_BACKEND_PB) or tf_installed():
+  if backend == MODEL_BACKEND_TF:
+    if model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT) != LIBRARY_TFLITE:
+      # 'litert' needs no TensorFlow; an invalid value is reported downstream.
+      return
+  elif backend != MODEL_BACKEND_PB:
     return
+  if not tf_installed():
+    raise ValueError(_tensorflow_missing_message(backend))
 
+
+def _tensorflow_missing_message(backend: str) -> str:
+  # The advice depends on the interpreter: TensorFlow has no wheels for Python
+  # 3.14+, so there it cannot be installed; on 3.11-3.13 it merely needs to be.
   import sys
 
-  base = (
-    f"Parameter 'backend': Backend '{backend}' requires TensorFlow, which is "
-    "not installed. "
-  )
+  if backend == MODEL_BACKEND_TF:
+    subject = (
+      f"Backend '{MODEL_BACKEND_TF}' with library '{LIBRARY_TFLITE}' (the default)"
+    )
+  else:
+    subject = f"Backend '{backend}'"
+  base = f"Parameter 'backend': {subject} requires TensorFlow, which is not installed. "
   if sys.version_info >= (3, 14):
     reason = (
       "TensorFlow provides no wheels for Python "
@@ -335,13 +363,30 @@ def _validate_tf_backend_runtime(backend: MODEL_BACKENDS) -> None:
     )
   else:
     reason = "Install it (e.g. reinstall birdnet, or 'pip install tensorflow'). "
+  if backend == MODEL_BACKEND_TF:
+    how = f"pass {LIBRARY_TF_PARAM}='{LIBRARY_LITERT}'"
+  else:
+    how = (
+      f"use the '{MODEL_BACKEND_TF}' backend with {LIBRARY_TF_PARAM}='{LIBRARY_LITERT}'"
+    )
+  if litert_installed():
+    litert_alternative = (
+      f"{how} to run the TFLite model on ai-edge-litert, which is installed and "
+      "needs no TensorFlow"
+    )
+  else:
+    litert_alternative = (
+      f"install ai-edge-litert ('pip install ai-edge-litert', where wheels exist) "
+      f"and {how} to run the TFLite model without TensorFlow"
+    )
   alternative = (
-    "Alternatively, use the 'onnx' backend, available for the acoustic 3.0 and "
-    "geo 3.0 models (both also offer 'pt'), e.g. "
-    "birdnet.load('geo', '3.0', 'onnx'); the acoustic 2.4, geo 2.4 and Perch "
-    "models are TensorFlow-only."
+    f"Alternatively, {litert_alternative} (e.g. birdnet.load('acoustic', '2.4', "
+    "'tf', library='litert'); not supported by the geo 3.0 model), or use the "
+    "'onnx' backend, available for the acoustic 3.0 and geo 3.0 models (both also "
+    "offer 'pt'), e.g. birdnet.load('geo', '3.0', 'onnx'). The Perch model is "
+    "TensorFlow-only."
   )
-  raise ValueError(base + reason + alternative)
+  return base + reason + alternative
 
 
 def _raise_unsupported_backend(
@@ -403,7 +448,7 @@ def load_perch_v2(device: str) -> AcousticModelPerchV2:
     raise OSError("The Perch v2 model is not supported on Intel macOS systems.")
 
   device = _validate_device(device)
-  _validate_tf_backend_runtime(MODEL_BACKEND_PB)
+  _validate_tf_backend_runtime(MODEL_BACKEND_PB, {})
   check_tf_version_for_perch_v2()
   model_path, species_list = AcousticPBDownloaderPerchV2.get_model_path_and_labels(
     device
@@ -432,7 +477,7 @@ def load(
 ) -> ModelBase:
   model_type = _validate_model_type(model_type)
   backend = _validate_backend(backend)
-  _validate_tf_backend_runtime(backend)
+  _validate_tf_backend_runtime(backend, model_kwargs)
   precision = _validate_precision(precision)
 
   if model_type == MODEL_TYPE_ACOUSTIC:
@@ -702,7 +747,7 @@ def load_custom(
 ) -> ModelBase:
   model_type = _validate_model_type(model_type)
   backend = _validate_backend(backend)
-  _validate_tf_backend_runtime(backend)
+  _validate_tf_backend_runtime(backend, model_kwargs)
   model = _validate_path(model)
   species_list = _validate_species_list_path(species_list)
   precision = _validate_precision(precision)

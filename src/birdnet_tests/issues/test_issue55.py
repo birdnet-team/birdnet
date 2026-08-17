@@ -6,9 +6,13 @@ TensorFlow-free surface:
 
 - ``import birdnet`` works without TensorFlow installed.
 - The acoustic 3.0 and geo 3.0 models run via the ``onnx`` and ``pt`` backends.
-- Every TensorFlow-only path (``tf``/``pb`` backends, the acoustic 2.4, geo 2.4
-  and Perch models) fails with a clear, actionable ``ValueError`` instead of a
-  bare ``ModuleNotFoundError``.
+- The ``tf`` backend runs the .tflite models on ai-edge-litert with
+  ``library="litert"`` (acoustic 2.4, geo 2.4 and custom 2.4 classifiers) --
+  ai-edge-litert never imports TensorFlow, and this lane, not a mocked
+  ``tf_installed``, is what proves that import graph is clean.
+- Every TensorFlow-only path (``tf`` with the default ``tflite`` interpreter,
+  ``pb``, and the Perch model) fails with a clear, actionable ``ValueError``
+  instead of a bare ``ModuleNotFoundError``.
 
 The tests only run when TensorFlow is absent (i.e. on Python 3.14); they are
 skipped on 3.11-3.13 where TensorFlow is installed.
@@ -17,7 +21,14 @@ skipped on 3.11-3.13 where TensorFlow is installed.
 import pytest
 
 import birdnet
-from birdnet.core.backends import onnxruntime_installed, tf_installed, torch_installed
+from birdnet.acoustic.models.v2_4.tf import AcousticTFBackendFP32CustomAppendV2_4
+from birdnet.core.backends import (
+  litert_installed,
+  onnxruntime_installed,
+  tf_installed,
+  torch_installed,
+)
+from birdnet_tests.test_files import TEST_FILES_DIR
 
 pytestmark = [
   pytest.mark.no_tf,
@@ -84,3 +95,56 @@ def test_acoustic_v3_pt_predicts_without_tensorflow() -> None:
   model = birdnet.load("acoustic", "3.0", "pt")
   predictions = model.predict("example/soundscape.wav")
   assert predictions is not None
+
+
+# ----------------------------- tf backend on ai-edge-litert -----------------------
+# Each model is loaded by exactly one test: this lane has no serialized
+# `load_model` phase, so two tests downloading the same file concurrently on a
+# cold cache would race in the non-atomic download.
+
+_needs_litert = pytest.mark.skipif(
+  not litert_installed(), reason="ai-edge-litert not installed"
+)
+
+
+@pytest.mark.litert
+@_needs_litert
+def test_tf_backend_error_points_at_litert_without_tensorflow() -> None:
+  with pytest.raises(ValueError, match=r"pass library='litert'"):
+    birdnet.load("acoustic", "2.4", "tf")
+
+
+@pytest.mark.litert
+@_needs_litert
+def test_acoustic_v2_4_tf_litert_predicts_and_encodes_without_tensorflow() -> None:
+  model = birdnet.load("acoustic", "2.4", "tf", library="litert")
+  predictions = model.predict("example/soundscape.wav")
+  # 120 s soundscape -> 40 segments, default top_k=5
+  assert predictions.species_probs.shape == (1, 40, 5)
+  embeddings = model.encode("example/soundscape.wav")
+  assert embeddings.embeddings.shape == (1, 40, 1024)
+
+
+@pytest.mark.litert
+@_needs_litert
+def test_geo_v2_4_tf_litert_predicts_without_tensorflow() -> None:
+  model = birdnet.load("geo", "2.4", "tf", library="litert")
+  predictions = model.predict(42.5, -76.45, week=4)
+  assert predictions.species_probs.shape == (6522,)
+
+
+@pytest.mark.litert
+@_needs_litert
+def test_custom_acoustic_v2_4_tf_litert_detects_classifier_without_tensorflow() -> None:
+  # check_validity=True runs the classifier-type detection, i.e. opens the
+  # .tflite file with the litert interpreter in a subprocess.
+  model = birdnet.load_custom(
+    "acoustic",
+    "2.4",
+    "tf",
+    TEST_FILES_DIR / "custom_models/tf/append.tflite",
+    TEST_FILES_DIR / "custom_models/tf/append_Labels.txt",
+    library="litert",
+    check_validity=True,
+  )
+  assert model.backend_type is AcousticTFBackendFP32CustomAppendV2_4
