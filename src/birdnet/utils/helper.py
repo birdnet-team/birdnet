@@ -6,16 +6,14 @@ import logging
 import math
 import os
 import tempfile
-import threading
 import time
-from collections.abc import Callable, Generator, Iterable
-from contextlib import contextmanager
+from collections.abc import Generator, Iterable
 from dataclasses import dataclass
 from itertools import islice
 from multiprocessing import Queue
 from pathlib import Path
 from queue import Empty
-from typing import Any, Literal
+from typing import Any
 
 import numpy as np
 import numpy.typing as npt
@@ -24,6 +22,10 @@ from ordered_set import OrderedSet
 from tqdm import tqdm
 
 from birdnet.globals import Float32Array
+from birdnet.utils.download_progress import (
+  DownloadReporter,
+  get_download_progress_callback,
+)
 
 
 def format_input_for_csv(input_value: Any) -> str:  # noqa: ANN401
@@ -413,106 +415,6 @@ def _is_retriable_download_error(error: Exception) -> bool:
   return not is_client_error
 
 
-DownloadStatus = Literal["started", "progress", "finished", "failed"]
-
-
-@dataclass(frozen=True)
-class DownloadProgress:
-  """One update from a model/label/taxonomy download.
-
-  ``status`` is ``"started"`` once per attempt (including retries -- a fresh
-  ``"started"`` with a higher ``attempt`` and ``bytes_done`` reset to 0 *is*
-  the retry notification), ``"progress"`` while it runs, and exactly one of
-  ``"finished"``/``"failed"`` to close out the attempt. A ``"failed"`` update
-  does not by itself mean the overall download gave up -- it may still be
-  retried -- only the exception raised by the call that started the download
-  is authoritative about that.
-  """
-
-  description: str
-  url: str
-  bytes_done: int
-  bytes_total: int | None
-  attempt: int
-  max_attempts: int
-  status: DownloadStatus
-  error: str | None = None
-
-
-_download_progress_lock = threading.Lock()
-_download_progress_callback: Callable[[DownloadProgress], None] | None = None
-_DOWNLOAD_PROGRESS_MIN_INTERVAL_S = 0.1
-
-
-def set_download_progress_callback(
-  callback: Callable[[DownloadProgress], None] | None,
-) -> None:
-  """Register a process-wide callback for model/label download progress.
-
-  Pass ``None`` to unregister. With no callback registered (the default),
-  downloads behave exactly as before (a tqdm bar on stderr). Exceptions raised
-  by the callback are logged and otherwise ignored -- they never interrupt or
-  corrupt the download.
-  """
-  global _download_progress_callback
-  with _download_progress_lock:
-    _download_progress_callback = callback
-
-
-@contextmanager
-def download_progress_callback(
-  callback: Callable[[DownloadProgress], None],
-) -> Generator[None, None, None]:
-  """Scoped alternative to `set_download_progress_callback`.
-
-  Registers `callback` for the duration of the `with` block and restores
-  whatever was registered before on exit (including ``None``).
-  """
-  global _download_progress_callback
-  with _download_progress_lock:
-    previous = _download_progress_callback
-    _download_progress_callback = callback
-  try:
-    yield
-  finally:
-    with _download_progress_lock:
-      _download_progress_callback = previous
-
-
-def _report_download_progress(progress: DownloadProgress) -> None:
-  with _download_progress_lock:
-    callback = _download_progress_callback
-  if callback is None:
-    return
-  try:
-    callback(progress)
-  except Exception:
-    logging.getLogger(__name__).exception(
-      "Download progress callback raised; ignoring it and continuing the download."
-    )
-
-
-def _has_download_progress_callback() -> bool:
-  with _download_progress_lock:
-    return _download_progress_callback is not None
-
-
-class _DownloadProgressThrottle:
-  def __init__(self, min_interval_s: float) -> None:
-    self._min_interval_s = min_interval_s
-    self._last_reported_at: float | None = None
-
-  def should_report(self) -> bool:
-    now = time.monotonic()
-    if (
-      self._last_reported_at is None
-      or now - self._last_reported_at >= self._min_interval_s
-    ):
-      self._last_reported_at = now
-      return True
-    return False
-
-
 def download_file_tqdm(
   url: str,
   file_path: Path,
@@ -522,6 +424,12 @@ def download_file_tqdm(
 ) -> int:
   import requests
 
+  # The callback is captured once per download, so a registration that changes
+  # mid-way takes effect from the next download on (and the tqdm bar's on/off
+  # state stays consistent with the events for this one).
+  reporter = DownloadReporter(
+    url, description, _DOWNLOAD_ATTEMPTS, get_download_progress_callback()
+  )
   attempt = 0
   while True:
     attempt += 1
@@ -532,14 +440,22 @@ def download_file_tqdm(
         download_size=download_size,
         description=description,
         attempt=attempt,
+        reporter=reporter,
       )
     except (requests.RequestException, ValueError) as error:
       # Re-raise from inside the handler so the original traceback survives.
+      if reporter.callback_failed:
+        # The callback raised (a ValueError lands here too): abort, no retry.
+        raise
       if attempt >= _DOWNLOAD_ATTEMPTS or not _is_retriable_download_error(error):
+        reporter.failed(error)
         raise
       wait_s = _DOWNLOAD_RETRY_WAITS_S[
         min(attempt - 1, len(_DOWNLOAD_RETRY_WAITS_S) - 1)
       ]
+      # Before the log line: a callback that raises here cancels the download,
+      # and then nothing is retried.
+      reporter.retrying(error, wait_s)
       logging.getLogger(__name__).warning(
         f"Download of {url} failed (attempt {attempt}/{_DOWNLOAD_ATTEMPTS}): "
         f"{error}. Retrying in {wait_s:.0f} s..."
@@ -554,97 +470,78 @@ def _download_file_once(
   download_size: int | None = None,
   description: str | None = None,
   attempt: int = 1,
+  reporter: DownloadReporter | None = None,
 ) -> int:
   assert file_path.parent.is_dir()
   import requests
 
-  progress_description = description or url
-  bytes_done = 0
-  bytes_total = download_size
+  if reporter is None:
+    reporter = DownloadReporter(url, description, _DOWNLOAD_ATTEMPTS, callback=None)
 
-  def report(status: DownloadStatus, *, error: str | None = None) -> None:
-    _report_download_progress(
-      DownloadProgress(
-        description=progress_description,
-        url=url,
-        bytes_done=bytes_done,
-        bytes_total=bytes_total,
-        attempt=attempt,
-        max_attempts=_DOWNLOAD_ATTEMPTS,
-        status=status,
-        error=error,
-      )
-    )
+  reporter.started(attempt, download_size)
 
-  report("started")
-
+  response = requests.get(url, stream=True, timeout=120)
   try:
-    response = requests.get(url, stream=True, timeout=120)
+    content_length = response.headers.get("content-length")
+    if download_size is not None:
+      total_size = download_size
+    elif content_length is not None:
+      total_size = int(content_length)
+    else:
+      total_size = 0
+    # 0 is the internal "unknown" sentinel (it also disables the size check).
+    bytes_total: int | None = total_size
+    if download_size is None and content_length is None:
+      bytes_total = None
+    reporter.total_known(bytes_total)
+
+    block_size = 1024
+    fd, temp_name = tempfile.mkstemp(
+      dir=file_path.parent,
+      prefix=f"{file_path.name}.",
+      suffix=".tmp",
+    )
+    os.close(fd)
+    temp_path = Path(temp_name)
+
+    downloaded_size = 0
     try:
-      content_length = response.headers.get("content-length")
-      if download_size is not None:
-        total_size = download_size
-        bytes_total = download_size
-      elif content_length is not None:
-        total_size = int(content_length)
-        bytes_total = total_size
-      else:
-        total_size = 0
-        bytes_total = None
+      with (
+        tqdm(
+          total=total_size,
+          unit="iB",
+          unit_scale=True,
+          desc=description,
+          disable=reporter.enabled,
+        ) as tqdm_bar,
+        open(temp_path, "wb") as file,
+      ):
+        for data in response.iter_content(block_size):
+          # Bytes are counted here rather than read from `tqdm_bar.n`, which
+          # does not advance while the bar is disabled.
+          tqdm_bar.update(len(data))
+          file.write(data)
+          downloaded_size += len(data)
+          reporter.progress(downloaded_size)
 
-      block_size = 1024
-      fd, temp_name = tempfile.mkstemp(
-        dir=file_path.parent,
-        prefix=f"{file_path.name}.",
-        suffix=".tmp",
-      )
-      os.close(fd)
-      temp_path = Path(temp_name)
+      if response.status_code != 200 or (total_size not in (0, downloaded_size)):
+        raise DownloadError(
+          f"Failed to download the file. Status code: {response.status_code}\n"
+          f"Expected size: {total_size} bytes, "
+          f"downloaded size: {downloaded_size} bytes.",
+          status_code=response.status_code,
+        )
 
-      throttle = _DownloadProgressThrottle(_DOWNLOAD_PROGRESS_MIN_INTERVAL_S)
-      downloaded_size = 0
-      try:
-        with (
-          tqdm(
-            total=total_size,
-            unit="iB",
-            unit_scale=True,
-            desc=description,
-            disable=_has_download_progress_callback(),
-          ) as tqdm_bar,
-          open(temp_path, "wb") as file,
-        ):
-          for data in response.iter_content(block_size):
-            # Track bytes ourselves rather than reading `tqdm_bar.n`: tqdm's
-            # `update()` is a full no-op while `disable=True`, so it would
-            # never advance and both the size check below and every
-            # "progress" report's `bytes_done` would stay stuck at 0.
-            tqdm_bar.update(len(data))
-            file.write(data)
-            downloaded_size += len(data)
-            bytes_done = downloaded_size
-            if throttle.should_report():
-              report("progress")
+      temp_path.replace(file_path)
+    except BaseException:
+      # BaseException: a KeyboardInterrupt, or a callback raising to cancel,
+      # must not leave the partial file behind either.
+      temp_path.unlink(missing_ok=True)
+      raise
+  finally:
+    response.close()
 
-        if response.status_code != 200 or (total_size not in (0, downloaded_size)):
-          raise DownloadError(
-            f"Failed to download the file. Status code: {response.status_code}\n"
-            f"Expected size: {total_size} bytes, "
-            f"downloaded size: {downloaded_size} bytes.",
-            status_code=response.status_code,
-          )
-
-        temp_path.replace(file_path)
-      except Exception:
-        temp_path.unlink(missing_ok=True)
-        raise
-    finally:
-      response.close()
-  except Exception as error:
-    report("failed", error=str(error))
-    raise
-
-  report("finished")
+  reporter.finished()
   return total_size
 
 
