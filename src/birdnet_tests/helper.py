@@ -4,8 +4,9 @@ import multiprocessing as mp
 import os
 import threading
 import time
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Iterable
 from multiprocessing import get_all_start_methods, set_start_method
+from pathlib import Path
 from typing import IO
 
 import numpy as np
@@ -466,3 +467,17 @@ def worst_decimal_precision(a: np.ndarray, b: np.ndarray, max_decimals: int = 8)
     if max_diff < 10 ** (-decimals):
       return decimals
   return 0
+
+
+def create_fake_saved_model(model_dir: Path) -> None:
+  """Write the file layout `check_protobuf_model_files_exist` looks for."""
+  (model_dir / "variables").mkdir(parents=True, exist_ok=True)
+  (model_dir / "saved_model.pb").write_bytes(b"")
+  (model_dir / "variables" / "variables.data-00000-of-00001").write_bytes(b"")
+  (model_dir / "variables" / "variables.index").write_bytes(b"")
+
+
+def create_fake_lang_dir(lang_dir: Path, languages: Iterable[str]) -> None:
+  lang_dir.mkdir(parents=True, exist_ok=True)
+  for lang in languages:
+    (lang_dir / f"{lang}.txt").write_text("Species_species_Species\n", encoding="utf-8")
