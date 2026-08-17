@@ -21,6 +21,8 @@ from birdnet.core.backends import TF_BACKEND_LIB_ARG
 from birdnet.model_loader import load, load_custom
 from birdnet_tests.helper import ensure_not_intel_macos_or_skip
 
+pytestmark = pytest.mark.no_tf  # everything is mocked; runs with or without TensorFlow
+
 
 @pytest.fixture
 def _no_tf(monkeypatch: pytest.MonkeyPatch) -> None:

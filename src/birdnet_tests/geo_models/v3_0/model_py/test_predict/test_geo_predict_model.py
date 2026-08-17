@@ -160,10 +160,10 @@ def _species_prob(result, sci_name_prefix: str) -> float:  # noqa: ANN001
 @pytest.mark.parametrize(
   ("backend", "precision", "resident_min", "absent_max"),
   [
-    ("onnx", "fp32", 0.99, 0.01),
-    ("onnx", "fp16", 0.99, 0.01),
+    pytest.param("onnx", "fp32", 0.99, 0.01, marks=pytest.mark.no_tf),
+    pytest.param("onnx", "fp16", 0.99, 0.01, marks=pytest.mark.no_tf),
     ("pb", "fp32", 0.99, 0.01),
-    ("pt", "fp32", 0.99, 0.01),
+    pytest.param("pt", "fp32", 0.99, 0.01, marks=pytest.mark.no_tf),
     ("tf", "fp32", 0.99, 0.01),
     ("tf", "fp16", 0.99, 0.01),
     # int8 deviates more; the anchors only reject squashed/misaligned outputs.

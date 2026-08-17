@@ -46,7 +46,7 @@ For more detailed benchmarks, please refer to the [documentation](https://birdne
 
 ### Instructions
 
-TensorFlow is an optional dependency. The base package ships ONNX Runtime (and LiteRT where wheels exist, see below), so it runs the V3.0 models out of the box; the TensorFlow-based backends come with the `tf` extra:
+TensorFlow is an optional dependency. The base package ships ONNX Runtime and LiteRT wherever they have wheels (everywhere but macOS x86_64 on Python 3.14 for ONNX Runtime; see the footnote for LiteRT), so it runs the V3.0 models out of the box; the TensorFlow-based backends come with the `tf` extra:
 
 ```sh
 # Base: acoustic 3.0 + geo 3.0 via the onnx backend, 2.4 models via LiteRT
@@ -72,20 +72,21 @@ pip install birdnet[pt] --user
 | `birdnet[onnx]` | (compatibility alias) | ONNX Runtime is part of the base install |
 | `birdnet[repro]` | exact pinned versions incl. TensorFlow | reproducible results (Python 3.12, CPU) |
 
-\* LiteRT (`ai-edge-litert`) is installed with the base package on Linux, macOS ARM64 and Windows x86_64 for Python 3.11–3.13 (no wheels elsewhere; on 3.14 add it with `pip install ai-edge-litert`). It runs the same `.tflite` models as TFLite (pass `library="litert"` to `birdnet.load(..)`; the geo 3.0 model is the exception) and does not need TensorFlow. Without the `tf` extra, `birdnet.load("acoustic", "2.4", "tf")` raises a `ValueError` naming both options.
+\* LiteRT (`ai-edge-litert`) is installed with the base package on Linux, macOS ARM64 and Windows x86_64 for Python 3.11–3.13 (no wheels elsewhere; on 3.14 add it with `pip install ai-edge-litert`). It runs the 2.4 `.tflite` models (acoustic 2.4, custom 2.4 classifiers, geo 2.4; pass `library="litert"` to `birdnet.load(..)`) and does not need TensorFlow. Without the `tf` extra, `birdnet.load("acoustic", "2.4", "tf")` raises a `ValueError` naming both options.
 
 ```py
 import birdnet
 
 # base install
-model = birdnet.load("acoustic", "3.0", "onnx")
-predictions = model.predict("example/soundscape.wav")
+model_onnx = birdnet.load("acoustic", "3.0", "onnx")
+predictions_onnx = model_onnx.predict("example/soundscape.wav")
 
-model_2_4 = birdnet.load("acoustic", "2.4", "tf", library="litert")
-predictions_2_4 = model_2_4.predict("example/soundscape.wav")
+model_litert = birdnet.load("acoustic", "2.4", "tf", library="litert")
+predictions_litert = model_litert.predict("example/soundscape.wav")
 
-# birdnet[tf]
-model_2_4 = birdnet.load("acoustic", "2.4", "tf")
+# birdnet[tf]: the default TFLite interpreter
+model_tflite = birdnet.load("acoustic", "2.4", "tf")
+predictions_tflite = model_tflite.predict("example/soundscape.wav")
 ```
 
 ### Platform support and Python versions
@@ -240,7 +241,7 @@ Depending on the model version, this project provides up to four model formats: 
 * **TFLite Model** (`tf`): Limited to CPU execution only. Requires `birdnet[tf]` for the default TFLite interpreter; the LiteRT interpreter (`library="litert"`) is part of the base install where wheels exist.
 * **ProtoBuf Model** (`pb`): Can be executed on both GPU and CPU. Requires `birdnet[tf]` (`birdnet[and-cuda]` for GPU).
 * **PyTorch Model** (`pt`, V3.0 only): Can be executed on both GPU and CPU. Requires `birdnet[pt]`.
-* **ONNX Model** (`onnx`, V3.0 only): Can be executed on both GPU and CPU. Part of the base install (CPU build); for GPU replace it with the GPU build after installing, since only one of the two may be installed: `pip uninstall onnxruntime && pip install onnxruntime-gpu`.
+* **ONNX Model** (`onnx`, V3.0 only): Can be executed on both GPU and CPU. Part of the base install (CPU build); for GPU replace it with the GPU build after installing, since only one of the two may be installed: `pip uninstall onnxruntime && pip install onnxruntime-gpu` (`pip check` will then report the missing `onnxruntime`, and every later `pip install`/upgrade of `birdnet` puts the CPU build back — redo the swap).
 
 Ensure your environment is configured to utilize the appropriate model and available hardware optimally.
 

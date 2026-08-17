@@ -54,6 +54,7 @@ def test_v3_0_tf_fp16() -> None:
   assert isinstance(model, AcousticModelV3_0)
 
 
+@pytest.mark.no_tf
 @pytest.mark.load_model
 def test_v3_0_pt() -> None:
   ensure_torch_or_skip()
@@ -65,6 +66,7 @@ def test_v3_0_pt() -> None:
   assert isinstance(model, AcousticModelV3_0)
 
 
+@pytest.mark.no_tf
 @pytest.mark.load_model
 def test_v3_0_onnx() -> None:
   ensure_onnxruntime_or_skip()
@@ -76,6 +78,7 @@ def test_v3_0_onnx() -> None:
   assert isinstance(model, AcousticModelV3_0)
 
 
+@pytest.mark.no_tf
 @pytest.mark.load_model
 def test_v3_0_onnx_fp16() -> None:
   ensure_onnxruntime_or_skip()

@@ -451,7 +451,7 @@ def _validate_device(device: Any) -> Literal["CPU", "GPU"]:  # noqa: ANN401
   return cast(Literal["CPU", "GPU"], device)
 
 
-def load_perch_v2(device: str) -> AcousticModelPerchV2:
+def load_perch_v2(device: str = "CPU") -> AcousticModelPerchV2:
   if check_is_intel_macos():
     # intel macos is not supported
     # it would raise "Graph execution error" as XlaCallModule cannot be deserialized

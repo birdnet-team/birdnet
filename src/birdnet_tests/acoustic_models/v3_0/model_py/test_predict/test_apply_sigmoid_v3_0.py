@@ -99,9 +99,9 @@ def _load_model(backend: _Backend, precision: str) -> AcousticModelV3_0:
 @pytest.mark.parametrize(
   ("backend", "precision"),
   [
-    ("pt", "fp32"),
-    ("onnx", "fp32"),
-    ("onnx", "fp16"),
+    pytest.param("pt", "fp32", marks=pytest.mark.no_tf),
+    pytest.param("onnx", "fp32", marks=pytest.mark.no_tf),
+    pytest.param("onnx", "fp16", marks=pytest.mark.no_tf),
     ("tf", "fp32"),
     ("tf", "fp16"),
     ("pb", "fp32"),

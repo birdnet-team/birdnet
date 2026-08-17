@@ -5,7 +5,6 @@ a regression; with TensorFlow absent the checks are trivially true, which is why
 they also run in the TensorFlow-equipped lanes.
 """
 
-import os
 import subprocess
 import sys
 import textwrap
@@ -21,7 +20,6 @@ def _run_isolated(code: str) -> None:
   subprocess.run(
     [sys.executable, "-c", textwrap.dedent(code)],
     check=True,
-    cwd=os.getcwd(),
     timeout=540,
   )
 

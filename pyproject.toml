@@ -64,7 +64,9 @@ and-cuda = [
 ]
 pt = ["torch >= 2.0.0"]
 # onnxruntime is a base dependency; the extra stays so `birdnet[onnx]` keeps working.
-onnx = ["onnxruntime >= 1.16.0"]
+onnx = [
+  "onnxruntime >= 1.16.0 ; sys_platform != 'darwin' or platform_machine != 'x86_64' or python_version < '3.14'",
+]
 repro = [
   # Reproducible results only with Python 3.12 and on CPU and not on macOS Intel
   # Direct dependencies
@@ -268,6 +270,8 @@ commands =
   # ruff check src/birdnet
   # ruff check src/birdnet_tests
   # mypy src/birdnet
+  # without TensorFlow conftest.py would skip most of the suite and stay green
+  python -c "import importlib.util as u, sys; sys.exit(u.find_spec('tensorflow') is None)"
   pytest -m "not repro and load_model" -n auto
   pytest -m "not repro and not load_model and (not litert and not gpu and not fork)" -n auto
   pytest -m "not repro and not load_model and litert and not fork" -n auto
@@ -284,7 +288,8 @@ commands =
 [testenv:py312-repro]
 deps =
   .[tests,repro]
-commands = 
+commands =
+  python -c "import importlib.util as u, sys; sys.exit(u.find_spec('tensorflow') is None)"
   pytest -m "load_model" -n auto
   pytest -m "not load_model and (not litert and not gpu and not fork)" -n auto
   pytest -m "not load_model and litert and not fork" -n auto
@@ -296,11 +301,14 @@ commands =
   
 [testenv:py314]
 # TensorFlow-free surface only; the lane that proves the litert path needs no TensorFlow.
+# The prefetch phase downloads the models under the load_model timeout, so no
+# 500 MB download races a 600 s test.
 deps =
   .[tests,pt]
   ai-edge-litert
 commands =
-  pytest -m "no_tf" -n auto
+  pytest -m "not repro and load_model and (no_tf or litert)" -n auto
+  pytest -m "not repro and not load_model and (no_tf or litert) and not fork and not gpu" -n auto
   pyproject-build -o dist/
   python -m twine check dist/*
 
@@ -312,12 +320,14 @@ deps =
 commands =
   # fails if TensorFlow sneaked into the env
   python -c "import importlib.util as u, sys; sys.exit(u.find_spec('tensorflow') is not None)"
+  pytest -m "not repro and load_model and (no_tf or litert)" -n auto
   pytest -m "not repro and not load_model and (no_tf or litert) and not fork and not gpu" -n auto
 
 [testenv:py312-coverage]
 deps =
   .[tests,tf]
 commands =
+  python -c "import importlib.util as u, sys; sys.exit(u.find_spec('tensorflow') is None)"
   coverage erase
   pytest -m "not repro and load_model" -n auto --cov=src/birdnet --cov-append --cov-report=
   pytest -m "not repro and not load_model and (not litert and not gpu and not fork)" -n auto --cov=src/birdnet --cov-append --cov-report=

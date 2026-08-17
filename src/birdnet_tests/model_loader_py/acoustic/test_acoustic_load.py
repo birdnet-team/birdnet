@@ -41,6 +41,7 @@ def test_v2_4_tf_fp32() -> None:
   assert isinstance(model, AcousticModelV2_4)
 
 
+@pytest.mark.load_model
 @pytest.mark.litert
 def test_v2_4_litert_fp32() -> None:
   ensure_litert_or_skip()
@@ -58,6 +59,7 @@ def test_v2_4_tf_fp16() -> None:
   assert isinstance(model, AcousticModelV2_4)
 
 
+@pytest.mark.load_model
 @pytest.mark.litert
 def test_v2_4_litert_fp16() -> None:
   ensure_litert_or_skip()
@@ -75,6 +77,7 @@ def test_v2_4_tf_int8() -> None:
   assert isinstance(model, AcousticModelV2_4)
 
 
+@pytest.mark.load_model
 @pytest.mark.litert
 def test_v2_4_litert_int8() -> None:
   ensure_litert_or_skip()

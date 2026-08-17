@@ -38,6 +38,7 @@ def test_v2_4_tf_fp32() -> None:
   assert isinstance(model, GeoModelV2_4)
 
 
+@pytest.mark.load_model
 @pytest.mark.litert
 def test_v2_4_litert_fp32() -> None:
   ensure_litert_or_skip()

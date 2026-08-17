@@ -14,9 +14,10 @@ To install BirdNET, you can use ``pip``:
 
   pip install birdnet --user
 
-This installs the latest version of the BirdNET package with ONNX Runtime (and LiteRT
-where wheels exist), which runs the V3.0 acoustic and geo models via the ``onnx``
-backend and the 2.4 models via ``birdnet.load(.., "tf", library="litert")``.
+This installs the latest version of the BirdNET package with ONNX Runtime and LiteRT
+wherever they have wheels (everywhere but macOS x86_64 on Python 3.14 for ONNX
+Runtime; see the table for LiteRT), which runs the V3.0 acoustic and geo models via
+the ``onnx`` backend and the 2.4 models via ``birdnet.load(.., "tf", library="litert")``.
 TensorFlow is optional; the extras select the runtimes:
 
 .. list-table::
@@ -47,7 +48,9 @@ TensorFlow is optional; the extras select the runtimes:
 Without the ``tf`` extra, loading a TensorFlow-based backend raises a ``ValueError``
 that names the alternatives. For GPU inference with the ``onnx`` backend, replace the
 base ``onnxruntime`` (CPU build) with ``onnxruntime-gpu`` after installing — only one
-of the two may be installed: ``pip uninstall onnxruntime && pip install onnxruntime-gpu``.
+of the two may be installed: ``pip uninstall onnxruntime && pip install onnxruntime-gpu``
+(``pip check`` then reports the missing ``onnxruntime``, and every later
+``pip install``/upgrade of ``birdnet`` puts the CPU build back, so redo the swap).
 
 TensorFlow backends
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

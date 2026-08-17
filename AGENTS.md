@@ -15,7 +15,7 @@ Python library (`src` layout) for identifying bird species by their sounds (Bird
 
 - System dependency: libsndfile (`apt-get install libsndfile1` / `brew install libsndfile` / `choco install libsndfile`).
 - Install: `uv pip install -e '.[tests,tf]'` (or plain pip). TensorFlow is optional (`tf` extra; `and-cuda` implies it) and most of the suite needs it — without it only the `no_tf`/`litert` tests run, the rest is skipped by `conftest.py`. Other extras: `pt` (torch); `onnx` is a no-op alias (onnxruntime is a base dependency); the `repro` extra pins exact versions and conflicts with normal dev. On Python 3.14 add `ai-edge-litert` by hand (tox does) or the litert `no_tf` tests skip.
-- Official models auto-download on first load (~3 GB for the full set). The cache location is controlled by the `BIRDNET_APP_DATA` env var — set it to a persistent path in ephemeral environments. `pytest -m "not repro and load_model" -n auto` prefetches everything the tests need.
+- Official models auto-download on first load (~3 GB for the full set). The cache location is controlled by the `BIRDNET_APP_DATA` env var — set it to a persistent path in ephemeral environments. `pytest -m "not repro and load_model" -n auto` prefetches everything the tests need (in a TensorFlow-free env: `-m "load_model and (no_tf or litert)"`).
 
 ## Commands
 
@@ -43,7 +43,7 @@ tox
 - `repro` — requires the exact pinned versions from the `repro` extra (Python 3.12, CPU only, not macOS Intel).
 - `fork` — forces the fork start method; must run serially and in-process (`-n 0`), never in the parallel phase: forking after TensorFlow is loaded can wedge or segfault the child (see `conftest.py`). Fork support is best-effort — a hung fork test on macOS is likely the known TF limitation, not your change.
 - `no_tf` — the TensorFlow-free surface; the only tests that run on Python 3.14, and (with `litert`) in the TF-free `py313-notf` lane. Anything not marked `no_tf` or `litert` is skipped when TensorFlow is not installed.
-- `tf` — a `litert`-marked test that needs TensorFlow after all (e.g. loads `pb`); skipped in the TF-free lanes.
+- `tf` — a `litert`-marked test that needs TensorFlow after all (e.g. reaches the `pb` guard); skipped in the TF-free lanes.
 
 Per-test timeout is 600 s (thread method, kills the process on hang); worker restarts are disabled (`--max-worker-restart=0`).
 
