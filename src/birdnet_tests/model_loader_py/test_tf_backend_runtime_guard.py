@@ -1,12 +1,12 @@
 """``_validate_tf_backend_runtime`` friendly error when TensorFlow is absent.
 
-On Python 3.11-3.13 TensorFlow is installed, so the real ``no_tf`` tests
-(``test_issue55``) are skipped there. Monkeypatching ``tf_installed`` (and
-``litert_installed``) lets us exercise the guard on any interpreter: both
-interpreter-specific advice branches and the library-aware decision -- the
-'tf' backend only needs TensorFlow for the default 'tflite' interpreter, not
-for ``library="litert"``. Whether the litert import graph really is
-TensorFlow-free is proven by the ``no_tf`` lane, not by these mocks.
+The real ``no_tf`` tests (``test_issue55``) only run where TensorFlow is not
+installed. Monkeypatching ``tf_installed`` (and ``litert_installed``) lets us
+exercise the guard in any environment: both interpreter-specific advice
+branches and the library-aware decision -- the 'tf' backend only needs
+TensorFlow for the default 'tflite' interpreter, not for ``library="litert"``.
+Whether the litert import graph really is TensorFlow-free is proven by the
+TensorFlow-free lanes, not by these mocks.
 """
 
 from pathlib import Path
@@ -19,6 +19,7 @@ from birdnet.acoustic.models.v2_4.model import AcousticModelV2_4
 from birdnet.acoustic.models.v2_4.tf import AcousticTFBackendFP32V2_4
 from birdnet.core.backends import TF_BACKEND_LIB_ARG
 from birdnet.model_loader import load, load_custom
+from birdnet_tests.helper import ensure_not_intel_macos_or_skip
 
 
 @pytest.fixture
@@ -68,6 +69,12 @@ def test_load_custom_tf_backend_without_tensorflow_raises_actionable_error(
   species.write_text("a\n", encoding="utf-8")
   with pytest.raises(ValueError, match="requires TensorFlow"):
     load_custom("acoustic", "3.0", backend, tmp_path, species)
+
+
+def test_perch_without_tensorflow_names_the_model(_no_tf: None) -> None:
+  ensure_not_intel_macos_or_skip()  # rejected there before any TensorFlow check
+  with pytest.raises(ValueError, match=r"^The Perch V2 model requires TensorFlow"):
+    ml.load_perch_v2("CPU")
 
 
 def test_non_tf_backend_is_not_blocked_by_the_guard(_no_tf: None) -> None:
@@ -185,13 +192,13 @@ def _fake_version_info(major: int, minor: int) -> tuple:
   return vi(major, minor, 0, "final", 0)
 
 
-def test_message_recommends_reinstall_below_py314(
+def test_message_recommends_the_tf_extra_below_py314(
   monkeypatch: pytest.MonkeyPatch, _no_tf: None
 ) -> None:
   import sys
 
   monkeypatch.setattr(sys, "version_info", _fake_version_info(3, 12))
-  with pytest.raises(ValueError, match=r"pip install tensorflow"):
+  with pytest.raises(ValueError, match=r"pip install birdnet\[tf\]"):
     load("acoustic", "3.0", "tf")
 
 

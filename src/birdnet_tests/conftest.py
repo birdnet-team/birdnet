@@ -7,6 +7,7 @@ from typing import IO
 
 import pytest
 
+from birdnet.core.backends import tf_installed
 from birdnet.utils.logging_utils import get_package_logger
 
 # The v3.0 models are ~520 MiB and Zenodo serves them at roughly 2 MiB/s, so a single
@@ -83,10 +84,29 @@ def _effective_test_timeout(item: pytest.Item) -> float:
   return float(item.config.getini("timeout") or WATCHDOG_IDLE_S)
 
 
+def _runs_without_tensorflow(item: pytest.Item) -> bool:
+  # TensorFlow is an optional dependency, and most of the suite needs it. Without
+  # it only the declared TensorFlow-free surface runs: `no_tf`, plus the litert
+  # lane except the tests marked `tf`. Everything else is skipped, not failed.
+  if item.get_closest_marker("tf") is not None:
+    return False
+  return (
+    item.get_closest_marker("no_tf") is not None
+    or item.get_closest_marker("litert") is not None
+  )
+
+
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+  tf_available = tf_installed()
+  skip_needs_tf = pytest.mark.skip(
+    reason="outside the TensorFlow-free test surface (no_tf/litert) and TensorFlow "
+    "is not installed (pip install birdnet[tf])"
+  )
   for item in items:
     if item.get_closest_marker("load_model") is not None:
       item.add_marker(pytest.mark.timeout(LOAD_MODEL_TIMEOUT_S))
+    if not tf_available and not _runs_without_tensorflow(item):
+      item.add_marker(skip_needs_tf)
     # Collection runs in workers and controller alike, so both can look up the
     # per-test deadline from the nodeid the logstart hook hands them.
     _watchdog_test_timeouts[item.nodeid] = _effective_test_timeout(item)

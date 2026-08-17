@@ -265,6 +265,7 @@ def test_pb_cpu_half() -> None:
 # --- PT ---
 
 
+@pytest.mark.no_tf
 def test_pt_fp32() -> None:
   ensure_torch_or_skip()
   ensure_v3_0_torch_backend_or_skip()
@@ -280,6 +281,7 @@ def test_pt_fp32() -> None:
   assert result.model_precision == "fp32"
 
 
+@pytest.mark.no_tf
 def test_pt_year_round() -> None:
   ensure_torch_or_skip()
   ensure_v3_0_torch_backend_or_skip()
@@ -294,6 +296,7 @@ def test_pt_year_round() -> None:
   assert result.model_precision == "fp32"
 
 
+@pytest.mark.no_tf
 def test_pt_returns_probabilities() -> None:
   # The TorchScript export returns logits; the backend applies the sigmoid the
   # other backends have baked in. Without it the values leave [0, 1].
@@ -309,6 +312,7 @@ def test_pt_returns_probabilities() -> None:
   assert result.species_probs.max() > 0.5
 
 
+@pytest.mark.no_tf
 def test_pt_matches_onnx() -> None:
   """The backends must agree - same species order, same probabilities.
 
@@ -359,6 +363,7 @@ def test_pt_fp32_gpu() -> None:
 # --- ONNX ---
 
 
+@pytest.mark.no_tf
 def test_onnx_fp32() -> None:
   ensure_onnxruntime_or_skip()
 
@@ -373,6 +378,7 @@ def test_onnx_fp32() -> None:
   assert result.model_precision == "fp32"
 
 
+@pytest.mark.no_tf
 def test_onnx_fp32_half() -> None:
   ensure_onnxruntime_or_skip()
 
@@ -387,6 +393,7 @@ def test_onnx_fp32_half() -> None:
   assert result.model_precision == "fp32"
 
 
+@pytest.mark.no_tf
 def test_onnx_fp16() -> None:
   ensure_onnxruntime_or_skip()
 
@@ -401,6 +408,7 @@ def test_onnx_fp16() -> None:
   assert result.model_precision == "fp16"
 
 
+@pytest.mark.no_tf
 def test_onnx_year_round() -> None:
   ensure_onnxruntime_or_skip()
 

@@ -115,9 +115,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.BIRDNET_APP_DATA }}
-          key: birdnet-models-${{ matrix.python-version == '3.14' && 'notf-litert' || 'full' }}-${{ hashFiles('src/birdnet/**/models/**/*.py') }}
+          key: birdnet-models-${{ matrix.python-version == '3.14' && 'notf-all' || 'full' }}-${{ hashFiles('src/birdnet/**/models/**/*.py') }}
           restore-keys: |
-            birdnet-models-${{ matrix.python-version == '3.14' && 'notf-litert' || 'full' }}-
+            birdnet-models-${{ matrix.python-version == '3.14' && 'notf-all' || 'full' }}-
 
       - name: Install dependencies
         run: uv pip install --system '.[tests]'
@@ -136,6 +136,12 @@ jobs:
         if: matrix.python-version == '3.13'
         run: |
           python -m tox -e py313
+
+      # Base install without the [tf] extra: TensorFlow-free surface + litert lane.
+      - name: Run TF-free tests py313
+        if: matrix.python-version == '3.13'
+        run: |
+          python -m tox -e py313-notf
 
       - name: Run tests py314
         if: matrix.python-version == '3.14'

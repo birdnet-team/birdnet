@@ -14,12 +14,73 @@ To install BirdNET, you can use ``pip``:
 
   pip install birdnet --user
 
-This will install the latest version of the BirdNET package along with its dependencies.
+This installs the latest version of the BirdNET package with ONNX Runtime (and LiteRT
+where wheels exist), which runs the V3.0 acoustic and geo models via the ``onnx``
+backend and the 2.4 models via ``birdnet.load(.., "tf", library="litert")``.
+TensorFlow is optional; the extras select the runtimes:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Install
+     - Runtimes
+     - Enables
+   * - ``birdnet``
+     - ONNX Runtime, LiteRT (Linux, macOS ARM64, Windows x86_64; Python 3.11-3.13)
+     - acoustic 3.0 and geo 3.0 (``onnx``); acoustic 2.4, custom 2.4 classifiers and geo 2.4 (``tf`` with ``library="litert"``)
+   * - ``birdnet[tf]``
+     - + TensorFlow
+     - ``tf`` with the default TFLite interpreter and ``pb`` for all models: acoustic/geo 2.4, acoustic/geo 3.0, custom TFLite/ProtoBuf/Raven classifiers, Perch V2
+   * - ``birdnet[and-cuda]``
+     - + TensorFlow with CUDA (Linux)
+     - as ``[tf]``, plus GPU for the ``pb`` backends
+   * - ``birdnet[pt]``
+     - + PyTorch
+     - acoustic 3.0 and geo 3.0 (``pt``, CPU/GPU)
+   * - ``birdnet[onnx]``
+     - (compatibility alias)
+     - ONNX Runtime is part of the base install
+   * - ``birdnet[repro]``
+     - exact pinned versions incl. TensorFlow
+     - reproducible results (Python 3.12, CPU)
+
+Without the ``tf`` extra, loading a TensorFlow-based backend raises a ``ValueError``
+that names the alternatives. For GPU inference with the ``onnx`` backend, replace the
+base ``onnxruntime`` (CPU build) with ``onnxruntime-gpu`` after installing — only one
+of the two may be installed: ``pip uninstall onnxruntime && pip install onnxruntime-gpu``.
+
+TensorFlow backends
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+  pip install birdnet[tf] --user
+
+TensorFlow ships no wheels for Python 3.14, so on that interpreter the extra installs
+nothing and only the base surface is available.
+
+CUDA Support
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To install BirdNET with CUDA support for the ``pb`` backends, ensure that you have the NVIDIA GPU driver and CUDA installed on your system. Then, use the following command (it includes the ``tf`` extra):
+
+.. code-block:: bash
+
+  pip install birdnet[and-cuda] --user
+
+PyTorch backend (V3.0)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The V3.0 acoustic and geo models can additionally be run with the PyTorch (``pt``) backend, which supports CPU and GPU execution:
+
+.. code-block:: bash
+
+  pip install birdnet[pt] --user
 
 Ensure reproducibility
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-To install BirdNET in a reproducible environment, use the ``repro`` extra, which pins dependency versions and tries to ensure consistent behavior across setups.
+To install BirdNET in a reproducible environment, use the ``repro`` extra, which pins dependency versions (TensorFlow included) and tries to ensure consistent behavior across setups.
 
 .. note::
 
@@ -28,30 +89,6 @@ To install BirdNET in a reproducible environment, use the ``repro`` extra, which
 .. code-block:: bash
 
   pip install birdnet[repro] --user
-
-CUDA Support
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-To install BirdNET with CUDA support, ensure that you have the NVIDIA GPU driver and CUDA installed on your system. Then, use the following command:
-
-.. code-block:: bash
-
-  pip install birdnet[and-cuda] --user
-
-PyTorch and ONNX backends (V3.0)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The V3.0 acoustic model can additionally be run with the PyTorch (``pt``) and ONNX (``onnx``) backends. These require optional dependencies:
-
-.. code-block:: bash
-
-  # PyTorch backend (.pt models)
-  pip install birdnet[pt] --user
-
-  # ONNX backend (.onnx models)
-  pip install birdnet[onnx] --user
-
-Both backends support CPU and GPU execution.
 
 Troubleshooting
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

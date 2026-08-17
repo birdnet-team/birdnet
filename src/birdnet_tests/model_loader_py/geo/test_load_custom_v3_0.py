@@ -170,6 +170,7 @@ def test_pb_type_is_correct() -> None:
   )
 
 
+@pytest.mark.no_tf
 def test_load_custom_geo_model_v3_0_pt_fp32() -> None:
   ensure_torch_or_skip()
   ensure_v3_0_torch_backend_or_skip()
@@ -186,6 +187,7 @@ def test_load_custom_geo_model_v3_0_pt_fp32() -> None:
   assert isinstance(model, GeoModelV3_0)
 
 
+@pytest.mark.no_tf
 def test_pt_type_is_correct() -> None:
   ensure_torch_or_skip()
   ensure_v3_0_torch_backend_or_skip()

@@ -313,8 +313,9 @@ def _validate_optional_backend_runtime(backend: MODEL_BACKENDS) -> None:
     )
   elif backend == MODEL_BACKEND_ONNX and not onnxruntime_installed():
     raise ValueError(
-      f"Parameter 'backend': Backend '{MODEL_BACKEND_ONNX}' is not available. "
-      "Install birdnet with [onnx] option."
+      f"Parameter 'backend': Backend '{MODEL_BACKEND_ONNX}' is not available: "
+      "onnxruntime is not installed ('pip install onnxruntime', or "
+      "'onnxruntime-gpu' for GPU support)."
     )
 
 
@@ -342,18 +343,22 @@ def _validate_tf_backend_runtime(
     raise ValueError(_tensorflow_missing_message(backend))
 
 
-def _tensorflow_missing_message(backend: str) -> str:
+def _tensorflow_missing_message(
+  backend: str, subject: str | None = None, alternatives: bool = True
+) -> str:
   # The advice depends on the interpreter: TensorFlow has no wheels for Python
-  # 3.14+, so there it cannot be installed; on 3.11-3.13 it merely needs to be.
+  # 3.14+, so there it cannot be installed; on 3.11-3.13 it is the [tf] extra.
   import sys
 
-  if backend == MODEL_BACKEND_TF:
-    subject = (
-      f"Backend '{MODEL_BACKEND_TF}' with library '{LIBRARY_TFLITE}' (the default)"
-    )
-  else:
-    subject = f"Backend '{backend}'"
-  base = f"Parameter 'backend': {subject} requires TensorFlow, which is not installed. "
+  if subject is None:
+    if backend == MODEL_BACKEND_TF:
+      subject = (
+        f"Parameter 'backend': Backend '{MODEL_BACKEND_TF}' with library "
+        f"'{LIBRARY_TFLITE}' (the default)"
+      )
+    else:
+      subject = f"Parameter 'backend': Backend '{backend}'"
+  base = f"{subject} requires TensorFlow, which is not installed. "
   if sys.version_info >= (3, 14):
     reason = (
       "TensorFlow provides no wheels for Python "
@@ -362,7 +367,12 @@ def _tensorflow_missing_message(backend: str) -> str:
       "TensorFlow-based models. "
     )
   else:
-    reason = "Install it (e.g. reinstall birdnet, or 'pip install tensorflow'). "
+    reason = (
+      "Install it with 'pip install birdnet[tf]' (on Linux 'birdnet[and-cuda]' "
+      "for GPU support). "
+    )
+  if not alternatives:
+    return base + reason.rstrip()
   if backend == MODEL_BACKEND_TF:
     how = f"pass {LIBRARY_TF_PARAM}='{LIBRARY_LITERT}'"
   else:
@@ -448,7 +458,13 @@ def load_perch_v2(device: str) -> AcousticModelPerchV2:
     raise OSError("The Perch v2 model is not supported on Intel macOS systems.")
 
   device = _validate_device(device)
-  _validate_tf_backend_runtime(MODEL_BACKEND_PB, {})
+  if not tf_installed():
+    # Perch is pb-only; the litert/onnx alternatives concern the BirdNET models.
+    raise ValueError(
+      _tensorflow_missing_message(
+        MODEL_BACKEND_PB, subject="The Perch V2 model", alternatives=False
+      )
+    )
   check_tf_version_for_perch_v2()
   model_path, species_list = AcousticPBDownloaderPerchV2.get_model_path_and_labels(
     device

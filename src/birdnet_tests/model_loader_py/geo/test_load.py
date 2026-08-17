@@ -9,6 +9,7 @@ from birdnet_tests.helper import ensure_litert_or_skip
 
 
 @pytest.mark.litert
+@pytest.mark.tf  # the pb guard fires before the kwarg check
 def test_pb_v2_4_with_library_raises_error() -> None:
   ensure_litert_or_skip()
 

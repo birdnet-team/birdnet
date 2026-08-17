@@ -42,19 +42,28 @@ dependencies = [
   "pyarrow >= 7.0.0",     # 2022/02/03
   # Model downloads; explicit because a TensorFlow-free install has no transitive requests.
   "requests >= 2.27.0", # 2022/01/05
-  # No TensorFlow wheels for Python 3.14+.
-  "tensorflow >= 2.8.0 ; (sys_platform != 'darwin' or platform_machine != 'x86_64') and python_version < '3.14'",                                                                                                # 2022/02/02
-  "tensorflow >= 2.8.0, <2.17 ; sys_platform == 'darwin' and platform_machine == 'x86_64' and python_version < '3.14'",
+  # Default runtime: runs the 3.0 models (onnx backend) without TensorFlow. No
+  # macOS x86_64 wheels for Python 3.14 (and none newer than 1.23.2).
+  "onnxruntime >= 1.16.0 ; sys_platform != 'darwin' or platform_machine != 'x86_64' or python_version < '3.14'",
   # Only platforms with ai-edge-litert wheels: it has no sdist, so an unguarded
   # marker makes birdnet itself uninstallable there.
   "ai-edge-litert >= 2.0.2 ; python_version <= '3.13' and (sys_platform == 'linux' or (sys_platform == 'darwin' and platform_machine == 'arm64') or (sys_platform == 'win32' and platform_machine == 'AMD64'))", # 2026/05/12
 ]
 
 [project.optional-dependencies]
+# TensorFlow is optional: it backs the tf (tflite interpreter) and pb backends,
+# i.e. the 2.4 models by default, Perch V2, custom SavedModels and geo 3.0 tf.
+# No TensorFlow wheels for Python 3.14+.
+tf = [
+  "tensorflow >= 2.8.0 ; (sys_platform != 'darwin' or platform_machine != 'x86_64') and python_version < '3.14'", # 2022/02/02
+  "tensorflow >= 2.8.0, <2.17 ; sys_platform == 'darwin' and platform_machine == 'x86_64' and python_version < '3.14'",
+]
 and-cuda = [
+  "birdnet[tf]",
   "tensorflow[and-cuda] >= 2.8.0 ; sys_platform == 'linux' and python_version < '3.14'", # 2022/02/02
 ]
 pt = ["torch >= 2.0.0"]
+# onnxruntime is a base dependency; the extra stays so `birdnet[onnx]` keeps working.
 onnx = ["onnxruntime >= 1.16.0"]
 repro = [
   # Reproducible results only with Python 3.12 and on CPU and not on macOS Intel
@@ -67,8 +76,9 @@ repro = [
   "pandas == 2.3.3",
   "psutil == 7.1.3",
   "pyarrow == 22.0.0",
+  "onnxruntime == 1.28.0 ; sys_platform == 'linux' or (sys_platform == 'darwin' and platform_machine == 'arm64') or (sys_platform == 'win32' and platform_machine == 'AMD64')",
   # Not 2.20.0: it can wedge in eager execution on macOS arm64 under parallel test load.
-  "tensorflow == 2.21.0 ; sys_platform == 'linux' or (sys_platform == 'darwin' and platform_machine == 'arm64') or (sys_platform == 'windows' and platform_machine == 'amd64')",
+  "tensorflow == 2.21.0 ; sys_platform == 'linux' or (sys_platform == 'darwin' and platform_machine == 'arm64') or (sys_platform == 'win32' and platform_machine == 'AMD64')",
   "ai-edge-litert == 2.0.3 ; python_version < '3.13' and sys_platform == 'linux'",
   # Indirect dependencies
   "absl-py == 2.3.1",
@@ -195,6 +205,7 @@ markers = [
   "gpu: tests requiring a GPU to run and to be run sequentially",
   "repro: tests requiring exact package versions to reproduce results",
   "no_tf: tests for the TensorFlow-free surface, run when TF is absent (e.g. Python 3.14)",
+  "tf: litert-lane tests that need TensorFlow after all; without TF a test runs only if marked no_tf or litert (and not tf), everything else is skipped (see conftest.py)",
   "fork: tests that force the fork start method; run in a dedicated serial (-n 1) lane in a fresh process so a fork-after-TensorFlow deadlock cannot wedge the parallel general-phase workers (the library itself defaults to spawn, see birdnet.core.start_method)",
 ]
 
@@ -239,7 +250,7 @@ exclude_lines = ["if __name__ == .__main__.:"]
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-envlist = py{311,312,313,314}, py312-repro
+envlist = py{311,312,313,314}, py312-repro, py313-notf
 isolated_build = True
 
 [testenv]
@@ -251,9 +262,9 @@ passenv =
   BIRDNET_APP_DATA
   BIRDNET_TEST_WATCHDOG_DIR
 
-deps = 
-  .[tests,and-cuda,pt,onnx]
-commands = 
+deps =
+  .[tests,tf,and-cuda,pt]
+commands =
   # ruff check src/birdnet
   # ruff check src/birdnet_tests
   # mypy src/birdnet
@@ -286,16 +297,26 @@ commands =
 [testenv:py314]
 # TensorFlow-free surface only; the lane that proves the litert path needs no TensorFlow.
 deps =
-  .[tests,onnx,pt]
+  .[tests,pt]
   ai-edge-litert
 commands =
   pytest -m "no_tf" -n auto
   pyproject-build -o dist/
   python -m twine check dist/*
 
+[testenv:py313-notf]
+# Base install without [tf] on a Python that has TensorFlow wheels: the
+# TensorFlow-free surface plus the litert lane.
+deps =
+  .[tests,pt]
+commands =
+  # fails if TensorFlow sneaked into the env
+  python -c "import importlib.util as u, sys; sys.exit(u.find_spec('tensorflow') is not None)"
+  pytest -m "not repro and not load_model and (no_tf or litert) and not fork and not gpu" -n auto
+
 [testenv:py312-coverage]
 deps =
-  .[tests]
+  .[tests,tf]
 commands =
   coverage erase
   pytest -m "not repro and load_model" -n auto --cov=src/birdnet --cov-append --cov-report=

@@ -34,6 +34,7 @@ def _load_model(backend: _Backend) -> AcousticModelV3_0:
   return load("acoustic", "3.0", backend, precision="fp32")
 
 
+@pytest.mark.no_tf
 @pytest.mark.parametrize("backend", ["pt", "onnx"])
 def test_v3_0_predict_default_file_shape(backend: _Backend) -> None:
   model = _load_model(backend)
@@ -48,6 +49,7 @@ def test_v3_0_predict_default_file_shape(backend: _Backend) -> None:
   assert res.segment_duration_s == 3.0
 
 
+@pytest.mark.no_tf
 @pytest.mark.parametrize("backend", ["pt", "onnx"])
 def test_v3_0_predict_default_np_array_shape(backend: _Backend) -> None:
   audio = soundfile.read(TEST_FILE_SHORT)
@@ -63,6 +65,7 @@ def test_v3_0_predict_default_np_array_shape(backend: _Backend) -> None:
   assert res.segment_duration_s == 3.0
 
 
+@pytest.mark.no_tf
 @pytest.mark.parametrize("backend", ["pt", "onnx"])
 def test_v3_0_predict_two_np_arrays_shape(backend: _Backend) -> None:
   audio = soundfile.read(TEST_FILE_SHORT)
@@ -78,6 +81,7 @@ def test_v3_0_predict_two_np_arrays_shape(backend: _Backend) -> None:
   assert res.segment_duration_s == 3.0
 
 
+@pytest.mark.no_tf
 @pytest.mark.parametrize("backend", ["pt", "onnx"])
 @pytest.mark.parametrize(
   ("segment_size_s", "expected_segments"),
@@ -133,6 +137,7 @@ def test_v3_0_predict_pb_and_onnx_are_close() -> None:
   )
 
 
+@pytest.mark.no_tf
 def test_v3_0_predict_pt_and_onnx_are_close() -> None:
   ensure_torch_or_skip()
   ensure_v3_0_torch_backend_or_skip()
@@ -163,6 +168,7 @@ def test_v3_0_predict_pt_and_onnx_are_close() -> None:
   )
 
 
+@pytest.mark.no_tf
 @pytest.mark.parametrize("segment_size_s", [2.0, 4.0, 5.0])
 def test_v3_0_predict_pt_and_onnx_are_close_with_custom_segment_size(
   segment_size_s: float,

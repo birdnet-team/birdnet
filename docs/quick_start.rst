@@ -14,9 +14,12 @@ To install BirdNET, you can use ``pip``. Open your terminal and run the followin
 
 .. code-block:: bash
 
-   pip install birdnet --user
-   
-This command installs the BirdNET package along with its dependencies.
+   pip install birdnet[tf] --user
+
+This command installs the BirdNET package with TensorFlow, which the ``tf`` backend
+used in the examples below relies on. Plain ``pip install birdnet`` installs a
+TensorFlow-free package that runs the V3.0 models via ``onnx`` and the 2.4 models via
+``birdnet.load(.., "tf", library="litert")``; see :doc:`setup` for the extras.
 
 Predict species from audio file
 -------------------------------
@@ -159,7 +162,7 @@ The ``version`` and ``backend`` arguments of ``birdnet.load`` select the model. 
 
   import birdnet
 
-  # V3.0 acoustic model via the ONNX backend (requires: pip install birdnet[onnx])
+  # V3.0 acoustic model via the ONNX backend (part of the base install)
   model = birdnet.load("acoustic", "3.0", "onnx")
 
   predictions = model.predict("example/soundscape.wav")

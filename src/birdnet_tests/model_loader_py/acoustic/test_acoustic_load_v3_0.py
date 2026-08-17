@@ -87,6 +87,7 @@ def test_v3_0_onnx_fp16() -> None:
   assert isinstance(model, AcousticModelV3_0)
 
 
+@pytest.mark.no_tf
 def test_v3_0_pt_with_library_raises_error() -> None:
   with pytest.raises(
     ValueError,
@@ -95,6 +96,7 @@ def test_v3_0_pt_with_library_raises_error() -> None:
     load("acoustic", "3.0", "pt", precision="fp32", library="tflite")  # type: ignore[call-arg]
 
 
+@pytest.mark.no_tf
 def test_v3_0_pt_runtime_missing_raises_error(monkeypatch: pytest.MonkeyPatch) -> None:
   monkeypatch.setattr("birdnet.model_loader.torch_installed", lambda: False)
 
@@ -105,6 +107,7 @@ def test_v3_0_pt_runtime_missing_raises_error(monkeypatch: pytest.MonkeyPatch) -
     load("acoustic", "3.0", "pt")
 
 
+@pytest.mark.no_tf
 def test_v3_0_onnx_runtime_missing_raises_error(
   monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -112,11 +115,12 @@ def test_v3_0_onnx_runtime_missing_raises_error(
 
   with pytest.raises(
     ValueError,
-    match=r"Install birdnet with \[onnx\] option.",
+    match=r"onnxruntime is not installed",
   ):
     load("acoustic", "3.0", "onnx")
 
 
+@pytest.mark.no_tf
 def test_v3_0_pt_type_is_correct(monkeypatch: pytest.MonkeyPatch) -> None:
   monkeypatch.setattr("birdnet.model_loader.torch_installed", lambda: True)
   monkeypatch.setattr(
@@ -164,6 +168,7 @@ def test_v3_0_tf_type_is_correct_fp16(monkeypatch: pytest.MonkeyPatch) -> None:
   assert model.backend_type is AcousticTFBackendFP16V3_0
 
 
+@pytest.mark.no_tf
 def test_v3_0_onnx_type_is_correct_fp32(monkeypatch: pytest.MonkeyPatch) -> None:
   monkeypatch.setattr("birdnet.model_loader.onnxruntime_installed", lambda: True)
   monkeypatch.setattr(
@@ -176,6 +181,7 @@ def test_v3_0_onnx_type_is_correct_fp32(monkeypatch: pytest.MonkeyPatch) -> None
   assert model.backend_type is AcousticOnnxBackendFP32V3_0
 
 
+@pytest.mark.no_tf
 def test_v3_0_onnx_type_is_correct_fp16(monkeypatch: pytest.MonkeyPatch) -> None:
   monkeypatch.setattr("birdnet.model_loader.onnxruntime_installed", lambda: True)
   monkeypatch.setattr(

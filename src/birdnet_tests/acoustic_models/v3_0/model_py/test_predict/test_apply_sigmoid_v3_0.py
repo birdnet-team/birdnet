@@ -40,6 +40,7 @@ def _fake_model(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> AcousticMode
   return load("acoustic", "3.0", "onnx")
 
 
+@pytest.mark.no_tf
 def test_v3_0_apply_softmax_raises_error(
   tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -48,6 +49,7 @@ def test_v3_0_apply_softmax_raises_error(
     model.predict_session(apply_sigmoid=False, apply_softmax=True)
 
 
+@pytest.mark.no_tf
 def test_v3_0_non_default_sigmoid_sensitivity_raises_error(
   tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -56,6 +58,7 @@ def test_v3_0_non_default_sigmoid_sensitivity_raises_error(
     model.predict_session(sigmoid_sensitivity=0.9)
 
 
+@pytest.mark.no_tf
 def test_v3_0_non_default_sigmoid_sensitivity_raises_even_without_apply_sigmoid(
   tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -64,6 +67,7 @@ def test_v3_0_non_default_sigmoid_sensitivity_raises_even_without_apply_sigmoid(
     model.predict_session(apply_sigmoid=False, sigmoid_sensitivity=0.9)
 
 
+@pytest.mark.no_tf
 def test_v3_0_apply_sigmoid_skips_the_pipeline_sigmoid(
   tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
