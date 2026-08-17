@@ -121,13 +121,16 @@ jobs:
           import hashlib, os, pathlib, re
 
           URL = r"[\"']https://[^\s\"']+"
-          SIZE = r"(?:dl_size|[A-Za-z_]*(?:DL|DOWNLOAD)_SIZE[A-Za-z_]*)\s*=\s*(\d+)"
+          NAME = r"(?:dl_size|[A-Za-z_]*(?:DL|DOWNLOAD)_SIZE[A-Za-z_]*)"
+          # Tolerates an annotation and Python's numeric separators, so a size
+          # declared as `_DL_SIZE: int = 11_078_402` still reaches the key.
+          SIZE = rf"{NAME}\s*(?::\s*int\s*)?=\s*([\d_]+)"
 
           tokens = set()
           for path in sorted(pathlib.Path("src/birdnet").rglob("*.py")):
             text = path.read_text(encoding="utf-8")
             tokens |= {url.lstrip("\"'") for url in re.findall(URL, text)}
-            tokens |= {f"size={size}" for size in re.findall(SIZE, text)}
+            tokens |= {f"size={size.replace('_', '')}" for size in re.findall(SIZE, text)}
           if len(tokens) < 30:
             raise SystemExit(f"only {len(tokens)} downloads found -- has the layout moved?")
           digest = hashlib.sha256("\n".join(sorted(tokens)).encode()).hexdigest()
