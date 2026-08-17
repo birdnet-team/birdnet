@@ -16,10 +16,15 @@ from birdnet.globals import (
 )
 from birdnet.utils.helper import (
   check_protobuf_model_files_exist,
+  check_source_marker,
   download_file_tqdm,
   get_species_from_file,
+  write_source_marker,
 )
 from birdnet.utils.local_data import get_lang_dir, get_model_path
+
+_PB_DL_URL = "https://zenodo.org/records/20703646/files/BirdNET+_V3.0-preview3.1_Global_11K_FP32_Protobuf.zip"
+_PB_DL_SIZE = 499609919
 
 
 class AcousticPBDownloaderV3_0(AcousticDownloaderBaseV3_0):
@@ -36,7 +41,11 @@ class AcousticPBDownloaderV3_0(AcousticDownloaderBaseV3_0):
   @classmethod
   def _check_model_files_available(cls) -> bool:
     model_path, _ = cls._get_paths()
-    return model_path.is_dir() and check_protobuf_model_files_exist(model_path)
+    return (
+      model_path.is_dir()
+      and check_protobuf_model_files_exist(model_path)
+      and check_source_marker(model_path, _PB_DL_URL)
+    )
 
   @classmethod
   def _check_acoustic_model_available(cls) -> bool:
@@ -50,15 +59,12 @@ class AcousticPBDownloaderV3_0(AcousticDownloaderBaseV3_0):
 
   @classmethod
   def _download_model(cls) -> None:
-    dl_url = "https://zenodo.org/records/20703646/files/BirdNET+_V3.0-preview3.1_Global_11K_FP32_Protobuf.zip"
-    dl_size = 499609919
-
     with tempfile.TemporaryDirectory(prefix="birdnet_download") as temp_dir:
       zip_download_path = Path(temp_dir) / "download.zip"
       download_file_tqdm(
-        dl_url,
+        _PB_DL_URL,
         zip_download_path,
-        download_size=dl_size,
+        download_size=_PB_DL_SIZE,
         description="Downloading acoustic model v3.0 (pb)",
       )
 
@@ -72,6 +78,7 @@ class AcousticPBDownloaderV3_0(AcousticDownloaderBaseV3_0):
       acoustic_model_dir.parent.mkdir(parents=True, exist_ok=True)
       shutil.rmtree(acoustic_model_dir, ignore_errors=True)
       shutil.move(extract_dir, acoustic_model_dir)
+      write_source_marker(acoustic_model_dir, _PB_DL_URL)
 
       acoustic_lang_dir.parent.mkdir(parents=True, exist_ok=True)
       shutil.rmtree(acoustic_lang_dir, ignore_errors=True)
