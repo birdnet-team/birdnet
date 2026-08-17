@@ -107,15 +107,44 @@ jobs:
           enable-cache: true
           cache-dependency-glob: pyproject.toml
 
-      # Keyed on the download profile (full vs the TF-free py3.14 set) plus the
-      # model definitions: the files are identical across cells, and one copy per
-      # cell overran the 10 GB cache limit. A primary-key hit is never re-saved,
-      # so rename the profile when its download set grows.
+      # Keys the model cache on the download set itself -- every quoted download
+      # URL and declared byte size under src/birdnet -- so a new or updated model
+      # busts the key while an edit to the surrounding backend code does not.
+      # Matching URLs only inside quotes keeps documentation links in docstrings
+      # out of it. The floor fails the job if the declarations move somewhere this
+      # no longer sees them, which would otherwise freeze the key onto a stale
+      # cache; raise it as the download set grows.
+      - name: Compute model cache key
+        id: model-key
+        shell: python
+        run: |
+          import hashlib, os, pathlib, re
+
+          URL = r"[\"']https://[^\s\"']+"
+          NAME = r"(?:dl_size|[A-Za-z_]*(?:DL|DOWNLOAD)_SIZE[A-Za-z_]*)"
+          # Tolerates an annotation and Python's numeric separators, so a size
+          # declared as `_DL_SIZE: int = 11_078_402` still reaches the key.
+          SIZE = rf"{NAME}\s*(?::\s*int\s*)?=\s*([\d_]+)"
+
+          tokens = set()
+          for path in sorted(pathlib.Path("src/birdnet").rglob("*.py")):
+            text = path.read_text(encoding="utf-8")
+            tokens |= {url.lstrip("\"'") for url in re.findall(URL, text)}
+            tokens |= {f"size={size.replace('_', '')}" for size in re.findall(SIZE, text)}
+          if len(tokens) < 30:
+            raise SystemExit(f"only {len(tokens)} downloads found -- has the layout moved?")
+          digest = hashlib.sha256("\n".join(sorted(tokens)).encode()).hexdigest()
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+            handle.write(f"hash={digest[:16]}\n")
+
+      # The files are identical across cells, so the profile (full vs the TF-free
+      # py3.14 set) is the only other component: one copy per cell overran the
+      # 10 GB cache limit.
       - name: Cache downloaded models
         uses: actions/cache@v4
         with:
           path: ${{ env.BIRDNET_APP_DATA }}
-          key: birdnet-models-${{ matrix.python-version == '3.14' && 'notf-litert' || 'full' }}-${{ hashFiles('src/birdnet/**/models/**/*.py') }}
+          key: birdnet-models-${{ matrix.python-version == '3.14' && 'notf-litert' || 'full' }}-${{ steps.model-key.outputs.hash }}
           restore-keys: |
             birdnet-models-${{ matrix.python-version == '3.14' && 'notf-litert' || 'full' }}-
 
