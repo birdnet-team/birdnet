@@ -8,6 +8,10 @@ from birdnet_tests.conftest import (
   _watchdog_deadline,
 )
 
+# Pure Python: the watchdog is part of the harness itself, so these cover it on
+# the TensorFlow-free 3.14 lane too.
+pytestmark = [pytest.mark.no_tf]
+
 _NOW = 1000.0
 _SHORT = 600.0
 
