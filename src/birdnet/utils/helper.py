@@ -68,6 +68,24 @@ def check_protobuf_model_files_exist(folder: Path) -> bool:
   return exists
 
 
+# Written into a downloaded SavedModel directory to record which release it came
+# from. The directory name is generic, so unlike the size-checked single-file
+# models a directory cached from an older release is otherwise indistinguishable
+# from a current one and would never be re-downloaded on upgrade.
+SOURCE_MARKER_NAME = ".birdnet_source"
+
+
+def write_source_marker(model_dir: Path, dl_url: str) -> None:
+  (model_dir / SOURCE_MARKER_NAME).write_text(dl_url, encoding="utf-8")
+
+
+def check_source_marker(model_dir: Path, dl_url: str) -> bool:
+  marker = model_dir / SOURCE_MARKER_NAME
+  if not marker.is_file():
+    return False
+  return marker.read_text(encoding="utf-8").strip() == dl_url
+
+
 @dataclass()
 class ModelInfo:
   dl_url: str
