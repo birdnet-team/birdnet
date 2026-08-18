@@ -66,9 +66,15 @@ jobs:
 
       - name: Install audio system libs (Linux)
         if: startsWith(matrix.os, 'ubuntu')
+        # A stalled mirror fails the step here instead of eating the job budget.
+        timeout-minutes: 10
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libsndfile1
+          # Same principle as the other platforms: install from the image's
+          # package lists; `apt-get update` fetches from the mirror only on a miss.
+          sudo apt-get install -y libsndfile1 || {
+            sudo apt-get update
+            sudo apt-get install -y libsndfile1
+          }
 
       - name: Install audio system libs (macOS)
         if: startsWith(matrix.os, 'macos')
