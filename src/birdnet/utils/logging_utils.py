@@ -5,6 +5,7 @@ import logging
 import os
 import sys
 import tempfile
+import threading
 from collections.abc import Generator
 from contextlib import contextmanager
 
@@ -49,6 +50,12 @@ def native_output_is_verbose() -> bool:
   return os.environ.get(ENV_VAR_TF_VERBOSE, "0") not in ("", "0")
 
 
+# File descriptor 2 is process-wide, so two threads redirecting it at once would
+# restore each other's saved descriptor and leave the process without a usable
+# stderr. Reentrant, because nested suppression unwinds in order on one thread.
+_NATIVE_STDERR_LOCK = threading.RLock()
+
+
 @contextmanager
 def suppress_native_stderr() -> Generator[None, None, None]:
   """Hide what native code writes to stderr while the block runs.
@@ -61,45 +68,68 @@ def suppress_native_stderr() -> Generator[None, None, None]:
 
   If the block raises, the captured text is written to stderr, so the native
   diagnostics of a failed import still reach the user. Otherwise it is emitted
-  on the package logger at DEBUG, which an embedding application can record by
-  attaching a handler — the default configuration attaches none, so warnings
-  that never raise are seen by re-running with `BIRDNET_TF_VERBOSE=1`.
+  on the package logger at DEBUG. No handler is attached by default, and worker
+  processes have none at all, so in practice a warning that never raises is
+  seen by re-running with `BIRDNET_TF_VERBOSE=1`.
+
+  Suppression is a convenience, never a precondition: if stderr cannot be
+  redirected the block still runs, unsuppressed. Because the descriptor is
+  process-wide the block is serialized, which also means concurrent callers
+  wait out an import that is already running.
   """
-  if native_output_is_verbose():
+  stderr = sys.stderr
+  if (
+    native_output_is_verbose()
+    # No usable stderr to redirect: pythonw.exe, a service, or `2>&-`. On
+    # Windows os.dup(2) still succeeds there, so this has to be checked too.
+    or stderr is None
+    or not hasattr(stderr, "flush")
+    or not hasattr(stderr, "write")
+  ):
     yield
     return
 
-  try:
-    saved_stderr_fd = os.dup(2)
-  except OSError:
-    # No usable stderr, e.g. under pythonw.exe. Nothing to suppress.
-    yield
-    return
+  with _NATIVE_STDERR_LOCK:
+    try:
+      saved_stderr_fd = os.dup(2)
+    except OSError:
+      yield
+      return
 
-  try:
-    with tempfile.TemporaryFile() as capture:
-      sys.stderr.flush()
-      os.dup2(capture.fileno(), 2)
-      failed = False
+    try:
       try:
+        # Not opened as a `with` here: creation has to be guarded on its own,
+        # and the handle is closed by the `with capture` below.
+        capture = tempfile.TemporaryFile()  # noqa: SIM115
+      except OSError:
+        # Read-only or full temp directory: run without suppressing rather
+        # than turn a working import into a disk error.
         yield
-      except BaseException:
-        failed = True
-        raise
-      finally:
-        sys.stderr.flush()
-        os.dup2(saved_stderr_fd, 2)
-        capture.seek(0)
-        captured = capture.read().decode("utf-8", "replace")
-        if captured:
-          if failed:
-            sys.stderr.write(captured)
-            sys.stderr.flush()
-          else:
-            # Warnings that do not raise — a CUDA library that could not be
-            # loaded, say — explain later behaviour and must not be destroyed.
-            get_logger_for_package(__name__).debug(
-              "Suppressed native output:\n%s", captured.rstrip()
-            )
-  finally:
-    os.close(saved_stderr_fd)
+        return
+
+      with capture:
+        stderr.flush()
+        os.dup2(capture.fileno(), 2)
+        failed = False
+        try:
+          yield
+        except BaseException:
+          failed = True
+          raise
+        finally:
+          stderr.flush()
+          os.dup2(saved_stderr_fd, 2)
+          capture.seek(0)
+          captured = capture.read().decode("utf-8", "replace")
+          if captured:
+            if failed:
+              stderr.write(captured)
+              stderr.flush()
+            else:
+              # Warnings that do not raise — a CUDA library that could not be
+              # loaded, say — explain later behaviour and must not be destroyed.
+              get_logger_for_package(__name__).debug(
+                "Suppressed native output:\n%s", captured.rstrip()
+              )
+    finally:
+      os.close(saved_stderr_fd)

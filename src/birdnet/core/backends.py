@@ -800,9 +800,9 @@ def _detect_tflite_custom_classifier(
 
 def import_tf() -> None:
   disable_tf_logging()
-  # The absl banner and the device-creation I-lines are written by native code
-  # to fd 2 and are out of reach of `disable_tf_logging`; only the descriptor
-  # redirect silences them.
+  # The absl banner is written by native code to fd 2 and is out of reach of
+  # `disable_tf_logging`; only the descriptor redirect silences it. Lines that
+  # TensorFlow emits later, at device creation, fall outside this block.
   with suppress_native_stderr():
     import tensorflow  # noqa: F401
 

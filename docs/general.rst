@@ -70,8 +70,9 @@ above the descriptor and never see these writes.
 
 If the import raises, the captured text is written to stderr, so a broken
 TensorFlow installation still reports itself. Otherwise it is emitted on the
-``birdnet`` logger at ``DEBUG``, where an application that attaches its own
-handler can record it; the default configuration attaches none.
+``birdnet`` logger at ``DEBUG``. No handler is attached by default, and the
+worker processes that load the models have none at all, so that record is in
+practice unavailable.
 
 To see warnings that never raise — a CUDA library that could not be loaded,
 say, which is why a GPU is silently not used — or to diagnose a crash during
