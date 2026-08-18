@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-18
+
 ### Breaking changes
 
 - TensorFlow is now an optional dependency (`pip install birdnet[tf]`; `birdnet[and-cuda]` implies it and `birdnet[repro]` keeps pinning it). The base package ships ONNX Runtime instead (plus LiteRT where wheels exist), so `pip install birdnet` runs the acoustic 3.0 and geo 3.0 models via `onnx` and the 2.4 models via `birdnet.load(.., "tf", library="litert")` — but no longer `birdnet.load("acoustic", "2.4", "tf")`, the `pb` backend or Perch V2, which now raise a `ValueError` pointing at `birdnet[tf]`; install that extra to keep the previous behavior. `birdnet[onnx]` stays as a no-op alias. A TensorFlow-free install is ~1.5 GB smaller. On platforms without LiteRT wheels (macOS x86_64, Windows ARM64) the base install cannot run the 2.4 models at all; for GPU inference with the `onnx` backend, replace the base `onnxruntime` with `onnxruntime-gpu` after installing (`pip uninstall onnxruntime && pip install onnxruntime-gpu`; `pip check` then reports the missing `onnxruntime`, and every later `pip install`/upgrade of `birdnet` puts the CPU build back, so redo the swap).
@@ -26,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Teardown after a cancelled run no longer hangs on a message a killed child never finished writing: the parent drains the child-to-parent queues on background threads and joins its queue-reader threads with a bound (#77).
 - A child killed while writing to the shared logging queue no longer keeps the surviving children from exiting: children on the cancellation path release the logging queue as their last act, at the cost of the few records still buffered.
 - The progress display's slot and busy-worker gauges are now read without taking the counter's lock, so a killed process can no longer block the stats interval; a reading may be one count behind.
+- `birdnet.load_perch_v2()` required the `device` argument at runtime although the type stub declared it optional; it now defaults to `"CPU"` as documented.
 - Still open: the consumer's own read of the results queue can block on a message truncated by a killed worker (#83).
 
 ## [1.0.0] - 2026-08-14
@@ -324,7 +327,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release
 
-[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/birdnet-team/birdnet/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/birdnet-team/birdnet/compare/v0.2.16...v1.0.0
 [0.2.16]: https://github.com/birdnet-team/birdnet/compare/v0.2.15...v0.2.16
 [0.2.15]: https://github.com/birdnet-team/birdnet/compare/v0.2.14...v0.2.15

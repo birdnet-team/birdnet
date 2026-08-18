@@ -85,8 +85,6 @@ def load(
   lang: MODEL_LANGUAGES_V3_0 = MODEL_LANGUAGE_EN_US,
 ) -> AcousticModelV3_0: ...
 
-# if new versions are added, add this overload (also on the other places)
-# @overload
 @overload
 def load(
   model_type: Literal["geo"],
