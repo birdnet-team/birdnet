@@ -57,6 +57,35 @@ Because the default is ``spawn``, the standard Python rule for scripts applies
 on every platform (it always did on macOS and Windows): entry-point code must
 be guarded with ``if __name__ == "__main__":``.
 
+TensorFlow startup output
+-------------------------
+
+TensorFlow prints a startup banner from native code — the
+``absl::InitializeLog`` warning and the oneDNN notice — every time it is
+imported. Every worker process imports it, so a single prediction emits dozens
+of those lines. birdnet hides them by running the relevant imports with file
+descriptor 2 redirected, which is the only level at which native output can be
+intercepted: ``logging``, absl's verbosity and ``TF_CPP_MIN_LOG_LEVEL`` all act
+above the descriptor and never see these writes.
+
+If the import raises, the captured text is written to stderr, so a broken
+TensorFlow installation still reports itself. Otherwise it is emitted on the
+``birdnet`` logger at ``DEBUG``, where an application that attaches its own
+handler can record it; the default configuration attaches none.
+
+To see warnings that never raise — a CUDA library that could not be loaded,
+say, which is why a GPU is silently not used — or to diagnose a crash during
+model loading, re-run with ``BIRDNET_TF_VERBOSE=1``.
+
+For a large unattended run, consider setting ``BIRDNET_TF_VERBOSE=1`` from the
+start, so the scheduler's log keeps the record. The banner is emitted once per
+worker process per session and does not grow with the amount of audio, so a
+job over millions of files pays the same handful of lines as a job over one.
+
+Set ``BIRDNET_TF_VERBOSE=1`` to switch the suppression off and get TensorFlow's
+startup output unchanged; any value other than ``0`` or the empty string counts
+as enabled. The other backends are unaffected, being quiet already.
+
 Known limitations
 -----------------
 

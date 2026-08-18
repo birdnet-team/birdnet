@@ -24,13 +24,15 @@ from birdnet.utils.helper import (
   write_source_marker,
 )
 from birdnet.utils.local_data import APP_DIR
+from birdnet.utils.logging_utils import suppress_native_stderr
 
 _MIN_TF_VERSION_PERCH_V2 = (2, 20)
 
 
 def _get_tensorflow_version() -> str:
   try:
-    import tensorflow as tf
+    with suppress_native_stderr():
+      import tensorflow as tf
   except ModuleNotFoundError as e:
     raise RuntimeError(
       "The Perch v2 model requires TensorFlow >= 2.20, but TensorFlow is not installed."
