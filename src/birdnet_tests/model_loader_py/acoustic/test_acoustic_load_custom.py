@@ -27,6 +27,7 @@ def check_validity() -> bool:
 
 
 @pytest.mark.litert
+@pytest.mark.tf  # the pb guard fires before the kwarg check
 def test_v2_4_pb_with_library_raises_error() -> None:
   ensure_litert_or_skip()
 

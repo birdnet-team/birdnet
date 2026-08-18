@@ -139,14 +139,15 @@ jobs:
 
       # The files are identical across cells, so the profile (full vs the TF-free
       # py3.14 set) is the only other component: one copy per cell overran the
-      # 10 GB cache limit.
+      # 10 GB cache limit. Rename the profile when a lane's download set grows: a
+      # primary-key hit is never re-saved.
       - name: Cache downloaded models
         uses: actions/cache@v4
         with:
           path: ${{ env.BIRDNET_APP_DATA }}
-          key: birdnet-models-${{ matrix.python-version == '3.14' && 'notf-litert' || 'full' }}-${{ steps.model-key.outputs.hash }}
+          key: birdnet-models-${{ matrix.python-version == '3.14' && 'notf-all' || 'full' }}-${{ steps.model-key.outputs.hash }}
           restore-keys: |
-            birdnet-models-${{ matrix.python-version == '3.14' && 'notf-litert' || 'full' }}-
+            birdnet-models-${{ matrix.python-version == '3.14' && 'notf-all' || 'full' }}-
 
       - name: Install dependencies
         run: uv pip install --system '.[tests]'
@@ -165,6 +166,12 @@ jobs:
         if: matrix.python-version == '3.13'
         run: |
           python -m tox -e py313
+
+      # Base install without the [tf] extra: TensorFlow-free surface + litert lane.
+      - name: Run TF-free tests py313
+        if: matrix.python-version == '3.13'
+        run: |
+          python -m tox -e py313-notf
 
       - name: Run tests py314
         if: matrix.python-version == '3.14'

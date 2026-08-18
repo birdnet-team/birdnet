@@ -24,6 +24,7 @@ def _create_fake_pb_model_dir(tmp_path) -> object:
   return model_path
 
 
+@pytest.mark.no_tf
 def test_v3_0_custom_pt_type_is_correct(
   tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -102,6 +103,7 @@ def test_v3_0_custom_tf_type_is_correct_fp16(
   assert model.backend_type is AcousticTFBackendFP16V3_0
 
 
+@pytest.mark.no_tf
 def test_v3_0_custom_onnx_type_is_correct_fp32(
   tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -123,6 +125,7 @@ def test_v3_0_custom_onnx_type_is_correct_fp32(
   assert model.backend_type is AcousticOnnxBackendFP32V3_0
 
 
+@pytest.mark.no_tf
 def test_v3_0_custom_onnx_type_is_correct_fp16(
   tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -160,6 +163,7 @@ def test_v3_0_custom_pb_with_library_raises_error(tmp_path) -> None:
     )  # type: ignore[call-arg]
 
 
+@pytest.mark.no_tf
 def test_v3_0_custom_pt_wrong_suffix_raises_error(tmp_path) -> None:
   model_path = tmp_path / "birdnet_v3.bin"
   model_path.write_bytes(b"pt")
@@ -170,6 +174,7 @@ def test_v3_0_custom_pt_wrong_suffix_raises_error(tmp_path) -> None:
     load_custom("acoustic", "3.0", "pt", model_path, species_list)
 
 
+@pytest.mark.no_tf
 def test_v3_0_custom_onnx_wrong_suffix_raises_error(tmp_path) -> None:
   model_path = tmp_path / "birdnet_v3.bin"
   model_path.write_bytes(b"onnx")

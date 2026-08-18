@@ -47,10 +47,10 @@ Acoustic model V3.0 (preview)
 * global selection of more than 11,000 classes (birds and non-birds)
 * available in four backends, selectable via the ``backend`` argument of ``birdnet.load``:
 
-    * ``tf`` - TFLite/LiteRT (CPU only), ``fp32`` and ``fp16``
-    * ``pb`` - ProtoBuf (CPU/GPU), ``fp32``
+    * ``tf`` - TFLite (CPU only), ``fp32`` and ``fp16``; requires ``pip install birdnet[tf]``
+    * ``pb`` - ProtoBuf (CPU/GPU), ``fp32``; requires ``pip install birdnet[tf]``
     * ``pt`` - PyTorch (CPU/GPU), ``fp32``; requires ``pip install birdnet[pt]``
-    * ``onnx`` - ONNX Runtime (CPU/GPU), ``fp32`` and ``fp16``; requires ``pip install birdnet[onnx]``
+    * ``onnx`` - ONNX Runtime (CPU/GPU), ``fp32`` and ``fp16``; part of the base install
 
 * supports both ``predict(..)`` and ``encode(..)`` on all backends
 * multilingual common names in 30 languages
@@ -77,10 +77,10 @@ Geo model (species range model) V3.0
 * aligned with the V3.0 acoustic taxonomy
 * available in four backends via the ``backend`` argument of ``birdnet.load``:
 
-    * ``tf`` - TFLite (CPU only), ``int8``, ``fp16`` and ``fp32``
-    * ``pb`` - ProtoBuf (CPU/GPU), ``fp32``
+    * ``tf`` - TFLite (CPU only), ``int8``, ``fp16`` and ``fp32``; requires ``pip install birdnet[tf]``
+    * ``pb`` - ProtoBuf (CPU/GPU), ``fp32``; requires ``pip install birdnet[tf]``
     * ``pt`` - PyTorch/TorchScript (CPU/GPU), ``fp32``; requires ``pip install birdnet[pt]``
-    * ``onnx`` - ONNX Runtime (CPU/GPU), ``fp16`` and ``fp32``; requires ``pip install birdnet[onnx]``
+    * ``onnx`` - ONNX Runtime (CPU/GPU), ``fp16`` and ``fp32``; part of the base install
 
 The model's ``.tflite`` files contain select TensorFlow ops, so the ``tf`` backend
 requires TensorFlow 2.18 or 2.19 and is not available via ``ai_edge_litert``

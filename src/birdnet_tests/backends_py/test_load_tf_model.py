@@ -38,6 +38,7 @@ def test_load_tf_and_litert_after_each_other_is_not_possible() -> None:
 
 @pytest.mark.fork
 @pytest.mark.litert
+@pytest.mark.tf  # loads the tflite interpreter after litert
 def test_load_litert_and_tf_after_each_other_is_possible() -> None:
   ensure_litert_or_skip()
   # needs fork because it the backend is loaded in the main process

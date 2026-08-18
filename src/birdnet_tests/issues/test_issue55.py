@@ -1,8 +1,8 @@
-"""Issue #55: Python 3.14 support.
+"""Issue #55: the TensorFlow-free surface.
 
-TensorFlow does not yet publish wheels for Python 3.14, so on that interpreter
-birdnet installs *without* TensorFlow. This module documents and pins the
-TensorFlow-free surface:
+TensorFlow is an optional dependency (``birdnet[tf]``) and has no wheels for
+Python 3.14, so a base install runs without it. This module documents and pins
+what works there:
 
 - ``import birdnet`` works without TensorFlow installed.
 - The acoustic 3.0 and geo 3.0 models run via the ``onnx`` and ``pt`` backends.
@@ -14,9 +14,11 @@ TensorFlow-free surface:
   ``pb``, and the Perch model) fails with a clear, actionable ``ValueError``
   instead of a bare ``ModuleNotFoundError``.
 
-The tests only run when TensorFlow is absent (i.e. on Python 3.14); they are
-skipped on 3.11-3.13 where TensorFlow is installed.
+The tests only run when TensorFlow is absent (the py314 and py313-notf lanes);
+they are skipped where TensorFlow is installed.
 """
+
+from pathlib import Path
 
 import pytest
 
@@ -28,13 +30,14 @@ from birdnet.core.backends import (
   tf_installed,
   torch_installed,
 )
+from birdnet_tests.helper import ensure_not_intel_macos_or_skip
 from birdnet_tests.test_files import TEST_FILES_DIR
 
 pytestmark = [
   pytest.mark.no_tf,
   pytest.mark.skipif(
     tf_installed(),
-    reason="TensorFlow-free surface; runs only when TF is absent (Python 3.14).",
+    reason="TensorFlow-free surface; runs only when TensorFlow is not installed.",
   ),
 ]
 
@@ -65,8 +68,19 @@ def test_tf_backends_raise_clear_error_without_tensorflow(
 
 
 def test_perch_raises_clear_error_without_tensorflow() -> None:
+  ensure_not_intel_macos_or_skip()  # rejected there before any TensorFlow check
   with pytest.raises(ValueError, match="TensorFlow"):
     birdnet.load_perch_v2("CPU")
+
+
+@pytest.mark.parametrize("backend", ["tf", "pb"])
+def test_load_custom_tf_backends_raise_clear_error_without_tensorflow(
+  backend: str, tmp_path: Path
+) -> None:
+  species = tmp_path / "species.txt"
+  species.write_text("a\n", encoding="utf-8")
+  with pytest.raises(ValueError, match="TensorFlow"):
+    birdnet.load_custom("acoustic", "2.4", backend, tmp_path, species)
 
 
 @pytest.mark.skipif(not onnxruntime_installed(), reason="onnxruntime not installed")
@@ -98,9 +112,10 @@ def test_acoustic_v3_pt_predicts_without_tensorflow() -> None:
 
 
 # ----------------------------- tf backend on ai-edge-litert -----------------------
-# Each model is loaded by exactly one test: this lane has no serialized
-# `load_model` phase, so two tests downloading the same file concurrently on a
-# cold cache would race in the non-atomic download.
+# Each 2.4 model is loaded by exactly one test: the TensorFlow-free lanes have no
+# serialized `load_model` phase, and the 2.4 zip extraction (unlike the single-file
+# 3.0 downloads and the label writes) is not atomic, so two tests fetching the same
+# model concurrently on a cold cache would race.
 
 _needs_litert = pytest.mark.skipif(
   not litert_installed(), reason="ai-edge-litert not installed"

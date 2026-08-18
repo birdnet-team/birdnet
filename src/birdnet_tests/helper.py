@@ -22,6 +22,7 @@ from birdnet.acoustic.inference.core.prediction.prediction_result import (
 from birdnet.core.backends import (
   litert_installed,
   onnxruntime_installed,
+  tf_installed,
   torch_installed,
 )
 from birdnet.utils.helper import check_is_intel_macos
@@ -282,10 +283,17 @@ def geo_v3_0_litert_not_supported_skip() -> None:
   pytest.skip("Geo model v3.0 TF backend is not supported with ai_edge_litert yet")
 
 
-def ensure_tf_2_19_or_2_18() -> None:
+def _tf_version_or_skip() -> str:
+  if not tf_installed():
+    pytest.skip("TensorFlow is not installed (pip install birdnet[tf])")
   import tensorflow as tf
 
   version: str = tf.__version__
+  return version
+
+
+def ensure_tf_2_19_or_2_18() -> None:
+  version = _tf_version_or_skip()
   if not (version.startswith("2.19") or version.startswith("2.18")):
     pytest.skip("TensorFlow 2.18 or 2.19 is required for this test")
 
@@ -298,9 +306,7 @@ def ensure_tf_2_18_or_skip() -> None:
   'FULLY_CONNECTED' version '12'"). The geo v3.0 TF backend requires 2.18/2.19
   anyway, so there is nothing to verify on such a runtime.
   """
-  import tensorflow as tf
-
-  version: str = tf.__version__
+  version = _tf_version_or_skip()
   version_parts = version.split(".")
   try:
     major_minor = int(version_parts[0]), int(version_parts[1])
@@ -312,9 +318,7 @@ def ensure_tf_2_18_or_skip() -> None:
 
 
 def ensure_tf_2_20_or_skip() -> None:
-  import tensorflow as tf
-
-  version: str = tf.__version__
+  version = _tf_version_or_skip()
   version_parts = version.split(".")
   try:
     major_minor = int(version_parts[0]), int(version_parts[1])
