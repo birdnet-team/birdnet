@@ -46,11 +46,14 @@ golden-digest tests fail until both that and the expected digests are updated.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
-from birdnet.utils.helper import directory_lock, download_file_tqdm
-from birdnet.utils.label_manifest import LabelInput, sha256_file
+from birdnet.utils.helper import directory_lock
+from birdnet.utils.label_manifest import (
+  LabelInput,
+  artifact_is_current,
+  ensure_artifact,
+)
 from birdnet.utils.local_data import APP_DIR
 
 # The geomodel repository versions its taxonomy since v3.0.4 (the unversioned
@@ -66,11 +69,12 @@ _TAXONOMY_V3_DL_SHA256 = (
   "98b27fc4a77c5e321c7bbf96f924fc4b58170de9688e79ebf3ea8263d522580a"
 )
 
-# The file name comes from the URL, so two releases cannot occupy one path. Under
-# the previous generic name a second installed version would judge this release
-# stale by byte size, download its own over the top, and leave every other
-# version reading a taxonomy it never asked for.
-_TAXONOMY_V3_DIR = APP_DIR / "taxonomy-v3"
+# The directory is named after the content, so two releases cannot occupy one
+# path - not even if upstream re-publishes under the same file name. Under the
+# previous generic name a second installed version would judge this release stale
+# by byte size, download its own over the top, and leave every other version
+# reading a taxonomy it never asked for.
+_TAXONOMY_V3_DIR = APP_DIR / "taxonomy-v3" / _TAXONOMY_V3_DL_SHA256[:12]
 _TAXONOMY_V3_PATH = _TAXONOMY_V3_DIR / _TAXONOMY_V3_DL_URL.rsplit("/", 1)[-1]
 _LEGACY_TAXONOMY_V3_PATH = APP_DIR / "taxonomy_v3_0.csv"
 _TAXONOMY_V3_LOCK_DIR = APP_DIR / ".taxonomy_v3_0.lock"
@@ -91,52 +95,15 @@ def get_taxonomy_v3_input() -> LabelInput:
 
 
 def taxonomy_v3_available() -> bool:
-  if not _TAXONOMY_V3_PATH.is_file():
-    return False
-  return _TAXONOMY_V3_PATH.stat().st_size == _TAXONOMY_V3_DL_SIZE
-
-
-def _adopt_legacy_taxonomy() -> bool:
-  """Move a correct taxonomy from the pre-release path instead of downloading it.
-
-  Keeps the upgrade offline for everyone already holding this release. A file
-  that hashes differently is left where it is: it belongs to another version
-  that is still reading it from there.
-  """
-  if _TAXONOMY_V3_PATH.is_file() or not _LEGACY_TAXONOMY_V3_PATH.is_file():
-    return False
-  if _LEGACY_TAXONOMY_V3_PATH.stat().st_size != _TAXONOMY_V3_DL_SIZE:
-    return False
-  if sha256_file(_LEGACY_TAXONOMY_V3_PATH) != _TAXONOMY_V3_DL_SHA256:
-    return False
-  _TAXONOMY_V3_PATH.parent.mkdir(parents=True, exist_ok=True)
-  os.replace(_LEGACY_TAXONOMY_V3_PATH, _TAXONOMY_V3_PATH)
-  return True
+  """By content: a file of the right length from another release is not this one."""
+  return artifact_is_current(get_taxonomy_v3_input())
 
 
 def ensure_taxonomy_v3_available() -> Path:
   with directory_lock(_TAXONOMY_V3_LOCK_DIR, "the shared v3.0 taxonomy setup"):
-    if taxonomy_v3_available():
-      return _TAXONOMY_V3_PATH
-
-    if _adopt_legacy_taxonomy():
-      return _TAXONOMY_V3_PATH
-
-    _TAXONOMY_V3_PATH.parent.mkdir(parents=True, exist_ok=True)
-    download_file_tqdm(
-      _TAXONOMY_V3_DL_URL,
-      _TAXONOMY_V3_PATH,
-      download_size=_TAXONOMY_V3_DL_SIZE,
-      description="Downloading shared v3.0 taxonomy",
+    ensure_artifact(
+      get_taxonomy_v3_input(),
+      "Downloading shared v3.0 taxonomy",
+      legacy_path=_LEGACY_TAXONOMY_V3_PATH,
     )
-    actual = sha256_file(_TAXONOMY_V3_PATH)
-    if actual != _TAXONOMY_V3_DL_SHA256:
-      _TAXONOMY_V3_PATH.unlink(missing_ok=True)
-      raise RuntimeError(
-        f"The shared v3.0 taxonomy downloaded from {_TAXONOMY_V3_DL_URL} does "
-        f"not match its expected checksum ({actual} instead of "
-        f"{_TAXONOMY_V3_DL_SHA256}). The file was discarded; retry, and if this "
-        "persists the published file has changed."
-      )
-
   return _TAXONOMY_V3_PATH

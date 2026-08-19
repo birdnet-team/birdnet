@@ -31,23 +31,21 @@ from birdnet.globals import (
 )
 from birdnet.utils.helper import (
   directory_lock,
-  download_file_tqdm,
   validate_species_list,
   write_text_atomic,
 )
 from birdnet.utils.label_manifest import (
   LabelInput,
+  ensure_artifact,
   get_manifest_path,
   labels_up_to_date,
   record_generation,
-  verify_download,
 )
 from birdnet.utils.local_data import APP_DIR
 from birdnet.utils.taxonomy_v3 import (
   ensure_taxonomy_v3_available,
   get_taxonomy_v3_input,
   get_taxonomy_v3_path,
-  taxonomy_v3_available,
 )
 
 _LABELS_DL_URL = "https://zenodo.org/records/20703646/files/BirdNET+_V3.0-preview3.1_Global_11K_Labels.csv"
@@ -91,7 +89,10 @@ _LANGUAGE_TO_COLUMN: dict[str, str] = {
 }
 
 _ACOUSTIC_V3_0_BASE_DIR = APP_DIR / "acoustic-models" / "v3.0"
-_LABELS_RAW_PATH = _ACOUSTIC_V3_0_BASE_DIR / "labels_raw.csv"
+# Named after the content, so an install of another version cannot overwrite
+# this release's copy with its own and leave both re-downloading forever.
+_LABELS_RAW_PATH = _ACOUSTIC_V3_0_BASE_DIR / f"labels_raw-{_LABELS_DL_SHA256[:12]}.csv"
+_LEGACY_LABELS_RAW_PATH = _ACOUSTIC_V3_0_BASE_DIR / "labels_raw.csv"
 _SETUP_LOCK_DIR = _ACOUSTIC_V3_0_BASE_DIR / ".labels_setup.lock"
 
 # Identifies this generator in the manifest, so a directory written by the geo
@@ -135,27 +136,33 @@ class AcousticDownloaderBaseV3_0:
 
   @classmethod
   def ensure_labels_available(cls) -> None:
+    # Checked before the lock: a current cache then needs no write at all, which
+    # keeps read-only and pre-populated app data directories usable.
+    if cls._check_labels_available():
+      return
+
     with directory_lock(_SETUP_LOCK_DIR, "acoustic model v3.0 label setup"):
       if cls._check_labels_available():
         return
 
-      labels_stale = not _LABELS_RAW_PATH.is_file() or (
-        _LABELS_RAW_PATH.stat().st_size != _LABELS_DL_SIZE
+      ensure_artifact(
+        cls._labels_input(),
+        "Downloading acoustic model v3.0 labels",
+        legacy_path=_LEGACY_LABELS_RAW_PATH,
       )
-      if labels_stale:
-        _LABELS_RAW_PATH.parent.mkdir(parents=True, exist_ok=True)
-        download_file_tqdm(
-          _LABELS_DL_URL,
-          _LABELS_RAW_PATH,
-          download_size=_LABELS_DL_SIZE,
-          description="Downloading acoustic model v3.0 labels",
-        )
-        verify_download(_LABELS_RAW_PATH, cls._labels_input())
-
-      if not taxonomy_v3_available():
-        ensure_taxonomy_v3_available()
+      ensure_taxonomy_v3_available()
 
       cls._generate_lang_files()
+
+      # Both inputs were just verified by digest, so this can only fail if
+      # generation itself is wrong. Raising beats silently regenerating on every
+      # later load while serving names nobody checked.
+      if not cls._check_labels_available():
+        raise RuntimeError(
+          "The acoustic model v3.0 label files could not be generated from verified "
+          f"inputs. Remove {cls._get_lang_dir()} and try again; if this "
+          "persists it is a bug in birdnet."
+        )
 
   @classmethod
   def _generate_lang_files(cls) -> None:

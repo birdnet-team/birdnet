@@ -24,23 +24,21 @@ from birdnet.globals import (
 )
 from birdnet.utils.helper import (
   directory_lock,
-  download_file_tqdm,
   validate_species_list,
   write_text_atomic,
 )
 from birdnet.utils.label_manifest import (
   LabelInput,
+  ensure_artifact,
   get_manifest_path,
   labels_up_to_date,
   record_generation,
-  verify_download,
 )
 from birdnet.utils.local_data import APP_DIR
 from birdnet.utils.taxonomy_v3 import (
   ensure_taxonomy_v3_available,
   get_taxonomy_v3_input,
   get_taxonomy_v3_path,
-  taxonomy_v3_available,
 )
 
 _LABELS_DL_URL = "https://github.com/birdnet-team/geomodel/releases/download/v3.0.4/BirdNET+_Geomodel_V3.0.4_Global_14K_Labels.txt"
@@ -88,7 +86,10 @@ _LANGUAGE_TO_COLUMN: dict[str, str] = {
 }
 
 _GEO_V3_0_BASE_DIR = APP_DIR / "geo-models" / "v3.0"
-_LABELS_RAW_PATH = _GEO_V3_0_BASE_DIR / "labels_raw.txt"
+# Named after the content, so an install of another version cannot overwrite
+# this release's copy with its own and leave both re-downloading forever.
+_LABELS_RAW_PATH = _GEO_V3_0_BASE_DIR / f"labels_raw-{_LABELS_DL_SHA256[:12]}.txt"
+_LEGACY_LABELS_RAW_PATH = _GEO_V3_0_BASE_DIR / "labels_raw.txt"
 _SETUP_LOCK_DIR = APP_DIR / ".geo_model_v3_0_setup.lock"
 
 
@@ -124,32 +125,33 @@ class GeoDownloaderBaseV3_0:
 
   @classmethod
   def ensure_labels_available(cls) -> None:
+    # Checked before the lock: a current cache then needs no write at all, which
+    # keeps read-only and pre-populated app data directories usable.
+    if cls._check_labels_available():
+      return
+
     with directory_lock(_SETUP_LOCK_DIR, "geo model v3.0 shared asset setup"):
       if cls._check_labels_available():
         return
 
-      # We only get here when the labels are missing or stale. Ensure the raw
-      # labels and taxonomy are present and current, then regenerate the
-      # per-language files unconditionally: they are either missing or left over
-      # from an older labels version (see _check_labels_available). Regeneration
-      # is idempotent, so this is safe even if only one of them was outdated.
-      labels_stale = not _LABELS_RAW_PATH.is_file() or (
-        _LABELS_RAW_PATH.stat().st_size != _LABELS_DL_SIZE
+      ensure_artifact(
+        cls._labels_input(),
+        "Downloading geo model v3.0 labels",
+        legacy_path=_LEGACY_LABELS_RAW_PATH,
       )
-      if labels_stale:
-        _LABELS_RAW_PATH.parent.mkdir(parents=True, exist_ok=True)
-        download_file_tqdm(
-          _LABELS_DL_URL,
-          _LABELS_RAW_PATH,
-          download_size=_LABELS_DL_SIZE,
-          description="Downloading geo model v3.0 labels",
-        )
-        verify_download(_LABELS_RAW_PATH, cls._labels_input())
-
-      if not taxonomy_v3_available():
-        ensure_taxonomy_v3_available()
+      ensure_taxonomy_v3_available()
 
       cls._generate_lang_files()
+
+      # Both inputs were just verified by digest, so this can only fail if
+      # generation itself is wrong. Raising beats silently regenerating on every
+      # later load while serving names nobody checked.
+      if not cls._check_labels_available():
+        raise RuntimeError(
+          "The geo model v3.0 label files could not be generated from verified "
+          f"inputs. Remove {cls._get_lang_dir()} and try again; if this "
+          "persists it is a bug in birdnet."
+        )
 
   @classmethod
   def _generate_lang_files(cls) -> None:
@@ -165,9 +167,13 @@ class GeoDownloaderBaseV3_0:
     taxonomy_raw = get_taxonomy_v3_path().read_bytes()
 
     species_order: list[tuple[str, str, str]] = []
-    for line in labels_raw.decode("utf-8").splitlines():
-      parts = line.split("\t")
-      species_order.append((parts[0], parts[1], parts[2]))
+    # newline=None reproduces exactly what iterating the file in text mode did.
+    # str.splitlines() would additionally break on U+2028 and friends, silently
+    # changing the species count if one ever appeared in a label.
+    with io.StringIO(labels_raw.decode("utf-8"), newline=None) as f:
+      for line in f:
+        parts = line.rstrip("\n").split("\t")
+        species_order.append((parts[0], parts[1], parts[2]))
 
     # The labels join to the taxonomy on the species code, which is the stable
     # key - scientific names change between taxonomy versions while codes do not.

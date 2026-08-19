@@ -5,24 +5,28 @@ import pytest
 
 import birdnet.acoustic.models.v3_0.model as acoustic_model
 import birdnet.geo.models.v3_0.model as geo_model
+import birdnet.utils.label_manifest as label_manifest
 import birdnet.utils.taxonomy_v3 as taxonomy_v3
 from birdnet.utils.label_manifest import sha256_bytes
 
 
-def test_taxonomy_v3_available_checks_expected_size(
+def test_taxonomy_v3_available_checks_the_content(
   tmp_path: Path,
   monkeypatch: pytest.MonkeyPatch,
 ) -> None:
   taxonomy_path = tmp_path / "taxonomy.csv"
-  lock_dir = tmp_path / ".taxonomy.lock"
 
   monkeypatch.setattr(taxonomy_v3, "_TAXONOMY_V3_PATH", taxonomy_path)
-  monkeypatch.setattr(taxonomy_v3, "_TAXONOMY_V3_LOCK_DIR", lock_dir)
   monkeypatch.setattr(taxonomy_v3, "_TAXONOMY_V3_DL_SIZE", 3)
+  monkeypatch.setattr(taxonomy_v3, "_TAXONOMY_V3_DL_SHA256", sha256_bytes(b"abc"))
 
   assert not taxonomy_v3.taxonomy_v3_available()
 
   taxonomy_path.write_bytes(b"ab")
+  assert not taxonomy_v3.taxonomy_v3_available()
+
+  # Right length, another release's bytes: this is what size alone let through.
+  taxonomy_path.write_bytes(b"abd")
   assert not taxonomy_v3.taxonomy_v3_available()
 
   taxonomy_path.write_bytes(b"abc")
@@ -56,7 +60,7 @@ def test_ensure_taxonomy_v3_available_downloads_missing_file(
     file_path.write_bytes(b"data")
     return 4
 
-  monkeypatch.setattr(taxonomy_v3, "download_file_tqdm", fake_download)
+  monkeypatch.setattr(label_manifest, "download_file_tqdm", fake_download)
 
   result = taxonomy_v3.ensure_taxonomy_v3_available()
 

@@ -46,9 +46,7 @@ def test_perch_v2_on_intel_macos_raises_error(
 ) -> None:
   monkeypatch.setattr(model_loader, "check_is_intel_macos", lambda: True)
 
-  with pytest.raises(
-    OSError, match=r"Perch v2 model is not supported on Intel macOS"
-  ):
+  with pytest.raises(OSError, match=r"Perch v2 model is not supported on Intel macOS"):
     load_perch_v2("CPU")
 
 

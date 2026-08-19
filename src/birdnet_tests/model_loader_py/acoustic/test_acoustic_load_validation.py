@@ -169,9 +169,7 @@ def test_custom_pb_missing_protobuf_files_raises_error(tmp_path: Path) -> None:
   species.write_text("a\n", encoding="utf-8")
   empty = tmp_path / "empty"
   empty.mkdir()
-  with pytest.raises(
-    ValueError, match=r"does not contain valid protobuf model files!"
-  ):
+  with pytest.raises(ValueError, match=r"does not contain valid protobuf model files!"):
     load_custom("acoustic", "2.4", "pb", empty, species)
 
 
@@ -291,6 +289,4 @@ def test_custom_v2_4_pb_non_bool_is_raven_raises_error(tmp_path: Path) -> None:
     ValueError,
     match=re.escape("Parameter 'is_raven' must be of type bool"),
   ):
-    load_custom(
-      "acoustic", "2.4", "pb", _pb_dir(tmp_path), species, is_raven="yes"
-    )
+    load_custom("acoustic", "2.4", "pb", _pb_dir(tmp_path), species, is_raven="yes")

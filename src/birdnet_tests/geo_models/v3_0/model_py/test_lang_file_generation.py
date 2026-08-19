@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 import birdnet.geo.models.v3_0.model as geo_model
+import birdnet.utils.label_manifest as label_manifest
 from birdnet.geo.models.v3_0.model import GeoDownloaderBaseV3_0
 from birdnet.globals import VALID_MODEL_LANGUAGES_V3_0
 from birdnet.utils.label_manifest import LabelInput, sha256_bytes
@@ -43,7 +44,10 @@ def downloader(
     geo_model, "_LABELS_DL_SHA256", sha256_bytes(raw_path.read_bytes())
   )
   monkeypatch.setattr(geo_model, "get_taxonomy_v3_path", lambda: taxonomy_path)
-  monkeypatch.setattr(geo_model, "taxonomy_v3_available", lambda: True)
+  monkeypatch.setattr(geo_model, "_SETUP_LOCK_DIR", tmp_path / ".lock")
+  monkeypatch.setattr(geo_model, "_LEGACY_LABELS_RAW_PATH", tmp_path / "legacy.txt")
+  # The taxonomy is written by this fixture; nothing may reach for the network.
+  monkeypatch.setattr(geo_model, "ensure_taxonomy_v3_available", lambda: taxonomy_path)
   # The digest is pinned once, the way the real constant is: verification then
   # compares it against whatever is on that path now.
   taxonomy_input = LabelInput(
@@ -164,6 +168,54 @@ def test_check_labels_available_detects_a_swapped_taxonomy(
   assert not downloader._check_labels_available()
 
 
+def test_a_swapped_taxonomy_is_repaired_rather_than_regenerated_forever(
+  downloader: type[GeoDownloaderBaseV3_0],
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  """Detecting the swap is not enough.
+
+  If the wrong file is left in place, every later load regenerates from it and
+  serves the other release's names without ever reporting anything.
+  """
+  downloader._generate_lang_files()
+  good = geo_model.get_taxonomy_v3_path().read_bytes()
+  geo_model.get_taxonomy_v3_path().write_bytes(
+    good.replace(b"Rotkehlchen", b"Rotkehlchan")
+  )
+  assert not downloader._check_labels_available()
+
+  restored: list[str] = []
+
+  def _restore_taxonomy() -> Path:
+    restored.append("called")
+    geo_model.get_taxonomy_v3_path().write_bytes(good)
+    return geo_model.get_taxonomy_v3_path()
+
+  monkeypatch.setattr(geo_model, "ensure_taxonomy_v3_available", _restore_taxonomy)
+
+  downloader.ensure_labels_available()
+
+  assert restored, "the mismatching input must be fetched again, not reused"
+  assert downloader._check_labels_available(), "the cache must end up current"
+  assert _read_lines(downloader.get_lang_file("de"))[0] == "Scivia one_Rotkehlchen"
+
+
+def test_a_current_cache_is_served_without_writing_anything(
+  downloader: type[GeoDownloaderBaseV3_0],
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  """Pre-populated caches ship read-only in frozen and GUI applications, so a
+  load that needs nothing must not take the setup lock."""
+  downloader._generate_lang_files()
+
+  def _fail(*args: object, **kwargs: object) -> None:
+    raise AssertionError("a current cache must not acquire the setup lock")
+
+  monkeypatch.setattr(geo_model, "directory_lock", _fail)
+
+  downloader.ensure_labels_available()
+
+
 def test_check_labels_available_detects_stale_lang_file(
   downloader: type[GeoDownloaderBaseV3_0],
 ) -> None:
@@ -198,7 +250,7 @@ def test_ensure_labels_available_returns_early_when_present(
     raise AssertionError("download must not be called when labels are present")
 
   lock_dir = geo_model._LABELS_RAW_PATH.parent / ".lock"
-  monkeypatch.setattr(geo_model, "download_file_tqdm", _fail_download)
+  monkeypatch.setattr(label_manifest, "download_file_tqdm", _fail_download)
   monkeypatch.setattr(geo_model, "_SETUP_LOCK_DIR", lock_dir)
 
   downloader.ensure_labels_available()  # must not raise / must not download
@@ -211,7 +263,6 @@ def test_ensure_labels_available_downloads_and_generates_when_missing(
   raw_path = tmp_path / "labels_raw.txt"  # deliberately absent -> "stale"
   taxonomy_path = tmp_path / "taxonomy.csv"
   lang_dir = tmp_path / "labels"
-  state = {"taxonomy_available": False}
   download_calls: list[Path] = []
 
   monkeypatch.setattr(geo_model, "_LABELS_RAW_PATH", raw_path)
@@ -221,9 +272,6 @@ def test_ensure_labels_available_downloads_and_generates_when_missing(
   )
   monkeypatch.setattr(geo_model, "_SETUP_LOCK_DIR", tmp_path / ".lock")
   monkeypatch.setattr(geo_model, "get_taxonomy_v3_path", lambda: taxonomy_path)
-  monkeypatch.setattr(
-    geo_model, "taxonomy_v3_available", lambda: state["taxonomy_available"]
-  )
   monkeypatch.setattr(
     geo_model,
     "get_taxonomy_v3_input",
@@ -246,10 +294,9 @@ def test_ensure_labels_available_downloads_and_generates_when_missing(
     # Bytes, not text: write_text would translate newlines on Windows and the
     # on-disk size would then disagree with the size declared above.
     taxonomy_path.write_bytes(TAXONOMY_CSV.encode("utf-8"))
-    state["taxonomy_available"] = True
     return taxonomy_path
 
-  monkeypatch.setattr(geo_model, "download_file_tqdm", fake_download)
+  monkeypatch.setattr(label_manifest, "download_file_tqdm", fake_download)
   monkeypatch.setattr(geo_model, "ensure_taxonomy_v3_available", fake_ensure_taxonomy)
 
   class _Downloader(GeoDownloaderBaseV3_0):

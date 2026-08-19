@@ -1,22 +1,15 @@
 """Records what a generated label directory was actually built from.
 
 The V3.0 label files are generated locally from two downloads: the model's own
-label file and the taxonomy shared by the acoustic and geo models. Both are
-cached under generic on-disk names, so the question "are these generated files
-current?" has to be answered from something written beside them.
+label file and the taxonomy shared by the acoustic and geo models. Deciding
+whether they are current from the *constants the running version holds* is not
+enough - it says which release was meant to be read, never which one was. Two
+installed versions sharing one app data directory is enough to make those differ.
 
-The marker this replaces recorded the taxonomy *URL the running version intended
-to download* - a declaration. It could not notice that the bytes on that generic
-path had meanwhile been replaced by a different release, which is exactly what
-happens when two installed versions share one app data directory: the older one
-judges the newer taxonomy stale by byte size, downloads its own over the same
-path, regenerates one label directory from it, and leaves the marker of the
-newer one untouched. Every other directory then looks current and is not.
-
-The manifest instead records *observations*: the digest of the bytes that were
-really read, and the digest of every file that was really written. Verification
-compares those against the running version's constants and against what is on
-disk now, so a swapped input or an edited output is caught whatever produced it.
+So a manifest records observations: the digest of the bytes actually read, and
+the digest of every file actually written. Verification compares both against
+the running version's constants and against what is on disk now, so a swapped
+input or an edited output is caught whatever produced it.
 
 Hashing on every load would be wasteful, so each entry also carries `(size,
 mtime_ns)`. Matching stat means matching content in practice, and only a stat
@@ -28,11 +21,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+from contextlib import suppress
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-from birdnet.utils.helper import write_text_atomic
+from birdnet.utils.helper import download_file_tqdm, write_text_atomic
 from birdnet.utils.logging_utils import get_logger_for_package
 
 MANIFEST_NAME = ".birdnet_labels.json"
@@ -90,6 +85,54 @@ def verify_download(path: Path, expected: LabelInput) -> None:
     f"checksum ({actual} instead of {expected.sha256}). It was discarded; "
     "retry, and if this persists the published file has changed."
   )
+
+
+def artifact_is_current(expected: LabelInput) -> bool:
+  """Whether the file on disk is the artifact these constants describe.
+
+  By content, not by byte size: two releases can share a length, and deciding
+  this by size is what let one version's taxonomy stand in for another's.
+  """
+  if not expected.path.is_file():
+    return False
+  if expected.path.stat().st_size != expected.size:
+    return False
+  return sha256_file(expected.path) == expected.sha256
+
+
+def ensure_artifact(
+  expected: LabelInput, description: str, legacy_path: Path | None = None
+) -> None:
+  """Put the artifact these constants describe on disk, downloading if needed.
+
+  A file left at `legacy_path` by an earlier layout is adopted rather than
+  fetched again, so upgrading stays offline for anyone already holding it. One
+  that hashes differently is left alone: it belongs to another installed version
+  still reading it from there.
+  """
+  if artifact_is_current(expected):
+    return
+
+  expected.path.parent.mkdir(parents=True, exist_ok=True)
+  if (
+    legacy_path is not None
+    and legacy_path.is_file()
+    and legacy_path.stat().st_size == expected.size
+    and sha256_file(legacy_path) == expected.sha256
+  ):
+    with suppress(OSError):
+      # Windows refuses this while another process has the file open; falling
+      # through to the download is correct, just slower.
+      os.replace(legacy_path, expected.path)
+      return
+
+  download_file_tqdm(
+    expected.url,
+    expected.path,
+    download_size=expected.size,
+    description=description,
+  )
+  verify_download(expected.path, expected)
 
 
 def _stat_of(path: Path) -> dict[str, int]:

@@ -30,7 +30,8 @@ def test_non_dict_raises_error() -> None:
     TypeError, match=r"custom confidence thresholds must be a dictionary"
   ):
     PredictionConfig.validate_custom_confidence_thresholds(
-      [("species_a", 0.5)], MODEL_SPECIES  # type: ignore
+      [("species_a", 0.5)],
+      MODEL_SPECIES,  # type: ignore
     )
 
 
