@@ -33,7 +33,10 @@ from birdnet.globals import (
   MODEL_BACKEND_TF,
   MODEL_PRECISIONS,
 )
-from birdnet.utils.logging_utils import get_logger_for_package
+from birdnet.utils.logging_utils import (
+  get_logger_for_package,
+  suppress_native_stderr,
+)
 
 if TYPE_CHECKING:
   import onnxruntime as ort
@@ -797,11 +800,11 @@ def _detect_tflite_custom_classifier(
 
 def import_tf() -> None:
   disable_tf_logging()
-  import tensorflow  # noqa: F401
-
-  # The "WARNING: All log messages before absl::InitializeLog() is called are
-  # written to STDERR" line (and the device-creation I-lines that follow it)
-  # cannot be suppressed from Python.
+  # The absl banner is written by native code to fd 2 and is out of reach of
+  # `disable_tf_logging`; only the descriptor redirect silences it. Lines that
+  # TensorFlow emits later, at device creation, fall outside this block.
+  with suppress_native_stderr():
+    import tensorflow  # noqa: F401
 
 
 def set_cpu_device_tf() -> str:
@@ -929,7 +932,10 @@ def load_lib_tf_model(
   logging.getLogger("tensorflow").setLevel(logging.ERROR)
   # NOTE: import in this way is not possible:
   # `import tensorflow.lite.python.interpreter as tflite`
-  from tensorflow.lite.python import interpreter as tflite
+  # This is where the tf backend first pulls TensorFlow in, so it is the import
+  # that emits the native startup banner.
+  with suppress_native_stderr():
+    from tensorflow.lite.python import interpreter as tflite
 
   start = time.perf_counter()
 

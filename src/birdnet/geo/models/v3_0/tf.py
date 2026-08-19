@@ -23,6 +23,7 @@ from birdnet.utils.helper import (
   get_species_from_file,
 )
 from birdnet.utils.local_data import get_lang_dir, get_model_path
+from birdnet.utils.logging_utils import suppress_native_stderr
 
 _SUPPORTED_TF_VERSIONS = ("2.18", "2.19")
 _YEAR_ROUND_WEEK_INPUTS = tuple(float(week) for week in range(1, 49))
@@ -43,7 +44,8 @@ def check_tf_runtime_compatibility_for_v3_0(library: LIBRARY_TYPES) -> None:
 
 
 def _check_tf_version_for_v3_0() -> None:
-  import tensorflow as tf
+  with suppress_native_stderr():
+    import tensorflow as tf
 
   version: str = tf.__version__
   if not any(version.startswith(v) for v in _SUPPORTED_TF_VERSIONS):
