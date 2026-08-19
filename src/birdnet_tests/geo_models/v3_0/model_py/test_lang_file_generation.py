@@ -10,11 +10,13 @@ from pathlib import Path
 import pytest
 
 import birdnet.geo.models.v3_0.model as geo_model
-import birdnet.utils.taxonomy_v3 as taxonomy_v3
 from birdnet.geo.models.v3_0.model import GeoDownloaderBaseV3_0
 from birdnet.globals import VALID_MODEL_LANGUAGES_V3_0
+from birdnet.utils.label_manifest import LabelInput, sha256_bytes
 
-RAW_LABELS = "code1\tScivia one\tRobin\ncode2\tScivia two\tSparrow\ncode9\tScivia nine\tEagle\n"  # noqa: E501
+RAW_LABELS = (
+  "code1\tScivia one\tRobin\ncode2\tScivia two\tSparrow\ncode9\tScivia nine\tEagle\n"  # noqa: E501
+)
 
 # Taxonomy has a localized German name for code1 only; code2's is blank and code9
 # is absent entirely - both must fall back to the English name from the raw labels.
@@ -37,8 +39,20 @@ def downloader(
 
   monkeypatch.setattr(geo_model, "_LABELS_RAW_PATH", raw_path)
   monkeypatch.setattr(geo_model, "_LABELS_DL_SIZE", raw_path.stat().st_size)
+  monkeypatch.setattr(
+    geo_model, "_LABELS_DL_SHA256", sha256_bytes(raw_path.read_bytes())
+  )
   monkeypatch.setattr(geo_model, "get_taxonomy_v3_path", lambda: taxonomy_path)
   monkeypatch.setattr(geo_model, "taxonomy_v3_available", lambda: True)
+  # The digest is pinned once, the way the real constant is: verification then
+  # compares it against whatever is on that path now.
+  taxonomy_input = LabelInput(
+    path=taxonomy_path,
+    url="https://example.test/taxonomy.csv",
+    size=taxonomy_path.stat().st_size,
+    sha256=sha256_bytes(taxonomy_path.read_bytes()),
+  )
+  monkeypatch.setattr(geo_model, "get_taxonomy_v3_input", lambda: taxonomy_input)
 
   class _Downloader(GeoDownloaderBaseV3_0):
     @classmethod
@@ -130,20 +144,22 @@ def test_check_labels_available_true_when_consistent(
   assert downloader._check_labels_available()
 
 
-def test_check_labels_available_detects_a_changed_taxonomy(
+def test_check_labels_available_detects_a_swapped_taxonomy(
   downloader: type[GeoDownloaderBaseV3_0],
-  monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-  """A taxonomy-only bump leaves the lang files intact but their names outdated.
+  """The taxonomy is shared, so another installed version can replace it.
 
-  The taxonomy is shared between the v3.0 models, so another model can already
-  have fetched the new one - the file is then "available" while these lang files
-  still hold the names built from the previous release.
+  It keeps the same path and, in the case that caused this, the same byte size -
+  so only the content itself distinguishes the two releases.
   """
   downloader._generate_lang_files()
   assert downloader._check_labels_available()
 
-  monkeypatch.setattr(taxonomy_v3, "_TAXONOMY_V3_DL_URL", "https://example.test/v9.csv")
+  path = geo_model.get_taxonomy_v3_path()
+  size_before = path.stat().st_size
+  swapped = path.read_bytes().replace(b"Rotkehlchen", b"Rotkehlchan")
+  path.write_bytes(swapped)
+  assert path.stat().st_size == size_before, "the swap must not change the size"
 
   assert not downloader._check_labels_available()
 
@@ -154,7 +170,7 @@ def test_check_labels_available_detects_stale_lang_file(
   downloader._generate_lang_files()
   assert downloader._check_labels_available()
 
-  # Simulate a lang file left over from an older labels version: wrong line count.
+  # Simulate a lang file left over from an older labels version.
   stale = downloader.get_lang_file("de")
   stale.write_text("only_one_line\n", encoding="utf-8")
 
@@ -179,12 +195,6 @@ def test_write_text_atomic_leaves_no_temp_files(tmp_path: Path) -> None:
   assert target.read_text(encoding="utf-8") == "hello world"
   # the atomic write must not leave behind any *.tmp scratch files
   assert list(tmp_path.glob("*.tmp")) == []
-
-
-def test_count_lines(tmp_path: Path) -> None:
-  path = tmp_path / "f.txt"
-  path.write_text("a\nb\nc\n", encoding="utf-8")
-  assert geo_model._count_lines(path) == 3
 
 
 def test_ensure_labels_available_returns_early_when_present(
@@ -215,10 +225,23 @@ def test_ensure_labels_available_downloads_and_generates_when_missing(
 
   monkeypatch.setattr(geo_model, "_LABELS_RAW_PATH", raw_path)
   monkeypatch.setattr(geo_model, "_LABELS_DL_SIZE", len(RAW_LABELS.encode("utf-8")))
+  monkeypatch.setattr(
+    geo_model, "_LABELS_DL_SHA256", sha256_bytes(RAW_LABELS.encode("utf-8"))
+  )
   monkeypatch.setattr(geo_model, "_SETUP_LOCK_DIR", tmp_path / ".lock")
   monkeypatch.setattr(geo_model, "get_taxonomy_v3_path", lambda: taxonomy_path)
   monkeypatch.setattr(
     geo_model, "taxonomy_v3_available", lambda: state["taxonomy_available"]
+  )
+  monkeypatch.setattr(
+    geo_model,
+    "get_taxonomy_v3_input",
+    lambda: LabelInput(
+      path=taxonomy_path,
+      url="https://example.test/taxonomy.csv",
+      size=len(TAXONOMY_CSV.encode("utf-8")),
+      sha256=sha256_bytes(TAXONOMY_CSV.encode("utf-8")),
+    ),
   )
 
   def fake_download(url: str, file_path: Path, **kwargs: object) -> int:
@@ -229,7 +252,9 @@ def test_ensure_labels_available_downloads_and_generates_when_missing(
     return len(RAW_LABELS.encode("utf-8"))
 
   def fake_ensure_taxonomy() -> Path:
-    taxonomy_path.write_text(TAXONOMY_CSV, encoding="utf-8")
+    # Bytes, not text: write_text would translate newlines on Windows and the
+    # on-disk size would then disagree with the size declared above.
+    taxonomy_path.write_bytes(TAXONOMY_CSV.encode("utf-8"))
     state["taxonomy_available"] = True
     return taxonomy_path
 

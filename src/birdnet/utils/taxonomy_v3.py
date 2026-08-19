@@ -24,30 +24,36 @@ The two models join to it on **different keys**, deliberately:
 The two live in separate files, so a change to one is worth checking against the
 other.
 
-Every cached artifact has a generic on-disk name, so staleness is inferred:
+Staleness is decided from what a directory records about itself, not from what
+the running version expects to find. Each generated label directory carries a
+``.birdnet_labels.json`` manifest holding the digests of the inputs that were
+actually read and of every file that was written; see
+``birdnet/utils/label_manifest.py`` for why digests and not names.
 
-- the taxonomy CSV and each raw label file: exact byte size vs. the constants
-  here and in the model modules;
-- the generated ``<lang>.txt`` files: one line per raw label line, plus the
-  ``.birdnet_taxonomy`` marker written beside them. The marker is what catches a
-  taxonomy-only bump - the taxonomy being shared means the first model to
-  download a new one makes it "available" for all the others, whose label files
-  would otherwise look current while still holding the previous release's names.
+The taxonomy is cached under the file name from its URL rather than a generic
+one, so two releases cannot occupy the same path. That matters because the
+taxonomy is shared: under a generic name, a second installed version judges this
+release stale by byte size, downloads its own over the top, and leaves every
+other version reading a taxonomy it never asked for.
 
-Bumping the taxonomy is therefore: update the URL and size below, then check that
-every column in both models' ``_LANGUAGE_TO_COLUMN`` still exists in the new file.
-A missing column does not raise - it yields a complete file of English names,
-which is how Estonian outlived the column being dropped.
+Bumping the taxonomy is therefore: update the URL, size and SHA-256 below, then
+check that every column in both models' ``_LANGUAGE_TO_COLUMN`` still exists in
+the new file. A missing column does not raise - it yields a complete file of
+English names, which is how Estonian outlived the column being dropped. Changing
+either model's generation logic means bumping its ``_GENERATION_VERSION``; the
+golden-digest tests fail until both that and the expected digests are updated.
 """
 
 from __future__ import annotations
 
+import os
 import time
 from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from pathlib import Path
 
 from birdnet.utils.helper import download_file_tqdm
+from birdnet.utils.label_manifest import LabelInput, sha256_file
 from birdnet.utils.local_data import APP_DIR
 
 # The geomodel repository versions its taxonomy since v3.0.4 (the unversioned
@@ -59,19 +65,32 @@ from birdnet.utils.local_data import APP_DIR
 # the old one disagreed.
 _TAXONOMY_V3_DL_URL = "https://github.com/birdnet-team/geomodel/raw/refs/tags/v3.0.4/taxonomy_v0.2-Jun2026.csv"
 _TAXONOMY_V3_DL_SIZE = 11078402
-_TAXONOMY_V3_PATH = APP_DIR / "taxonomy_v3_0.csv"
+_TAXONOMY_V3_DL_SHA256 = (
+  "98b27fc4a77c5e321c7bbf96f924fc4b58170de9688e79ebf3ea8263d522580a"
+)
+
+# The file name comes from the URL, so two releases cannot occupy one path. Under
+# the previous generic name a second installed version would judge this release
+# stale by byte size, download its own over the top, and leave every other
+# version reading a taxonomy it never asked for.
+_TAXONOMY_V3_DIR = APP_DIR / "taxonomy-v3"
+_TAXONOMY_V3_PATH = _TAXONOMY_V3_DIR / _TAXONOMY_V3_DL_URL.rsplit("/", 1)[-1]
+_LEGACY_TAXONOMY_V3_PATH = APP_DIR / "taxonomy_v3_0.csv"
 _TAXONOMY_V3_LOCK_DIR = APP_DIR / ".taxonomy_v3_0.lock"
-# Written into a generated label directory to record which taxonomy the localized
-# names came from. The taxonomy is shared between the v3.0 models and its on-disk
-# name is generic, so without this a label directory generated from an older
-# taxonomy is indistinguishable from a current one: whichever model downloads the
-# new taxonomy first makes it "available" for all the others, and they then keep
-# serving names generated from the previous one.
-_TAXONOMY_MARKER_NAME = ".birdnet_taxonomy"
 
 
 def get_taxonomy_v3_path() -> Path:
   return _TAXONOMY_V3_PATH
+
+
+def get_taxonomy_v3_input() -> LabelInput:
+  """The taxonomy as an input a generated label directory can record."""
+  return LabelInput(
+    path=_TAXONOMY_V3_PATH,
+    url=_TAXONOMY_V3_DL_URL,
+    size=_TAXONOMY_V3_DL_SIZE,
+    sha256=_TAXONOMY_V3_DL_SHA256,
+  )
 
 
 def taxonomy_v3_available() -> bool:
@@ -80,16 +99,22 @@ def taxonomy_v3_available() -> bool:
   return _TAXONOMY_V3_PATH.stat().st_size == _TAXONOMY_V3_DL_SIZE
 
 
-def taxonomy_v3_marker_matches(lang_dir: Path) -> bool:
-  """Whether `lang_dir` was generated from the taxonomy that is current now."""
-  marker = lang_dir / _TAXONOMY_MARKER_NAME
-  if not marker.is_file():
+def _adopt_legacy_taxonomy() -> bool:
+  """Move a correct taxonomy from the pre-release path instead of downloading it.
+
+  Keeps the upgrade offline for everyone already holding this release. A file
+  that hashes differently is left where it is: it belongs to another version
+  that is still reading it from there.
+  """
+  if _TAXONOMY_V3_PATH.is_file() or not _LEGACY_TAXONOMY_V3_PATH.is_file():
     return False
-  return marker.read_text(encoding="utf-8").strip() == _TAXONOMY_V3_DL_URL
-
-
-def write_taxonomy_v3_marker(lang_dir: Path) -> None:
-  (lang_dir / _TAXONOMY_MARKER_NAME).write_text(_TAXONOMY_V3_DL_URL, encoding="utf-8")
+  if _LEGACY_TAXONOMY_V3_PATH.stat().st_size != _TAXONOMY_V3_DL_SIZE:
+    return False
+  if sha256_file(_LEGACY_TAXONOMY_V3_PATH) != _TAXONOMY_V3_DL_SHA256:
+    return False
+  _TAXONOMY_V3_PATH.parent.mkdir(parents=True, exist_ok=True)
+  os.replace(_LEGACY_TAXONOMY_V3_PATH, _TAXONOMY_V3_PATH)
+  return True
 
 
 @contextmanager
@@ -118,6 +143,9 @@ def ensure_taxonomy_v3_available() -> Path:
     if taxonomy_v3_available():
       return _TAXONOMY_V3_PATH
 
+    if _adopt_legacy_taxonomy():
+      return _TAXONOMY_V3_PATH
+
     _TAXONOMY_V3_PATH.parent.mkdir(parents=True, exist_ok=True)
     download_file_tqdm(
       _TAXONOMY_V3_DL_URL,
@@ -125,5 +153,14 @@ def ensure_taxonomy_v3_available() -> Path:
       download_size=_TAXONOMY_V3_DL_SIZE,
       description="Downloading shared v3.0 taxonomy",
     )
+    actual = sha256_file(_TAXONOMY_V3_PATH)
+    if actual != _TAXONOMY_V3_DL_SHA256:
+      _TAXONOMY_V3_PATH.unlink(missing_ok=True)
+      raise RuntimeError(
+        f"The shared v3.0 taxonomy downloaded from {_TAXONOMY_V3_DL_URL} does "
+        f"not match its expected checksum ({actual} instead of "
+        f"{_TAXONOMY_V3_DL_SHA256}). The file was discarded; retry, and if this "
+        "persists the published file has changed."
+      )
 
   return _TAXONOMY_V3_PATH

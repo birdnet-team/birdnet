@@ -6,6 +6,7 @@ import pytest
 import birdnet.acoustic.models.v3_0.model as acoustic_model
 import birdnet.geo.models.v3_0.model as geo_model
 import birdnet.utils.taxonomy_v3 as taxonomy_v3
+from birdnet.utils.label_manifest import sha256_bytes
 
 
 def test_taxonomy_v3_available_checks_expected_size(
@@ -39,6 +40,10 @@ def test_ensure_taxonomy_v3_available_downloads_missing_file(
   monkeypatch.setattr(taxonomy_v3, "_TAXONOMY_V3_PATH", taxonomy_path)
   monkeypatch.setattr(taxonomy_v3, "_TAXONOMY_V3_LOCK_DIR", lock_dir)
   monkeypatch.setattr(taxonomy_v3, "_TAXONOMY_V3_DL_SIZE", 4)
+  # The download is checksum-verified, so the fixture has to pin the digest of
+  # what the fake download writes.
+  monkeypatch.setattr(taxonomy_v3, "_TAXONOMY_V3_DL_SHA256", sha256_bytes(b"data"))
+  monkeypatch.setattr(taxonomy_v3, "_LEGACY_TAXONOMY_V3_PATH", tmp_path / "legacy.csv")
 
   def fake_download(
     url: str,
