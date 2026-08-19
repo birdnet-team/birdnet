@@ -104,7 +104,9 @@ def test_per_file_result_to_dataframe() -> None:
 def test_invalid_file_reported_as_unprocessable() -> None:
   collector = _Collector()
   model = _load_model()
-  with tempfile.NamedTemporaryFile(suffix=".wav", delete=False, mode="wb") as broken:
+  with tempfile.NamedTemporaryFile(
+    suffix=".wav", delete=False, mode="wb"
+  ) as broken:
     broken.write(b"NOT_A_VALID_WAV_FILE")
   with model.predict_session(
     n_workers=1, top_k=5, on_file_complete=collector
@@ -125,7 +127,9 @@ def test_invalid_file_reported_as_unprocessable() -> None:
 def test_empty_but_readable_file_is_zero_detection_not_unprocessable() -> None:
   collector = _Collector()
   model = _load_model()
-  with tempfile.NamedTemporaryFile(suffix=".wav", delete=False, mode="wb") as empty_wav:
+  with tempfile.NamedTemporaryFile(
+    suffix=".wav", delete=False, mode="wb"
+  ) as empty_wav:
     create_zero_len_wav(empty_wav)
   with model.predict_session(
     n_workers=1, top_k=5, on_file_complete=collector
@@ -183,7 +187,9 @@ def test_raising_callback_cancels_run() -> None:
 
   model = _load_model()
   with pytest.raises(RuntimeError):
-    with model.predict_session(n_workers=1, top_k=5, on_file_complete=boom) as session:
+    with model.predict_session(
+      n_workers=1, top_k=5, on_file_complete=boom
+    ) as session:
       session.run([str(TEST_FILE_SHORT), str(TEST_FILE_LONG)])
 
 

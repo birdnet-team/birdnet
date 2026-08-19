@@ -29,13 +29,19 @@ TAXONOMY_CSV = (
 
 
 @pytest.fixture
+def taxonomy_file(tmp_path: Path) -> Path:
+  path = tmp_path / "taxonomy.csv"
+  path.write_bytes(TAXONOMY_CSV.encode("utf-8"))
+  return path
+
+
+@pytest.fixture
 def downloader(
-  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch, taxonomy_file: Path
 ) -> type[GeoDownloaderBaseV3_0]:
   raw_path = tmp_path / "labels_raw.txt"
-  raw_path.write_text(RAW_LABELS, encoding="utf-8")
-  taxonomy_path = tmp_path / "taxonomy.csv"
-  taxonomy_path.write_text(TAXONOMY_CSV, encoding="utf-8")
+  raw_path.write_bytes(RAW_LABELS.encode("utf-8"))
+  taxonomy_path = taxonomy_file
   lang_dir = tmp_path / "labels"
 
   monkeypatch.setattr(geo_model, "_LABELS_RAW_PATH", raw_path)
@@ -43,7 +49,6 @@ def downloader(
   monkeypatch.setattr(
     geo_model, "_LABELS_DL_SHA256", sha256_bytes(raw_path.read_bytes())
   )
-  monkeypatch.setattr(geo_model, "get_taxonomy_v3_path", lambda: taxonomy_path)
   monkeypatch.setattr(geo_model, "_SETUP_LOCK_DIR", tmp_path / ".lock")
   monkeypatch.setattr(geo_model, "_LEGACY_LABELS_RAW_PATH", tmp_path / "legacy.txt")
   # The taxonomy is written by this fixture; nothing may reach for the network.
@@ -97,16 +102,14 @@ def test_generate_lang_files_en_us_uses_com_name(
 
 
 def test_generate_lang_files_disambiguates_a_reused_species_code(
-  downloader: type[GeoDownloaderBaseV3_0],
-  monkeypatch: pytest.MonkeyPatch,
+  downloader: type[GeoDownloaderBaseV3_0], taxonomy_file: Path
 ) -> None:
   """Upstream reuses a species code for two species (e.g. y01249 in v0.2-Jun2026).
 
   The matching row is not necessarily the last one, so keying on the code alone
   hands this species the other one's localized names.
   """
-  taxonomy_path = geo_model.get_taxonomy_v3_path()
-  taxonomy_path.write_text(
+  taxonomy_file.write_text(
     "species_code,sci_name,com_name,common_name_de\n"
     "code1,Scivia one,Robin US,Rotkehlchen\n"  # the species the labels mean
     "code1,Scivia other,Other US,Anderer Name\n",  # shares the code, wins on order
@@ -149,7 +152,7 @@ def test_check_labels_available_true_when_consistent(
 
 
 def test_check_labels_available_detects_a_swapped_taxonomy(
-  downloader: type[GeoDownloaderBaseV3_0],
+  downloader: type[GeoDownloaderBaseV3_0], taxonomy_file: Path
 ) -> None:
   """The taxonomy is shared, so another installed version can replace it.
 
@@ -159,7 +162,7 @@ def test_check_labels_available_detects_a_swapped_taxonomy(
   downloader._generate_lang_files()
   assert downloader._check_labels_available()
 
-  path = geo_model.get_taxonomy_v3_path()
+  path = taxonomy_file
   size_before = path.stat().st_size
   swapped = path.read_bytes().replace(b"Rotkehlchen", b"Rotkehlchan")
   path.write_bytes(swapped)
@@ -171,6 +174,7 @@ def test_check_labels_available_detects_a_swapped_taxonomy(
 def test_a_swapped_taxonomy_is_repaired_rather_than_regenerated_forever(
   downloader: type[GeoDownloaderBaseV3_0],
   monkeypatch: pytest.MonkeyPatch,
+  taxonomy_file: Path,
 ) -> None:
   """Detecting the swap is not enough.
 
@@ -178,18 +182,16 @@ def test_a_swapped_taxonomy_is_repaired_rather_than_regenerated_forever(
   serves the other release's names without ever reporting anything.
   """
   downloader._generate_lang_files()
-  good = geo_model.get_taxonomy_v3_path().read_bytes()
-  geo_model.get_taxonomy_v3_path().write_bytes(
-    good.replace(b"Rotkehlchen", b"Rotkehlchan")
-  )
+  good = taxonomy_file.read_bytes()
+  taxonomy_file.write_bytes(good.replace(b"Rotkehlchen", b"Rotkehlchan"))
   assert not downloader._check_labels_available()
 
   restored: list[str] = []
 
   def _restore_taxonomy() -> Path:
     restored.append("called")
-    geo_model.get_taxonomy_v3_path().write_bytes(good)
-    return geo_model.get_taxonomy_v3_path()
+    taxonomy_file.write_bytes(good)
+    return taxonomy_file
 
   monkeypatch.setattr(geo_model, "ensure_taxonomy_v3_available", _restore_taxonomy)
 
@@ -198,6 +200,46 @@ def test_a_swapped_taxonomy_is_repaired_rather_than_regenerated_forever(
   assert restored, "the mismatching input must be fetched again, not reused"
   assert downloader._check_labels_available(), "the cache must end up current"
   assert _read_lines(downloader.get_lang_file("de"))[0] == "Scivia one_Rotkehlchen"
+
+
+def test_an_interrupted_generation_leaves_a_directory_that_fails_verification(
+  downloader: type[GeoDownloaderBaseV3_0], monkeypatch: pytest.MonkeyPatch
+) -> None:
+  """The manifest is dropped before anything is written.
+
+  A crash halfway through must not leave a directory still vouched for by the
+  previous record, because its files no longer match it.
+  """
+  downloader._generate_lang_files()
+  assert downloader._check_labels_available()
+
+  original = geo_model.write_text_atomic
+  written: list[Path] = []
+
+  def _die_after_the_first_file(path: Path, content: str, **kwargs: object) -> None:
+    if written:
+      raise OSError("interrupted")
+    written.append(path)
+    original(path, content, **kwargs)
+
+  monkeypatch.setattr(geo_model, "write_text_atomic", _die_after_the_first_file)
+
+  with pytest.raises(OSError, match="interrupted"):
+    downloader._generate_lang_files()
+
+  assert not downloader._check_labels_available()
+
+
+def test_generation_that_cannot_verify_itself_raises(
+  downloader: type[GeoDownloaderBaseV3_0], monkeypatch: pytest.MonkeyPatch
+) -> None:
+  """Both inputs are verified before generating, so a directory that still does
+  not verify afterwards is a bug - and must say so instead of quietly
+  regenerating on every later load."""
+  monkeypatch.setattr(downloader, "_generate_lang_files", classmethod(lambda cls: None))
+
+  with pytest.raises(RuntimeError, match="could not be generated"):
+    downloader.ensure_labels_available()
 
 
 def test_a_current_cache_is_served_without_writing_anything(
@@ -271,7 +313,6 @@ def test_ensure_labels_available_downloads_and_generates_when_missing(
     geo_model, "_LABELS_DL_SHA256", sha256_bytes(RAW_LABELS.encode("utf-8"))
   )
   monkeypatch.setattr(geo_model, "_SETUP_LOCK_DIR", tmp_path / ".lock")
-  monkeypatch.setattr(geo_model, "get_taxonomy_v3_path", lambda: taxonomy_path)
   monkeypatch.setattr(
     geo_model,
     "get_taxonomy_v3_input",

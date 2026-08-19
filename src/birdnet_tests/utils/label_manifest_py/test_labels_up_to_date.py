@@ -148,6 +148,24 @@ def test_an_unexpected_extra_language_file_is_stale(
 
 
 @pytest.mark.no_tf
+def test_a_manifest_from_a_future_layout_is_stale(
+  lang_dir: Path, inputs: dict[str, LabelInput], generate: Callable[[], None]
+) -> None:
+  """A newer release may write a manifest this version cannot interpret.
+
+  Guessing at it would be worse than regenerating: the fields it checks could
+  mean something else entirely.
+  """
+  generate()
+  path = get_manifest_path(lang_dir)
+  manifest = json.loads(path.read_text(encoding="utf-8"))
+  manifest["manifest_version"] += 1
+  path.write_text(json.dumps(manifest), encoding="utf-8")
+
+  assert not _check(lang_dir, inputs)
+
+
+@pytest.mark.no_tf
 def test_a_manifest_that_omits_a_present_file_is_stale(
   lang_dir: Path, inputs: dict[str, LabelInput], generate: Callable[[], None]
 ) -> None:

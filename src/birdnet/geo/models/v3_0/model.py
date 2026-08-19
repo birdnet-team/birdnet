@@ -38,7 +38,6 @@ from birdnet.utils.local_data import APP_DIR
 from birdnet.utils.taxonomy_v3 import (
   ensure_taxonomy_v3_available,
   get_taxonomy_v3_input,
-  get_taxonomy_v3_path,
 )
 
 _LABELS_DL_URL = "https://github.com/birdnet-team/geomodel/releases/download/v3.0.4/BirdNET+_Geomodel_V3.0.4_Global_14K_Labels.txt"
@@ -49,7 +48,7 @@ _GENERATOR_NAME = "geo_v3_0"
 # Bump whenever a change here would produce different <lang>.txt bytes from the
 # same inputs - the join key, the tie-break, the fallback, the line format. The
 # golden-digest test fails until this and the expected digests agree.
-_GENERATION_VERSION = 1
+_GENERATION_VERSION = 2
 
 # No Estonian ("et"): the v0.2-Jun2026 taxonomy has no common_name_et column,
 # so every Estonian name would silently be the English one.
@@ -163,8 +162,11 @@ class GeoDownloaderBaseV3_0:
 
     # Read once and hash *these* bytes, so the manifest records what was really
     # used rather than what the constants say should have been there.
-    labels_raw = _LABELS_RAW_PATH.read_bytes()
-    taxonomy_raw = get_taxonomy_v3_path().read_bytes()
+    inputs = cls._manifest_inputs()
+    # Read via the same LabelInput the manifest records, so the digest can
+    # never describe a file other than the one that was parsed.
+    taxonomy_raw = inputs["taxonomy"].path.read_bytes()
+    labels_raw = inputs["labels"].path.read_bytes()
 
     species_order: list[tuple[str, str, str]] = []
     # newline=None reproduces exactly what iterating the file in text mode did.
@@ -199,32 +201,28 @@ class GeoDownloaderBaseV3_0:
           continue
         taxonomy[code] = dict(row)
 
-    n_unresolved = 0
     written: list[Path] = []
     for lang, col in _LANGUAGE_TO_COLUMN.items():
       lang_file = lang_dir / f"{lang}.txt"
       lines: list[str] = []
-      unresolved = 0
       for code, sci_name, en_us_name in species_order:
         tax_row = taxonomy.get(code, {})
         localized_name = tax_row.get(col, "").strip()
         if not localized_name:
           localized_name = en_us_name
-          unresolved += 1
         lines.append(f"{sci_name}_{localized_name}")
       write_text_atomic(lang_file, "\n".join(lines), encoding="utf-8")
       written.append(lang_file)
-      n_unresolved = max(n_unresolved, unresolved)
 
     record_generation(
       lang_dir,
       generator=_GENERATOR_NAME,
       generator_version=_GENERATION_VERSION,
-      declared_inputs=cls._manifest_inputs(),
+      declared_inputs=inputs,
       read_bytes={"labels": labels_raw, "taxonomy": taxonomy_raw},
       languages=_LANGUAGE_TO_COLUMN,
       lang_files=written,
-      stats={"n_entries": len(species_order), "n_unresolved": n_unresolved},
+      stats={"n_entries": len(species_order)},
     )
 
   @classmethod

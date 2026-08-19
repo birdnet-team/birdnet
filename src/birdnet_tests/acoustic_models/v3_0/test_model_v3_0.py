@@ -4,9 +4,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import birdnet.acoustic.models.v3_0.model as model_module
-import birdnet.utils.taxonomy_v3 as taxonomy_v3
 from birdnet.acoustic.models.v3_0.model import AcousticDownloaderBaseV3_0
 from birdnet.globals import VALID_MODEL_LANGUAGES_V3_0
+from birdnet.utils.label_manifest import LabelInput, sha256_file
 
 if TYPE_CHECKING:
   from pytest import MonkeyPatch
@@ -18,6 +18,35 @@ class ProbeDownloader(AcousticDownloaderBaseV3_0):
   @classmethod
   def _get_lang_dir(cls) -> Path:
     return cls.lang_dir
+
+
+def _point_at(monkeypatch: MonkeyPatch, labels_raw: Path, taxonomy: Path) -> None:
+  """Redirect every artifact the generator touches into the test's directory.
+
+  Missing one is not obvious: the manifest stats the paths its `LabelInput`s
+  name, so an unpatched one silently reaches into the real app data directory
+  and the test then passes only on a machine that happens to have a cache.
+  """
+  monkeypatch.setattr(model_module, "_LABELS_RAW_PATH", labels_raw)
+  monkeypatch.setattr(model_module, "_LABELS_DL_SIZE", labels_raw.stat().st_size)
+  monkeypatch.setattr(model_module, "_LABELS_DL_SHA256", sha256_file(labels_raw))
+  monkeypatch.setattr(
+    model_module, "_LEGACY_LABELS_RAW_PATH", labels_raw.parent / "legacy.csv"
+  )
+  monkeypatch.setattr(model_module, "_SETUP_LOCK_DIR", labels_raw.parent / ".lock")
+  # Recomputed per call, the way the pinned constants track the current release:
+  # rewriting the file is then exactly a new taxonomy release.
+  monkeypatch.setattr(
+    model_module,
+    "get_taxonomy_v3_input",
+    lambda: LabelInput(
+      path=taxonomy,
+      url="https://example.test/taxonomy.csv",
+      size=taxonomy.stat().st_size,
+      sha256=sha256_file(taxonomy),
+    ),
+  )
+  monkeypatch.setattr(model_module, "ensure_taxonomy_v3_available", lambda: taxonomy)
 
 
 def test_generate_lang_files_from_taxonomy(
@@ -35,8 +64,7 @@ def test_generate_lang_files_from_taxonomy(
     encoding="utf-8",
   )
 
-  monkeypatch.setattr(model_module, "_LABELS_RAW_PATH", labels_raw)
-  monkeypatch.setattr(model_module, "get_taxonomy_v3_path", lambda: taxonomy)
+  _point_at(monkeypatch, labels_raw, taxonomy)
   ProbeDownloader.lang_dir = tmp_path / "labels"
 
   ProbeDownloader._generate_lang_files()
@@ -73,11 +101,8 @@ def test_ensure_labels_regenerates_when_only_the_taxonomy_changed(
     encoding="utf-8",
   )
 
-  monkeypatch.setattr(model_module, "_LABELS_RAW_PATH", labels_raw)
-  monkeypatch.setattr(model_module, "_LABELS_DL_SIZE", labels_raw.stat().st_size)
-  monkeypatch.setattr(model_module, "get_taxonomy_v3_path", lambda: taxonomy)
-  # The taxonomy is present and current the whole time: another model fetched it.
-  monkeypatch.setattr(model_module, "taxonomy_v3_available", lambda: True)
+  # The taxonomy is present the whole time: another model fetched it already.
+  _point_at(monkeypatch, labels_raw, taxonomy)
   ProbeDownloader.lang_dir = tmp_path / "labels"
 
   ProbeDownloader.ensure_labels_available()
@@ -89,7 +114,6 @@ def test_ensure_labels_regenerates_when_only_the_taxonomy_changed(
     "sci_name,com_name,common_name_de\nAaa aaa,English One,Neuer Name\n",
     encoding="utf-8",
   )
-  monkeypatch.setattr(taxonomy_v3, "_TAXONOMY_V3_DL_URL", "https://example.test/v9.csv")
 
   ProbeDownloader.ensure_labels_available()
 

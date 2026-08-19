@@ -19,10 +19,14 @@ def test_negative_is_valid() -> None:
 
 
 def test_string_raises_error() -> None:
-  with pytest.raises(TypeError, match=r"default confidence threshold must be a number"):
+  with pytest.raises(
+    TypeError, match=r"default confidence threshold must be a number"
+  ):
     PredictionConfig.validate_default_confidence_threshold("high")  # type: ignore
 
 
 def test_none_raises_error() -> None:
-  with pytest.raises(TypeError, match=r"default confidence threshold must be a number"):
+  with pytest.raises(
+    TypeError, match=r"default confidence threshold must be a number"
+  ):
     PredictionConfig.validate_default_confidence_threshold(None)  # type: ignore
