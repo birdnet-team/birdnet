@@ -8,6 +8,7 @@ import os
 import tempfile
 import time
 from collections.abc import Generator, Iterable
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from itertools import islice
 from multiprocessing import Queue
@@ -134,6 +135,55 @@ _UINT_DTYPE_TO_CTYPE = {
   np.uint32: ctypes.c_uint32,
   np.uint64: ctypes.c_uint64,
 }
+
+
+def write_text_atomic(path: Path, content: str, encoding: str = "utf-8") -> None:
+  """Write via a temporary file in the same directory, then rename over.
+
+  A reader either sees the previous content or the new one, never a partial
+  file, and an interrupted write leaves nothing behind but a `.tmp` scratch file.
+  """
+  fd, temp_name = tempfile.mkstemp(
+    dir=path.parent,
+    prefix=f"{path.name}.",
+    suffix=".tmp",
+  )
+  os.close(fd)
+  temp_path = Path(temp_name)
+
+  try:
+    temp_path.write_text(content, encoding=encoding)
+    temp_path.replace(path)
+  except Exception:
+    temp_path.unlink(missing_ok=True)
+    raise
+
+
+@contextmanager
+def directory_lock(
+  lock_dir: Path, description: str, timeout_s: float = 300.0
+) -> Generator[None, None, None]:
+  """Serialize one-time setup across processes by creating a directory.
+
+  `mkdir` is atomic on every platform this runs on, which a lock file is not.
+  Note the lock is not stale-safe: a process killed while holding it leaves the
+  directory behind, and the next caller waits out `timeout_s` before raising.
+  """
+  deadline = time.monotonic() + timeout_s
+  while True:
+    try:
+      lock_dir.mkdir(parents=True, exist_ok=False)
+      break
+    except FileExistsError as err:
+      if time.monotonic() >= deadline:
+        raise TimeoutError(f"Timed out while waiting for {description}.") from err
+      time.sleep(0.1)
+
+  try:
+    yield
+  finally:
+    with suppress(FileNotFoundError):
+      lock_dir.rmdir()
 
 
 def get_supported_audio_files_recursive(folder: Path) -> Generator[Path, None, None]:

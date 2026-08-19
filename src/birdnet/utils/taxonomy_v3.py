@@ -1,9 +1,9 @@
 """The taxonomy shared by the V3.0 models, and the localized labels built from it.
 
 The taxonomy is a single CSV published by the geomodel repository (versioned
-since its v3.0.4 release) and cached under a generic name in the app data
-directory. Both V3.0 models use it; the V2.4 models ship static label files and
-do not.
+since its v3.0.4 release) and cached in the app data directory under the file
+name from its URL. Both V3.0 models use it; the V2.4 models ship static label
+files and do not.
 
 What it is *not*: it never decides what a model predicts. Species identity, count
 and order come from that model's own label file. The taxonomy only supplies the
@@ -47,12 +47,9 @@ golden-digest tests fail until both that and the expected digests are updated.
 from __future__ import annotations
 
 import os
-import time
-from collections.abc import Generator
-from contextlib import contextmanager, suppress
 from pathlib import Path
 
-from birdnet.utils.helper import download_file_tqdm
+from birdnet.utils.helper import directory_lock, download_file_tqdm
 from birdnet.utils.label_manifest import LabelInput, sha256_file
 from birdnet.utils.local_data import APP_DIR
 
@@ -117,29 +114,8 @@ def _adopt_legacy_taxonomy() -> bool:
   return True
 
 
-@contextmanager
-def _taxonomy_v3_lock(timeout_s: float = 300.0) -> Generator[None, None, None]:
-  deadline = time.monotonic() + timeout_s
-  while True:
-    try:
-      _TAXONOMY_V3_LOCK_DIR.mkdir(parents=True, exist_ok=False)
-      break
-    except FileExistsError as err:
-      if time.monotonic() >= deadline:
-        raise TimeoutError(
-          "Timed out while waiting for the shared v3.0 taxonomy setup."
-        ) from err
-      time.sleep(0.1)
-
-  try:
-    yield
-  finally:
-    with suppress(FileNotFoundError):
-      _TAXONOMY_V3_LOCK_DIR.rmdir()
-
-
 def ensure_taxonomy_v3_available() -> Path:
-  with _taxonomy_v3_lock():
+  with directory_lock(_TAXONOMY_V3_LOCK_DIR, "the shared v3.0 taxonomy setup"):
     if taxonomy_v3_available():
       return _TAXONOMY_V3_PATH
 

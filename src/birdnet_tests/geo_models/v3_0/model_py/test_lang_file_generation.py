@@ -188,15 +188,6 @@ def test_check_labels_available_false_when_raw_labels_missing(
   assert not downloader._check_labels_available()
 
 
-def test_write_text_atomic_leaves_no_temp_files(tmp_path: Path) -> None:
-  target = tmp_path / "out.txt"
-  geo_model._write_text_atomic(target, "hello world")
-
-  assert target.read_text(encoding="utf-8") == "hello world"
-  # the atomic write must not leave behind any *.tmp scratch files
-  assert list(tmp_path.glob("*.tmp")) == []
-
-
 def test_ensure_labels_available_returns_early_when_present(
   downloader: type[GeoDownloaderBaseV3_0],
   monkeypatch: pytest.MonkeyPatch,

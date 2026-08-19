@@ -2,12 +2,6 @@ from __future__ import annotations
 
 import csv
 import io
-import os
-import tempfile
-import time
-from collections.abc import Generator
-from contextlib import contextmanager, suppress
-from dataclasses import replace
 from pathlib import Path
 from typing import Any, final
 
@@ -28,15 +22,18 @@ from birdnet.globals import (
   MODEL_TYPE_GEO,
   MODEL_TYPES,
 )
-from birdnet.utils.helper import download_file_tqdm, validate_species_list
+from birdnet.utils.helper import (
+  directory_lock,
+  download_file_tqdm,
+  validate_species_list,
+  write_text_atomic,
+)
 from birdnet.utils.label_manifest import (
   LabelInput,
   get_manifest_path,
   labels_up_to_date,
-  prune_stale_entries,
-  sha256_bytes,
+  record_generation,
   verify_download,
-  write_manifest,
 )
 from birdnet.utils.local_data import APP_DIR
 from birdnet.utils.taxonomy_v3 import (
@@ -95,44 +92,6 @@ _LABELS_RAW_PATH = _GEO_V3_0_BASE_DIR / "labels_raw.txt"
 _SETUP_LOCK_DIR = APP_DIR / ".geo_model_v3_0_setup.lock"
 
 
-def _write_text_atomic(path: Path, content: str, encoding: str = "utf-8") -> None:
-  fd, temp_name = tempfile.mkstemp(
-    dir=path.parent,
-    prefix=f"{path.name}.",
-    suffix=".tmp",
-  )
-  os.close(fd)
-  temp_path = Path(temp_name)
-
-  try:
-    temp_path.write_text(content, encoding=encoding)
-    temp_path.replace(path)
-  except Exception:
-    temp_path.unlink(missing_ok=True)
-    raise
-
-
-@contextmanager
-def _setup_lock(timeout_s: float = 300.0) -> Generator[None, None, None]:
-  deadline = time.monotonic() + timeout_s
-  while True:
-    try:
-      _SETUP_LOCK_DIR.mkdir(parents=True, exist_ok=False)
-      break
-    except FileExistsError as err:
-      if time.monotonic() >= deadline:
-        raise TimeoutError(
-          "Timed out while waiting for geo model v3.0 shared asset setup."
-        ) from err
-      time.sleep(0.1)
-
-  try:
-    yield
-  finally:
-    with suppress(FileNotFoundError):
-      _SETUP_LOCK_DIR.rmdir()
-
-
 class GeoDownloaderBaseV3_0:
   AVAILABLE_LANGUAGES: OrderedSet[str] = OrderedSet(_LANGUAGE_TO_COLUMN.keys())
 
@@ -165,7 +124,7 @@ class GeoDownloaderBaseV3_0:
 
   @classmethod
   def ensure_labels_available(cls) -> None:
-    with _setup_lock():
+    with directory_lock(_SETUP_LOCK_DIR, "geo model v3.0 shared asset setup"):
       if cls._check_labels_available():
         return
 
@@ -247,23 +206,16 @@ class GeoDownloaderBaseV3_0:
           localized_name = en_us_name
           unresolved += 1
         lines.append(f"{sci_name}_{localized_name}")
-      _write_text_atomic(lang_file, "\n".join(lines), encoding="utf-8")
+      write_text_atomic(lang_file, "\n".join(lines), encoding="utf-8")
       written.append(lang_file)
       n_unresolved = max(n_unresolved, unresolved)
 
-    # Languages this version no longer produces, and the marker earlier releases
-    # left behind, would otherwise sit here indefinitely.
-    prune_stale_entries(lang_dir, keep={f.name for f in written})
-
-    inputs = {
-      "labels": replace(cls._labels_input(), sha256=sha256_bytes(labels_raw)),
-      "taxonomy": replace(get_taxonomy_v3_input(), sha256=sha256_bytes(taxonomy_raw)),
-    }
-    write_manifest(
+    record_generation(
       lang_dir,
       generator=_GENERATOR_NAME,
       generator_version=_GENERATION_VERSION,
-      inputs=inputs,
+      declared_inputs=cls._manifest_inputs(),
+      read_bytes={"labels": labels_raw, "taxonomy": taxonomy_raw},
       languages=_LANGUAGE_TO_COLUMN,
       lang_files=written,
       stats={"n_entries": len(species_order), "n_unresolved": n_unresolved},

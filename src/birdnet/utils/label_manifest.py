@@ -28,12 +28,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
-import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
+from birdnet.utils.helper import write_text_atomic
 from birdnet.utils.logging_utils import get_logger_for_package
 
 MANIFEST_NAME = ".birdnet_labels.json"
@@ -229,6 +228,39 @@ def prune_stale_entries(lang_dir: Path, keep: set[str]) -> None:
   (lang_dir / LEGACY_MARKER_NAME).unlink(missing_ok=True)
 
 
+def record_generation(
+  lang_dir: Path,
+  *,
+  generator: str,
+  generator_version: int,
+  declared_inputs: dict[str, LabelInput],
+  read_bytes: dict[str, bytes],
+  languages: dict[str, str],
+  lang_files: list[Path],
+  stats: dict[str, int] | None = None,
+) -> None:
+  """Close out a generation: drop what is no longer produced, then record it.
+
+  `read_bytes` is what the generator actually parsed, keyed like
+  `declared_inputs`. Recording the digest of *those* bytes rather than the
+  pinned constant is the whole point - it is what later reveals that the file on
+  a shared path was not the release this directory was told to expect.
+  """
+  prune_stale_entries(lang_dir, keep={f.name for f in lang_files})
+  write_manifest(
+    lang_dir,
+    generator=generator,
+    generator_version=generator_version,
+    inputs={
+      name: replace(declared, sha256=sha256_bytes(read_bytes[name]))
+      for name, declared in declared_inputs.items()
+    },
+    languages=languages,
+    lang_files=lang_files,
+    stats=stats,
+  )
+
+
 def _refresh_stats(
   lang_dir: Path, manifest: dict[str, Any], inputs: dict[str, LabelInput]
 ) -> None:
@@ -268,16 +300,4 @@ def _refresh_stats(
 
 
 def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
-  fd, temp_name = tempfile.mkstemp(
-    dir=path.parent, prefix=f"{path.name}.", suffix=".tmp"
-  )
-  os.close(fd)
-  temp_path = Path(temp_name)
-  try:
-    temp_path.write_text(
-      json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8"
-    )
-    temp_path.replace(path)
-  except Exception:
-    temp_path.unlink(missing_ok=True)
-    raise
+  write_text_atomic(path, json.dumps(payload, indent=2, sort_keys=True))
