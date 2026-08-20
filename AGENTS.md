@@ -49,7 +49,7 @@ Per-test timeout is 600 s (thread method, kills the process on hang); worker res
 
 ## Conventions
 
-- User-facing fixes and features get a `CHANGELOG.md` entry under `[Unreleased]` (Keep a Changelog format): 1–3 sentences covering cause and effect, not just "fixed X" — but keep it short, matching the released sections (e.g. `[1.0.0]`). Deep mechanics belong in the commit message, not the changelog.
+- User-facing fixes and features get a `CHANGELOG.md` entry under `[Unreleased]` (Keep a Changelog format): one or two sentences covering cause and effect, not just "fixed X". Only breaking changes may run to a paragraph, and even those are covered more fully in the release notes; deep mechanics belong in the commit message. Match `[1.0.0]` for length. Cite the PR, and any issue it closes, as markdown links (`[#99](https://github.com/birdnet-team/birdnet/pull/99)`) — GitHub does not autolink a bare `#99` in a repository file.
 - Code comments: short and current-state only — a constraint, a non-obvious why, or a measured value that justifies a bound. No history ("once was", "used to fail") and no narration; that belongs in commit messages and the changelog. A comment that adds nothing beyond the line it annotates is deleted, not kept — this applies to config files (workflow YAML, `pyproject.toml`, tox) as much as to Python.
 - Tests mirror the source layout: `<module>_py/` directories, one file per method/behavior, optionally grouped in a `ClassName/` directory (e.g. `inference_pipeline/resources_py/RingBufferResources/test_reset.py`).
 - Timing-sensitive tests assert invariants, not distributions — e.g. guard a latency floor with `min(durations)`, not a mean/median, so a loaded CI runner cannot flake it.
