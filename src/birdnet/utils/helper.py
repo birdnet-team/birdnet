@@ -5,9 +5,11 @@ import hashlib
 import logging
 import math
 import os
+import shutil
 import tempfile
 import time
 from collections.abc import Generator, Iterable
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from itertools import islice
 from multiprocessing import Queue
@@ -134,6 +136,100 @@ _UINT_DTYPE_TO_CTYPE = {
   np.uint32: ctypes.c_uint32,
   np.uint64: ctypes.c_uint64,
 }
+
+
+def write_text_atomic(path: Path, content: str, encoding: str = "utf-8") -> None:
+  """Write via a temporary file in the same directory, then rename over.
+
+  A reader either sees the previous content or the new one, never a partial
+  file, and an interrupted write leaves nothing behind but a `.tmp` scratch file.
+
+  Newlines are written through unchanged, so the same content yields the same
+  bytes on every platform. Without that, files generated on Windows and on Linux
+  differ, and anything that records a checksum of them records a different one
+  per operating system.
+  """
+  fd, temp_name = tempfile.mkstemp(
+    dir=path.parent,
+    prefix=f"{path.name}.",
+    suffix=".tmp",
+  )
+  os.close(fd)
+  temp_path = Path(temp_name)
+
+  try:
+    temp_path.write_text(content, encoding=encoding, newline="\n")
+    temp_path.replace(path)
+  except Exception:
+    temp_path.unlink(missing_ok=True)
+    raise
+
+
+_LOCK_OWNER_NAME = "owner"
+
+# A lock whose owner never wrote its pid is only reclaimed once it is old enough
+# that the owner cannot still be between mkdir and the write.
+_LOCK_ADOPTION_GRACE_S = 30.0
+
+
+def _reclaim_if_abandoned(lock_dir: Path) -> bool:
+  """Drop a lock whose owner is gone. Returns whether anything was reclaimed.
+
+  Without this a process killed mid-setup - force-quit, OOM, power loss - leaves
+  the directory behind and every later call waits out the timeout and fails, for
+  good, with nothing to do but delete a hidden directory by hand.
+  """
+  import psutil
+
+  owner = lock_dir / _LOCK_OWNER_NAME
+  try:
+    pid = int(owner.read_text(encoding="utf-8").strip())
+  except (OSError, ValueError):
+    try:
+      age = time.time() - lock_dir.stat().st_mtime
+    except OSError:
+      return False
+    if age < _LOCK_ADOPTION_GRACE_S:
+      return False
+  else:
+    if psutil.pid_exists(pid):
+      return False
+
+  shutil.rmtree(lock_dir, ignore_errors=True)
+  return not lock_dir.exists()
+
+
+@contextmanager
+def directory_lock(
+  lock_dir: Path, description: str, timeout_s: float = 300.0
+) -> Generator[None, None, None]:
+  """Serialize one-time setup across processes by creating a directory.
+
+  `mkdir` is atomic on every platform this runs on, which a lock file is not.
+  The holder records its pid inside, so a lock left behind by a process that no
+  longer exists is reclaimed rather than waited out.
+  """
+  deadline = time.monotonic() + timeout_s
+  while True:
+    try:
+      lock_dir.mkdir(parents=True, exist_ok=False)
+      break
+    except FileExistsError as err:
+      if _reclaim_if_abandoned(lock_dir):
+        continue
+      if time.monotonic() >= deadline:
+        raise TimeoutError(
+          f"Timed out while waiting for {description}. Another process is "
+          f"holding {lock_dir}; if none is running, remove that directory."
+        ) from err
+      time.sleep(0.1)
+
+  with suppress(OSError):
+    (lock_dir / _LOCK_OWNER_NAME).write_text(str(os.getpid()), encoding="utf-8")
+  try:
+    yield
+  finally:
+    shutil.rmtree(lock_dir, ignore_errors=True)
 
 
 def get_supported_audio_files_recursive(folder: Path) -> Generator[Path, None, None]:

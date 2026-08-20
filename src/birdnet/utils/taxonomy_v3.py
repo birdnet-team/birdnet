@@ -1,9 +1,9 @@
 """The taxonomy shared by the V3.0 models, and the localized labels built from it.
 
 The taxonomy is a single CSV published by the geomodel repository (versioned
-since its v3.0.4 release) and cached under a generic name in the app data
-directory. Both V3.0 models use it; the V2.4 models ship static label files and
-do not.
+since its v3.0.4 release) and cached in the app data directory under the file
+name from its URL. Both V3.0 models use it; the V2.4 models ship static label
+files and do not.
 
 What it is *not*: it never decides what a model predicts. Species identity, count
 and order come from that model's own label file. The taxonomy only supplies the
@@ -24,30 +24,36 @@ The two models join to it on **different keys**, deliberately:
 The two live in separate files, so a change to one is worth checking against the
 other.
 
-Every cached artifact has a generic on-disk name, so staleness is inferred:
+Staleness is decided from what a directory records about itself, not from what
+the running version expects to find. Each generated label directory carries a
+``.birdnet_labels.json`` manifest holding the digests of the inputs that were
+actually read and of every file that was written; see
+``birdnet/utils/label_manifest.py`` for why digests and not names.
 
-- the taxonomy CSV and each raw label file: exact byte size vs. the constants
-  here and in the model modules;
-- the generated ``<lang>.txt`` files: one line per raw label line, plus the
-  ``.birdnet_taxonomy`` marker written beside them. The marker is what catches a
-  taxonomy-only bump - the taxonomy being shared means the first model to
-  download a new one makes it "available" for all the others, whose label files
-  would otherwise look current while still holding the previous release's names.
+The taxonomy is cached under the file name from its URL rather than a generic
+one, so two releases cannot occupy the same path. That matters because the
+taxonomy is shared: under a generic name, a second installed version judges this
+release stale by byte size, downloads its own over the top, and leaves every
+other version reading a taxonomy it never asked for.
 
-Bumping the taxonomy is therefore: update the URL and size below, then check that
-every column in both models' ``_LANGUAGE_TO_COLUMN`` still exists in the new file.
-A missing column does not raise - it yields a complete file of English names,
-which is how Estonian outlived the column being dropped.
+Bumping the taxonomy is therefore: update the URL, size and SHA-256 below, then
+check that every column in both models' ``_LANGUAGE_TO_COLUMN`` still exists in
+the new file. A missing column does not raise - it yields a complete file of
+English names, which is how Estonian outlived the column being dropped. Changing
+either model's generation logic means bumping its ``_GENERATION_VERSION``; the
+golden-digest tests fail until both that and the expected digests are updated.
 """
 
 from __future__ import annotations
 
-import time
-from collections.abc import Generator
-from contextlib import contextmanager, suppress
 from pathlib import Path
 
-from birdnet.utils.helper import download_file_tqdm
+from birdnet.utils.helper import directory_lock
+from birdnet.utils.label_manifest import (
+  LabelInput,
+  artifact_is_current,
+  ensure_artifact,
+)
 from birdnet.utils.local_data import APP_DIR
 
 # The geomodel repository versions its taxonomy since v3.0.4 (the unversioned
@@ -59,71 +65,45 @@ from birdnet.utils.local_data import APP_DIR
 # the old one disagreed.
 _TAXONOMY_V3_DL_URL = "https://github.com/birdnet-team/geomodel/raw/refs/tags/v3.0.4/taxonomy_v0.2-Jun2026.csv"
 _TAXONOMY_V3_DL_SIZE = 11078402
-_TAXONOMY_V3_PATH = APP_DIR / "taxonomy_v3_0.csv"
+_TAXONOMY_V3_DL_SHA256 = (
+  "98b27fc4a77c5e321c7bbf96f924fc4b58170de9688e79ebf3ea8263d522580a"
+)
+
+# The directory is named after the content, so two releases cannot occupy one
+# path - not even if upstream re-publishes under the same file name. Under the
+# previous generic name a second installed version would judge this release stale
+# by byte size, download its own over the top, and leave every other version
+# reading a taxonomy it never asked for.
+_TAXONOMY_V3_DIR = APP_DIR / "taxonomy-v3" / _TAXONOMY_V3_DL_SHA256[:12]
+_TAXONOMY_V3_PATH = _TAXONOMY_V3_DIR / _TAXONOMY_V3_DL_URL.rsplit("/", 1)[-1]
+_LEGACY_TAXONOMY_V3_PATH = APP_DIR / "taxonomy_v3_0.csv"
 _TAXONOMY_V3_LOCK_DIR = APP_DIR / ".taxonomy_v3_0.lock"
-# Written into a generated label directory to record which taxonomy the localized
-# names came from. The taxonomy is shared between the v3.0 models and its on-disk
-# name is generic, so without this a label directory generated from an older
-# taxonomy is indistinguishable from a current one: whichever model downloads the
-# new taxonomy first makes it "available" for all the others, and they then keep
-# serving names generated from the previous one.
-_TAXONOMY_MARKER_NAME = ".birdnet_taxonomy"
 
 
 def get_taxonomy_v3_path() -> Path:
   return _TAXONOMY_V3_PATH
 
 
+def get_taxonomy_v3_input() -> LabelInput:
+  """The taxonomy as an input a generated label directory can record."""
+  return LabelInput(
+    path=_TAXONOMY_V3_PATH,
+    url=_TAXONOMY_V3_DL_URL,
+    size=_TAXONOMY_V3_DL_SIZE,
+    sha256=_TAXONOMY_V3_DL_SHA256,
+  )
+
+
 def taxonomy_v3_available() -> bool:
-  if not _TAXONOMY_V3_PATH.is_file():
-    return False
-  return _TAXONOMY_V3_PATH.stat().st_size == _TAXONOMY_V3_DL_SIZE
-
-
-def taxonomy_v3_marker_matches(lang_dir: Path) -> bool:
-  """Whether `lang_dir` was generated from the taxonomy that is current now."""
-  marker = lang_dir / _TAXONOMY_MARKER_NAME
-  if not marker.is_file():
-    return False
-  return marker.read_text(encoding="utf-8").strip() == _TAXONOMY_V3_DL_URL
-
-
-def write_taxonomy_v3_marker(lang_dir: Path) -> None:
-  (lang_dir / _TAXONOMY_MARKER_NAME).write_text(_TAXONOMY_V3_DL_URL, encoding="utf-8")
-
-
-@contextmanager
-def _taxonomy_v3_lock(timeout_s: float = 300.0) -> Generator[None, None, None]:
-  deadline = time.monotonic() + timeout_s
-  while True:
-    try:
-      _TAXONOMY_V3_LOCK_DIR.mkdir(parents=True, exist_ok=False)
-      break
-    except FileExistsError as err:
-      if time.monotonic() >= deadline:
-        raise TimeoutError(
-          "Timed out while waiting for the shared v3.0 taxonomy setup."
-        ) from err
-      time.sleep(0.1)
-
-  try:
-    yield
-  finally:
-    with suppress(FileNotFoundError):
-      _TAXONOMY_V3_LOCK_DIR.rmdir()
+  """By content: a file of the right length from another release is not this one."""
+  return artifact_is_current(get_taxonomy_v3_input())
 
 
 def ensure_taxonomy_v3_available() -> Path:
-  with _taxonomy_v3_lock():
-    if taxonomy_v3_available():
-      return _TAXONOMY_V3_PATH
-
-    _TAXONOMY_V3_PATH.parent.mkdir(parents=True, exist_ok=True)
-    download_file_tqdm(
-      _TAXONOMY_V3_DL_URL,
-      _TAXONOMY_V3_PATH,
-      download_size=_TAXONOMY_V3_DL_SIZE,
-      description="Downloading shared v3.0 taxonomy",
+  with directory_lock(_TAXONOMY_V3_LOCK_DIR, "the shared v3.0 taxonomy setup"):
+    ensure_artifact(
+      get_taxonomy_v3_input(),
+      "Downloading shared v3.0 taxonomy",
+      legacy_path=_LEGACY_TAXONOMY_V3_PATH,
     )
-
   return _TAXONOMY_V3_PATH
