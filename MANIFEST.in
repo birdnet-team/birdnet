@@ -1,31 +1,13 @@
-graft src/birdnet_tests/
+include   CHANGELOG.md   CODE_OF_CONDUCT.md   CONTRIBUTING.md   LICENSE.md   MANIFEST.in   README.md   pyproject.toml
 
-include \
-  CHANGELOG.md \
-  CODE_OF_CONDUCT.md \
-  CONTRIBUTING.md \
-  LICENSE.md \
-  MANIFEST.in \
-  README.md \
-  pyproject.toml \
-  example/soundscape.wav \
-  example/species_list.txt
-
-global-exclude \
-  *~ \
-  *.py[cod] \
-  *.so \
-  .DS_Store
+global-exclude   *~   *.py[cod]   *.so   .DS_Store
 
 prune .*/
 prune **/__pycache__/
 
-# Keep the test .py files in the sdist but exclude the large binary fixtures
-# (custom models, multi-format audio, SavedModels, ~315 MB) grafted above.
-# They live in git for CI and would otherwise push the sdist past PyPI's
-# per-file size limit (the wheel already excludes birdnet_tests entirely).
-prune src/birdnet_tests/TEST_FILES/
-
-# Also drop the consistency-test .npz fixtures (~5 MB of stored arrays); like
-# TEST_FILES they are test data, not needed to build or install from source.
-global-exclude *.npz
+# The sdist carries only what is needed to build the package. The test suite is
+# not shipped: its fixtures are ~315 MB, it cannot run without them, and the
+# example audio it reads by relative path exists only for those tests and the
+# documentation. Both live in git for CI and for anyone working from a clone.
+prune src/birdnet_tests/
+prune example/

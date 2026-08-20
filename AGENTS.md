@@ -9,7 +9,6 @@ Python library (`src` layout) for identifying bird species by their sounds (Bird
 - `src/birdnet` — the library
 - `src/birdnet_tests` — pytest suite (not shipped)
 - `src/birdnet_benchmark` — benchmark CLI (`birdnet-benchmark` entry point)
-- `src/birdnet/playground*.py` — scratch files, not part of the API
 
 ## Environment setup
 
