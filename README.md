@@ -223,10 +223,18 @@ The full result is at [example/location.csv](example/location.csv).
 
 ### Location of Log File
 
-If something goes wrong, you can find the log file in the following locations:
+Each prediction or encoding session writes its own log file to the system temp directory:
 
-* Windows: `C:\Users\{user}\AppData\Local\Temp\birdnet.log`
-* Linux/MacOS: `/tmp/birdnet.log`
+* Windows: `C:\Users\{user}\AppData\Local\Temp\birdnet_session_*.log`
+* Linux/MacOS: `/tmp/birdnet_session_*.log`
+
+### Environment variables
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `BIRDNET_APP_DATA` | platform app data dir | Where downloaded models, labels and the taxonomy are cached. Set it to a persistent path in ephemeral environments. |
+| `BIRDNET_TF_VERBOSE` | `0` | Set to `1` to let TensorFlow's native startup output through. It is hidden by default, because TensorFlow prints its `absl::InitializeLog` warning and oneDNN notice on every import — and every worker process imports it, so one prediction emits dozens of lines. Diagnostics from a *failed* import are always shown, whatever this is set to. |
+| `BIRDNET_START_METHOD` | `spawn` | Multiprocessing start method: `spawn`, `forkserver` or `fork`. See the [documentation](https://birdnet-team.github.io/birdnet/general.html) before choosing `fork`. |
 
 ## File formats
 

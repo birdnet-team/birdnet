@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import csv
-import os
-import tempfile
+import io
 from collections.abc import Callable, Collection, Iterable
 from pathlib import Path
 from typing import Any, Literal, final
@@ -30,18 +29,27 @@ from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V3_0,
   ACOUSTIC_MODEL_VERSIONS,
 )
-from birdnet.utils.helper import download_file_tqdm, validate_species_list
+from birdnet.utils.helper import (
+  directory_lock,
+  validate_species_list,
+  write_text_atomic,
+)
+from birdnet.utils.label_manifest import (
+  LabelInput,
+  ensure_artifact,
+  get_manifest_path,
+  labels_up_to_date,
+  record_generation,
+)
 from birdnet.utils.local_data import APP_DIR
 from birdnet.utils.taxonomy_v3 import (
   ensure_taxonomy_v3_available,
-  get_taxonomy_v3_path,
-  taxonomy_v3_available,
-  taxonomy_v3_marker_matches,
-  write_taxonomy_v3_marker,
+  get_taxonomy_v3_input,
 )
 
 _LABELS_DL_URL = "https://zenodo.org/records/20703646/files/BirdNET+_V3.0-preview3.1_Global_11K_Labels.csv"
 _LABELS_DL_SIZE = 809172
+_LABELS_DL_SHA256 = "8124b0ea2d187104c5e2cd95a0f937165647e20349c8fd34d4d5ef991821f8f0"
 _DEFAULT_SEGMENT_SIZE_S = 3.0
 _DEFAULT_SEGMENT_SIZE_SAMPLES = 96_000
 
@@ -80,24 +88,19 @@ _LANGUAGE_TO_COLUMN: dict[str, str] = {
 }
 
 _ACOUSTIC_V3_0_BASE_DIR = APP_DIR / "acoustic-models" / "v3.0"
-_LABELS_RAW_PATH = _ACOUSTIC_V3_0_BASE_DIR / "labels_raw.csv"
+# Named after the content, so an install of another version cannot overwrite
+# this release's copy with its own and leave both re-downloading forever.
+_LABELS_RAW_PATH = _ACOUSTIC_V3_0_BASE_DIR / f"labels_raw-{_LABELS_DL_SHA256[:12]}.csv"
+_LEGACY_LABELS_RAW_PATH = _ACOUSTIC_V3_0_BASE_DIR / "labels_raw.csv"
+_SETUP_LOCK_DIR = _ACOUSTIC_V3_0_BASE_DIR / ".labels_setup.lock"
 
-
-def _write_text_atomic(path: Path, content: str, encoding: str = "utf-8") -> None:
-  fd, temp_name = tempfile.mkstemp(
-    dir=path.parent,
-    prefix=f"{path.name}.",
-    suffix=".tmp",
-  )
-  os.close(fd)
-  temp_path = Path(temp_name)
-
-  try:
-    temp_path.write_text(content, encoding=encoding)
-    temp_path.replace(path)
-  except Exception:
-    temp_path.unlink(missing_ok=True)
-    raise
+# Identifies this generator in the manifest, so a directory written by the geo
+# model could never be read as an acoustic one.
+_GENERATOR_NAME = "acoustic_v3_0"
+# Bump whenever a change here would produce different <lang>.txt bytes from the
+# same inputs - the join key, the tie-break, the fallback, the line format. The
+# golden-digest test fails until this and the expected digests agree.
+_GENERATION_VERSION = 2
 
 
 class AcousticDownloaderBaseV3_0:
@@ -108,61 +111,76 @@ class AcousticDownloaderBaseV3_0:
     raise NotImplementedError
 
   @classmethod
-  def _check_labels_available(cls) -> bool:
-    if not _LABELS_RAW_PATH.is_file():
-      return False
-    if _LABELS_RAW_PATH.stat().st_size != _LABELS_DL_SIZE:
-      return False
-    if not taxonomy_v3_available():
-      return False
+  def _labels_input(cls) -> LabelInput:
+    return LabelInput(
+      path=_LABELS_RAW_PATH,
+      url=_LABELS_DL_URL,
+      size=_LABELS_DL_SIZE,
+      sha256=_LABELS_DL_SHA256,
+    )
 
-    lang_dir = cls._get_lang_dir()
-    if not lang_dir.is_dir():
-      return False
-    if not all(
-      (lang_dir / f"{lang}.txt").is_file() for lang in cls.AVAILABLE_LANGUAGES
-    ):
-      return False
-    # The lang files carry no trace of the taxonomy they were built from, so a
-    # taxonomy bump alone would otherwise leave them serving the old names.
-    return taxonomy_v3_marker_matches(lang_dir)
+  @classmethod
+  def _manifest_inputs(cls) -> dict[str, LabelInput]:
+    return {"labels": cls._labels_input(), "taxonomy": get_taxonomy_v3_input()}
+
+  @classmethod
+  def _check_labels_available(cls) -> bool:
+    return labels_up_to_date(
+      cls._get_lang_dir(),
+      generator=_GENERATOR_NAME,
+      generator_version=_GENERATION_VERSION,
+      inputs=cls._manifest_inputs(),
+      languages=_LANGUAGE_TO_COLUMN,
+    )
 
   @classmethod
   def ensure_labels_available(cls) -> None:
-    needs_regen = False
+    # Checked before the lock: a current cache then needs no write at all, which
+    # keeps read-only and pre-populated app data directories usable.
+    if cls._check_labels_available():
+      return
 
-    labels_stale = not _LABELS_RAW_PATH.is_file() or (
-      _LABELS_RAW_PATH.stat().st_size != _LABELS_DL_SIZE
-    )
-    if labels_stale:
-      _LABELS_RAW_PATH.parent.mkdir(parents=True, exist_ok=True)
-      download_file_tqdm(
-        _LABELS_DL_URL,
-        _LABELS_RAW_PATH,
-        download_size=_LABELS_DL_SIZE,
-        description="Downloading acoustic model v3.0 labels",
+    with directory_lock(_SETUP_LOCK_DIR, "acoustic model v3.0 label setup"):
+      if cls._check_labels_available():
+        return
+
+      ensure_artifact(
+        cls._labels_input(),
+        "Downloading acoustic model v3.0 labels",
+        legacy_path=_LEGACY_LABELS_RAW_PATH,
       )
-      needs_regen = True
-
-    taxonomy_stale = not taxonomy_v3_available()
-    if taxonomy_stale:
       ensure_taxonomy_v3_available()
-      needs_regen = True
 
-    lang_dir = cls._get_lang_dir()
-    lang_files_missing = not all(
-      (lang_dir / f"{lang}.txt").is_file() for lang in cls.AVAILABLE_LANGUAGES
-    )
-    # Another model may have fetched the new taxonomy already, which makes
-    # taxonomy_stale False while these lang files still hold the old names.
-    taxonomy_changed = not taxonomy_v3_marker_matches(lang_dir)
-    if needs_regen or lang_files_missing or taxonomy_changed:
       cls._generate_lang_files()
+
+      # Both inputs were just verified by digest, so this can only fail if
+      # generation itself is wrong. Raising beats silently regenerating on every
+      # later load while serving names nobody checked.
+      if not cls._check_labels_available():
+        raise RuntimeError(
+          "The acoustic model v3.0 label files could not be generated from verified "
+          f"inputs. Remove {cls._get_lang_dir()} and try again; if this "
+          "persists it is a bug in birdnet."
+        )
 
   @classmethod
   def _generate_lang_files(cls) -> None:
+    lang_dir = cls._get_lang_dir()
+    lang_dir.mkdir(parents=True, exist_ok=True)
+    # Dropped first: an interrupted run then leaves a directory that visibly
+    # fails verification rather than one still vouched for by the old record.
+    get_manifest_path(lang_dir).unlink(missing_ok=True)
+
+    # Read once and hash *these* bytes, so the manifest records what was really
+    # used rather than what the constants say should have been there.
+    inputs = cls._manifest_inputs()
+    # Read via the same LabelInput the manifest records, so the digest can
+    # never describe a file other than the one that was parsed.
+    taxonomy_raw = inputs["taxonomy"].path.read_bytes()
+    labels_raw = inputs["labels"].path.read_bytes()
+
     species_order: list[tuple[str, str]] = []
-    with open(_LABELS_RAW_PATH, encoding="utf-8", newline="") as f:
+    with io.StringIO(labels_raw.decode("utf-8"), newline="") as f:
       reader = csv.DictReader(f, delimiter=";")
       for row in reader:
         sci_name = row.get("sci_name", "").strip()
@@ -175,15 +193,14 @@ class AcousticDownloaderBaseV3_0:
     # the module docstring of birdnet/utils/taxonomy_v3.py; the two keys are
     # deliberate and the trade-off is described there.
     taxonomy: dict[str, dict[str, str]] = {}
-    with open(get_taxonomy_v3_path(), encoding="utf-8", newline="") as f:
+    with io.StringIO(taxonomy_raw.decode("utf-8"), newline="") as f:
       reader = csv.DictReader(f)
       for row in reader:
         sci_name = row.get("sci_name", "").strip()
         if sci_name:
           taxonomy[sci_name] = dict(row)
 
-    lang_dir = cls._get_lang_dir()
-    lang_dir.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
     for lang, col in _LANGUAGE_TO_COLUMN.items():
       lang_file = lang_dir / f"{lang}.txt"
       lines: list[str] = []
@@ -193,8 +210,19 @@ class AcousticDownloaderBaseV3_0:
         if not localized_name:
           localized_name = en_us_name
         lines.append(f"{sci_name}_{localized_name}")
-      _write_text_atomic(lang_file, "\n".join(lines), encoding="utf-8")
-    write_taxonomy_v3_marker(lang_dir)
+      write_text_atomic(lang_file, "\n".join(lines), encoding="utf-8")
+      written.append(lang_file)
+
+    record_generation(
+      lang_dir,
+      generator=_GENERATOR_NAME,
+      generator_version=_GENERATION_VERSION,
+      declared_inputs=inputs,
+      read_bytes={"labels": labels_raw, "taxonomy": taxonomy_raw},
+      languages=_LANGUAGE_TO_COLUMN,
+      lang_files=written,
+      stats={"n_entries": len(species_order)},
+    )
 
   @classmethod
   def get_lang_file(cls, lang: str) -> Path:

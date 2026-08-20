@@ -230,6 +230,9 @@ ENV_VAR_APP_DATA = "BIRDNET_APP_DATA"
 
 ENV_VAR_START_METHOD = "BIRDNET_START_METHOD"
 
+# Set to anything but "0" to let TensorFlow's native startup output through.
+ENV_VAR_TF_VERBOSE = "BIRDNET_TF_VERBOSE"
+
 # flag for "can be written to" = free
 WRITABLE_FLAG = np.uint8(0)
 
