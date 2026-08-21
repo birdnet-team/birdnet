@@ -151,6 +151,9 @@ def pytest_runtest_logfinish(nodeid: str, location: tuple) -> None:
   _watchdog_arm(_watchdog_deadline(_watchdog_in_flight, time.monotonic()))
 
 
+# optionalhook: the hookspec belongs to pytest-xdist; without it installed,
+# pytest would otherwise reject the whole conftest at startup.
+@pytest.hookimpl(optionalhook=True)
 def pytest_handlecrashitem(
   crashitem: str, report: pytest.TestReport, sched: object
 ) -> None:

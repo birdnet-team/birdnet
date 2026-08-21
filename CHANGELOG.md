@@ -7,56 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-21
+
 ### Breaking changes
 
-- TensorFlow is now an optional dependency (`pip install birdnet[tf]`; `birdnet[and-cuda]` implies it and `birdnet[repro]` keeps pinning it). The base package ships ONNX Runtime instead (plus LiteRT where wheels exist), so `pip install birdnet` runs the acoustic 3.0 and geo 3.0 models via `onnx` and the 2.4 models via `birdnet.load(.., "tf", library="litert")` — but no longer `birdnet.load("acoustic", "2.4", "tf")`, the `pb` backend or Perch V2, which now raise a `ValueError` pointing at `birdnet[tf]`; install that extra to keep the previous behavior. `birdnet[onnx]` stays as a no-op alias. A TensorFlow-free install is ~1.5 GB smaller. On platforms without LiteRT wheels (macOS x86_64, Windows ARM64) the base install cannot run the 2.4 models at all; for GPU inference with the `onnx` backend, replace the base `onnxruntime` with `onnxruntime-gpu` after installing (`pip uninstall onnxruntime && pip install onnxruntime-gpu`; `pip check` then reports the missing `onnxruntime`, and every later `pip install`/upgrade of `birdnet` puts the CPU build back, so redo the swap).
+- TensorFlow is now an optional dependency (`pip install birdnet[tf]`; `and-cuda` implies it, `repro` still pins it, `onnx` stays a no-op alias). The base package ships ONNX Runtime and LiteRT instead, so `pip install birdnet` runs the 3.0 models via `onnx` and the 2.4 models via `birdnet.load(.., "tf", library="litert")`, and is ~1.5 GB smaller. `birdnet.load("acoustic", "2.4", "tf")`, the `pb` backend and Perch V2 now raise a `ValueError` pointing at `birdnet[tf]`; install that extra to keep the previous behavior. Where LiteRT has no wheels (macOS x86_64, Windows ARM64) the base install cannot run the 2.4 models at all; see the release notes for GPU inference with `onnxruntime-gpu` ([#94](https://github.com/birdnet-team/birdnet/pull/94)).
 
 ### Added
 
-- Added `birdnet.set_download_progress_callback(cb)` (and a scoped `birdnet.download_progress_callback(cb)` context manager) so embedding applications — e.g. a GUI with stderr diverted to a log file — can render their own progress for first-run model/label downloads instead of a tqdm bar nobody sees. The callback receives a `DownloadProgress` snapshot on `started` (once per attempt), throttled `progress`, `retrying` (with the error and the back-off in seconds) and exactly one terminal `finished`/`failed`. Unregistered, downloads behave as before; while a callback is registered the tqdm bar is silenced. A callback that raises aborts the download cleanly (no partial file, no retry) and its exception surfaces from `load(..)`, which doubles as a cancel.
+- Added `birdnet.set_download_progress_callback(cb)` and a scoped `birdnet.download_progress_callback(cb)` context manager, so an application can render its own progress for first-run downloads instead of a tqdm bar nobody sees. The callback receives `started`, throttled `progress`, `retrying` and one terminal `finished`/`failed`; raising from it cancels the download ([#89](https://github.com/birdnet-team/birdnet/pull/89), [#90](https://github.com/birdnet-team/birdnet/pull/90)).
 
 ### Bugfixes
 
-- TensorFlow's startup banner is no longer printed by every worker process, which the previous logging settings could not suppress. Diagnostics from a failed TensorFlow import are still shown, and `BIRDNET_TF_VERBOSE=1` restores the old output.
-- V3.0 species names could be silently wrong when two installed versions shared one app data directory, because each judged the other's downloads stale by byte size and overwrote them. Downloads are now verified by checksum and cached per release, the generated label files record what was actually read, and existing files are regenerated once on upgrade. Two versions sharing one directory no longer corrupt each other's names, but do regenerate their label files on each switch (about a second per model). The generated files now use the same newlines on every platform, so they change once on Windows.
-- A cached SavedModel from an older release was never recognised as stale: the `pb` downloaders for acoustic 2.4/3.0, geo 2.4 and Perch V2 only checked that the model files were present, and their on-disk directory names carry no version, so after a model URL changed the outdated model kept being served and tested as if current. Each download now records its source URL inside the model directory and re-downloads whenever it does not match. Because `pb` and Perch V2 models cached before this release carry no such record, they are downloaded once more on first use.
-- The `repro` extra's TensorFlow pin never applied on Windows (its marker spelled the platform `windows`/`amd64` instead of `win32`/`AMD64`), so a Windows `birdnet[repro]` install took whichever TensorFlow the base install brought; the marker now matches.
-- `birdnet.load(.., "tf", library="litert")` no longer fails in environments without TensorFlow: the loader's guard rejected every `tf` load, although the LiteRT interpreter (`ai-edge-litert`) never imports TensorFlow. TensorFlow is now required only for the default `tflite` interpreter and for `pb`, so the acoustic 2.4 model, custom 2.4 classifiers and the geo 2.4 model run in a TensorFlow-free install (also on Python 3.14 after `pip install ai-edge-litert`), and the TensorFlow-missing error points to `library="litert"`. The default interpreter stays `tflite`.
-- Acoustic V3.0 confidences were sigmoid-squashed twice: the V3.0 exports already apply the sigmoid in-graph, so the pipeline's default sigmoid compressed every score into [0.5, 0.73]. `predict(..)` now returns the model's probabilities unchanged; `sigmoid_sensitivity` values other than 1.0 and `apply_softmax=True` raise a `ValueError` for V3.0, since both need logits the exports do not expose. A calibration test now pins an absolute confidence per backend.
-- The acoustic V3.0 `pb` backend requested v2.4's SavedModel signatures, so every `predict(..)`/`encode(..)` died with `KeyError: 'basic'`. It now reads the V3.0 export's single `serving_default` signature, and new integration tests run the real SavedModel against the `onnx` backend.
-- A worker killed while processing a batch — the realistic out-of-memory case — no longer wedges the surviving workers: a killed process leaves the shared ring-buffer lock permanently held, so waiters now notice a cancelled run and shut down cleanly, letting the liveness check report the death instead of hanging the call (#73).
-- Teardown after a cancelled run no longer hangs on a message a killed child never finished writing: the parent drains the child-to-parent queues on background threads and joins its queue-reader threads with a bound (#77).
-- A child killed while writing to the shared logging queue no longer keeps the surviving children from exiting: children on the cancellation path release the logging queue as their last act, at the cost of the few records still buffered.
-- The progress display's slot and busy-worker gauges are now read without taking the counter's lock, so a killed process can no longer block the stats interval; a reading may be one count behind.
-- Still open: the consumer's own read of the results queue can block on a message truncated by a killed worker (#83).
+- TensorFlow's startup banner is no longer printed by every worker process; it comes from native code, which the previous logging settings could not reach. Failed-import diagnostics are still shown, and `BIRDNET_TF_VERBOSE=1` restores the old output ([#98](https://github.com/birdnet-team/birdnet/pull/98)).
+- V3.0 species names could be silently wrong when two installed versions shared one app data directory, because each judged the other's label and taxonomy downloads stale by byte size and overwrote them. Those downloads are now checksum-verified and cached per release, and the generated label files record what was actually read, so they regenerate once on upgrade ([#99](https://github.com/birdnet-team/birdnet/pull/99)).
+- Label and taxonomy setup interrupted by a killed process left a lock directory behind, after which every later load waited out a 300 s timeout and failed until it was removed by hand; the lock now records its owner and is reclaimed when that process is gone. The acoustic V3.0 label setup is serialized across processes as well now, as the geo V3.0 one already was ([#99](https://github.com/birdnet-team/birdnet/pull/99)).
+- A cached SavedModel from an older release was never recognised as stale, because the `pb` downloaders only checked that the files were present. Each download now records its source URL and re-downloads on a mismatch, so `pb` and Perch V2 models cached before this release are fetched once more ([#95](https://github.com/birdnet-team/birdnet/pull/95)).
+- The `repro` extra's TensorFlow pin never applied on Windows, because its marker spelled the platform `windows`/`amd64` instead of `win32`/`AMD64` ([#94](https://github.com/birdnet-team/birdnet/pull/94)).
+- `birdnet.load(.., "tf", library="litert")` no longer fails without TensorFlow: the loader rejected every `tf` load although the LiteRT interpreter never imports TensorFlow. It is now required only for the default `tflite` interpreter and for `pb`, so the 2.4 models and custom 2.4 classifiers run in a TensorFlow-free install ([#91](https://github.com/birdnet-team/birdnet/pull/91)).
+- Acoustic V3.0 confidences were sigmoid-squashed twice — the exports already apply it in-graph — which compressed every score into 0.5–0.73. `predict(..)` now returns the model's probabilities unchanged, and `sigmoid_sensitivity` other than 1.0 or `apply_softmax=True` raise a `ValueError` for V3.0, which need logits the exports do not expose ([#86](https://github.com/birdnet-team/birdnet/pull/86)).
+- The acoustic V3.0 `pb` backend requested v2.4's SavedModel signatures, so every `predict(..)`/`encode(..)` died with `KeyError: 'basic'`; it now reads the export's `serving_default` signature ([#86](https://github.com/birdnet-team/birdnet/pull/86)).
+- A worker killed while processing a batch — the realistic out-of-memory case — no longer wedges the surviving workers: waiters on the ring-buffer lock it leaves held now notice the cancelled run and shut down, so the death is reported instead of hanging the call ([#73](https://github.com/birdnet-team/birdnet/issues/73), [#82](https://github.com/birdnet-team/birdnet/pull/82)).
+- Teardown after a cancelled run no longer hangs on a message a killed child never finished writing: the parent drains the child-to-parent queues on background threads and joins its queue-reader threads with a bound ([#77](https://github.com/birdnet-team/birdnet/issues/77), [#82](https://github.com/birdnet-team/birdnet/pull/82)).
+- A child killed while writing to the shared logging queue no longer keeps the surviving children from exiting, at the cost of the few records still buffered ([#82](https://github.com/birdnet-team/birdnet/pull/82)).
+- The progress display's slot and busy-worker gauges are read without taking the counter's lock, so a killed process cannot block the stats interval; a reading may be one count behind ([#82](https://github.com/birdnet-team/birdnet/pull/82)).
+- `birdnet.load_perch_v2()` required the `device` argument at runtime although the type stub declared it optional; it now defaults to `"CPU"` as documented ([#94](https://github.com/birdnet-team/birdnet/pull/94)).
+- Still open: the consumer's own read of the results queue can block on a message truncated by a killed worker ([#83](https://github.com/birdnet-team/birdnet/issues/83)).
 
 ## [1.0.0] - 2026-08-14
 
 ### Added
 
-- Added an `on_file_complete` callback to acoustic `predict(..)`/`encode(..)` and their session variants (all models: 2.4, 3.0, Perch V2), fired once per file as soon as it is fully processed with a single-file result — enabling streaming per-file persistence and live output. File inputs only; runs off the inference hot path, so throughput is unaffected (#57).
-- Added the BirdNET V3.0 (preview) acoustic model in four backends — `tf`, `pb`, `pt` and `onnx` — all supporting `predict(..)` and `encode(..)`. Load via `birdnet.load("acoustic", "3.0", <backend>)`; `pt`/`onnx` require the new `birdnet[pt]`/`birdnet[onnx]` extras (#41).
-- Added the BirdNET-Geomodel V3.0 (v3.0.4, 14,082 classes covering birds, insects, amphibians and mammals) in the `tf`, `pb`, `pt` and `onnx` backends. Load via `birdnet.load("geo", "3.0", <backend>)`; `pt`/`onnx` require the matching extras and run without TensorFlow. The `pt` backend applies the sigmoid the TorchScript export omits, so all four backends return the same probabilities (#41).
-- Added an `apply_softmax` option to acoustic `predict(..)` (all models), mirroring `apply_sigmoid`: scores become a softmax over the model logits, useful for confidence scores (e.g. Perch V2). Defaults to `False` (#54).
-- Added partial Python 3.14 support: as TensorFlow has no 3.14 wheels yet, `birdnet` installs without TensorFlow there and runs the TF-free backends — acoustic 3.0 and geo 3.0 via `onnx`/`pt`; TensorFlow-only paths raise a clear error instead of an `ImportError` (#55).
+- Added an `on_file_complete` callback to acoustic `predict(..)`/`encode(..)` and their session variants, fired once per file with a single-file result, for streaming per-file persistence and live output. File inputs only, and off the inference hot path, so throughput is unaffected ([#57](https://github.com/birdnet-team/birdnet/pull/57)).
+- Added the BirdNET V3.0 (preview) acoustic model in the `tf`, `pb`, `pt` and `onnx` backends, all supporting `predict(..)` and `encode(..)`. Load via `birdnet.load("acoustic", "3.0", <backend>)`; `pt`/`onnx` need the new `birdnet[pt]`/`birdnet[onnx]` extras ([#41](https://github.com/birdnet-team/birdnet/pull/41)).
+- Added the BirdNET-Geomodel V3.0 (v3.0.4, 14,082 classes covering birds, insects, amphibians and mammals) in the same four backends, via `birdnet.load("geo", "3.0", <backend>)`. The `pt` backend applies the sigmoid the TorchScript export omits, so all four return the same probabilities ([#41](https://github.com/birdnet-team/birdnet/pull/41)).
+- Added an `apply_softmax` option to acoustic `predict(..)`, mirroring `apply_sigmoid`: scores become a softmax over the model logits, useful for confidence scores (e.g. Perch V2). Defaults to `False` ([#54](https://github.com/birdnet-team/birdnet/pull/54)).
+- Added partial Python 3.14 support: TensorFlow has no 3.14 wheels, so `birdnet` installs without it there and runs acoustic 3.0 and geo 3.0 via `onnx`/`pt`, while TensorFlow-only paths raise a clear error instead of an `ImportError` ([#55](https://github.com/birdnet-team/birdnet/issues/55)).
 
 ### Changed
 
-- The inference pipeline now creates its processes with `spawn` by default on all platforms instead of inheriting Linux's `fork`, which could deadlock workers after TensorFlow had started its multi-threaded runtime. A start method the application fixed globally is honored, and `BIRDNET_START_METHOD` overrides both, so `fork`/`forkserver` remain available by explicit opt-in (#63).
-- The V3.0 models now share the geomodel's versioned taxonomy (`taxonomy_v0.2-Jun2026.csv`), which resolves every geo label and matches the acoustic label file more closely than the previous pin. Estonian (`et`) was dropped from the V3.0 language list, as the new taxonomy has no Estonian column (#41).
-- The progress callback now runs on a background thread with a copy of the caller's context (contextvars), matching the new `on_file_complete` callback (#53).
+- The inference pipeline now creates its processes with `spawn` on all platforms instead of inheriting Linux's `fork`, which could deadlock workers after TensorFlow had started its multi-threaded runtime. A globally fixed start method is honored and `BIRDNET_START_METHOD` overrides both, so `fork`/`forkserver` stay available by opt-in ([#63](https://github.com/birdnet-team/birdnet/pull/63)).
+- The V3.0 models now share the geomodel's versioned taxonomy (`taxonomy_v0.2-Jun2026.csv`), which resolves every geo label. Estonian (`et`) was dropped from the V3.0 languages, as the new taxonomy has no Estonian column ([#41](https://github.com/birdnet-team/birdnet/pull/41)).
+- The progress callback now runs on a background thread with a copy of the caller's context (contextvars), matching the new `on_file_complete` callback ([#53](https://github.com/birdnet-team/birdnet/pull/53)).
 
 ### Bugfixes
 
-- A pipeline process that dies mid-run — typically killed by the operating system when memory runs out — is now reported with its name and exit code instead of leaving the call hanging forever. Not covered: a worker killed *while processing a batch* still deadlocks the surviving workers on Linux and macOS (#73).
-- Fixed the progress callback's closing update: it reported zero processed segments for runs that had processed everything, and for a run without predictions published nothing at all, leaving the call waiting indefinitely (#75).
+- A pipeline process that dies mid-run — typically an operating-system kill when memory runs out — is now reported with its name and exit code instead of hanging the call forever. Not covered: a worker killed *while processing a batch* still deadlocks the survivors on Linux and macOS ([#73](https://github.com/birdnet-team/birdnet/issues/73)).
+- Fixed the progress callback's closing update, which reported zero processed segments for completed runs and published nothing at all for a run without predictions, leaving the call waiting indefinitely ([#75](https://github.com/birdnet-team/birdnet/issues/75)).
 - Model, label and taxonomy downloads now retry with a growing back-off instead of failing on the first transient network fault; permanent client errors still fail immediately.
 - Removed a fixed ~1 s barrier from every `run_arrays(..)` call — on a warm session a 3 s clip went from 1069 ms to 39 ms. Cancelled runs still tear down on the poll interval.
-- Fixed an assertion firing in the prediction and encoding workers when the ring-buffer scan finds no readable slot, which aborted the run instead of taking the clean exit that was already there.
+- Fixed an assertion firing in the prediction and encoding workers when the ring-buffer scan finds no readable slot, which aborted the run instead of taking the clean exit already there.
 - Producers and the performance tracker no longer attach the ring buffers from inside a `fork` child, where `SharedMemory(create=False)` could block forever on a lock CPython does not reinitialize after `fork`.
-- Fixed corrupt rows in acoustic prediction/encoding output caused by growing the internal result buffer with `numpy.ndarray.resize`, plus an off-by-one in the initial segment count (#50).
-- Geo model v3.0 caches now self-heal across releases: a cached SavedModel or label files from an older release were not detected as stale, so a version bump could keep serving outdated labels (#41).
-- V3.0 label files now record which taxonomy they were generated from and are regenerated when it changes. The taxonomy is shared, so the first model to fetch a new one made it look current for every other model, which kept serving the previous release's localized names (#41).
+- Fixed corrupt rows in acoustic prediction/encoding output caused by growing the internal result buffer with `numpy.ndarray.resize`, plus an off-by-one in the initial segment count ([#50](https://github.com/birdnet-team/birdnet/pull/50)).
+- Geo model v3.0 caches now self-heal across releases: a cached SavedModel or label files from an older release were not detected as stale, so a version bump could keep serving outdated labels ([#41](https://github.com/birdnet-team/birdnet/pull/41)).
+- V3.0 label files now record which taxonomy they were generated from and regenerate when it changes; the taxonomy is shared, so the first model to fetch a new one made it look current for every other model ([#41](https://github.com/birdnet-team/birdnet/pull/41)).
 
 ## [0.2.16] - 2026-05-09
 
@@ -66,20 +70,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bugfixes
 
-- Fixed acoustic inference session being aborted on macOS when stats were enabled: hardened parent/child memory tracking against `psutil.AccessDenied`, and replaced the two tracked semaphores with a wrapper that mirrors the count into shared memory so `get_value()` works on macOS (#39)
-- Fixed float16 quantization of segment timestamps in prediction results, which caused up to ±0.05 s drift in CSV/DataFrame/Parquet output (#38, #42). Also closed an analogous hole in encoding results where a hop duration that is exactly representable in float16 (e.g. hop=1.5) could still produce drifting accumulated timestamps. Timestamps are now always materialized at >= float32 precision at the source.
+- Fixed acoustic inference session being aborted on macOS when stats were enabled: hardened parent/child memory tracking against `psutil.AccessDenied`, and replaced the two tracked semaphores with a wrapper that mirrors the count into shared memory so `get_value()` works on macOS ([#39](https://github.com/birdnet-team/birdnet/issues/39))
+- Fixed float16 quantization of segment timestamps in prediction results, which caused up to ±0.05 s drift in CSV/DataFrame/Parquet output ([#38](https://github.com/birdnet-team/birdnet/issues/38), [#42](https://github.com/birdnet-team/birdnet/issues/42)). Also closed an analogous hole in encoding results where a hop duration that is exactly representable in float16 (e.g. hop=1.5) could still produce drifting accumulated timestamps. Timestamps are now always materialized at >= float32 precision at the source.
 
 ## [0.2.15] - 2026-05-02
 
 ### Bugfixes
 
-- Fix issue with float16 input durations and hop duration not being exactly representable, which caused rounding errors to accumulate across segments and thus wrong segment times in the output (#32)
+- Fix issue with float16 input durations and hop duration not being exactly representable, which caused rounding errors to accumulate across segments and thus wrong segment times in the output ([#32](https://github.com/birdnet-team/birdnet/issues/32))
 
 ## [0.2.14] - 2026-04-30
 
 ### Bugfixes
 
-- Allow classifiers trained with hidden units and with append mode(#33, #22)
+- Allow classifiers trained with hidden units and with append mode ([#33](https://github.com/birdnet-team/birdnet/pull/33), [#22](https://github.com/birdnet-team/birdnet/issues/22))
 
 ## [0.2.13] - 2026-04-06
 
@@ -89,7 +93,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bugfixes
 
-- Fixed issue #29
+- Fixed issue [#29](https://github.com/birdnet-team/birdnet/issues/29)
 
 ## [0.2.12] - 2026-02-22
 
@@ -157,8 +161,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Bugfix
 
 - Fixed issue with using ProtoBuf CPU backend and TensorFlow GPU being available
-- Fixed #17: Issue on macOS with too long ring buffer names
-- Fixed #19: `queue.qsize()` is not used anymore
+- Fixed [#17](https://github.com/birdnet-team/birdnet/issues/17): Issue on macOS with too long ring buffer names
+- Fixed [#19](https://github.com/birdnet-team/birdnet/issues/19): `queue.qsize()` is not used anymore
 - Fixed issue with hanging session because of logging
 - Fixed issue with downloading same model simultaneously
 
@@ -293,7 +297,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Bugfix 'ERROR: Could not find a version that satisfies the requirement nvidia-cuda-nvcc-cu12 (Mac/Ubuntu/Windows)' (#4)
+- Bugfix 'ERROR: Could not find a version that satisfies the requirement nvidia-cuda-nvcc-cu12 (Mac/Ubuntu/Windows)' ([#4](https://github.com/birdnet-team/birdnet/issues/4))
 
 ## [0.1.2] - 2024-08-07
 
@@ -315,18 +319,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add parameter 'chunk_overlap_s' to define overlapping between chunks (#3)
+- Add parameter 'chunk_overlap_s' to define overlapping between chunks ([#3](https://github.com/birdnet-team/birdnet/issues/3))
 
 ### Removed
 
-- Remove parameter 'file_splitting_duration_s' instead load files in 3s chunks (#2)
+- Remove parameter 'file_splitting_duration_s' instead load files in 3s chunks ([#2](https://github.com/birdnet-team/birdnet/issues/2))
 - Remove 'librosa' dependency
 
 ## [0.1.0] - 2024-07-23
 
 - Initial release
 
-[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/birdnet-team/birdnet/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/birdnet-team/birdnet/compare/v0.2.16...v1.0.0
 [0.2.16]: https://github.com/birdnet-team/birdnet/compare/v0.2.15...v0.2.16
 [0.2.15]: https://github.com/birdnet-team/birdnet/compare/v0.2.14...v0.2.15

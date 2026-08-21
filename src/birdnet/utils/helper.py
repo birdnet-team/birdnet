@@ -545,36 +545,44 @@ def download_file_tqdm(
     url, description, _DOWNLOAD_ATTEMPTS, get_download_progress_callback()
   )
   attempt = 0
-  while True:
-    attempt += 1
-    try:
-      return _download_file_once(
-        url,
-        file_path,
-        download_size=download_size,
-        description=description,
-        attempt=attempt,
-        reporter=reporter,
-      )
-    except (requests.RequestException, ValueError) as error:
-      # Re-raise from inside the handler so the original traceback survives.
-      if reporter.callback_failed:
-        # The callback raised (a ValueError lands here too): abort, no retry.
-        raise
-      if attempt >= _DOWNLOAD_ATTEMPTS or not _is_retriable_download_error(error):
+  try:
+    while True:
+      attempt += 1
+      try:
+        return _download_file_once(
+          url,
+          file_path,
+          download_size=download_size,
+          description=description,
+          attempt=attempt,
+          reporter=reporter,
+        )
+      except (requests.RequestException, ValueError) as error:
+        # Re-raise from inside the handler so the original traceback survives.
+        if reporter.callback_failed:
+          # The callback raised (a ValueError lands here too): abort, no retry.
+          raise
+        if attempt >= _DOWNLOAD_ATTEMPTS or not _is_retriable_download_error(error):
+          raise
+        wait_s = _DOWNLOAD_RETRY_WAITS_S[
+          min(attempt - 1, len(_DOWNLOAD_RETRY_WAITS_S) - 1)
+        ]
+        # Before the log line: a callback that raises here cancels the download,
+        # and then nothing is retried.
+        reporter.retrying(error, wait_s)
+        logging.getLogger(__name__).warning(
+          f"Download of {url} failed (attempt {attempt}/{_DOWNLOAD_ATTEMPTS}): "
+          f"{error}. Retrying in {wait_s:.0f} s..."
+        )
+        time.sleep(wait_s)
+  except BaseException as error:
+    # Terminal event for errors the retry handler does not deal in (OSError,
+    # KeyboardInterrupt). A raising callback gets no further events; suppress
+    # keeps one that raises again from masking the original error.
+    if not reporter.callback_failed:
+      with suppress(BaseException):
         reporter.failed(error)
-        raise
-      wait_s = _DOWNLOAD_RETRY_WAITS_S[
-        min(attempt - 1, len(_DOWNLOAD_RETRY_WAITS_S) - 1)
-      ]
-      # Before the log line: a callback that raises here cancels the download,
-      # and then nothing is retried.
-      reporter.retrying(error, wait_s)
-      logging.getLogger(__name__).warning(
-        f"Download of {url} failed (attempt {attempt}/{_DOWNLOAD_ATTEMPTS}): "
-        f"{error}. Retrying in {wait_s:.0f} s..."
-      )
-      time.sleep(wait_s)
+    raise
 
 
 def _download_file_once(

@@ -1,6 +1,6 @@
 [project]
 name = "birdnet"
-version = "1.0.0"
+version = "1.1.0"
 description = "A Python library for identifying bird species by their sounds."
 readme = "README.md"
 requires-python = ">=3.11"

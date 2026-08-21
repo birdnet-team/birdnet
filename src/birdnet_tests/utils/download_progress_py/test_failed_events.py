@@ -90,6 +90,53 @@ def test_connection_error_before_any_response_is_reported_and_raised(
   assert "always down" in events[-1].error
 
 
+def test_os_error_outside_the_retry_loop_fails_terminally(
+  server: LocalServer,
+  events: list[DownloadProgress],
+  tmp_path: Path,
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  # Not a download error, so the retry handler never sees it: the terminal
+  # event must come from the outer funnel, and there must be no retry.
+  def no_space(*_args: object, **_kwargs: object) -> tuple[int, str]:
+    raise OSError("No space left on device")
+
+  monkeypatch.setattr(helper.tempfile, "mkstemp", no_space)
+
+  with pytest.raises(OSError, match="No space left"):
+    download_file_tqdm(server.url("/file"), tmp_path / "f.bin")
+
+  assert server.hits_for("/file") == 1
+  assert _statuses(events) == ["started", "failed"]
+  assert events[-1].error is not None
+  assert "No space left" in events[-1].error
+  assert not (tmp_path / "f.bin").exists()
+  assert not list(tmp_path.glob("*.tmp"))
+
+
+def test_keyboard_interrupt_in_the_backoff_sleep_fails_terminally(
+  server: LocalServer,
+  events: list[DownloadProgress],
+  tmp_path: Path,
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  def interrupt(_s: float) -> None:
+    raise KeyboardInterrupt
+
+  monkeypatch.setattr(helper.time, "sleep", interrupt)
+
+  with pytest.raises(KeyboardInterrupt):
+    download_file_tqdm(server.url("/status/503"), tmp_path / "f.bin")
+
+  # The interrupt lands after the first back-off announcement; the promised
+  # retry never starts, so the terminal event closes the sequence instead.
+  assert server.hits_for("/status/503") == 1
+  assert _statuses(events) == ["started", "retrying", "failed"]
+  assert events[-1].is_terminal
+  assert not (tmp_path / "f.bin").exists()
+  assert not list(tmp_path.glob("*.tmp"))
+
+
 def test_response_is_closed_even_if_content_length_header_is_malformed(
   tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
