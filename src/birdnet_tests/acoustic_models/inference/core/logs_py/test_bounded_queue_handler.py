@@ -18,8 +18,10 @@ from multiprocessing.reduction import ForkingPickler
 import pytest
 
 from birdnet.acoustic.inference.core.logs import (
-  _MAX_RECORD_CHARS,
+  _MAX_RECORD_BYTES,
   BoundedQueueHandler,
+  add_session_queue_handler,
+  remove_session_queue_handler,
 )
 
 pytestmark = pytest.mark.no_tf
@@ -64,7 +66,7 @@ def test_a_giant_record_keeps_its_head_and_its_last_line() -> None:
     "the exception line at the end is the diagnosis and must survive the cut"
   )
   assert "[log record truncated;" in received.msg
-  assert len(received.msg) <= _MAX_RECORD_CHARS + 200
+  assert len(received.msg.encode("utf-8")) <= _MAX_RECORD_BYTES + 200
 
 
 def test_a_giant_record_pickles_to_a_single_write() -> None:
@@ -95,5 +97,37 @@ def test_a_rendered_exception_dump_is_what_gets_cut() -> None:
     logger.removeHandler(handler)
 
   received = buffer.get_nowait()
-  assert len(received.msg) <= _MAX_RECORD_CHARS + 200
+  assert len(received.msg.encode("utf-8")) <= _MAX_RECORD_BYTES + 200
   assert received.msg.startswith("worker died")
+
+
+def test_the_budget_is_bytes_because_the_threshold_is() -> None:
+  """A non-ASCII record must respect the single-write bound too.
+
+  Characters are up to four UTF-8 bytes; a character budget lets a record of
+  emoji or CJK pickle to several times its apparent size and sail past the
+  threshold the cap exists to stay under.
+  """
+  received = _send_through_handler(_record("🐦" * 100_000))
+  buf = io.BytesIO()
+  ForkingPickler(buf).dump(received)
+  assert len(buf.getvalue()) <= _SINGLE_WRITE_BYTES, (
+    f"an emoji record pickled to {len(buf.getvalue())} bytes"
+  )
+
+
+def test_the_session_logging_path_actually_installs_the_bounded_handler() -> None:
+  """Wiring, not behaviour: the library must *use* the bounding handler.
+
+  Every other test here constructs the handler directly, so the whole feature
+  could be unplugged from `add_session_queue_handler` and nothing would
+  notice.
+  """
+  sink: queue.Queue = queue.Queue()
+  handler = add_session_queue_handler("bounded-wiring-test", sink)  # type: ignore[arg-type]
+  try:
+    assert isinstance(handler, BoundedQueueHandler), (
+      "the session logger is not using the record-bounding handler"
+    )
+  finally:
+    remove_session_queue_handler("bounded-wiring-test", handler)

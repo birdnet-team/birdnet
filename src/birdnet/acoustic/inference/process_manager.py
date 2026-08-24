@@ -132,6 +132,12 @@ class ProcessManager:
     self._worker_processes: list[BaseProcess] | None = None
     self._child_death_error: ChildProcessError | None = None
     self._undrainable_queues: list[Queue] = []
+    # Readers whose pumps were asked to stop but not yet confirmed gone.
+    # Confirming joins a thread that is usually just asleep in its poll, which
+    # costs tens of milliseconds -- so it is deferred to the moments that need
+    # the answer: before the same queues are read again (start of the next
+    # run) and before they are closed (session teardown).
+    self._stopped_readers: list[tuple[ThreadedQueueReader, Queue]] = []
 
   @property
   def child_death_error(self) -> ChildProcessError | None:
@@ -612,35 +618,62 @@ class ProcessManager:
         all_workers_finished=lambda: all(
           sig.is_set() for sig in self._res.worker_resources.finish_signals
         ),
+        report_child_death=self.record_child_death,
       )
       consumer()
     finally:
-      self._close_reader(results_reader, results_queue)
+      self._stop_reader(results_reader, results_queue)
       if marker_reader is not None:
         assert marker_queue is not None
-        self._close_reader(marker_reader, marker_queue)
+        self._stop_reader(marker_reader, marker_queue)
 
-  def _close_reader(self, reader: ThreadedQueueReader, q: Queue) -> None:
-    """Stop a queue reader, keeping its queue open if the reader is wedged.
+  def _stop_reader(self, reader: ThreadedQueueReader, q: Queue) -> None:
+    """Ask a queue reader to stop, without waiting for it.
 
-    A wedged reader is stuck inside ``_recv_bytes`` on a message a killed
-    child never finished; the run that produced it is already failed and a
-    session cannot be reused after that, so the cost is a parked daemon thread.
-    The queue must not be closed underneath the blocked read -- same reasoning
-    as ``_collect_wedged_drainers``.
+    Waiting here would put a fixed per-call cost on every ``session.run``;
+    ``reap_stopped_readers`` does the bounded wait at the two points that need
+    the answer.
     """
-    if reader.close():
-      return
-    self._logger.warning(
-      "A queue reader is still blocked on a message a killed child never "
-      "finished writing; leaving that queue open."
-    )
-    # A side effect worth knowing during teardown: the wedged pump holds the
-    # queue's read lock, so the cancel-path drainer on this queue drains
-    # nothing and children with buffered data are terminated at the grace
-    # period instead of flushing.
-    if not any(q is seen for seen in self._undrainable_queues):
-      self._undrainable_queues.append(q)
+    reader.stop()
+    self._stopped_readers.append((reader, q))
+
+  def reap_stopped_readers(self) -> None:
+    """Confirm stopped readers are gone; record the wedged ones.
+
+    Called before the next run reads these queues -- a not-yet-exited pump
+    could otherwise steal that run's first message -- and before the queues
+    are closed. A pump that does not confirm is stuck inside ``_recv_bytes``
+    on a message a killed child never finished; the run that produced it has
+    already failed, so the cost is a parked daemon thread, and its queue must
+    not be closed underneath the blocked read (same reasoning as
+    ``_collect_wedged_drainers``). A side effect worth knowing during
+    teardown: the wedged pump holds the queue's read lock, so the cancel-path
+    drainer on that queue drains nothing and children with buffered data are
+    terminated at the grace period instead of flushing.
+    """
+    for reader, q in self._stopped_readers:
+      if reader.confirm_stopped():
+        continue
+      self._logger.warning(
+        "A queue reader is still blocked on a message a killed child never "
+        "finished writing; leaving that queue open."
+      )
+      if not any(q is seen for seen in self._undrainable_queues):
+        self._undrainable_queues.append(q)
+    self._stopped_readers.clear()
+
+  def record_child_death(self, message: str) -> None:
+    """Store a diagnosis and fail the run, on behalf of the consumer.
+
+    The consumer detects two losses the liveness check is blind to (a child
+    dead *after* its finish signal, its last message unflushed) but has no
+    handle on this manager's error slot; without this the caller would see a
+    bare "Analysis was cancelled" for exactly the failure this machinery
+    exists to name.
+    """
+    self._logger.error(message)
+    self._child_death_error = ChildProcessError(message)
+    self._res.processing_resources.cancel_event.set()
 
   def read_promised(self, q: Queue, n: int, what: str) -> list[object]:
     """Read ``n`` messages that finished children have already promised.
@@ -680,7 +713,7 @@ class ProcessManager:
           out.append(reader.get(timeout=min(1.0, remaining)))
       return out
     finally:
-      self._close_reader(reader, q)
+      self._stop_reader(reader, q)
 
   def start(self) -> None:
     self.start_file_analyzer_thread()
@@ -930,10 +963,11 @@ class ProcessManager:
     semaphores promptly instead of leaving it to garbage collection -- which the
     caller may skip entirely (e.g. ``os._exit``).
 
-    A queue whose drainer is still wedged is skipped; see
+    A queue whose drainer or reader is still wedged is skipped; see
     ``_collect_wedged_drainers`` for why closing it would be worse than leaking
     it.
     """
+    self.reap_stopped_readers()
     res = self._res
     stats = res.stats_resources
     queues: list[Queue | None] = [

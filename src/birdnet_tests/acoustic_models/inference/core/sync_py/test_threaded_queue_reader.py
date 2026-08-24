@@ -134,3 +134,51 @@ def test_a_queue_poisoned_by_a_killed_writer_cannot_block_the_caller() -> None:
   if pump_stopped:
     q.cancel_join_thread()
     q.close()
+
+
+def test_a_full_buffer_parks_the_pump_without_wedging_it(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  """The pump must stay stoppable while waiting for buffer space.
+
+  A pump blocked in an unconditional ``put`` could never confirm stopping,
+  and close would misreport a merely-parked pump as wedged inside the queue.
+  """
+  monkeypatch.setattr(ThreadedQueueReader, "_BUFFER_MAX_ITEMS", 2)
+
+  class _EndlessQueue:
+    def get(self, timeout: float | None = None) -> object:
+      return "item"
+
+  reader = ThreadedQueueReader(_EndlessQueue(), "full-buffer")  # type: ignore[arg-type]
+  deadline = time.monotonic() + _CALLER_BOUND_S
+  while reader._buffer.qsize() < 2:
+    assert time.monotonic() < deadline, "the pump never filled the buffer"
+    time.sleep(0.005)
+
+  assert reader.close(timeout=2.0), (
+    "a pump parked on a full buffer must stop when asked; only a pump stuck "
+    "inside the queue may report as wedged"
+  )
+
+
+def test_the_buffer_is_bounded_so_the_parent_cannot_be_flooded() -> None:
+  """Backpressure: a fast writer parks the pump instead of growing the heap."""
+
+  class _EndlessQueue:
+    def get(self, timeout: float | None = None) -> object:
+      return "item"
+
+  reader = ThreadedQueueReader(_EndlessQueue(), "bounded-buffer")  # type: ignore[arg-type]
+  try:
+    deadline = time.monotonic() + _CALLER_BOUND_S
+    while reader._buffer.qsize() < ThreadedQueueReader._BUFFER_MAX_ITEMS:
+      assert time.monotonic() < deadline
+      time.sleep(0.005)
+    # Parked, not still growing: give it a moment and re-check.
+    time.sleep(0.1)
+    assert reader._buffer.qsize() == ThreadedQueueReader._BUFFER_MAX_ITEMS, (
+      "the buffer grew past its bound; the parent-side brake is gone"
+    )
+  finally:
+    reader.close()

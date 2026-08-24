@@ -39,8 +39,12 @@ class _Stub:
       logging_resources=SimpleNamespace(session_log_file=Path("stub-session.log")),
     )
 
+    self._stopped_readers: list = []
+
   read_promised = ProcessManager.read_promised
-  _close_reader = ProcessManager._close_reader
+  _stop_reader = ProcessManager._stop_reader
+  reap_stopped_readers = ProcessManager.reap_stopped_readers
+  record_child_death = ProcessManager.record_child_death
 
 
 @pytest.fixture
@@ -122,12 +126,38 @@ def test_a_wedged_reader_keeps_its_queue_out_of_the_closable_set() -> None:
   q = _BlockingQueue()
   reader = ThreadedQueueReader(q, "wedge-registration")  # type: ignore[arg-type]
   try:
-    stub._close_reader(reader, q)  # type: ignore[arg-type]
+    stub._stop_reader(reader, q)  # type: ignore[arg-type]
+    stub.reap_stopped_readers()
     assert any(q is seen for seen in stub._undrainable_queues), (
       "a wedged reader's queue must be recorded so close_queues leaves it open"
     )
-    # Closing the same reader's queue twice must not record it twice.
-    stub._close_reader(reader, q)  # type: ignore[arg-type]
+    # Reaping the same wedged reader again must not record its queue twice.
+    stub._stop_reader(reader, q)  # type: ignore[arg-type]
+    stub.reap_stopped_readers()
     assert sum(1 for seen in stub._undrainable_queues if q is seen) == 1
   finally:
     release.set()
+
+
+def test_a_foreign_message_is_rejected_not_stored() -> None:
+  """The stores must check what the queue delivered, even under python -O.
+
+  These are real raises, not asserts, precisely so an optimized interpreter
+  cannot silently store another message's payload.
+  """
+  from birdnet.acoustic.inference.core.perf_tracker import (
+    PerformanceTrackingResult,
+  )
+  from birdnet.acoustic.inference.resources import (
+    ProducerResources,
+    StatisticsResources,
+  )
+
+  target = SimpleNamespace()
+  with pytest.raises(RuntimeError, match="delivered something else's message"):
+    ProducerResources.store_unprocessed_inputs(target, [{"not", "ints"}, 42])  # type: ignore[arg-type]
+  with pytest.raises(RuntimeError, match="delivered something else's message"):
+    StatisticsResources.store_performance_result(target, object())  # type: ignore[arg-type]
+  assert not isinstance(
+    getattr(target, "_tracking_result", None), PerformanceTrackingResult
+  )

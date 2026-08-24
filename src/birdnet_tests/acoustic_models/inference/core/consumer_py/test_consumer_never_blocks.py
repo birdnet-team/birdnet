@@ -41,6 +41,9 @@ class _Tensor(AcousticTensorBase):
   def write_block(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
     self.blocks.append(args)
 
+  def copy_file_slice(self, file_idx: int, n_segments: int) -> tuple:
+    return (np.zeros((1, n_segments, 4)),)
+
 
 class _WedgingQueue:
   """Delivers a few blocks, then blocks forever -- a torn frame's shape."""
@@ -131,6 +134,7 @@ def test_a_sentinel_lost_after_the_finish_signal_still_ends_the_run(
     "sentinel-lost",
   )
 
+  reported: list[str] = []
   consumer = Consumer(
     session_id="sentinel-loss-test",
     n_workers=2,
@@ -139,6 +143,7 @@ def test_a_sentinel_lost_after_the_finish_signal_still_ends_the_run(
     cancel_event=cancel,  # type: ignore[arg-type]
     check_children_alive=lambda: None,  # everyone looks fine
     all_workers_finished=lambda: True,  # ...and everyone has signalled
+    report_child_death=reported.append,
   )
 
   finished = threading.Event()
@@ -160,6 +165,9 @@ def test_a_sentinel_lost_after_the_finish_signal_still_ends_the_run(
     reader.close()
 
   assert cancel.is_set(), "a lost sentinel must fail the run, not end it cleanly"
+  # The diagnosis must reach the session's error slot, or the user sees a bare
+  # "Analysis was cancelled" for exactly the failure this machinery names.
+  assert len(reported) == 1 and "sentinel" in reported[0], reported
 
 
 def test_a_marker_lost_after_the_finish_signal_still_ends_the_run(
@@ -185,23 +193,29 @@ def test_a_marker_lost_after_the_finish_signal_still_ends_the_run(
     _WedgingQueue([], release),
     "finalize-results",  # type: ignore[arg-type]
   )
+  # One of two markers arrives (file 0, zero segments expected, so it is
+  # complete and dispatchable); file 1's marker was in the dead producer's
+  # feeder. This makes the test double as the callbacks-after-failure check:
+  # a failed finalization must not go on to fire file 0's callback.
   markers = ThreadedQueueReader(
-    _WedgingQueue([], release),
-    "finalize-markers",  # type: ignore[arg-type]
+    _WedgingQueue([(0, 0, False, 1.0)], release),  # type: ignore[arg-type]
+    "finalize-markers",
   )
   dispatch: pyqueue.Queue = pyqueue.Queue()
 
+  reported: list[str] = []
   consumer = Consumer(
     session_id="marker-loss-test",
     n_workers=0,  # the main loop is not what this test is about
     results=results,
     tensor=_Tensor(),
     cancel_event=cancel,  # type: ignore[arg-type]
-    n_inputs=1,
-    inputs=[Path("one-file.wav")],
+    n_inputs=2,
+    inputs=[Path("file-0.wav"), Path("file-1.wav")],
     markers=markers,
     completion_dispatch_queue=dispatch,
     check_children_alive=lambda: None,  # the dead producer looks finished
+    report_child_death=reported.append,
   )
 
   finished = threading.Event()
@@ -224,7 +238,136 @@ def test_a_marker_lost_after_the_finish_signal_still_ends_the_run(
     markers.close()
 
   assert cancel.is_set(), "a lost marker must fail the run"
-  assert dispatch.get_nowait() is None, (
-    "the dispatcher must still receive its end-of-run sentinel, or its join "
-    "waits forever"
+  assert len(reported) == 1 and "markers" in reported[0], reported
+  first = dispatch.get_nowait()
+  assert first is None, (
+    f"a failed finalization dispatched a per-file result ({first!r}) before "
+    f"its sentinel -- the error message promises callbacks are not fired "
+    f"with incomplete data"
   )
+
+
+def test_a_corrupt_marker_during_finalization_fails_the_run_cleanly(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  """An undeserializable marker surfaces as an exception inside finalization.
+
+  Escaping would skip both the cancel event and the dispatcher's end-of-run
+  sentinel: the run limps into the healthy teardown path failed, and the
+  dispatcher waits forever for a sentinel nobody will send.
+  """
+  import queue as pyqueue
+
+  release = threading.Event()
+  cancel = threading.Event()
+
+  class _CorruptQueue:
+    def get(self, timeout: float | None = None) -> object:
+      raise EOFError("stand-in for a deserialization failure")
+
+  results = ThreadedQueueReader(
+    _WedgingQueue([], release),
+    "corrupt-final-results",  # type: ignore[arg-type]
+  )
+  markers = ThreadedQueueReader(_CorruptQueue(), "corrupt-final-markers")  # type: ignore[arg-type]
+  dispatch: pyqueue.Queue = pyqueue.Queue()
+
+  consumer = Consumer(
+    session_id="corrupt-marker-test",
+    n_workers=0,
+    results=results,
+    tensor=_Tensor(),
+    cancel_event=cancel,  # type: ignore[arg-type]
+    n_inputs=1,
+    inputs=[Path("one-file.wav")],
+    markers=markers,
+    completion_dispatch_queue=dispatch,
+  )
+
+  outcome: dict = {}
+  finished = threading.Event()
+
+  def run() -> None:
+    try:
+      consumer()
+    except BaseException as e:  # noqa: BLE001 - asserted on below
+      outcome["error"] = e
+    finally:
+      finished.set()
+
+  threading.Thread(target=run, name="corrupt-marker-run", daemon=True).start()
+  try:
+    assert finished.wait(timeout=_DEADLINE_S)
+  finally:
+    release.set()
+    results.close()
+    markers.close()
+
+  assert "error" not in outcome, (
+    f"the failure escaped the consumer instead of failing the run: "
+    f"{outcome.get('error')!r}"
+  )
+  assert cancel.is_set()
+  assert dispatch.get_nowait() is None, "the dispatcher sentinel must still be sent"
+
+
+def test_finalization_reacts_to_a_dead_child_before_its_deadline(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  """The liveness check inside the marker wait is load-bearing, not decor.
+
+  A producer that died *before* signalling is caught by the check within a
+  poll; only the post-signal case needs the full deadline. Removing the check
+  would make every pre-signal death cost the whole deadline too.
+  """
+  import queue as pyqueue
+  import time as time_module
+
+  from birdnet.acoustic.inference.core import consumer as consumer_module
+
+  monkeypatch.setattr(consumer_module, "PROMISED_MESSAGE_DEADLINE_S", 8.0)
+
+  release = threading.Event()
+  cancel = threading.Event()
+
+  def liveness() -> None:
+    cancel.set()
+    raise ChildProcessError("Producer-0 exited unexpectedly")
+
+  results = ThreadedQueueReader(
+    _WedgingQueue([], release),
+    "liveness-final-results",  # type: ignore[arg-type]
+  )
+  markers = ThreadedQueueReader(
+    _WedgingQueue([], release),
+    "liveness-final-markers",  # type: ignore[arg-type]
+  )
+  dispatch: pyqueue.Queue = pyqueue.Queue()
+
+  consumer = Consumer(
+    session_id="finalize-liveness-test",
+    n_workers=0,
+    results=results,
+    tensor=_Tensor(),
+    cancel_event=cancel,  # type: ignore[arg-type]
+    n_inputs=1,
+    inputs=[Path("one-file.wav")],
+    markers=markers,
+    completion_dispatch_queue=dispatch,
+    check_children_alive=liveness,
+  )
+
+  start = time_module.monotonic()
+  try:
+    consumer()
+  finally:
+    release.set()
+    results.close()
+    markers.close()
+
+  elapsed = time_module.monotonic() - start
+  assert elapsed < 4.0, (
+    f"finalization took {elapsed:.1f} s to notice a dead child the liveness "
+    f"check reports within one poll"
+  )
+  assert cancel.is_set()

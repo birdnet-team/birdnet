@@ -81,13 +81,15 @@ class FakeAcousticBackend:
 
   def predict(self, batch: np.ndarray) -> np.ndarray:
     self._stall()
-    # Uniform across the batch, deliberately. Prediction output goes through a
-    # sigmoid and top-k selection before it reaches the result tensor, which
-    # discards row identity anyway -- a marker here could not be asserted on at
-    # the far end. Use an encoding session to check *which* segments landed
-    # where; see `encode` below.
+    # Each segment's scores are the same ramp, shifted by that segment's
+    # marker (write_marked_audio makes sample 0 identify the segment). Top-k
+    # permutes the species axis, so per-species values cannot be asserted on
+    # at the far end -- but the *mean* over species survives any permutation
+    # and is strictly monotone in the marker, which is what lets a healthy-run
+    # test detect a dropped or reordered block by content.
     out = np.empty((batch.shape[0], self.n_species_out), dtype=np.float32)
     out[:] = np.linspace(0.0, 1.0, self.n_species_out, dtype=np.float32)
+    out += batch[:, :1]
     return out
 
   def encode(self, batch: np.ndarray) -> np.ndarray:

@@ -39,7 +39,15 @@ def _corpus(tmp_path: Path) -> list[str]:
 
 
 def test_wide_prediction_completes_and_is_complete(tmp_path: Path) -> None:
-  """Every segment present, across two runs of one session."""
+  """Every segment present *by content*, across two runs of one session.
+
+  A shape assertion cannot see a dropped or reordered block -- the tensor's
+  shape is fixed at allocation. The stub backend shifts every score by the
+  segment's marker, and top-k only permutes the species axis, so the mean
+  over species survives it and must be strictly increasing across segments
+  within each file. A dropped block leaves uninitialised rows; a reordered
+  one breaks the monotonicity.
+  """
   files = _corpus(tmp_path)
   with fake_predict_session(
     tmp_path, n_workers=2, top_k=None, backend=WideFakeAcousticBackend
@@ -47,13 +55,21 @@ def test_wide_prediction_completes_and_is_complete(tmp_path: Path) -> None:
     first = session.run(files)
     second = session.run(files)
 
-  for result in (first, second):
+  for run_idx, result in enumerate((first, second)):
     assert result.species_probs.shape == (
       _N_FILES,
       _N_SEGMENTS,
       WideFakeAcousticBackend.n_species_out,
     )
     assert len(result.unprocessable_inputs) == 0
+    per_segment_level = result.species_probs.mean(axis=2)
+    for file_idx in range(_N_FILES):
+      levels = per_segment_level[file_idx]
+      assert np.all(np.diff(levels) > 0), (
+        f"run {run_idx}, file {file_idx}: segment levels {levels.tolist()} "
+        f"are not strictly increasing -- a block was dropped, duplicated or "
+        f"landed in the wrong rows"
+      )
 
 
 def test_wide_encoding_keeps_every_segment_in_its_own_row(tmp_path: Path) -> None:

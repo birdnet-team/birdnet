@@ -40,6 +40,7 @@ class Consumer:
     completion_dispatch_queue: queue.Queue | None = None,
     check_children_alive: Callable[[], None] | None = None,
     all_workers_finished: Callable[[], bool] | None = None,
+    report_child_death: Callable[[str], None] | None = None,
   ) -> None:
     self._n_workers = n_workers
     self._results = results
@@ -55,6 +56,9 @@ class Consumer:
     # When every worker has signalled, a quiet deadline is the only honest
     # wait for the sentinels still missing.
     self._all_workers_finished = all_workers_finished
+    # Stores the diagnosis where the session surfaces it; without it a lost
+    # last message ends as a bare "cancelled" with the cause only in the log.
+    self._report_child_death = report_child_death
 
     # Per-file completion tracking (``on_file_complete``). Fully inert unless a
     # marker reader is provided, so the default hot path is byte-for-byte
@@ -78,6 +82,14 @@ class Consumer:
 
   def _log(self, message: str) -> None:
     self._logger.debug(f"C: {message}")
+
+  def _fail_run(self, message: str) -> None:
+    self._logger.error(message)
+    if self._report_child_death is not None:
+      self._report_child_death(message)
+    # Also set directly: the reporter is optional, and the run must fail
+    # either way.
+    self._cancel_event.set()
 
   def __call__(self) -> None:
     try:
@@ -116,15 +128,14 @@ class Consumer:
           if quiet_deadline is None:
             quiet_deadline = time.monotonic() + PROMISED_MESSAGE_DEADLINE_S
           elif time.monotonic() >= quiet_deadline:
-            self._logger.error(
-              "Every worker has finished, but %d of %d end-of-work sentinels "
-              "never arrived within %.0f s. A worker most likely died on its "
-              "way out, after signalling, with its last message unsent.",
-              self._n_workers - finished_workers,
-              self._n_workers,
-              PROMISED_MESSAGE_DEADLINE_S,
+            self._fail_run(
+              f"Every worker has finished, but "
+              f"{self._n_workers - finished_workers} of {self._n_workers} "
+              f"end-of-work sentinels never arrived within "
+              f"{PROMISED_MESSAGE_DEADLINE_S:.0f} s. A worker most likely "
+              f"died on its way out, after signalling, with its last message "
+              f"unsent (e.g. killed by the OOM killer)."
             )
-            self._cancel_event.set()
             return
 
       if self._cancel_event.is_set():
@@ -190,15 +201,13 @@ class Consumer:
       if self._cancel_event.is_set():
         return
       if time.monotonic() >= deadline:
-        self._logger.error(
-          "Only %d of %d per-file completion markers arrived within %.0f s "
-          "of the producers finishing; a producer most likely died on its "
-          "way out. Failing the run rather than dropping the callbacks.",
-          self._n_markers,
-          self._n_inputs,
-          PROMISED_MESSAGE_DEADLINE_S,
+        self._fail_run(
+          f"Only {self._n_markers} of {self._n_inputs} per-file completion "
+          f"markers arrived within {PROMISED_MESSAGE_DEADLINE_S:.0f} s of the "
+          f"producers finishing; a producer most likely died on its way out "
+          f"(e.g. killed by the OOM killer). Failing the run rather than "
+          f"firing callbacks with incomplete data."
         )
-        self._cancel_event.set()
         return
       try:
         marker = self._markers.get(timeout=1.0)
@@ -244,7 +253,10 @@ class Consumer:
     if not self._cancel_event.is_set():
       try:
         self._finalize_markers()
-        self._dispatch_ready()
+        # Re-checked: a finalization that failed the run must not go on to
+        # fire per-file callbacks -- that is the choice its error announces.
+        if not self._cancel_event.is_set():
+          self._dispatch_ready()
       except Exception as e:  # noqa: BLE001
         # Raising out of here would skip the cancel event *and* the dispatcher
         # sentinel below, leaving teardown on the healthy path with a failed

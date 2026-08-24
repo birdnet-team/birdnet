@@ -15,7 +15,7 @@ from logging.handlers import QueueHandler
 from multiprocessing import Queue, shared_memory
 from multiprocessing.sharedctypes import Synchronized
 from pathlib import Path
-from typing import Self, cast, final
+from typing import Self, final
 
 import numpy as np
 
@@ -286,12 +286,9 @@ class ProducerResources:
     blocking ``get`` would wait forever on a producer that was killed after
     setting its finish signal but before its feeder flushed the message.
     """
-    # Real checks, not asserts: under ``python -O`` an assert vanishes, and a
-    # malformed report would then silently corrupt the unprocessable-input set.
-    if len(reports) != self.n_producers:
-      raise RuntimeError(
-        f"Expected {self.n_producers} unprocessed-input reports, got {len(reports)}."
-      )
+    # A real check, not an assert: under ``python -O`` an assert vanishes, and
+    # a malformed report would then silently corrupt the unprocessable-input
+    # set.
     unprocessed_inputs: set[int] = set()
     for report in reports:
       if not isinstance(report, set):
@@ -518,9 +515,14 @@ class StatisticsResources:
 
   def store_performance_result(self, result: object) -> None:
     """Keep the tracker's summary; read via ``ProcessManager.read_promised``."""
-    object.__setattr__(
-      self, "_tracking_result", cast(PerformanceTrackingResult, result)
-    )
+    # Same real check as the producer reports: the queue could deliver another
+    # message's payload, and a blind cast would store it silently.
+    if not isinstance(result, PerformanceTrackingResult):
+      raise RuntimeError(
+        f"Performance summary has type {type(result).__name__}; the queue "
+        f"delivered something else's message."
+      )
+    object.__setattr__(self, "_tracking_result", result)
 
   @classmethod
   def create(

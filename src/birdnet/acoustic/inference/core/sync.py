@@ -5,12 +5,13 @@ import multiprocessing as mp
 import multiprocessing.synchronize
 import queue as pyqueue
 import threading
+from contextlib import suppress
 from dataclasses import dataclass
 from multiprocessing import Queue
 from multiprocessing.context import BaseContext
 from multiprocessing.sharedctypes import Synchronized
 from types import TracebackType
-from typing import Any
+from typing import Generic, TypeVar, cast
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -19,10 +20,15 @@ _LOGGER = logging.getLogger(__name__)
 # reaches the check (the protected sections are microseconds), short enough that
 # a leaked lock is noticed promptly.
 LOCK_POLL_INTERVAL_S = 1.0
-# How long ThreadedQueueReader.close waits for its pump to stop. The pump polls
-# every _PUMP_POLL_S, so a healthy one stops well inside this; one that does not
-# is stuck inside the queue and will never stop.
+# How long ThreadedQueueReader.confirm_stopped waits for its pump. The pump
+# polls every _PUMP_POLL_S, so a healthy one stops well inside this; one that
+# does not is stuck inside the queue and will never stop.
 READER_CLOSE_TIMEOUT_S = 2.0
+# Travels through the queue to wake a pump blocked waiting for data, so a
+# stop costs microseconds instead of a poll interval. Recognised by value and
+# always discarded, never forwarded: a stray one (its own pump raced past the
+# stop check) may be consumed by the next reader of that queue instead.
+_READER_STOP_TOKEN = "__threaded_queue_reader_stop__"
 # How long a message a finished child already promised may take to arrive. The
 # sender handed it to its feeder thread before setting its finish signal, so on
 # a healthy run it is milliseconds away; this bounds the child that was killed
@@ -97,7 +103,10 @@ class _ReaderFailure:
   error: Exception
 
 
-class ThreadedQueueReader:
+T = TypeVar("T")
+
+
+class ThreadedQueueReader(Generic[T]):
   """Reads a cross-process queue on its own thread, so the caller cannot block.
 
   ``Queue.get`` is unbounded in a way its signature hides: the timeout covers
@@ -112,25 +121,30 @@ class ThreadedQueueReader:
   reads an in-process buffer whose timeouts are real, its liveness checks keep
   running, and a torn frame costs a parked thread instead of the run.
 
-  One reader per queue per run. ``close`` is bounded; a pump that does not stop
-  is wedged inside the queue, and the owner must then leave that queue open --
-  closing it would free its descriptor for reuse underneath the blocked read
-  (see ProcessManager._collect_wedged_drainers).
+  One reader per queue per run. Stopping is split in two on purpose:
+  ``stop()`` returns immediately, because joining a pump that is merely asleep
+  in its poll costs tens of milliseconds and runs on every ``session.run``
+  call -- a fixed per-call latency this pipeline has already reintroduced and
+  re-fixed twice. ``confirm_stopped()`` does the bounded join, and is called
+  where the answer is actually needed: before the same queue is read again,
+  and before it is closed. A pump that does not confirm is wedged inside the
+  queue, and the owner must then leave that queue open -- closing it would
+  free its descriptor for reuse underneath the blocked read (see
+  ProcessManager._collect_wedged_drainers).
   """
 
-  # Also the latency ``close`` adds to every run: a healthy pump is usually
-  # asleep in ``get(timeout=_PUMP_POLL_S)`` when close is called, and readers
-  # are closed per run -- at 0.2 s this put a visible fixed barrier back into
-  # warm ``run_arrays`` calls, which is the regression the session-overhead
-  # test guards. Waiting is done by the *caller* on the buffer, never here, so
-  # a short poll costs only a cheap uncontended wake per interval.
-  _PUMP_POLL_S = 0.02
+  # Only a backstop: data wakes the pump through the queue, and stop wakes it
+  # through the token, so nothing correct ever waits this long. It bounds the
+  # exit of a pump whose stop token could not be delivered.
+  _PUMP_POLL_S = 0.2
 
   # Restores the backpressure the pipe used to provide: without a bound the
   # pump would drain everything a fast backend produces straight into the
-  # parent's heap. At the largest real block (~45 KB) this is ~11 MB, and a
-  # full buffer parks the pump, which parks the pipe, which parks the writer
-  # -- the same brake as before, without the unbounded read.
+  # parent's heap. The bound is in blocks, so the bytes scale with block size:
+  # ~11 MB at the largest single-segment block (~45 KB, top_k=None), but up to
+  # ~270 MB at batch_size=32 with top_k=None -- the buffer only fills when the
+  # workers outrun the consumer, and a full buffer parks the pump, which parks
+  # the pipe, which parks the writer: the same brake as before.
   _BUFFER_MAX_ITEMS = 256
 
   def __init__(self, q: Queue, name: str) -> None:
@@ -143,6 +157,11 @@ class ThreadedQueueReader:
   def _pump(self) -> None:
     while not self._stop.is_set():
       try:
+        # A blocking get, so data wakes the pump at kernel speed -- a polling
+        # read here puts its poll interval onto every block's delivery, which
+        # is a per-block latency the pipeline must not have. Stopping is also
+        # instant: ``stop`` sends a token through the queue. The timeout is
+        # only a backstop for a stop whose token could not be delivered.
         item = self._q.get(timeout=self._PUMP_POLL_S)
       except pyqueue.Empty:
         continue
@@ -154,6 +173,10 @@ class ThreadedQueueReader:
         # nobody fills any more.
         self._forward(_ReaderFailure(e))
         return
+      if isinstance(item, str) and item == _READER_STOP_TOKEN:
+        # Ours (or a stray from a raced predecessor on this queue); either
+        # way it is a wake-up, never data.
+        continue
       if not self._forward(item):
         return
 
@@ -175,18 +198,36 @@ class ThreadedQueueReader:
       ) from item.error
     return item
 
-  def get(self, timeout: float) -> Any:
+  def get(self, timeout: float) -> T:
     """Bounded for real, unlike ``Queue.get``. Raises ``queue.Empty``."""
-    return self._unwrap(self._buffer.get(timeout=timeout))
+    return cast("T", self._unwrap(self._buffer.get(timeout=timeout)))
 
-  def get_nowait(self) -> Any:
-    return self._unwrap(self._buffer.get_nowait())
+  def get_nowait(self) -> T:
+    return cast("T", self._unwrap(self._buffer.get_nowait()))
 
-  def close(self, timeout: float = READER_CLOSE_TIMEOUT_S) -> bool:
-    """Stop the pump; ``False`` means it is wedged inside the queue."""
+  def stop(self) -> None:
+    """Ask the pump to exit; returns immediately.
+
+    The token wakes a pump blocked waiting for data, so the exit is prompt
+    rather than one poll interval away. Until ``confirm_stopped`` says
+    otherwise, the pump may still take one more item off the queue -- which is
+    why the owner confirms before anything reads that queue again.
+    """
+    self._stop.set()
+    # A closed or stand-in queue cannot take the token; the pump's timeout
+    # backstop covers that case.
+    with suppress(Exception):
+      self._q.put_nowait(_READER_STOP_TOKEN)
+
+  def confirm_stopped(self, timeout: float = READER_CLOSE_TIMEOUT_S) -> bool:
+    """Bounded join; ``False`` means the pump is wedged inside the queue."""
     self._stop.set()
     self._thread.join(timeout=timeout)
     return not self._thread.is_alive()
+
+  def close(self, timeout: float = READER_CLOSE_TIMEOUT_S) -> bool:
+    """stop + confirm in one call, for owners with no later sweep point."""
+    return self.confirm_stopped(timeout=timeout)
 
 
 class CountedSemaphore:

@@ -104,6 +104,10 @@ class AcousticSessionBase(
     assert self._process_manager is not None
     assert self._logger is not None
 
+    # Before anything touches the queues: the previous run's queue readers
+    # were asked to stop but not waited for, and one still alive could take
+    # this run's first message. Usually all long gone, so this is free.
+    self._process_manager.reap_stopped_readers()
     self._resources.ring_buffer_resources.set_all_flags_writeable()
     # Drained unconditionally, unlike the full reset below: the shutdown hand-off
     # leaves one wake-up permit outstanding after every run, while `is_first_run`
