@@ -1,11 +1,7 @@
 from __future__ import annotations
 
 import csv
-import os
-import tempfile
-import time
-from collections.abc import Generator
-from contextlib import contextmanager, suppress
+import io
 from pathlib import Path
 from typing import Any, final
 
@@ -26,21 +22,36 @@ from birdnet.globals import (
   MODEL_TYPE_GEO,
   MODEL_TYPES,
 )
-from birdnet.utils.helper import download_file_tqdm, validate_species_list
+from birdnet.utils.helper import (
+  directory_lock,
+  validate_species_list,
+  write_text_atomic,
+)
+from birdnet.utils.label_manifest import (
+  LabelInput,
+  ensure_artifact,
+  get_manifest_path,
+  labels_up_to_date,
+  record_generation,
+)
 from birdnet.utils.local_data import APP_DIR
 from birdnet.utils.taxonomy_v3 import (
   ensure_taxonomy_v3_available,
-  get_taxonomy_v3_path,
-  taxonomy_v3_available,
-  taxonomy_v3_marker_matches,
-  write_taxonomy_v3_marker,
+  get_taxonomy_v3_input,
 )
 
 _LABELS_DL_URL = "https://github.com/birdnet-team/geomodel/releases/download/v3.0.4/BirdNET+_Geomodel_V3.0.4_Global_14K_Labels.txt"
 _LABELS_DL_SIZE = 671823
+_LABELS_DL_SHA256 = "8250b457e45d43fc3e77b5cbd06a1d311baf585ab9c51ed8d42e011d98534835"
 
-# Estonian ("et") was dropped with the v0.2-Jun2026 taxonomy: it no longer has a
-# common_name_et column, so every Estonian name would silently be the English one.
+_GENERATOR_NAME = "geo_v3_0"
+# Bump whenever a change here would produce different <lang>.txt bytes from the
+# same inputs - the join key, the tie-break, the fallback, the line format. The
+# golden-digest test fails until this and the expected digests agree.
+_GENERATION_VERSION = 2
+
+# No Estonian ("et"): the v0.2-Jun2026 taxonomy has no common_name_et column,
+# so every Estonian name would silently be the English one.
 _LANGUAGE_TO_COLUMN: dict[str, str] = {
   "en_us": "com_name",
   "de": "common_name_de",
@@ -74,51 +85,11 @@ _LANGUAGE_TO_COLUMN: dict[str, str] = {
 }
 
 _GEO_V3_0_BASE_DIR = APP_DIR / "geo-models" / "v3.0"
-_LABELS_RAW_PATH = _GEO_V3_0_BASE_DIR / "labels_raw.txt"
+# Named after the content, so an install of another version cannot overwrite
+# this release's copy with its own and leave both re-downloading forever.
+_LABELS_RAW_PATH = _GEO_V3_0_BASE_DIR / f"labels_raw-{_LABELS_DL_SHA256[:12]}.txt"
+_LEGACY_LABELS_RAW_PATH = _GEO_V3_0_BASE_DIR / "labels_raw.txt"
 _SETUP_LOCK_DIR = APP_DIR / ".geo_model_v3_0_setup.lock"
-
-
-def _write_text_atomic(path: Path, content: str, encoding: str = "utf-8") -> None:
-  fd, temp_name = tempfile.mkstemp(
-    dir=path.parent,
-    prefix=f"{path.name}.",
-    suffix=".tmp",
-  )
-  os.close(fd)
-  temp_path = Path(temp_name)
-
-  try:
-    temp_path.write_text(content, encoding=encoding)
-    temp_path.replace(path)
-  except Exception:
-    temp_path.unlink(missing_ok=True)
-    raise
-
-
-def _count_lines(path: Path, encoding: str = "utf-8") -> int:
-  with open(path, encoding=encoding) as f:
-    return sum(1 for _ in f)
-
-
-@contextmanager
-def _setup_lock(timeout_s: float = 300.0) -> Generator[None, None, None]:
-  deadline = time.monotonic() + timeout_s
-  while True:
-    try:
-      _SETUP_LOCK_DIR.mkdir(parents=True, exist_ok=False)
-      break
-    except FileExistsError as err:
-      if time.monotonic() >= deadline:
-        raise TimeoutError(
-          "Timed out while waiting for geo model v3.0 shared asset setup."
-        ) from err
-      time.sleep(0.1)
-
-  try:
-    yield
-  finally:
-    with suppress(FileNotFoundError):
-      _SETUP_LOCK_DIR.rmdir()
 
 
 class GeoDownloaderBaseV3_0:
@@ -129,66 +100,79 @@ class GeoDownloaderBaseV3_0:
     raise NotImplementedError
 
   @classmethod
+  def _labels_input(cls) -> LabelInput:
+    return LabelInput(
+      path=_LABELS_RAW_PATH,
+      url=_LABELS_DL_URL,
+      size=_LABELS_DL_SIZE,
+      sha256=_LABELS_DL_SHA256,
+    )
+
+  @classmethod
+  def _manifest_inputs(cls) -> dict[str, LabelInput]:
+    return {"labels": cls._labels_input(), "taxonomy": get_taxonomy_v3_input()}
+
+  @classmethod
   def _check_labels_available(cls) -> bool:
-    if not _LABELS_RAW_PATH.is_file():
-      return False
-    if _LABELS_RAW_PATH.stat().st_size != _LABELS_DL_SIZE:
-      return False
-    if not taxonomy_v3_available():
-      return False
-    lang_dir = cls._get_lang_dir()
-    if not lang_dir.is_dir():
-      return False
-    if not all(
-      (lang_dir / f"{lang}.txt").is_file() for lang in cls.AVAILABLE_LANGUAGES
-    ):
-      return False
-    # The lang files carry no trace of the taxonomy they were built from, so a
-    # taxonomy bump alone would otherwise leave them serving the old names.
-    if not taxonomy_v3_marker_matches(lang_dir):
-      return False
-    # Guard against lang files left over from an older labels version: they exist
-    # but carry a different species count. Lang files are generated together from
-    # the raw labels (one entry per raw line), so any file whose line count differs
-    # from the raw labels means the cache is stale and must be regenerated.
-    n_species = _count_lines(_LABELS_RAW_PATH)
-    return all(
-      _count_lines(lang_dir / f"{lang}.txt") == n_species
-      for lang in cls.AVAILABLE_LANGUAGES
+    return labels_up_to_date(
+      cls._get_lang_dir(),
+      generator=_GENERATOR_NAME,
+      generator_version=_GENERATION_VERSION,
+      inputs=cls._manifest_inputs(),
+      languages=_LANGUAGE_TO_COLUMN,
     )
 
   @classmethod
   def ensure_labels_available(cls) -> None:
-    with _setup_lock():
+    # Checked before the lock: a current cache then needs no write at all, which
+    # keeps read-only and pre-populated app data directories usable.
+    if cls._check_labels_available():
+      return
+
+    with directory_lock(_SETUP_LOCK_DIR, "geo model v3.0 shared asset setup"):
       if cls._check_labels_available():
         return
 
-      # We only get here when the labels are missing or stale. Ensure the raw
-      # labels and taxonomy are present and current, then regenerate the
-      # per-language files unconditionally: they are either missing or left over
-      # from an older labels version (see _check_labels_available). Regeneration
-      # is idempotent, so this is safe even if only one of them was outdated.
-      labels_stale = not _LABELS_RAW_PATH.is_file() or (
-        _LABELS_RAW_PATH.stat().st_size != _LABELS_DL_SIZE
+      ensure_artifact(
+        cls._labels_input(),
+        "Downloading geo model v3.0 labels",
+        legacy_path=_LEGACY_LABELS_RAW_PATH,
       )
-      if labels_stale:
-        _LABELS_RAW_PATH.parent.mkdir(parents=True, exist_ok=True)
-        download_file_tqdm(
-          _LABELS_DL_URL,
-          _LABELS_RAW_PATH,
-          download_size=_LABELS_DL_SIZE,
-          description="Downloading geo model v3.0 labels",
-        )
-
-      if not taxonomy_v3_available():
-        ensure_taxonomy_v3_available()
+      ensure_taxonomy_v3_available()
 
       cls._generate_lang_files()
 
+      # Both inputs were just verified by digest, so this can only fail if
+      # generation itself is wrong. Raising beats silently regenerating on every
+      # later load while serving names nobody checked.
+      if not cls._check_labels_available():
+        raise RuntimeError(
+          "The geo model v3.0 label files could not be generated from verified "
+          f"inputs. Remove {cls._get_lang_dir()} and try again; if this "
+          "persists it is a bug in birdnet."
+        )
+
   @classmethod
   def _generate_lang_files(cls) -> None:
+    lang_dir = cls._get_lang_dir()
+    lang_dir.mkdir(parents=True, exist_ok=True)
+    # Dropped first: an interrupted run then leaves a directory that visibly
+    # fails verification rather than one still vouched for by the old record.
+    get_manifest_path(lang_dir).unlink(missing_ok=True)
+
+    # Read once and hash *these* bytes, so the manifest records what was really
+    # used rather than what the constants say should have been there.
+    inputs = cls._manifest_inputs()
+    # Read via the same LabelInput the manifest records, so the digest can
+    # never describe a file other than the one that was parsed.
+    taxonomy_raw = inputs["taxonomy"].path.read_bytes()
+    labels_raw = inputs["labels"].path.read_bytes()
+
     species_order: list[tuple[str, str, str]] = []
-    with open(_LABELS_RAW_PATH, encoding="utf-8") as f:
+    # newline=None reproduces exactly what iterating the file in text mode did.
+    # str.splitlines() would additionally break on U+2028 and friends, silently
+    # changing the species count if one ever appeared in a label.
+    with io.StringIO(labels_raw.decode("utf-8"), newline=None) as f:
       for line in f:
         parts = line.rstrip("\n").split("\t")
         species_order.append((parts[0], parts[1], parts[2]))
@@ -204,7 +188,7 @@ class GeoDownloaderBaseV3_0:
     # row the last one still wins.
     label_sci_name_by_code = {code: sci_name for code, sci_name, _ in species_order}
     taxonomy: dict[str, dict[str, str]] = {}
-    with open(get_taxonomy_v3_path(), encoding="utf-8", newline="") as f:
+    with io.StringIO(taxonomy_raw.decode("utf-8"), newline="") as f:
       reader = csv.DictReader(f)
       for row in reader:
         code = row.get("species_code", "").strip()
@@ -217,8 +201,7 @@ class GeoDownloaderBaseV3_0:
           continue
         taxonomy[code] = dict(row)
 
-    lang_dir = cls._get_lang_dir()
-    lang_dir.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
     for lang, col in _LANGUAGE_TO_COLUMN.items():
       lang_file = lang_dir / f"{lang}.txt"
       lines: list[str] = []
@@ -228,8 +211,19 @@ class GeoDownloaderBaseV3_0:
         if not localized_name:
           localized_name = en_us_name
         lines.append(f"{sci_name}_{localized_name}")
-      _write_text_atomic(lang_file, "\n".join(lines), encoding="utf-8")
-    write_taxonomy_v3_marker(lang_dir)
+      write_text_atomic(lang_file, "\n".join(lines), encoding="utf-8")
+      written.append(lang_file)
+
+    record_generation(
+      lang_dir,
+      generator=_GENERATOR_NAME,
+      generator_version=_GENERATION_VERSION,
+      declared_inputs=inputs,
+      read_bytes={"labels": labels_raw, "taxonomy": taxonomy_raw},
+      languages=_LANGUAGE_TO_COLUMN,
+      lang_files=written,
+      stats={"n_entries": len(species_order)},
+    )
 
   @classmethod
   def get_lang_file(cls, lang: str) -> Path:

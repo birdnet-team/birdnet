@@ -2,8 +2,14 @@
 from __future__ import annotations
 
 import logging
+import os
+import sys
+import tempfile
+import threading
+from collections.abc import Generator
+from contextlib import contextmanager
 
-from birdnet.globals import PKG_NAME
+from birdnet.globals import ENV_VAR_TF_VERBOSE, PKG_NAME
 
 """
 loggers:
@@ -23,40 +29,6 @@ def get_package_logger() -> logging.Logger:
   return logging.getLogger(PKG_NAME)
 
 
-# # The worker configuration is done at the start of the worker process run.
-# # Note that on Windows you can't rely on fork semantics, so each process
-# # will run the logging configuration code when it starts.
-# def process_logging_configurer(logging_queue: Queue):
-#   root = logging.getLogger()
-#   assert root.level == logging.WARNING
-#   assert root.hasHandlers() is False
-#   h = QueueHandler(logging_queue)  # Just the one handler needed
-#   root.setLevel(logging.NOTSET)
-#   root.addHandler(h)
-
-
-# def xadd_queue_handler(logging_queue: Queue) -> QueueHandler:
-#   root = get_package_logger()
-#   h = QueueHandler(logging_queue)  # Just the one handler needed
-#   root.addHandler(h)
-#   return h
-
-
-# def xqueue_handler_exists(logging_queue: Queue) -> bool:
-#   root = get_package_logger()
-#   for handler in root.handlers:
-#     if isinstance(handler, QueueHandler) and handler.queue is logging_queue:
-#       return True
-#   return False
-
-
-# def xremove_queue_handler(handler: QueueHandler) -> None:
-#   root = get_package_logger()
-#   # check has queue handler already
-#   assert handler in root.handlers
-#   root.removeHandler(handler)
-
-
 def get_logger_for_package(name: str) -> logging.Logger:
   logger = logging.getLogger(name)
   logger.parent = get_package_logger()
@@ -72,3 +44,92 @@ def init_package_logger(logging_level: int) -> None:
   root = get_package_logger()
   root.setLevel(logging_level)
   root.propagate = False
+
+
+def native_output_is_verbose() -> bool:
+  return os.environ.get(ENV_VAR_TF_VERBOSE, "0") not in ("", "0")
+
+
+# File descriptor 2 is process-wide, so two threads redirecting it at once would
+# restore each other's saved descriptor and leave the process without a usable
+# stderr. Reentrant, because nested suppression unwinds in order on one thread.
+_NATIVE_STDERR_LOCK = threading.RLock()
+
+
+@contextmanager
+def suppress_native_stderr() -> Generator[None, None, None]:
+  """Hide what native code writes to stderr while the block runs.
+
+  TensorFlow prints its absl banner and the oneDNN notice from C++ straight to
+  file descriptor 2, before absl logging is initialized. `logging`, absl's
+  verbosity and `TF_CPP_MIN_LOG_LEVEL` all act above that and cannot reach it;
+  only redirecting the descriptor can. Every worker process imports TensorFlow,
+  so the banner is printed once per process.
+
+  If the block raises, the captured text is written to stderr, so the native
+  diagnostics of a failed import still reach the user. Otherwise it is emitted
+  on the package logger at DEBUG. No handler is attached by default, and worker
+  processes have none at all, so in practice a warning that never raises is
+  seen by re-running with `BIRDNET_TF_VERBOSE=1`.
+
+  Suppression is a convenience, never a precondition: if stderr cannot be
+  redirected the block still runs, unsuppressed. Because the descriptor is
+  process-wide the block is serialized, which also means concurrent callers
+  wait out an import that is already running.
+  """
+  stderr = sys.stderr
+  if (
+    native_output_is_verbose()
+    # No usable stderr to redirect: pythonw.exe, a service, or `2>&-`. On
+    # Windows os.dup(2) still succeeds there, so this has to be checked too.
+    or stderr is None
+    or not hasattr(stderr, "flush")
+    or not hasattr(stderr, "write")
+  ):
+    yield
+    return
+
+  with _NATIVE_STDERR_LOCK:
+    try:
+      saved_stderr_fd = os.dup(2)
+    except OSError:
+      yield
+      return
+
+    try:
+      try:
+        # Not opened as a `with` here: creation has to be guarded on its own,
+        # and the handle is closed by the `with capture` below.
+        capture = tempfile.TemporaryFile()  # noqa: SIM115
+      except OSError:
+        # Read-only or full temp directory: run without suppressing rather
+        # than turn a working import into a disk error.
+        yield
+        return
+
+      with capture:
+        stderr.flush()
+        os.dup2(capture.fileno(), 2)
+        failed = False
+        try:
+          yield
+        except BaseException:
+          failed = True
+          raise
+        finally:
+          stderr.flush()
+          os.dup2(saved_stderr_fd, 2)
+          capture.seek(0)
+          captured = capture.read().decode("utf-8", "replace")
+          if captured:
+            if failed:
+              stderr.write(captured)
+              stderr.flush()
+            else:
+              # Warnings that do not raise — a CUDA library that could not be
+              # loaded, say — explain later behaviour and must not be destroyed.
+              get_logger_for_package(__name__).debug(
+                "Suppressed native output:\n%s", captured.rstrip()
+              )
+    finally:
+      os.close(saved_stderr_fd)

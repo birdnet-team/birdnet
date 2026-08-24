@@ -1,13 +1,12 @@
 import contextlib
 import ctypes
-import importlib.util
 import multiprocessing as mp
 import os
-import subprocess
 import threading
 import time
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Iterable
 from multiprocessing import get_all_start_methods, set_start_method
+from pathlib import Path
 from typing import IO
 
 import numpy as np
@@ -23,6 +22,7 @@ from birdnet.acoustic.inference.core.prediction.prediction_result import (
 from birdnet.core.backends import (
   litert_installed,
   onnxruntime_installed,
+  tf_installed,
   torch_installed,
 )
 from birdnet.utils.helper import check_is_intel_macos
@@ -264,23 +264,6 @@ def ensure_v3_0_torch_backend_or_skip() -> None:
     pytest.skip("Acoustic model v3.0 needs a newer torch than Intel macOS provides")
 
 
-def ensure_gpu_or_skip_smi() -> None:
-  gpu_available = False
-  try:
-    subprocess.check_output("nvidia-smi")
-    gpu_available = True
-  except Exception:
-    pass
-  if not gpu_available:
-    pytest.skip("Nvidia GPU not available")
-
-
-def ensure_gpu_or_skip_old() -> None:
-  cuda_available = importlib.util.find_spec("nvidia", "cuda_runtime") is not None
-  if not cuda_available:
-    pytest.skip("Nvidia CUDA runtime not available")
-
-
 def ensure_litert_or_skip() -> None:
   if not litert_installed():
     pytest.skip("litert library is not available")
@@ -300,10 +283,17 @@ def geo_v3_0_litert_not_supported_skip() -> None:
   pytest.skip("Geo model v3.0 TF backend is not supported with ai_edge_litert yet")
 
 
-def ensure_tf_2_19_or_2_18() -> None:
+def _tf_version_or_skip() -> str:
+  if not tf_installed():
+    pytest.skip("TensorFlow is not installed (pip install birdnet[tf])")
   import tensorflow as tf
 
   version: str = tf.__version__
+  return version
+
+
+def ensure_tf_2_19_or_2_18() -> None:
+  version = _tf_version_or_skip()
   if not (version.startswith("2.19") or version.startswith("2.18")):
     pytest.skip("TensorFlow 2.18 or 2.19 is required for this test")
 
@@ -316,9 +306,7 @@ def ensure_tf_2_18_or_skip() -> None:
   'FULLY_CONNECTED' version '12'"). The geo v3.0 TF backend requires 2.18/2.19
   anyway, so there is nothing to verify on such a runtime.
   """
-  import tensorflow as tf
-
-  version: str = tf.__version__
+  version = _tf_version_or_skip()
   version_parts = version.split(".")
   try:
     major_minor = int(version_parts[0]), int(version_parts[1])
@@ -330,9 +318,7 @@ def ensure_tf_2_18_or_skip() -> None:
 
 
 def ensure_tf_2_20_or_skip() -> None:
-  import tensorflow as tf
-
-  version: str = tf.__version__
+  version = _tf_version_or_skip()
   version_parts = version.split(".")
   try:
     major_minor = int(version_parts[0]), int(version_parts[1])
@@ -485,3 +471,17 @@ def worst_decimal_precision(a: np.ndarray, b: np.ndarray, max_decimals: int = 8)
     if max_diff < 10 ** (-decimals):
       return decimals
   return 0
+
+
+def create_fake_saved_model(model_dir: Path) -> None:
+  """Write the file layout `check_protobuf_model_files_exist` looks for."""
+  (model_dir / "variables").mkdir(parents=True, exist_ok=True)
+  (model_dir / "saved_model.pb").write_bytes(b"")
+  (model_dir / "variables" / "variables.data-00000-of-00001").write_bytes(b"")
+  (model_dir / "variables" / "variables.index").write_bytes(b"")
+
+
+def create_fake_lang_dir(lang_dir: Path, languages: Iterable[str]) -> None:
+  lang_dir.mkdir(parents=True, exist_ok=True)
+  for lang in languages:
+    (lang_dir / f"{lang}.txt").write_text("Species_species_Species\n", encoding="utf-8")

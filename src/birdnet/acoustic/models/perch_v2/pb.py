@@ -18,17 +18,21 @@ from birdnet.globals import (
 )
 from birdnet.utils.helper import (
   check_protobuf_model_files_exist,
+  check_source_marker,
   download_file_tqdm,
   get_species_from_file,
+  write_source_marker,
 )
 from birdnet.utils.local_data import APP_DIR
+from birdnet.utils.logging_utils import suppress_native_stderr
 
 _MIN_TF_VERSION_PERCH_V2 = (2, 20)
 
 
 def _get_tensorflow_version() -> str:
   try:
-    import tensorflow as tf
+    with suppress_native_stderr():
+      import tensorflow as tf
   except ModuleNotFoundError as e:
     raise RuntimeError(
       "The Perch v2 model requires TensorFlow >= 2.20, but TensorFlow is not installed."
@@ -106,15 +110,18 @@ class AcousticPBDownloaderPerchV2:
       model_path.parent.mkdir(parents=True, exist_ok=True)
       shutil.rmtree(model_path, ignore_errors=True)
       shutil.move(extract_dir, model_path)
+      write_source_marker(model_path, dl_url)
       print("Extracted.")  # noqa: T201
 
   @classmethod
   def _check_acoustic_model_available(cls, device: Literal["CPU", "GPU"]) -> bool:
     model_path, labels_path = cls._get_paths(device)
+    dl_url, _ = cls._get_download_info(device)
 
     model_is_downloaded = True
     model_is_downloaded &= model_path.is_dir()
     model_is_downloaded &= check_protobuf_model_files_exist(model_path)
+    model_is_downloaded &= check_source_marker(model_path, dl_url)
     model_is_downloaded &= labels_path.is_file()
 
     return model_is_downloaded

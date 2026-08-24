@@ -136,6 +136,65 @@ def test_tf_int8() -> None:
   assert result.model_precision == "int8"
 
 
+# --- Calibration ---
+
+# Absolute anchors (Ithaca, NY, late January): an abundant winter resident
+# near 1, an absent species near 0. Catches squashed outputs and species-list
+# drift, which the cross-backend tests above cannot. Keyed by sci-name prefix
+# because common names come from the replaceable taxonomy.
+_CALIBRATION_LAT = 42.5
+_CALIBRATION_LON = -76.45
+_CALIBRATION_WEEK = 4
+_RESIDENT_PREFIX = "Spinus tristis_"  # American Goldfinch: p=0.9998 (fp32)
+_ABSENT_PREFIX = "Dromaius novaehollandiae_"  # Emu: p=0.0000 (fp32)
+
+
+def _species_prob(result, sci_name_prefix: str) -> float:  # noqa: ANN001
+  species = [str(s) for s in result.species_list]
+  matches = [i for i, s in enumerate(species) if s.startswith(sci_name_prefix)]
+  assert len(matches) == 1, f"expected exactly one match: {sci_name_prefix}"
+  slot = int(np.where(np.asarray(result.species_ids) == matches[0])[0][0])
+  return float(np.asarray(result.species_probs)[slot])
+
+
+@pytest.mark.parametrize(
+  ("backend", "precision", "resident_min", "absent_max"),
+  [
+    pytest.param("onnx", "fp32", 0.99, 0.01, marks=pytest.mark.no_tf),
+    pytest.param("onnx", "fp16", 0.99, 0.01, marks=pytest.mark.no_tf),
+    ("pb", "fp32", 0.99, 0.01),
+    pytest.param("pt", "fp32", 0.99, 0.01, marks=pytest.mark.no_tf),
+    ("tf", "fp32", 0.99, 0.01),
+    ("tf", "fp16", 0.99, 0.01),
+    # int8 deviates more; the anchors only reject squashed/misaligned outputs.
+    ("tf", "int8", 0.9, 0.05),
+  ],
+)
+def test_calibration_anchor_probabilities(
+  backend: str, precision: str, resident_min: float, absent_max: float
+) -> None:
+  kwargs: dict = {"precision": precision}
+  if backend == "onnx":
+    ensure_onnxruntime_or_skip()
+  elif backend == "pt":
+    ensure_torch_or_skip()
+    ensure_v3_0_torch_backend_or_skip()
+  elif backend == "tf":
+    ensure_tf_2_19_or_2_18()
+    kwargs["library"] = "tflite"
+
+  model = load("geo", "3.0", backend, **kwargs)
+  result = model.predict(
+    _CALIBRATION_LAT, _CALIBRATION_LON, week=_CALIBRATION_WEEK, min_confidence=0.0
+  )
+
+  resident = _species_prob(result, _RESIDENT_PREFIX)
+  absent = _species_prob(result, _ABSENT_PREFIX)
+  # Two-sided: raw logits (missing baked-in sigmoid) pass one-sided bounds.
+  assert resident_min < resident <= 1.0, f"resident species scored {resident}"
+  assert 0.0 <= absent < absent_max, f"absent species scored {absent}"
+
+
 # --- GPU ---
 
 
@@ -206,6 +265,7 @@ def test_pb_cpu_half() -> None:
 # --- PT ---
 
 
+@pytest.mark.no_tf
 def test_pt_fp32() -> None:
   ensure_torch_or_skip()
   ensure_v3_0_torch_backend_or_skip()
@@ -221,6 +281,7 @@ def test_pt_fp32() -> None:
   assert result.model_precision == "fp32"
 
 
+@pytest.mark.no_tf
 def test_pt_year_round() -> None:
   ensure_torch_or_skip()
   ensure_v3_0_torch_backend_or_skip()
@@ -235,6 +296,7 @@ def test_pt_year_round() -> None:
   assert result.model_precision == "fp32"
 
 
+@pytest.mark.no_tf
 def test_pt_returns_probabilities() -> None:
   # The TorchScript export returns logits; the backend applies the sigmoid the
   # other backends have baked in. Without it the values leave [0, 1].
@@ -250,6 +312,7 @@ def test_pt_returns_probabilities() -> None:
   assert result.species_probs.max() > 0.5
 
 
+@pytest.mark.no_tf
 def test_pt_matches_onnx() -> None:
   """The backends must agree - same species order, same probabilities.
 
@@ -300,6 +363,7 @@ def test_pt_fp32_gpu() -> None:
 # --- ONNX ---
 
 
+@pytest.mark.no_tf
 def test_onnx_fp32() -> None:
   ensure_onnxruntime_or_skip()
 
@@ -314,6 +378,7 @@ def test_onnx_fp32() -> None:
   assert result.model_precision == "fp32"
 
 
+@pytest.mark.no_tf
 def test_onnx_fp32_half() -> None:
   ensure_onnxruntime_or_skip()
 
@@ -328,6 +393,7 @@ def test_onnx_fp32_half() -> None:
   assert result.model_precision == "fp32"
 
 
+@pytest.mark.no_tf
 def test_onnx_fp16() -> None:
   ensure_onnxruntime_or_skip()
 
@@ -342,6 +408,7 @@ def test_onnx_fp16() -> None:
   assert result.model_precision == "fp16"
 
 
+@pytest.mark.no_tf
 def test_onnx_year_round() -> None:
   ensure_onnxruntime_or_skip()
 

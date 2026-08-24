@@ -50,6 +50,7 @@ class _Collector:
       self.order.append(key)
 
 
+@pytest.mark.no_tf
 @pytest.mark.parametrize("backend", ["pt", "onnx"])
 def test_v3_0_predict_fires_once_per_file(backend: _Backend) -> None:
   collector = _Collector()

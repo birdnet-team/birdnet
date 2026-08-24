@@ -5,9 +5,11 @@ import hashlib
 import logging
 import math
 import os
+import shutil
 import tempfile
 import time
 from collections.abc import Generator, Iterable
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from itertools import islice
 from multiprocessing import Queue
@@ -22,6 +24,10 @@ from ordered_set import OrderedSet
 from tqdm import tqdm
 
 from birdnet.globals import Float32Array
+from birdnet.utils.download_progress import (
+  DownloadReporter,
+  get_download_progress_callback,
+)
 
 
 def format_input_for_csv(input_value: Any) -> str:  # noqa: ANN401
@@ -62,6 +68,24 @@ def check_protobuf_model_files_exist(folder: Path) -> bool:
   exists &= (folder / "variables" / "variables.data-00000-of-00001").is_file()
   exists &= (folder / "variables" / "variables.index").is_file()
   return exists
+
+
+# Written into a downloaded SavedModel directory to record which release it came
+# from. The directory name is generic, so unlike the size-checked single-file
+# models a directory cached from an older release is otherwise indistinguishable
+# from a current one and would never be re-downloaded on upgrade.
+SOURCE_MARKER_NAME = ".birdnet_source"
+
+
+def write_source_marker(model_dir: Path, dl_url: str) -> None:
+  (model_dir / SOURCE_MARKER_NAME).write_text(dl_url, encoding="utf-8")
+
+
+def check_source_marker(model_dir: Path, dl_url: str) -> bool:
+  marker = model_dir / SOURCE_MARKER_NAME
+  if not marker.is_file():
+    return False
+  return marker.read_text(encoding="utf-8").strip() == dl_url
 
 
 @dataclass()
@@ -114,6 +138,100 @@ _UINT_DTYPE_TO_CTYPE = {
 }
 
 
+def write_text_atomic(path: Path, content: str, encoding: str = "utf-8") -> None:
+  """Write via a temporary file in the same directory, then rename over.
+
+  A reader either sees the previous content or the new one, never a partial
+  file, and an interrupted write leaves nothing behind but a `.tmp` scratch file.
+
+  Newlines are written through unchanged, so the same content yields the same
+  bytes on every platform. Without that, files generated on Windows and on Linux
+  differ, and anything that records a checksum of them records a different one
+  per operating system.
+  """
+  fd, temp_name = tempfile.mkstemp(
+    dir=path.parent,
+    prefix=f"{path.name}.",
+    suffix=".tmp",
+  )
+  os.close(fd)
+  temp_path = Path(temp_name)
+
+  try:
+    temp_path.write_text(content, encoding=encoding, newline="\n")
+    temp_path.replace(path)
+  except Exception:
+    temp_path.unlink(missing_ok=True)
+    raise
+
+
+_LOCK_OWNER_NAME = "owner"
+
+# A lock whose owner never wrote its pid is only reclaimed once it is old enough
+# that the owner cannot still be between mkdir and the write.
+_LOCK_ADOPTION_GRACE_S = 30.0
+
+
+def _reclaim_if_abandoned(lock_dir: Path) -> bool:
+  """Drop a lock whose owner is gone. Returns whether anything was reclaimed.
+
+  Without this a process killed mid-setup - force-quit, OOM, power loss - leaves
+  the directory behind and every later call waits out the timeout and fails, for
+  good, with nothing to do but delete a hidden directory by hand.
+  """
+  import psutil
+
+  owner = lock_dir / _LOCK_OWNER_NAME
+  try:
+    pid = int(owner.read_text(encoding="utf-8").strip())
+  except (OSError, ValueError):
+    try:
+      age = time.time() - lock_dir.stat().st_mtime
+    except OSError:
+      return False
+    if age < _LOCK_ADOPTION_GRACE_S:
+      return False
+  else:
+    if psutil.pid_exists(pid):
+      return False
+
+  shutil.rmtree(lock_dir, ignore_errors=True)
+  return not lock_dir.exists()
+
+
+@contextmanager
+def directory_lock(
+  lock_dir: Path, description: str, timeout_s: float = 300.0
+) -> Generator[None, None, None]:
+  """Serialize one-time setup across processes by creating a directory.
+
+  `mkdir` is atomic on every platform this runs on, which a lock file is not.
+  The holder records its pid inside, so a lock left behind by a process that no
+  longer exists is reclaimed rather than waited out.
+  """
+  deadline = time.monotonic() + timeout_s
+  while True:
+    try:
+      lock_dir.mkdir(parents=True, exist_ok=False)
+      break
+    except FileExistsError as err:
+      if _reclaim_if_abandoned(lock_dir):
+        continue
+      if time.monotonic() >= deadline:
+        raise TimeoutError(
+          f"Timed out while waiting for {description}. Another process is "
+          f"holding {lock_dir}; if none is running, remove that directory."
+        ) from err
+      time.sleep(0.1)
+
+  with suppress(OSError):
+    (lock_dir / _LOCK_OWNER_NAME).write_text(str(os.getpid()), encoding="utf-8")
+  try:
+    yield
+  finally:
+    shutil.rmtree(lock_dir, ignore_errors=True)
+
+
 def get_supported_audio_files_recursive(folder: Path) -> Generator[Path, None, None]:
   assert folder.is_dir()
   yield from (
@@ -124,8 +242,7 @@ def get_supported_audio_files_recursive(folder: Path) -> Generator[Path, None, N
 
 
 def assert_queue_is_empty(queue: Queue) -> None:
-  # qsize() doesn't work on macOS:
-  # assert self._files_queue.qsize() == 0
+  # qsize() doesn't work on macOS
   try:
     queue.get_nowait()
     raise AssertionError("Queue is not empty!")
@@ -421,25 +538,51 @@ def download_file_tqdm(
 ) -> int:
   import requests
 
+  # The callback is captured once per download, so a registration that changes
+  # mid-way takes effect from the next download on (and the tqdm bar's on/off
+  # state stays consistent with the events for this one).
+  reporter = DownloadReporter(
+    url, description, _DOWNLOAD_ATTEMPTS, get_download_progress_callback()
+  )
   attempt = 0
-  while True:
-    attempt += 1
-    try:
-      return _download_file_once(
-        url, file_path, download_size=download_size, description=description
-      )
-    except (requests.RequestException, ValueError) as error:
-      # Re-raise from inside the handler so the original traceback survives.
-      if attempt >= _DOWNLOAD_ATTEMPTS or not _is_retriable_download_error(error):
-        raise
-      wait_s = _DOWNLOAD_RETRY_WAITS_S[
-        min(attempt - 1, len(_DOWNLOAD_RETRY_WAITS_S) - 1)
-      ]
-      logging.getLogger(__name__).warning(
-        f"Download of {url} failed (attempt {attempt}/{_DOWNLOAD_ATTEMPTS}): "
-        f"{error}. Retrying in {wait_s:.0f} s..."
-      )
-      time.sleep(wait_s)
+  try:
+    while True:
+      attempt += 1
+      try:
+        return _download_file_once(
+          url,
+          file_path,
+          download_size=download_size,
+          description=description,
+          attempt=attempt,
+          reporter=reporter,
+        )
+      except (requests.RequestException, ValueError) as error:
+        # Re-raise from inside the handler so the original traceback survives.
+        if reporter.callback_failed:
+          # The callback raised (a ValueError lands here too): abort, no retry.
+          raise
+        if attempt >= _DOWNLOAD_ATTEMPTS or not _is_retriable_download_error(error):
+          raise
+        wait_s = _DOWNLOAD_RETRY_WAITS_S[
+          min(attempt - 1, len(_DOWNLOAD_RETRY_WAITS_S) - 1)
+        ]
+        # Before the log line: a callback that raises here cancels the download,
+        # and then nothing is retried.
+        reporter.retrying(error, wait_s)
+        logging.getLogger(__name__).warning(
+          f"Download of {url} failed (attempt {attempt}/{_DOWNLOAD_ATTEMPTS}): "
+          f"{error}. Retrying in {wait_s:.0f} s..."
+        )
+        time.sleep(wait_s)
+  except BaseException as error:
+    # Terminal event for errors the retry handler does not deal in (OSError,
+    # KeyboardInterrupt). A raising callback gets no further events; suppress
+    # keeps one that raises again from masking the original error.
+    if not reporter.callback_failed:
+      with suppress(BaseException):
+        reporter.failed(error)
+    raise
 
 
 def _download_file_once(
@@ -448,47 +591,79 @@ def _download_file_once(
   *,
   download_size: int | None = None,
   description: str | None = None,
+  attempt: int = 1,
+  reporter: DownloadReporter | None = None,
 ) -> int:
   assert file_path.parent.is_dir()
   import requests
 
+  if reporter is None:
+    reporter = DownloadReporter(url, description, _DOWNLOAD_ATTEMPTS, callback=None)
+
+  reporter.started(attempt, download_size)
+
   response = requests.get(url, stream=True, timeout=120)
-  total_size = int(response.headers.get("content-length", 0))
-  if download_size is not None:
-    total_size = download_size
-
-  block_size = 1024
-  fd, temp_name = tempfile.mkstemp(
-    dir=file_path.parent,
-    prefix=f"{file_path.name}.",
-    suffix=".tmp",
-  )
-  os.close(fd)
-  temp_path = Path(temp_name)
-
   try:
-    with (
-      tqdm(total=total_size, unit="iB", unit_scale=True, desc=description) as tqdm_bar,
-      open(temp_path, "wb") as file,
-    ):
-      for data in response.iter_content(block_size):
-        tqdm_bar.update(len(data))
-        file.write(data)
+    content_length = response.headers.get("content-length")
+    if download_size is not None:
+      total_size = download_size
+    elif content_length is not None:
+      total_size = int(content_length)
+    else:
+      total_size = 0
+    # 0 is the internal "unknown" sentinel (it also disables the size check).
+    bytes_total: int | None = total_size
+    if download_size is None and content_length is None:
+      bytes_total = None
+    reporter.total_known(bytes_total)
 
-    if response.status_code != 200 or (total_size not in (0, tqdm_bar.n)):
-      raise DownloadError(
-        f"Failed to download the file. Status code: {response.status_code}\n"
-        f"Expected size: {total_size} bytes, downloaded size: {tqdm_bar.n} bytes.",
-        status_code=response.status_code,
-      )
+    block_size = 1024
+    fd, temp_name = tempfile.mkstemp(
+      dir=file_path.parent,
+      prefix=f"{file_path.name}.",
+      suffix=".tmp",
+    )
+    os.close(fd)
+    temp_path = Path(temp_name)
 
-    temp_path.replace(file_path)
-  except Exception:
-    temp_path.unlink(missing_ok=True)
-    raise
+    downloaded_size = 0
+    try:
+      with (
+        tqdm(
+          total=total_size,
+          unit="iB",
+          unit_scale=True,
+          desc=description,
+          disable=reporter.enabled,
+        ) as tqdm_bar,
+        open(temp_path, "wb") as file,
+      ):
+        for data in response.iter_content(block_size):
+          # Bytes are counted here rather than read from `tqdm_bar.n`, which
+          # does not advance while the bar is disabled.
+          tqdm_bar.update(len(data))
+          file.write(data)
+          downloaded_size += len(data)
+          reporter.progress(downloaded_size)
+
+      if response.status_code != 200 or (total_size not in (0, downloaded_size)):
+        raise DownloadError(
+          f"Failed to download the file. Status code: {response.status_code}\n"
+          f"Expected size: {total_size} bytes, "
+          f"downloaded size: {downloaded_size} bytes.",
+          status_code=response.status_code,
+        )
+
+      temp_path.replace(file_path)
+    except BaseException:
+      # BaseException: a KeyboardInterrupt, or a callback raising to cancel,
+      # must not leave the partial file behind either.
+      temp_path.unlink(missing_ok=True)
+      raise
   finally:
     response.close()
 
+  reporter.finished()
   return total_size
 
 

@@ -14,9 +14,12 @@ To install BirdNET, you can use ``pip``. Open your terminal and run the followin
 
 .. code-block:: bash
 
-   pip install birdnet --user
-   
-This command installs the BirdNET package along with its dependencies.
+   pip install birdnet[tf] --user
+
+This command installs the BirdNET package with TensorFlow, which the ``tf`` backend
+used in the examples below relies on. Plain ``pip install birdnet`` installs a
+TensorFlow-free package that runs the V3.0 models via ``onnx`` and the 2.4 models via
+``birdnet.load(.., "tf", library="litert")``; see :doc:`setup` for the extras.
 
 Predict species from audio file
 -------------------------------
@@ -108,6 +111,48 @@ Predict species with a custom species list
 
   predictions.to_csv("example/predictions.csv")
 
+Show model download progress
+----------------------------
+
+Official models (plus their labels and, for V3.0, a shared taxonomy) are downloaded on first use inside ``birdnet.load(..)``. By default progress is only shown as a ``tqdm`` bar on stderr, which is invisible to a GUI application that redirects stderr to a log file. Register a process-wide callback to drive your own progress UI instead; while a callback is registered the tqdm bar is silenced. The callback receives a ``DownloadProgress`` snapshot:
+
+* ``"started"`` once per attempt (a second ``"started"`` with a higher ``attempt`` is a retry -- reset your bar),
+* ``"progress"`` while bytes arrive (throttled to ~10 per second),
+* ``"retrying"`` before each back-off, with ``error`` and ``retry_in_s``,
+* exactly one of ``"finished"`` / ``"failed"`` (with ``error``) at the end -- ``failed`` means the download gave up and ``load(..)`` raises right after.
+
+.. code-block:: python
+
+  import birdnet
+  from birdnet import DownloadProgress
+
+  def on_download_progress(p: DownloadProgress) -> None:
+      # Runs on the thread that called birdnet.load(); hand off to your UI thread if needed.
+      # A single load() may run several downloads (labels, taxonomy, model): key on p.description.
+      if p.status == "started":
+          ui.show_progress(p.description, attempt=p.attempt, of=p.max_attempts)
+      elif p.status == "progress":
+          ui.set_progress(p.fraction)  # None while the total size is unknown
+      elif p.status == "retrying":
+          ui.set_message(f"{p.error} - retrying in {p.retry_in_s:.0f} s")
+      elif p.status == "finished":
+          ui.hide_progress()
+      elif p.status == "failed":
+          ui.show_error(f"Could not download {p.description}: {p.error}")
+
+  birdnet.set_download_progress_callback(on_download_progress)  # once, at application start
+
+  model = birdnet.load("acoustic", "3.0", "onnx")  # downloads on first use
+
+To cancel a running download from the UI, raise an exception inside the callback: the partial file is discarded, no retry is attempted, and your exception propagates out of ``load(..)``. ``set_download_progress_callback`` returns the previously registered callback; ``get_download_progress_callback`` reads it. Use ``birdnet.download_progress_callback(cb)`` as a ``with`` block instead if the callback should only apply to a specific piece of code:
+
+.. code-block:: python
+
+  import birdnet
+
+  with birdnet.download_progress_callback(on_download_progress):
+      model = birdnet.load("acoustic", "3.0", "onnx")
+
 Use a different model version or backend
 ----------------------------------------
 
@@ -117,7 +162,7 @@ The ``version`` and ``backend`` arguments of ``birdnet.load`` select the model. 
 
   import birdnet
 
-  # V3.0 acoustic model via the ONNX backend (requires: pip install birdnet[onnx])
+  # V3.0 acoustic model via the ONNX backend (part of the base install)
   model = birdnet.load("acoustic", "3.0", "onnx")
 
   predictions = model.predict("example/soundscape.wav")

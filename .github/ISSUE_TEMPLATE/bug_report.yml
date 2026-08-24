@@ -1,0 +1,85 @@
+name: Bug report
+description: Something in birdnet behaves incorrectly or crashes.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a report. Have a look at the [existing issues](https://github.com/birdnet-team/birdnet/issues) and check if an issue already exists for the bug you found.
+
+        **Before you continue, please rule out the three things that look like bugs but usually are not:**
+
+        - **Model download failures.** Official models auto-download (~3 GB for the full set) from
+          Zenodo, which is often slow and drops connections (`ConnectionReset`, `IncompleteRead`,
+          `503`/`504`). A failed or truncated download is a network issue, not a library bug — retry,
+          and set `BIRDNET_APP_DATA` to a persistent path in ephemeral environments.
+        - **Missing `libsndfile`.** Audio loading needs the system library
+          (`apt-get install libsndfile1` / `brew install libsndfile` / `choco install libsndfile`).
+        - **Using a TensorFlow-only path without TensorFlow.** TensorFlow is an optional extra. On
+          Python 3.14 only the TF-free surface exists (`onnx`/`pt` backends, and `tf` via
+          `library="litert"`); the other `tf`/`pb` paths raise a friendly error there by design.
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight
+      options:
+        - label: I'm on the latest release of `birdnet` (or a recent `main`).
+          required: true
+        - label: I've searched existing issues and this isn't a duplicate.
+          required: true
+        - label: This is a defect in the library — not a Zenodo download failure, a missing `libsndfile`, or a TF-only path used without TensorFlow (see above).
+          required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what did you expect?
+      description: Describe the actual behavior and the behavior you expected. Paste the full traceback if there is one.
+      placeholder: |
+        I called load("acoustic", "3.0", "pt") and got ... . I expected ... .
+
+        Traceback (most recent call last):
+          ...
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: >
+        The shortest self-contained snippet that triggers the problem. If audio is involved, describe
+        the file (format, sample rate, duration) rather than attaching private recordings.
+      render: python
+      placeholder: |
+        import birdnet
+        model = birdnet.load("acoustic", "2.4", "tf")
+        ...
+    validations:
+      required: true
+  - type: dropdown
+    id: python
+    attributes:
+      label: Python version
+      description: 3.14 is the TensorFlow-free surface only.
+      options:
+        - "3.11"
+        - "3.12"
+        - "3.13"
+        - "3.14"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS and architecture
+      placeholder: "macOS 14 arm64 / Ubuntu 22.04 x86_64 / Windows 11"
+    validations:
+      required: true
+  - type: textarea
+    id: session-log
+    attributes:
+      label: Session log
+      description: >
+        Each inference session writes a log to `/tmp/birdnet_session_*.log` (or `%TEMP%\birdnet_session_*.log`
+        on Windows). Attach or paste the relevant one — it usually contains the real cause.
+      render: text

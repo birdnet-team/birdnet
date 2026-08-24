@@ -10,8 +10,10 @@ when reviewing PRs. Everything here can be verified from the diff text alone.
   `load_model` (downloads models), `litert` (imports/exercises `ai_edge_litert` —
   cannot run in the same process after TensorFlow is imported), `gpu`, `fork`
   (forces the fork start method — must run serially), `repro` (needs exact pinned
-  versions), `no_tf` (TensorFlow-free surface). A missing or wrong marker breaks
-  CI lane isolation even when the test itself passes.
+  versions), `no_tf` (TensorFlow-free surface; TensorFlow is an optional
+  dependency, and without it only `no_tf`/`litert` tests run), `tf` (a `litert`
+  test that needs TensorFlow after all). A missing or wrong marker breaks CI lane
+  isolation even when the test itself passes.
 - **Stub sync.** If the diff changes the signature of `load`, `load_custom`, or
   `load_perch_v2` in `src/birdnet/model_loader.py`, it must also update
   `src/birdnet/model_loader.pyi`.

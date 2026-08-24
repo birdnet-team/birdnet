@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Usage help & documentation
+    url: https://birdnet-team.github.io/birdnet
+    about: How-to and API questions are usually answered in the docs — please check there before opening an issue.
+  - name: BirdNET-Analyzer (segment extraction, GUI, species lists)
+    url: https://github.com/birdnet-team/BirdNET-Analyzer
+    about: Features outside this library's scope live in BirdNET-Analyzer — request them there.
+  - name: Report a security vulnerability
+    url: https://github.com/birdnet-team/birdnet/security/policy
+    about: Please do not open a public issue for security problems — follow the security policy instead.

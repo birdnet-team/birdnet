@@ -328,23 +328,6 @@ class WorkerResources:
       finish_signal.clear()
 
 
-# def _create_backend_loader(config: PredictionConfig) -> InferenceBackendLoader:
-#   if config.model_conf.backend == MODEL_BACKEND_TF:
-#     backend_type = TFInferenceBackend
-#   elif config.model_conf.backend == MODEL_BACKEND_PB:
-#     backend_type = PBInferenceBackend
-#   else:
-#     raise AssertionError(f"Unknown backend: {config.model_conf.backend}")
-
-#   backend_loader = InferenceBackendLoader(
-#     model_path=config.model_conf.path,
-#     backend_type=backend_type,
-#     backend_kwargs=config.model_conf.backend_kwargs,
-#   )
-
-#   return backend_loader
-
-
 @dataclass(frozen=True)
 class InputAnalyzerResources:
   input_queue: queue.Queue
@@ -622,14 +605,9 @@ class StatisticsResources:
     if self.perf_res_finish_signal is not None:
       self.perf_res_finish_signal.clear()
 
-    # Cleared for the same reason. It was previously left set because the
-    # dispatcher could fail to signal at all (a run with no stats never
-    # reached its exit), which made a stale signal the only thing keeping a
-    # reused session moving. Now that the closing stats are always published
-    # and the dispatcher also stops on the end event, leaving it set would
-    # mean the parent never actually waits for the dispatcher on any run
-    # after the first -- so runs 2+ would get no closing callback and the
-    # dispatcher could drift a run behind (#75).
+    # Cleared for the same reason: left set, the parent would never actually
+    # wait for the dispatcher on runs 2+, so those runs would get no closing
+    # callback and the dispatcher could drift a run behind (#75).
     if self.callback_finish_signal is not None:
       self.callback_finish_signal.clear()
 

@@ -11,16 +11,20 @@ from birdnet.core.backends import (
   VersionedAcousticBackendProtocol,
 )
 from birdnet.globals import (
-  MODEL_BACKEND_PB,
   MODEL_PRECISION_FP32,
   MODEL_PRECISIONS,
 )
 from birdnet.utils.helper import (
   check_protobuf_model_files_exist,
+  check_source_marker,
   download_file_tqdm,
   get_species_from_file,
+  write_source_marker,
 )
 from birdnet.utils.local_data import get_lang_dir, get_model_path
+
+_PB_DL_URL = "https://zenodo.org/records/20703646/files/BirdNET+_V3.0-preview3.1_Global_11K_FP32_Protobuf.zip"
+_PB_DL_SIZE = 499609919
 
 
 class AcousticPBDownloaderV3_0(AcousticDownloaderBaseV3_0):
@@ -37,7 +41,11 @@ class AcousticPBDownloaderV3_0(AcousticDownloaderBaseV3_0):
   @classmethod
   def _check_model_files_available(cls) -> bool:
     model_path, _ = cls._get_paths()
-    return model_path.is_dir() and check_protobuf_model_files_exist(model_path)
+    return (
+      model_path.is_dir()
+      and check_protobuf_model_files_exist(model_path)
+      and check_source_marker(model_path, _PB_DL_URL)
+    )
 
   @classmethod
   def _check_acoustic_model_available(cls) -> bool:
@@ -51,15 +59,12 @@ class AcousticPBDownloaderV3_0(AcousticDownloaderBaseV3_0):
 
   @classmethod
   def _download_model(cls) -> None:
-    dl_url = "https://zenodo.org/records/20703646/files/BirdNET+_V3.0-preview3.1_Global_11K_FP32_Protobuf.zip"
-    dl_size = 499609919
-
     with tempfile.TemporaryDirectory(prefix="birdnet_download") as temp_dir:
       zip_download_path = Path(temp_dir) / "download.zip"
       download_file_tqdm(
-        dl_url,
+        _PB_DL_URL,
         zip_download_path,
-        download_size=dl_size,
+        download_size=_PB_DL_SIZE,
         description="Downloading acoustic model v3.0 (pb)",
       )
 
@@ -73,6 +78,7 @@ class AcousticPBDownloaderV3_0(AcousticDownloaderBaseV3_0):
       acoustic_model_dir.parent.mkdir(parents=True, exist_ok=True)
       shutil.rmtree(acoustic_model_dir, ignore_errors=True)
       shutil.move(extract_dir, acoustic_model_dir)
+      write_source_marker(acoustic_model_dir, _PB_DL_URL)
 
       acoustic_lang_dir.parent.mkdir(parents=True, exist_ok=True)
       shutil.rmtree(acoustic_lang_dir, ignore_errors=True)
@@ -103,6 +109,9 @@ class AcousticPBDownloaderV3_0(AcousticDownloaderBaseV3_0):
 
 
 class AcousticPBBackendFP32V3_0(PBBackend, VersionedAcousticBackendProtocol):
+  # Unlike the v2.4 SavedModel (separate "basic" and "embeddings" signatures),
+  # the v3.0 export exposes a single "serving_default" signature whose input is
+  # "x" and which returns both "predictions" and "embeddings".
   def __init__(
     self, model_path: Path, device_name: str, half_precision: bool, **kwargs: dict
   ) -> None:
@@ -110,46 +119,7 @@ class AcousticPBBackendFP32V3_0(PBBackend, VersionedAcousticBackendProtocol):
 
   @classmethod
   def input_key(cls) -> str:
-    return "inputs"
-
-  @classmethod
-  def prediction_signature_name(cls) -> str:
-    return "basic"
-
-  @classmethod
-  def prediction_key(cls) -> str:
-    return "scores"
-
-  @classmethod
-  def supports_encoding(cls) -> bool:
-    return True
-
-  @classmethod
-  def encoding_signature_name(cls) -> str | None:
-    return "embeddings"
-
-  @classmethod
-  def encoding_key(cls) -> str | None:
-    return "embeddings"
-
-  @classmethod
-  def precision(cls) -> MODEL_PRECISIONS:
-    return MODEL_PRECISION_FP32
-
-
-class AcousticRavenBackendFP32V3_0(PBBackend, VersionedAcousticBackendProtocol):
-  def __init__(
-    self, model_path: Path, device_name: str, half_precision: bool, **kwargs: dict
-  ) -> None:
-    super().__init__(model_path, device_name, half_precision, **kwargs)
-
-  @classmethod
-  def name(cls) -> str:
-    return f"{MODEL_BACKEND_PB}-raven"
-
-  @classmethod
-  def input_key(cls) -> str:
-    return "inputs"
+    return "x"
 
   @classmethod
   def prediction_signature_name(cls) -> str:
@@ -157,19 +127,19 @@ class AcousticRavenBackendFP32V3_0(PBBackend, VersionedAcousticBackendProtocol):
 
   @classmethod
   def prediction_key(cls) -> str:
-    return "scores"
+    return "predictions"
 
   @classmethod
   def supports_encoding(cls) -> bool:
-    return False
+    return True
 
   @classmethod
   def encoding_signature_name(cls) -> str | None:
-    return None
+    return "serving_default"
 
   @classmethod
   def encoding_key(cls) -> str | None:
-    return None
+    return "embeddings"
 
   @classmethod
   def precision(cls) -> MODEL_PRECISIONS:

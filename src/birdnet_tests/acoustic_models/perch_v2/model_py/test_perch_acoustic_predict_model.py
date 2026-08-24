@@ -98,7 +98,8 @@ def test_gpu() -> None:
 
 
 @pytest.mark.gpu
-def xtest_gpu_too_large_batch_size_raises_error() -> None:
+@pytest.mark.skip(reason="whether batch_size=2000 OOMs depends on the GPU")
+def test_gpu_too_large_batch_size_raises_error() -> None:
   ensure_not_intel_macos_or_skip()
   ensure_gpu_or_skip()
 

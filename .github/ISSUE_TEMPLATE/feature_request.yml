@@ -1,0 +1,35 @@
+name: Feature request
+description: Suggest a capability or improvement for birdnet.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea. One thing worth knowing before you write it up, because it decides where a
+        request belongs:
+
+        **birdnet is a focused library, not a port of BirdNET-Analyzer.** It deliberately does not cover
+        every feature of the [BirdNET-Analyzer](https://github.com/birdnet-team/BirdNET-Analyzer)
+        (segment extraction, the GUI, species-list tooling, and so on). If your request is really an
+        Analyzer feature, it is more likely to land there. This library's scope is a robust,
+        embeddable inference/embedding workflow for bioacoustic data analysis.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What are you trying to do, and what makes it hard or impossible today? Describe the use case, not just the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should birdnet do? Sketch the API (function names, arguments, return types) if you can.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered/Additional context
+      description: Workarounds you've tried, or existing features that almost do this. Mention if BirdNET-Analyzer already covers it.

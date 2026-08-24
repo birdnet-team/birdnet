@@ -43,8 +43,8 @@ def test_pb_cpu_fp32() -> None:
   assert res.species_probs.shape == TEST_FILE_SHORT_SCORE_SHAPE
 
 
-def xtest_pb_cpu_fp32_callback() -> None:
-  # depending on the speed of the machine, this may or may not collect any stats
+@pytest.mark.skip(reason="machine-speed dependent: may collect no stats at all")
+def test_pb_cpu_fp32_callback() -> None:
   collected_stats = []
 
   def test_callback(data: AcousticProgressStats) -> None:
@@ -223,7 +223,8 @@ def test_tflite_fp32_two_np_arrays() -> None:
   assert res.species_probs.shape == (2, 3, 6522)
 
 
-def xtest_tflite_fp32_large_np_array() -> None:
+@pytest.mark.skip(reason="6 h of tiled audio; too slow and memory-heavy for CI")
+def test_tflite_fp32_large_np_array() -> None:
   sf_data, sr = sf.read(TEST_FILE_LONG, dtype="float32")
   data_6h = numpy.tile(sf_data, 30 * 6)
   model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
@@ -456,8 +457,8 @@ def run_session_thread(barrier: threading.Barrier, queue: queue.Queue) -> None:
   queue.put(result)
 
 
-def xtest_tflite_fp32_twice_two_sessions_parallel_threads() -> None:
-  # Disabled test because it hangs sometimes, reason unknown.
+@pytest.mark.skip(reason="hangs sometimes, reason unknown")
+def test_tflite_fp32_twice_two_sessions_parallel_threads() -> None:
   n_threads = 10
 
   barrier = threading.Barrier(n_threads)
