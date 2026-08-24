@@ -80,9 +80,7 @@ def test_per_file_segment_counts() -> None:
 def test_invalid_file_reported_as_unprocessable() -> None:
   collector = _Collector()
   model = _load_model()
-  with tempfile.NamedTemporaryFile(
-    suffix=".wav", delete=False, mode="wb"
-  ) as broken:
+  with tempfile.NamedTemporaryFile(suffix=".wav", delete=False, mode="wb") as broken:
     broken.write(b"NOT_A_VALID_WAV_FILE")
   with model.encode_session(n_workers=1, on_file_complete=collector) as session:
     session.run([broken.name, str(TEST_FILE_SHORT)])

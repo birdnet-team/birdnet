@@ -12,6 +12,7 @@ from logging import Logger
 from multiprocessing.process import BaseProcess
 from multiprocessing.synchronize import Event as EventType
 from pathlib import Path
+from queue import Empty
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -33,6 +34,10 @@ from birdnet.acoustic.inference.core.perf_tracker import (
   ProgressDispatcher,
 )
 from birdnet.acoustic.inference.core.producer import Producer
+from birdnet.acoustic.inference.core.sync import (
+  PROMISED_MESSAGE_DEADLINE_S as _PROMISED_MESSAGE_DEADLINE_S,
+)
+from birdnet.acoustic.inference.core.sync import ThreadedQueueReader
 from birdnet.acoustic.inference.core.tensor import AcousticTensorBase
 from birdnet.acoustic.inference.file_writer import QueueFileWriter
 from birdnet.acoustic.inference.resources import PipelineResources
@@ -577,21 +582,105 @@ class ProcessManager:
     completion_active: bool = False,
   ) -> None:
     fc = self._res.file_completion_resources
+    results_queue = self._res.worker_resources.results_queue
     marker_queue = fc.marker_queue if completion_active else None
     dispatch_queue = fc.dispatch_queue if completion_active else None
-    consumer = Consumer(
-      session_id=self._session_id,
-      n_workers=self._cfg.processing_conf.workers,
-      worker_queue=self._res.worker_resources.results_queue,
-      tensor=result_tensor,
-      cancel_event=self._res.processing_resources.cancel_event,
-      n_inputs=len(inputs) if inputs is not None else 0,
-      inputs=inputs,
-      completion_marker_queue=marker_queue,
-      completion_dispatch_queue=dispatch_queue,
-      check_children_alive=self.raise_if_child_died,
+
+    # The consumer never touches the queues directly: a plain get can block
+    # forever on a message a killed worker left half-written, and this loop is
+    # the run itself (issue #83). Each reader is one sacrificial daemon thread.
+    results_reader = ThreadedQueueReader(
+      results_queue, f"{self._session_hash}-ResultsReader"
     )
-    consumer()
+    marker_reader = (
+      ThreadedQueueReader(marker_queue, f"{self._session_hash}-MarkerReader")
+      if marker_queue is not None
+      else None
+    )
+    try:
+      consumer = Consumer(
+        session_id=self._session_id,
+        n_workers=self._cfg.processing_conf.workers,
+        results=results_reader,
+        tensor=result_tensor,
+        cancel_event=self._res.processing_resources.cancel_event,
+        n_inputs=len(inputs) if inputs is not None else 0,
+        inputs=inputs,
+        markers=marker_reader,
+        completion_dispatch_queue=dispatch_queue,
+        check_children_alive=self.raise_if_child_died,
+        all_workers_finished=lambda: all(
+          sig.is_set() for sig in self._res.worker_resources.finish_signals
+        ),
+      )
+      consumer()
+    finally:
+      self._close_reader(results_reader, results_queue)
+      if marker_reader is not None:
+        assert marker_queue is not None
+        self._close_reader(marker_reader, marker_queue)
+
+  def _close_reader(self, reader: ThreadedQueueReader, q: Queue) -> None:
+    """Stop a queue reader, keeping its queue open if the reader is wedged.
+
+    A wedged reader is stuck inside ``_recv_bytes`` on a message a killed
+    child never finished; the run that produced it is already failed and a
+    session cannot be reused after that, so the cost is a parked daemon thread.
+    The queue must not be closed underneath the blocked read -- same reasoning
+    as ``_collect_wedged_drainers``.
+    """
+    if reader.close():
+      return
+    self._logger.warning(
+      "A queue reader is still blocked on a message a killed child never "
+      "finished writing; leaving that queue open."
+    )
+    # A side effect worth knowing during teardown: the wedged pump holds the
+    # queue's read lock, so the cancel-path drainer on this queue drains
+    # nothing and children with buffered data are terminated at the grace
+    # period instead of flushing.
+    if not any(q is seen for seen in self._undrainable_queues):
+      self._undrainable_queues.append(q)
+
+  def read_promised(self, q: Queue, n: int, what: str) -> list[object]:
+    """Read ``n`` messages that finished children have already promised.
+
+    Called only after every sender set its finish signal, so each message is
+    either in flight or lost with a child that died on its way out: ``put``
+    hands off to a feeder thread, so a child killed *after* signalling can die
+    with the message unsent -- or half-written, which no ``Queue.get`` timeout
+    bounds. The liveness check cannot flag that child (its signal is set), so
+    a deadline is the only honest wait.
+    """
+    reader = ThreadedQueueReader(q, f"{self._session_hash}-Promised")
+    try:
+      out: list[object] = []
+      deadline = time.monotonic() + _PROMISED_MESSAGE_DEADLINE_S
+      while len(out) < n:
+        if self._res.processing_resources.cancel_event.is_set():
+          raise RuntimeError(f"The run was cancelled while collecting {what}.")
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+          message = (
+            f"Only {len(out)} of {n} {what} arrived within "
+            f"{_PROMISED_MESSAGE_DEADLINE_S:.0f} s of the senders finishing. "
+            f"Either a pipeline process died while delivering its last "
+            f"message (e.g. killed by the OOM killer on its way out), or an "
+            f"earlier failed run of this session left the queue unreadable. "
+            f"Please check the logs: "
+            f"{self._res.logging_resources.session_log_file.absolute()}"
+          )
+          self._logger.error(message)
+          # Stored like any other child death, so the caller gets the same
+          # error shape as every other failure of this kind.
+          self._child_death_error = ChildProcessError(message)
+          self._res.processing_resources.cancel_event.set()
+          raise RuntimeError(message)
+        with suppress(Empty):
+          out.append(reader.get(timeout=min(1.0, remaining)))
+      return out
+    finally:
+      self._close_reader(reader, q)
 
   def start(self) -> None:
     self.start_file_analyzer_thread()

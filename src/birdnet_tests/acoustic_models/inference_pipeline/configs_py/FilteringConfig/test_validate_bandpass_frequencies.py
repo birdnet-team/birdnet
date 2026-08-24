@@ -19,18 +19,14 @@ def test_full_range_is_valid() -> None:
 
 
 def test_fmin_none_raises_error() -> None:
-  with pytest.raises(
-    ValueError, match=r"bandpass minimum frequence must be specified"
-  ):
+  with pytest.raises(ValueError, match=r"bandpass minimum frequence must be specified"):
     FilteringConfig.validate_bandpass_frequencies(
       None, 200, SUPPORTED_FMIN, SUPPORTED_FMAX
     )
 
 
 def test_fmax_none_raises_error() -> None:
-  with pytest.raises(
-    ValueError, match=r"bandpass maximum frequence must be specified"
-  ):
+  with pytest.raises(ValueError, match=r"bandpass maximum frequence must be specified"):
     FilteringConfig.validate_bandpass_frequencies(
       100, None, SUPPORTED_FMIN, SUPPORTED_FMAX
     )
@@ -39,7 +35,10 @@ def test_fmax_none_raises_error() -> None:
 def test_non_integer_raises_error() -> None:
   with pytest.raises(TypeError, match=r"bandpass frequencies must be integers"):
     FilteringConfig.validate_bandpass_frequencies(
-      1.5, 200, SUPPORTED_FMIN, SUPPORTED_FMAX  # type: ignore
+      1.5,
+      200,
+      SUPPORTED_FMIN,
+      SUPPORTED_FMAX,  # type: ignore
     )
 
 

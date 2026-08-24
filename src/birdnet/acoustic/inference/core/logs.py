@@ -40,9 +40,42 @@ def remove_session_queue_handler(session_id: str, handler: QueueHandler) -> None
   root.removeHandler(handler)
 
 
+# Rendered length above which a record is cut before crossing the process
+# boundary. Pickled, ~8000 characters stays one `send_bytes` call (the split
+# into separate header and body writes starts at 16 KB), which narrows -- not
+# closes; a full pipe can still cut any write mid-frame -- the window for a
+# killed writer to leave the log reader a half-written record. Records this
+# size are exception dumps with `stack_info`: exactly what a dying child
+# emits, and the reader of the session log is bounded either way.
+_MAX_RECORD_CHARS = 8_000
+# The cut removes the middle, not the tail: a formatted exception record ends
+# with the exception type and message -- the one line that names what went
+# wrong -- while the head carries the log message and the innermost frames.
+_TRUNCATED_HEAD_CHARS = 4_500
+_TRUNCATED_TAIL_CHARS = 3_000
+
+
+class BoundedQueueHandler(QueueHandler):
+  """A QueueHandler whose records have a bounded rendered size."""
+
+  def prepare(self, record: logging.LogRecord) -> logging.LogRecord:
+    record = super().prepare(record)
+    # After super().prepare the whole payload -- message, arguments, rendered
+    # traceback -- lives in record.msg as one string.
+    if isinstance(record.msg, str) and len(record.msg) > _MAX_RECORD_CHARS:
+      dropped = len(record.msg) - _TRUNCATED_HEAD_CHARS - _TRUNCATED_TAIL_CHARS
+      record.msg = (
+        record.msg[:_TRUNCATED_HEAD_CHARS]
+        + f"\n... [log record truncated; {dropped} characters dropped] ...\n"
+        + record.msg[-_TRUNCATED_TAIL_CHARS:]
+      )
+      record.message = record.msg
+    return record
+
+
 def add_session_queue_handler(session_id: str, logging_queue: Queue) -> QueueHandler:
   root = get_session_logger(session_id)
-  h = QueueHandler(logging_queue)  # Just the one handler needed
+  h = BoundedQueueHandler(logging_queue)  # Just the one handler needed
   root.addHandler(h)
   return h
 

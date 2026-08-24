@@ -1,4 +1,3 @@
-
 import pytest
 
 from birdnet.acoustic.inference.core.producer import (

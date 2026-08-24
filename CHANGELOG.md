@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Bugfixes
+
+- A worker killed while writing a large result no longer freezes the whole run. Above 16 KB a queue message crosses the pipe in more than one write, so a killed writer can leave a message whose remainder never arrives — and reading it blocks with nothing raised, before any of the pipeline's failure handling gets a chance to run. Reachable with `top_k=None`, with `encode` at `batch_size >= 4`, and for large-batch GPU work; library defaults were not affected. The parent now reads every child-to-parent queue through a sacrificial thread with real timeouts, so a half-written message costs a parked thread instead of the session, and the existing liveness check reports the dead worker ([#83](https://github.com/birdnet-team/birdnet/issues/83)).
+- A child killed on its way out — after signalling it had finished but before its last message was flushed — left the parent waiting on that message forever, invisible to the liveness check because the finish signal was already set. This covered a worker's end-of-work sentinel, a producer's unprocessable-input report and per-file completion markers, and the performance tracker's summary; all of those waits now carry a deadline and fail the run with a clear error naming what was lost.
+- Oversized log records (exception dumps with stack traces, exactly what a dying child emits) are truncated before crossing the process boundary, narrowing the widest window for a killed child to leave the session log's reader a half-written record.
+
 ## [1.1.0] - 2026-08-21
 
 ### Breaking changes
