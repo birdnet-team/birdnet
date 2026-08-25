@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import queue
+import time
 from collections.abc import Callable
-from multiprocessing import Queue
 from multiprocessing.synchronize import Event
 from pathlib import Path
 from queue import Empty
@@ -10,38 +10,61 @@ from queue import Empty
 import numpy as np
 
 from birdnet.acoustic.inference.core.logs import get_logger_from_session
+from birdnet.acoustic.inference.core.sync import (
+  PROMISED_MESSAGE_DEADLINE_S,
+  ThreadedQueueReader,
+)
 from birdnet.acoustic.inference.core.tensor import AcousticTensorBase
 
 
 class Consumer:
+  """Aggregates worker output into the result tensor, on the parent's thread.
+
+  Reads the cross-process queues through ``ThreadedQueueReader`` rather than
+  directly: a direct ``Queue.get`` can block forever on a message a killed
+  worker left half-written, and this loop is the run itself -- blocked here,
+  no liveness check runs and no teardown is ever reached (issue #83).
+  """
+
   def __init__(
     self,
     session_id: str,
     n_workers: int,
-    worker_queue: Queue,
+    results: ThreadedQueueReader,
     tensor: AcousticTensorBase,
     cancel_event: Event,
     *,
     n_inputs: int = 0,
     inputs: list[Path] | None = None,
-    completion_marker_queue: Queue | None = None,
+    markers: ThreadedQueueReader | None = None,
     completion_dispatch_queue: queue.Queue | None = None,
     check_children_alive: Callable[[], None] | None = None,
+    all_workers_finished: Callable[[], bool] | None = None,
+    report_child_death: Callable[[str], None] | None = None,
   ) -> None:
     self._n_workers = n_workers
-    self._queue = worker_queue
+    self._results = results
     self._tensor = tensor
     self._cancel_event = cancel_event
     self._logger = get_logger_from_session(session_id, __name__)
     # Called on every idle poll below; raises if a worker died without putting
     # its sentinel on the queue, which would otherwise wait here forever.
     self._check_children_alive = check_children_alive
+    # The liveness check has a blind spot: a worker killed *after* setting its
+    # finish signal but before its feeder flushed the sentinel is dead with no
+    # sentinel coming, and the check deliberately skips signalled children.
+    # When every worker has signalled, a quiet deadline is the only honest
+    # wait for the sentinels still missing.
+    self._all_workers_finished = all_workers_finished
+    # Stores the diagnosis where the session surfaces it; without it a lost
+    # last message ends as a bare "cancelled" with the cause only in the log.
+    self._report_child_death = report_child_death
 
     # Per-file completion tracking (``on_file_complete``). Fully inert unless a
-    # marker queue is provided, so the default hot path is byte-for-byte
+    # marker reader is provided, so the default hot path is byte-for-byte
     # unchanged.
-    self._track_completion = completion_marker_queue is not None
-    self._marker_queue = completion_marker_queue
+    self._track_completion = markers is not None
+    self._markers = markers
     self._dispatch_queue = completion_dispatch_queue
     self._inputs = inputs
     self._n_inputs = n_inputs
@@ -59,6 +82,14 @@ class Consumer:
 
   def _log(self, message: str) -> None:
     self._logger.debug(f"C: {message}")
+
+  def _fail_run(self, message: str) -> None:
+    self._logger.error(message)
+    if self._report_child_death is not None:
+      self._report_child_death(message)
+    # Also set directly: the reporter is optional, and the run must fail
+    # either way.
+    self._cancel_event.set()
 
   def __call__(self) -> None:
     try:
@@ -81,9 +112,10 @@ class Consumer:
         return
 
       received_block = None
+      quiet_deadline: float | None = None
       while True:
         try:
-          received_block = self._queue.get(timeout=1.0)
+          received_block = self._results.get(timeout=1.0)
           break
         except Empty:
           if self._cancel_event.is_set():
@@ -91,6 +123,20 @@ class Consumer:
             return
           if self._check_children_alive is not None:
             self._check_children_alive()
+          if self._all_workers_finished is None or not self._all_workers_finished():
+            continue
+          if quiet_deadline is None:
+            quiet_deadline = time.monotonic() + PROMISED_MESSAGE_DEADLINE_S
+          elif time.monotonic() >= quiet_deadline:
+            self._fail_run(
+              f"Every worker has finished, but "
+              f"{self._n_workers - finished_workers} of {self._n_workers} "
+              f"end-of-work sentinels never arrived within "
+              f"{PROMISED_MESSAGE_DEADLINE_S:.0f} s. A worker most likely "
+              f"died on its way out, after signalling, with its last message "
+              f"unsent (e.g. killed by the OOM killer)."
+            )
+            return
 
       if self._cancel_event.is_set():
         self._log("Cancel event set. Exiting.")
@@ -135,24 +181,42 @@ class Consumer:
     self._pending.add(idx)
 
   def _drain_markers(self) -> None:
-    assert self._marker_queue is not None
+    assert self._markers is not None
     while True:
       try:
-        marker = self._marker_queue.get_nowait()
+        marker = self._markers.get_nowait()
       except Empty:
         break
       self._apply_marker(marker)
 
   def _finalize_markers(self) -> None:
-    # After all workers finished, every segment has been written; block until we
-    # have every producer marker so no completed file is missed.
-    assert self._marker_queue is not None
+    # After all workers finished, every segment has been written; wait for the
+    # remaining producer markers so no completed file is missed. The liveness
+    # check covers a producer that died before signalling; the deadline covers
+    # the one that died *after* signalling with its marker unflushed, which
+    # the check deliberately skips.
+    assert self._markers is not None
+    deadline = time.monotonic() + PROMISED_MESSAGE_DEADLINE_S
     while self._n_markers < self._n_inputs:
       if self._cancel_event.is_set():
         return
+      if time.monotonic() >= deadline:
+        self._fail_run(
+          f"Only {self._n_markers} of {self._n_inputs} per-file completion "
+          f"markers arrived within {PROMISED_MESSAGE_DEADLINE_S:.0f} s of the "
+          f"producers finishing; a producer most likely died on its way out "
+          f"(e.g. killed by the OOM killer). Failing the run rather than "
+          f"firing callbacks with incomplete data."
+        )
+        return
       try:
-        marker = self._marker_queue.get(timeout=1.0)
+        marker = self._markers.get(timeout=1.0)
       except Empty:
+        if self._check_children_alive is not None:
+          try:
+            self._check_children_alive()
+          except Exception:
+            return
         continue
       self._apply_marker(marker)
 
@@ -187,8 +251,18 @@ class Consumer:
 
   def _end_dispatch(self) -> None:
     if not self._cancel_event.is_set():
-      self._finalize_markers()
-      self._dispatch_ready()
+      try:
+        self._finalize_markers()
+        # Re-checked: a finalization that failed the run must not go on to
+        # fire per-file callbacks -- that is the choice its error announces.
+        if not self._cancel_event.is_set():
+          self._dispatch_ready()
+      except Exception as e:  # noqa: BLE001
+        # Raising out of here would skip the cancel event *and* the dispatcher
+        # sentinel below, leaving teardown on the healthy path with a failed
+        # run. Route it like every other failure instead.
+        self._logger.exception("Finalizing per-file completion failed.", exc_info=e)
+        self._cancel_event.set()
     assert self._dispatch_queue is not None
     # Sentinel tells the dispatcher this run is done.
     self._dispatch_queue.put(None)

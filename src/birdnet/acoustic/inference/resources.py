@@ -15,7 +15,7 @@ from logging.handlers import QueueHandler
 from multiprocessing import Queue, shared_memory
 from multiprocessing.sharedctypes import Synchronized
 from pathlib import Path
-from typing import Self, cast, final
+from typing import Self, final
 
 import numpy as np
 
@@ -279,11 +279,24 @@ class ProducerResources:
       unprocessed_inputs_queue=ctx.Queue(),
     )
 
-  def collect_unprocessed_inputs(self) -> None:
+  def store_unprocessed_inputs(self, reports: list[object]) -> None:
+    """Keep the producers' unprocessable-input reports, one set per producer.
+
+    The reading happens in ``ProcessManager.read_promised``, not here: a plain
+    blocking ``get`` would wait forever on a producer that was killed after
+    setting its finish signal but before its feeder flushed the message.
+    """
+    # A real check, not an assert: under ``python -O`` an assert vanishes, and
+    # a malformed report would then silently corrupt the unprocessable-input
+    # set.
     unprocessed_inputs: set[int] = set()
-    for _ in range(self.n_producers):
-      unprocessed = self.unprocessed_inputs_queue.get(block=True, timeout=None)
-      unprocessed_inputs.update(unprocessed)
+    for report in reports:
+      if not isinstance(report, set):
+        raise RuntimeError(
+          f"Unprocessed-input report has type {type(report).__name__}, "
+          f"expected a set. The queue delivered something else's message."
+        )
+      unprocessed_inputs.update(report)
     object.__setattr__(self, "_unprocessed_inputs", unprocessed_inputs)
 
 
@@ -500,14 +513,16 @@ class StatisticsResources:
     object.__setattr__(self, "_stop", time.perf_counter())
     object.__setattr__(self, "_end_timepoint", datetime.now())
 
-  def collect_performance_results(self) -> None:
-    if self.track_performance:
-      assert self.perf_res_queue is not None
-      # TODO handle cancel event?
-      perf_result = cast(
-        PerformanceTrackingResult, self.perf_res_queue.get(block=True, timeout=None)
+  def store_performance_result(self, result: object) -> None:
+    """Keep the tracker's summary; read via ``ProcessManager.read_promised``."""
+    # Same real check as the producer reports: the queue could deliver another
+    # message's payload, and a blind cast would store it silently.
+    if not isinstance(result, PerformanceTrackingResult):
+      raise RuntimeError(
+        f"Performance summary has type {type(result).__name__}; the queue "
+        f"delivered something else's message."
       )
-      object.__setattr__(self, "_tracking_result", perf_result)
+    object.__setattr__(self, "_tracking_result", result)
 
   @classmethod
   def create(

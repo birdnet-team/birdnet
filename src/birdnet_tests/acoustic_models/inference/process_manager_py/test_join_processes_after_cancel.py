@@ -110,6 +110,7 @@ class _Stub:
     self._worker_processes: list[_FakeProcess] = []
     self._perf_tracker_process = None
     self._undrainable_queues: list[object] = []
+    self._stopped_readers: list = []
     # The manager reads the queues off the resources by name and filters out the
     # ones a run did not create, so the slots this test does not need are None.
     padded = [*queues, *[None] * 7]
@@ -131,6 +132,7 @@ class _Stub:
   _join_processes_after_cancel = ProcessManager._join_processes_after_cancel
   _collect_wedged_drainers = ProcessManager._collect_wedged_drainers
   close_queues = ProcessManager.close_queues
+  reap_stopped_readers = ProcessManager.reap_stopped_readers
 
 
 def _logger() -> logging.Logger:

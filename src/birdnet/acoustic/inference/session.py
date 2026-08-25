@@ -104,6 +104,10 @@ class AcousticSessionBase(
     assert self._process_manager is not None
     assert self._logger is not None
 
+    # Before anything touches the queues: the previous run's queue readers
+    # were asked to stop but not waited for, and one still alive could take
+    # this run's first message. Usually all long gone, so this is free.
+    self._process_manager.reap_stopped_readers()
     self._resources.ring_buffer_resources.set_all_flags_writeable()
     # Drained unconditionally, unlike the full reset below: the shutdown hand-off
     # leaves one wake-up permit outstanding after every run, while `is_first_run`
@@ -174,9 +178,28 @@ class AcousticSessionBase(
       self._raise_if_cancelled()
 
     # Collect only if no cancellation occurred, otherwise result queues might be empty
+    # (the analyzer read is an in-process queue from a thread of this process;
+    # it cannot be torn by a killed child the way the two below can).
     self._resources.analyzer_resources.collect_input_durations()
-    self._resources.producer_resources.collect_unprocessed_inputs()
-    self._resources.stats_resources.collect_performance_results()
+    # Both cross-process reads go through the process manager so they are
+    # bounded: the senders have set their finish signals by now, so the
+    # liveness check can no longer flag one killed on its way out, mid-delivery.
+    producer_res = self._resources.producer_resources
+    producer_res.store_unprocessed_inputs(
+      self._process_manager.read_promised(
+        producer_res.unprocessed_inputs_queue,
+        producer_res.n_producers,
+        "unprocessed-input reports",
+      )
+    )
+    stats_res = self._resources.stats_resources
+    if stats_res.track_performance:
+      assert stats_res.perf_res_queue is not None
+      stats_res.store_performance_result(
+        self._process_manager.read_promised(
+          stats_res.perf_res_queue, 1, "performance summaries"
+        )[0]
+      )
 
     result_tensor.set_unprocessable_inputs(
       self._resources.producer_resources.unprocessed_inputs

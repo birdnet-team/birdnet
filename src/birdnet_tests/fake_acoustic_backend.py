@@ -81,13 +81,15 @@ class FakeAcousticBackend:
 
   def predict(self, batch: np.ndarray) -> np.ndarray:
     self._stall()
-    # Uniform across the batch, deliberately. Prediction output goes through a
-    # sigmoid and top-k selection before it reaches the result tensor, which
-    # discards row identity anyway -- a marker here could not be asserted on at
-    # the far end. Use an encoding session to check *which* segments landed
-    # where; see `encode` below.
+    # Each segment's scores are the same ramp, shifted by that segment's
+    # marker (write_marked_audio makes sample 0 identify the segment). Top-k
+    # permutes the species axis, so per-species values cannot be asserted on
+    # at the far end -- but the *mean* over species survives any permutation
+    # and is strictly monotone in the marker, which is what lets a healthy-run
+    # test detect a dropped or reordered block by content.
     out = np.empty((batch.shape[0], self.n_species_out), dtype=np.float32)
     out[:] = np.linspace(0.0, 1.0, self.n_species_out, dtype=np.float32)
+    out += batch[:, :1]
     return out
 
   def encode(self, batch: np.ndarray) -> np.ndarray:
@@ -132,6 +134,22 @@ class FakeAcousticBackend:
     return inference_result
 
 
+class WideFakeAcousticBackend(FakeAcousticBackend):
+  """The same stub at realistic output widths, for the queue-tearing surface.
+
+  The default stub keeps blocks at a few hundred bytes, which is the safe side
+  of every framing threshold. These widths put one prediction block with
+  ``top_k=None`` at ~45 KB and one encoding block at ``batch_size=4`` past
+  16 KB -- the sizes at which POSIX splits a queue message into separate
+  header and body writes, which is where a killed writer can leave a message
+  half-written. Tests about that surface must use this class; the default
+  stub cannot reach it.
+  """
+
+  n_species_out = 6_000
+  emb_dim_out = 1_024
+
+
 def fake_model_path(tmp_path: Path) -> Path:
   """A file that exists, which is all the session asserts about the model."""
   path = tmp_path / "fake-model.tflite"
@@ -152,10 +170,11 @@ def fake_predict_session(
   batch_size: int = 1,
   top_k: int | None = 5,
   seconds_per_batch: float = 0.0,
+  backend: type[FakeAcousticBackend] = FakeAcousticBackend,
   **kwargs: object,
 ) -> AcousticPredictionSession:
   return AcousticPredictionSession(
-    species_list=_species(FakeAcousticBackend.n_species_out),
+    species_list=_species(backend.n_species_out),
     model_path=fake_model_path(tmp_path),
     model_segment_size_s=3.0,
     model_sample_rate=48_000,
@@ -163,7 +182,7 @@ def fake_predict_session(
     model_sig_fmin=0,
     model_sig_fmax=15_000,
     model_version="2.4",
-    model_backend_type=FakeAcousticBackend,  # type: ignore[arg-type]
+    model_backend_type=backend,  # type: ignore[arg-type]
     model_backend_custom_kwargs={"seconds_per_batch": seconds_per_batch},
     top_k=top_k,
     n_producers=n_producers,
@@ -197,10 +216,11 @@ def fake_encode_session(
   n_producers: int = 1,
   batch_size: int = 1,
   seconds_per_batch: float = 0.0,
+  backend: type[FakeAcousticBackend] = FakeAcousticBackend,
   **kwargs: object,
 ) -> AcousticEncodingSession:
   return AcousticEncodingSession(
-    species_list=_species(FakeAcousticBackend.n_species_out),
+    species_list=_species(backend.n_species_out),
     model_path=fake_model_path(tmp_path),
     model_segment_size_s=3.0,
     model_sample_rate=48_000,
@@ -208,9 +228,9 @@ def fake_encode_session(
     model_sig_fmin=0,
     model_sig_fmax=15_000,
     model_version="2.4",
-    model_backend_type=FakeAcousticBackend,  # type: ignore[arg-type]
+    model_backend_type=backend,  # type: ignore[arg-type]
     model_backend_custom_kwargs={"seconds_per_batch": seconds_per_batch},
-    model_emb_dim=FakeAcousticBackend.emb_dim_out,
+    model_emb_dim=backend.emb_dim_out,
     n_producers=n_producers,
     n_workers=n_workers,
     batch_size=batch_size,
