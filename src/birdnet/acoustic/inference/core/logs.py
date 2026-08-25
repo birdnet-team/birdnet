@@ -40,9 +40,50 @@ def remove_session_queue_handler(session_id: str, handler: QueueHandler) -> None
   root.removeHandler(handler)
 
 
+# Rendered size above which a record is cut before crossing the process
+# boundary -- a byte budget, not characters: the threshold it stays under is
+# in bytes, and a CJK or emoji character is up to four of them. 12 000 bytes
+# of UTF-8 plus the record's other attributes pickles safely inside one
+# `send_bytes` call (the split into separate header and body writes starts at
+# 16 KB), which narrows -- not closes; a full pipe can still cut any write
+# mid-frame -- the window for a killed writer to leave the log reader a
+# half-written record. Records this size are exception dumps with
+# `stack_info`: exactly what a dying child emits, and the reader of the
+# session log is bounded either way.
+_MAX_RECORD_BYTES = 12_000
+# The cut removes the middle, not the tail: a formatted exception record ends
+# with the exception type and message -- the one line that names what went
+# wrong -- while the head carries the log message and the innermost frames.
+_TRUNCATED_HEAD_BYTES = 7_000
+_TRUNCATED_TAIL_BYTES = 4_000
+
+
+class BoundedQueueHandler(QueueHandler):
+  """A QueueHandler whose records have a bounded rendered size."""
+
+  def prepare(self, record: logging.LogRecord) -> logging.LogRecord:
+    record = super().prepare(record)
+    # After super().prepare the whole payload -- message, arguments, rendered
+    # traceback -- lives in record.msg as one string.
+    if isinstance(record.msg, str):
+      # surrogatepass on encode: paths from the OS can carry lone surrogates,
+      # and a log handler must never raise. `ignore` on decode drops at most
+      # a clipped character at each cut point.
+      encoded = record.msg.encode("utf-8", "surrogatepass")
+      if len(encoded) > _MAX_RECORD_BYTES:
+        dropped = len(encoded) - _TRUNCATED_HEAD_BYTES - _TRUNCATED_TAIL_BYTES
+        record.msg = (
+          encoded[:_TRUNCATED_HEAD_BYTES].decode("utf-8", "ignore")
+          + f"\n... [log record truncated; {dropped} bytes dropped] ...\n"
+          + encoded[-_TRUNCATED_TAIL_BYTES:].decode("utf-8", "ignore")
+        )
+        record.message = record.msg
+    return record
+
+
 def add_session_queue_handler(session_id: str, logging_queue: Queue) -> QueueHandler:
   root = get_session_logger(session_id)
-  h = QueueHandler(logging_queue)  # Just the one handler needed
+  h = BoundedQueueHandler(logging_queue)  # Just the one handler needed
   root.addHandler(h)
   return h
 

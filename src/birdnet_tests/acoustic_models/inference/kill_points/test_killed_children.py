@@ -24,6 +24,7 @@ import pytest
 
 from birdnet.acoustic.inference.session import AcousticSessionBase
 from birdnet_tests.fake_acoustic_backend import (
+  WideFakeAcousticBackend,
   fake_encode_session,
   fake_predict_session,
   write_marked_audio,
@@ -177,20 +178,50 @@ def test_producer_killed_mid_run(tmp_path: Path) -> None:
 
 
 def test_worker_killed_during_encoding(tmp_path: Path) -> None:
-  """Encoding ships far larger blocks than prediction, so it fails differently.
+  """Killed mid-encode, with blocks big enough to actually tear.
 
-  At `batch_size >= 4` an embedding block crosses the 16 KB threshold above
-  which POSIX splits a queue message into two writes — the size at which a
-  killed writer can leave a header with no body.
+  The wide backend matters: an earlier version of this test claimed to cross
+  the 16 KB framing threshold at `batch_size >= 4` while the default stub's
+  16-wide embeddings kept every block near 300 bytes. With `emb_dim = 1024`
+  one batch-4 block really is past 16 KB, the size at which POSIX splits a
+  queue message into separate header and body writes -- where a killed writer
+  can leave a header whose body never arrives.
   """
   outcome = _run_in_thread(
     lambda: fake_encode_session(
-      tmp_path, n_workers=2, batch_size=4, seconds_per_batch=_STALL_S
+      tmp_path,
+      n_workers=2,
+      batch_size=4,
+      seconds_per_batch=_STALL_S,
+      backend=WideFakeAcousticBackend,
     ),
     _corpus(tmp_path),
     _kill_after(_worker(0), delay_s=_STALL_S),
   )
   _assert_reported(outcome, "a worker mid-encode")
+
+
+def test_worker_killed_with_top_k_none_blocks(tmp_path: Path) -> None:
+  """The configuration issue #83 names: ~45 KB result blocks.
+
+  With `top_k=None` every block carries a score per species; at the wide
+  backend's 6000 species that is well past every framing threshold, so a kill
+  mid-run is a kill amid multi-write frames. The run must end with a
+  diagnosis; before the consumer read through a sacrificial thread, a frame
+  torn here could block the parent's main loop with nothing raised.
+  """
+  outcome = _run_in_thread(
+    lambda: fake_predict_session(
+      tmp_path,
+      n_workers=2,
+      top_k=None,
+      seconds_per_batch=_STALL_S,
+      backend=WideFakeAcousticBackend,
+    ),
+    _corpus(tmp_path),
+    _kill_after(_worker(0), delay_s=_STALL_S),
+  )
+  _assert_reported(outcome, "a worker with top_k=None")
 
 
 @pytest.mark.parametrize("n_workers", [1, 3])
