@@ -77,16 +77,23 @@ def get_model_path(
   version: ACOUSTIC_MODEL_VERSIONS | GEO_MODEL_VERSIONS,
   backend: MODEL_BACKENDS,
   precision: MODEL_PRECISIONS,
+  content_tag: str | None = None,
 ) -> Path:
+  # `version` names the model family (a "v3.0" preview or geomodel release keeps
+  # its directory across retrains), so for the checksum-verified downloads the
+  # content tag is what tells one release's file from another's.
+  stem = f"model-{precision}"
+  if content_tag is not None:
+    stem = f"{stem}-{content_tag}"
   root_dir = get_model_root_dir(model, version, backend)
   if backend == MODEL_BACKEND_TF:
-    result = root_dir / f"model-{precision}.tflite"
+    result = root_dir / f"{stem}.tflite"
   elif backend == MODEL_BACKEND_PB:
-    result = root_dir / f"model-{precision}"
+    result = root_dir / stem
   elif backend == MODEL_BACKEND_PT:
-    result = root_dir / f"model-{precision}.pt"
+    result = root_dir / f"{stem}.pt"
   elif backend == MODEL_BACKEND_ONNX:
-    result = root_dir / f"model-{precision}.onnx"
+    result = root_dir / f"{stem}.onnx"
   else:
     raise AssertionError()
   return result

@@ -17,7 +17,7 @@ from birdnet.globals import (
 )
 from birdnet.utils.helper import (
   ModelInfo,
-  download_file_tqdm,
+  ensure_single_file_model,
   get_species_from_file,
 )
 from birdnet.utils.local_data import get_lang_dir, get_model_path
@@ -32,12 +32,14 @@ models = {
     dl_file_name="BirdNET+_Geomodel_V3.0.4_Global_14K_FP32.onnx",
     dl_size=15503473,
     file_size=15503473,
+    sha256="0de81d222c23dcb6fa428e958b4dac978783191357e01b7268a103fc6f08e61a",
   ),
   MODEL_PRECISION_FP16: ModelInfo(
     dl_url="https://github.com/birdnet-team/geomodel/releases/download/v3.0.4/BirdNET+_Geomodel_V3.0.4_Global_14K_FP16.onnx",
     dl_file_name="BirdNET+_Geomodel_V3.0.4_Global_14K_FP16.onnx",
     dl_size=7885053,
     file_size=7885053,
+    sha256="80e410f811bf4455e6cb1a2d48e394737d3828fe943a444646778495b67e7bab",
   ),
 }
 
@@ -49,7 +51,13 @@ class GeoOnnxDownloaderV3_0(GeoDownloaderBaseV3_0):
 
   @classmethod
   def _get_model_path(cls, precision: MODEL_PRECISIONS) -> Path:
-    return get_model_path("geo", "3.0", MODEL_BACKEND_ONNX, precision)
+    return get_model_path(
+      "geo",
+      "3.0",
+      MODEL_BACKEND_ONNX,
+      precision,
+      content_tag=models[precision].content_tag,
+    )
 
   @classmethod
   def _check_geo_model_available(cls, precision: MODEL_PRECISIONS) -> bool:
@@ -65,12 +73,10 @@ class GeoOnnxDownloaderV3_0(GeoDownloaderBaseV3_0):
 
   @classmethod
   def _download_model(cls, precision: MODEL_PRECISIONS) -> None:
-    model_path = cls._get_model_path(precision)
-    model_path.parent.mkdir(parents=True, exist_ok=True)
-    download_file_tqdm(
-      models[precision].dl_url,
-      model_path,
-      download_size=models[precision].dl_size,
+    ensure_single_file_model(
+      models[precision],
+      cls._get_model_path(precision),
+      legacy_path=get_model_path("geo", "3.0", MODEL_BACKEND_ONNX, precision),
       description=f"Downloading geo model v3.0 (onnx, {precision})",
     )
 

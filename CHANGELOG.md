@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Bugfixes
+
+- The official v3.0 model downloads (acoustic and geo, `tf`/`onnx`/`pt`) could serve a stale file: the cache was judged current by byte size alone, which cannot tell two releases apart — a retrained model of the same architecture keeps its size — and let two installed versions sharing one app data directory overwrite each other's ~0.5 GB downloads on every load. Like the label and taxonomy downloads since 1.1.0, they are now checksum-verified and cached under content-addressed names, so replacing a model in a release forces exactly one re-download; files cached before this release are adopted in place after a one-time hash check.
+
 ## [1.1.0] - 2026-08-21
 
 ### Breaking changes

@@ -12,7 +12,11 @@ from birdnet.globals import (
   MODEL_PRECISION_FP32,
   MODEL_PRECISIONS,
 )
-from birdnet.utils.helper import ModelInfo, download_file_tqdm, get_species_from_file
+from birdnet.utils.helper import (
+  ModelInfo,
+  ensure_single_file_model,
+  get_species_from_file,
+)
 from birdnet.utils.local_data import get_lang_dir, get_model_path
 
 models = {
@@ -23,6 +27,7 @@ models = {
     dl_file_name="BirdNET+_V3.0-preview3.1_Global_11K_FP32.onnx",
     dl_size=541598502,
     file_size=541598502,
+    sha256="999bb627e8954516d6a222eb76438b896fafc3791c2d10e72f02147ccd562c05",
   ),
   MODEL_PRECISION_FP16: ModelInfo(
     dl_url=(
@@ -31,6 +36,7 @@ models = {
     dl_file_name="BirdNET+_V3.0-preview3.1_Global_11K_FP16.onnx",
     dl_size=271554018,
     file_size=271554018,
+    sha256="b42679c722f87f48dd19ccfb846e56db3dfa7e2bb3d846fba121d978b5a27170",
   ),
 }
 
@@ -42,7 +48,13 @@ class AcousticOnnxDownloaderV3_0(AcousticDownloaderBaseV3_0):
 
   @classmethod
   def _get_paths(cls, precision: MODEL_PRECISIONS) -> tuple[Path, Path]:
-    model_path = get_model_path("acoustic", "3.0", MODEL_BACKEND_ONNX, precision)
+    model_path = get_model_path(
+      "acoustic",
+      "3.0",
+      MODEL_BACKEND_ONNX,
+      precision,
+      content_tag=models[precision].content_tag,
+    )
     lang_dir = get_lang_dir("acoustic", "3.0", MODEL_BACKEND_ONNX)
     return model_path, lang_dir
 
@@ -60,11 +72,10 @@ class AcousticOnnxDownloaderV3_0(AcousticDownloaderBaseV3_0):
   @classmethod
   def _download_model(cls, precision: MODEL_PRECISIONS) -> None:
     model_path, _lang_dir = cls._get_paths(precision)
-    model_path.parent.mkdir(parents=True, exist_ok=True)
-    download_file_tqdm(
-      models[precision].dl_url,
+    ensure_single_file_model(
+      models[precision],
       model_path,
-      download_size=models[precision].dl_size,
+      legacy_path=get_model_path("acoustic", "3.0", MODEL_BACKEND_ONNX, precision),
       description=f"Downloading acoustic model v3.0 (onnx, {precision.lower()})",
     )
 

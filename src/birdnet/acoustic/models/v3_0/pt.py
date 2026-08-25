@@ -7,7 +7,11 @@ from ordered_set import OrderedSet
 from birdnet.acoustic.models.v3_0.model import AcousticDownloaderBaseV3_0
 from birdnet.core.backends import TorchBackend, VersionedAcousticBackendProtocol
 from birdnet.globals import MODEL_BACKEND_PT, MODEL_PRECISION_FP32, MODEL_PRECISIONS
-from birdnet.utils.helper import ModelInfo, download_file_tqdm, get_species_from_file
+from birdnet.utils.helper import (
+  ModelInfo,
+  ensure_single_file_model,
+  get_species_from_file,
+)
 from birdnet.utils.local_data import get_lang_dir, get_model_path
 
 models = {
@@ -18,6 +22,7 @@ models = {
     dl_file_name="BirdNET+_V3.0-preview3.1_Global_11K_FP32.pt",
     dl_size=541831823,
     file_size=541831823,
+    sha256="c7d3b1506a579a50c306a8cfd620b6a122d074d4d52169d88de242fa8390b825",
   )
 }
 
@@ -26,7 +31,11 @@ class AcousticPTDownloaderV3_0(AcousticDownloaderBaseV3_0):
   @classmethod
   def _get_paths(cls) -> tuple[Path, Path]:
     model_path = get_model_path(
-      "acoustic", "3.0", MODEL_BACKEND_PT, MODEL_PRECISION_FP32
+      "acoustic",
+      "3.0",
+      MODEL_BACKEND_PT,
+      MODEL_PRECISION_FP32,
+      content_tag=models[MODEL_PRECISION_FP32].content_tag,
     )
     lang_dir = get_lang_dir("acoustic", "3.0", MODEL_BACKEND_PT)
     return model_path, lang_dir
@@ -49,11 +58,12 @@ class AcousticPTDownloaderV3_0(AcousticDownloaderBaseV3_0):
   @classmethod
   def _download_model(cls) -> None:
     model_path, _lang_dir = cls._get_paths()
-    model_path.parent.mkdir(parents=True, exist_ok=True)
-    download_file_tqdm(
-      models[MODEL_PRECISION_FP32].dl_url,
+    ensure_single_file_model(
+      models[MODEL_PRECISION_FP32],
       model_path,
-      download_size=models[MODEL_PRECISION_FP32].dl_size,
+      legacy_path=get_model_path(
+        "acoustic", "3.0", MODEL_BACKEND_PT, MODEL_PRECISION_FP32
+      ),
       description="Downloading acoustic model v3.0 (pt, fp32)",
     )
 
