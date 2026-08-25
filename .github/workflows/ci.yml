@@ -136,7 +136,7 @@ jobs:
           # The optional parenthesis admits a constant wrapped for line length,
           # e.g. `_TAXONOMY_V3_DL_SHA256 = (\n  "..."\n)`.
           SHA_NAME = r"(?:sha256|[A-Za-z_]*SHA256[A-Za-z_]*)"
-          SHA = rf"{SHA_NAME}\s*(?::\s*str\s*)?=\s*\(?\s*[\"']([0-9a-f]{{64}})[\"']"
+          SHA = rf"{SHA_NAME}\s*(?::\s*str\s*)?=\s*\(?\s*[\"']([0-9a-fA-F]{{64}})[\"']"
 
           tokens = set()
           for path in sorted(pathlib.Path("src/birdnet").rglob("*.py")):

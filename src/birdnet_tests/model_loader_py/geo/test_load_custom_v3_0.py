@@ -21,12 +21,12 @@ from birdnet_tests.model_loader_py.acoustic.test_acoustic_load_custom import (
 
 def test_load_custom_geo_model_v3_0_tf_fp32() -> None:
   ensure_tf_2_19_or_2_18()
-  GeoTFDownloaderV3_0.get_model_path_and_labels("en_us", "fp32")
+  model_path, _ = GeoTFDownloaderV3_0.get_model_path_and_labels("en_us", "fp32")
   model = load_custom(
     "geo",
     "3.0",
     "tf",
-    get_model_path("geo", "3.0", "tf", "fp32"),
+    model_path,
     get_lang_dir("geo", "3.0", "tf") / "en_us.txt",
     precision="fp32",
     library="tflite",
@@ -37,12 +37,12 @@ def test_load_custom_geo_model_v3_0_tf_fp32() -> None:
 
 def test_load_custom_geo_model_v3_0_tf_fp16() -> None:
   ensure_tf_2_19_or_2_18()
-  GeoTFDownloaderV3_0.get_model_path_and_labels("en_us", "fp16")
+  model_path, _ = GeoTFDownloaderV3_0.get_model_path_and_labels("en_us", "fp16")
   model = load_custom(
     "geo",
     "3.0",
     "tf",
-    get_model_path("geo", "3.0", "tf", "fp16"),
+    model_path,
     get_lang_dir("geo", "3.0", "tf") / "en_us.txt",
     precision="fp16",
     library="tflite",
@@ -53,12 +53,12 @@ def test_load_custom_geo_model_v3_0_tf_fp16() -> None:
 
 def test_load_custom_geo_model_v3_0_tf_int8() -> None:
   ensure_tf_2_19_or_2_18()
-  GeoTFDownloaderV3_0.get_model_path_and_labels("en_us", "int8")
+  model_path, _ = GeoTFDownloaderV3_0.get_model_path_and_labels("en_us", "int8")
   model = load_custom(
     "geo",
     "3.0",
     "tf",
-    get_model_path("geo", "3.0", "tf", "int8"),
+    model_path,
     get_lang_dir("geo", "3.0", "tf") / "en_us.txt",
     precision="int8",
     library="tflite",
@@ -70,12 +70,12 @@ def test_load_custom_geo_model_v3_0_tf_int8() -> None:
 @pytest.mark.litert
 def test_load_custom_geo_model_v3_0_litert_fp32() -> None:
   geo_v3_0_litert_not_supported_skip()
-  GeoTFDownloaderV3_0.get_model_path_and_labels("en_us", "fp32")
+  model_path, _ = GeoTFDownloaderV3_0.get_model_path_and_labels("en_us", "fp32")
   model = load_custom(
     "geo",
     "3.0",
     "tf",
-    get_model_path("geo", "3.0", "tf", "fp32"),
+    model_path,
     get_lang_dir("geo", "3.0", "tf") / "en_us.txt",
     precision="fp32",
     library="litert",
@@ -85,7 +85,7 @@ def test_load_custom_geo_model_v3_0_litert_fp32() -> None:
 
 
 def test_load_custom_geo_model_v3_0_litert_raises_error() -> None:
-  GeoTFDownloaderV3_0.get_model_path_and_labels("en_us", "fp32")
+  model_path, _ = GeoTFDownloaderV3_0.get_model_path_and_labels("en_us", "fp32")
 
   with pytest.raises(
     RuntimeError,
@@ -95,7 +95,7 @@ def test_load_custom_geo_model_v3_0_litert_raises_error() -> None:
       "geo",
       "3.0",
       "tf",
-      get_model_path("geo", "3.0", "tf", "fp32"),
+      model_path,
       get_lang_dir("geo", "3.0", "tf") / "en_us.txt",
       precision="fp32",
       library="litert",
@@ -104,15 +104,15 @@ def test_load_custom_geo_model_v3_0_litert_raises_error() -> None:
 
 
 def test_tf_types_are_correct() -> None:
-  GeoTFDownloaderV3_0.get_model_path_and_labels("en_us", "fp32")
-  model_type, version, backend, precision = "geo", "3.0", "tf", "fp32"
+  model_path, _ = GeoTFDownloaderV3_0.get_model_path_and_labels("en_us", "fp32")
+  model_type, version, backend = "geo", "3.0", "tf"
   assert (
     type(
       load_custom(
         model_type,
         version,
         backend,
-        get_model_path(model_type, version, backend, precision),
+        model_path,
         get_lang_dir(model_type, version, backend) / "en_us.txt",
         check_validity=False,
       )
@@ -122,14 +122,14 @@ def test_tf_types_are_correct() -> None:
 
 
 def test_tf_type_with_precisions_is_correct() -> None:
-  GeoTFDownloaderV3_0.get_model_path_and_labels("en_us", "fp32")
+  model_path, _ = GeoTFDownloaderV3_0.get_model_path_and_labels("en_us", "fp32")
   assert (
     type(
       load_custom(
         "geo",
         "3.0",
         "tf",
-        get_model_path("geo", "3.0", "tf", "fp32"),
+        model_path,
         get_lang_dir("geo", "3.0", "tf") / "en_us.txt",
         precision=cast(Literal["fp32"], f"fp{32}"),
         check_validity=False,
@@ -174,12 +174,12 @@ def test_pb_type_is_correct() -> None:
 def test_load_custom_geo_model_v3_0_pt_fp32() -> None:
   ensure_torch_or_skip()
   ensure_v3_0_torch_backend_or_skip()
-  GeoPTDownloaderV3_0.get_model_path_and_labels("en_us", "fp32")
+  model_path, _ = GeoPTDownloaderV3_0.get_model_path_and_labels("en_us", "fp32")
   model = load_custom(
     "geo",
     "3.0",
     "pt",
-    get_model_path("geo", "3.0", "pt", "fp32"),
+    model_path,
     get_lang_dir("geo", "3.0", "pt") / "en_us.txt",
     precision="fp32",
     check_validity=check_validity(),
@@ -191,14 +191,14 @@ def test_load_custom_geo_model_v3_0_pt_fp32() -> None:
 def test_pt_type_is_correct() -> None:
   ensure_torch_or_skip()
   ensure_v3_0_torch_backend_or_skip()
-  GeoPTDownloaderV3_0.get_model_path_and_labels("en_us", "fp32")
+  model_path, _ = GeoPTDownloaderV3_0.get_model_path_and_labels("en_us", "fp32")
   assert (
     type(
       load_custom(
         "geo",
         "3.0",
         "pt",
-        get_model_path("geo", "3.0", "pt", "fp32"),
+        model_path,
         get_lang_dir("geo", "3.0", "pt") / "en_us.txt",
         check_validity=False,
       )

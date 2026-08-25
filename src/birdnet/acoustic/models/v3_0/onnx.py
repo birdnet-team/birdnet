@@ -76,7 +76,7 @@ class AcousticOnnxDownloaderV3_0(AcousticDownloaderBaseV3_0):
       models[precision],
       model_path,
       legacy_path=get_model_path("acoustic", "3.0", MODEL_BACKEND_ONNX, precision),
-      description=f"Downloading acoustic model v3.0 (onnx, {precision.lower()})",
+      description=f"Downloading acoustic model v3.0 (onnx, {precision})",
     )
 
   @classmethod

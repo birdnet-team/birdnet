@@ -92,6 +92,24 @@ def test_skips_when_the_file_is_already_there(
 
 
 @pytest.mark.no_tf
+def test_does_not_hash_on_a_warm_cache(
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+  """Hashing a ~540 MB model on every load would be a serious regression."""
+  info = _model_info()
+  model_path, legacy_path = _paths(tmp_path, info)
+  model_path.write_bytes(_CONTENT)
+  _stub_download(monkeypatch, None)
+
+  def never(path: Path) -> str:
+    raise AssertionError(f"hashed {path} on a warm cache")
+
+  monkeypatch.setattr(helper, "sha256_file", never)
+
+  ensure_single_file_model(info, model_path, legacy_path, "downloading")
+
+
+@pytest.mark.no_tf
 def test_replaces_a_cached_file_of_the_wrong_size(
   tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

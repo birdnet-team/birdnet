@@ -752,7 +752,14 @@ def ensure_single_file_model(
         f"checksum ({actual} instead of {info.sha256}). It was discarded; "
         "retry, and if this persists the published file has changed."
       )
-    temp_path.replace(model_path)
+    try:
+      temp_path.replace(model_path)
+    except OSError:
+      # Windows refuses this while a concurrent process still holds the file it
+      # just published open. Anything already at this path carries the same
+      # content tag, so those are the wanted bytes and this one's are redundant.
+      if not (model_path.is_file() and model_path.stat().st_size == info.file_size):
+        raise
   finally:
     temp_path.unlink(missing_ok=True)
 
