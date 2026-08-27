@@ -114,8 +114,10 @@ jobs:
           cache-dependency-glob: pyproject.toml
 
       # Keys the model cache on the download set itself -- every quoted download
-      # URL and declared byte size under src/birdnet -- so a new or updated model
-      # busts the key while an edit to the surrounding backend code does not.
+      # URL and declared byte size and sha256 under src/birdnet -- so a new or
+      # updated model busts the key while an edit to the surrounding backend code
+      # does not. The checksums matter on their own: a GitHub release asset can be
+      # replaced in place, changing the declared sha256 but neither URL nor size.
       # Matching URLs only inside quotes keeps documentation links in docstrings
       # out of it. The floor fails the job if the declarations move somewhere this
       # no longer sees them, which would otherwise freeze the key onto a stale
@@ -131,13 +133,18 @@ jobs:
           # Tolerates an annotation and Python's numeric separators, so a size
           # declared as `_DL_SIZE: int = 11_078_402` still reaches the key.
           SIZE = rf"{NAME}\s*(?::\s*int\s*)?=\s*([\d_]+)"
+          # The optional parenthesis admits a constant wrapped for line length,
+          # e.g. `_TAXONOMY_V3_DL_SHA256 = (\n  "..."\n)`.
+          SHA_NAME = r"(?:sha256|[A-Za-z_]*SHA256[A-Za-z_]*)"
+          SHA = rf"{SHA_NAME}\s*(?::\s*str\s*)?=\s*\(?\s*[\"']([0-9a-fA-F]{{64}})[\"']"
 
           tokens = set()
           for path in sorted(pathlib.Path("src/birdnet").rglob("*.py")):
             text = path.read_text(encoding="utf-8")
             tokens |= {url.lstrip("\"'") for url in re.findall(URL, text)}
             tokens |= {f"size={size.replace('_', '')}" for size in re.findall(SIZE, text)}
-          if len(tokens) < 30:
+            tokens |= {f"sha256={sha}" for sha in re.findall(SHA, text)}
+          if len(tokens) < 45:
             raise SystemExit(f"only {len(tokens)} downloads found -- has the layout moved?")
           digest = hashlib.sha256("\n".join(sorted(tokens)).encode()).hexdigest()
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:

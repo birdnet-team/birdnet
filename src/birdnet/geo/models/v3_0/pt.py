@@ -16,7 +16,7 @@ from birdnet.globals import (
 )
 from birdnet.utils.helper import (
   ModelInfo,
-  download_file_tqdm,
+  ensure_single_file_model,
   get_species_from_file,
 )
 from birdnet.utils.local_data import get_lang_dir, get_model_path
@@ -34,6 +34,7 @@ models = {
     dl_file_name="BirdNET+_Geomodel_V3.0.4_Global_14K_TorchScript.pt",
     dl_size=15261167,
     file_size=15261167,
+    sha256="80e93ff8886a481107c47651e35abbf6c5799992cb1943999062bad0bf1a9c93",
   ),
 }
 
@@ -45,7 +46,13 @@ class GeoPTDownloaderV3_0(GeoDownloaderBaseV3_0):
 
   @classmethod
   def _get_model_path(cls) -> Path:
-    return get_model_path("geo", "3.0", MODEL_BACKEND_PT, MODEL_PRECISION_FP32)
+    return get_model_path(
+      "geo",
+      "3.0",
+      MODEL_BACKEND_PT,
+      MODEL_PRECISION_FP32,
+      content_tag=models[MODEL_PRECISION_FP32].content_tag,
+    )
 
   @classmethod
   def _check_geo_model_available(cls) -> bool:
@@ -61,12 +68,10 @@ class GeoPTDownloaderV3_0(GeoDownloaderBaseV3_0):
 
   @classmethod
   def _download_model(cls) -> None:
-    model_path = cls._get_model_path()
-    model_path.parent.mkdir(parents=True, exist_ok=True)
-    download_file_tqdm(
-      models[MODEL_PRECISION_FP32].dl_url,
-      model_path,
-      download_size=models[MODEL_PRECISION_FP32].dl_size,
+    ensure_single_file_model(
+      models[MODEL_PRECISION_FP32],
+      cls._get_model_path(),
+      legacy_path=get_model_path("geo", "3.0", MODEL_BACKEND_PT, MODEL_PRECISION_FP32),
       description="Downloading geo model v3.0 (pt, fp32)",
     )
 

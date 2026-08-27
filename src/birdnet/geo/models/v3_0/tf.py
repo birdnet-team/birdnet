@@ -19,7 +19,7 @@ from birdnet.globals import (
 )
 from birdnet.utils.helper import (
   ModelInfo,
-  download_file_tqdm,
+  ensure_single_file_model,
   get_species_from_file,
 )
 from birdnet.utils.local_data import get_lang_dir, get_model_path
@@ -63,18 +63,21 @@ models = {
     dl_file_name="BirdNET+_Geomodel_V3.0.4_Global_14K_INT8.tflite",
     dl_size=4244200,
     file_size=4244200,
+    sha256="58997b3656c8d8d8efb51308bcab54fd78d16b2ecbf93d9199051c0c622bca08",
   ),
   MODEL_PRECISION_FP16: ModelInfo(
     dl_url="https://github.com/birdnet-team/geomodel/releases/download/v3.0.4/BirdNET+_Geomodel_V3.0.4_Global_14K_FP16.tflite",
     dl_file_name="BirdNET+_Geomodel_V3.0.4_Global_14K_FP16.tflite",
     dl_size=7705320,
     file_size=7705320,
+    sha256="bee9d29461404c76f812798747288f40d6e0143ce72dd825872a5b8785732e1f",
   ),
   MODEL_PRECISION_FP32: ModelInfo(
     dl_url="https://github.com/birdnet-team/geomodel/releases/download/v3.0.4/BirdNET+_Geomodel_V3.0.4_Global_14K_FP32.tflite",
     dl_file_name="BirdNET+_Geomodel_V3.0.4_Global_14K_FP32.tflite",
     dl_size=15317232,
     file_size=15317232,
+    sha256="bffdfb18454a250205bd85240a1054eb5f43be5c419653d3979ef292c2e4ab3f",
   ),
 }
 
@@ -86,7 +89,9 @@ class GeoTFDownloaderV3_0(GeoDownloaderBaseV3_0):
 
   @classmethod
   def _get_model_path(cls, precision: MODEL_PRECISIONS) -> Path:
-    return get_model_path("geo", "3.0", "tf", precision)
+    return get_model_path(
+      "geo", "3.0", "tf", precision, content_tag=models[precision].content_tag
+    )
 
   @classmethod
   def _check_geo_model_available(cls, precision: MODEL_PRECISIONS) -> bool:
@@ -102,12 +107,10 @@ class GeoTFDownloaderV3_0(GeoDownloaderBaseV3_0):
 
   @classmethod
   def _download_model(cls, precision: MODEL_PRECISIONS) -> None:
-    model_path = cls._get_model_path(precision)
-    model_path.parent.mkdir(parents=True, exist_ok=True)
-    download_file_tqdm(
-      models[precision].dl_url,
-      model_path,
-      download_size=models[precision].dl_size,
+    ensure_single_file_model(
+      models[precision],
+      cls._get_model_path(precision),
+      legacy_path=get_model_path("geo", "3.0", "tf", precision),
       description=f"Downloading geo model v3.0 (tf, {precision})",
     )
 

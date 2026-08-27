@@ -27,7 +27,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-from birdnet.utils.helper import download_file_tqdm, write_text_atomic
+from birdnet.utils.helper import download_file_tqdm, sha256_file, write_text_atomic
 from birdnet.utils.logging_utils import get_logger_for_package
 
 MANIFEST_NAME = ".birdnet_labels.json"
@@ -55,14 +55,6 @@ class LabelInput:
 
 def sha256_bytes(data: bytes) -> str:
   return hashlib.sha256(data).hexdigest()
-
-
-def sha256_file(path: Path) -> str:
-  digest = hashlib.sha256()
-  with open(path, "rb") as f:
-    for chunk in iter(lambda: f.read(1024 * 1024), b""):
-      digest.update(chunk)
-  return digest.hexdigest()
 
 
 def get_manifest_path(lang_dir: Path) -> Path:

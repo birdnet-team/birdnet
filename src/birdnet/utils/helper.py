@@ -94,6 +94,19 @@ class ModelInfo:
   dl_size: int
   file_size: int
   dl_file_name: str
+  # Unset only for the zip-packaged v2.4 downloads, which are still judged by
+  # extracted byte size alone.
+  sha256: str | None = None
+
+  @property
+  def content_tag(self) -> str:
+    """Checksum prefix embedded in the cached file's name.
+
+    The name then identifies the release content itself: a release that expects
+    different bytes looks for a different file, so it can neither serve another
+    release's model nor overwrite it in a shared app data directory."""
+    assert self.sha256 is not None
+    return self.sha256[:12]
 
 
 SF_FORMATS = {
@@ -665,6 +678,90 @@ def _download_file_once(
 
   reporter.finished()
   return total_size
+
+
+def sha256_file(path: Path) -> str:
+  digest = hashlib.sha256()
+  with open(path, "rb") as f:
+    for chunk in iter(lambda: f.read(1024 * 1024), b""):
+      digest.update(chunk)
+  return digest.hexdigest()
+
+
+def ensure_single_file_model(
+  info: ModelInfo, model_path: Path, legacy_path: Path, description: str
+) -> None:
+  """Put the model file `info` describes at `model_path`, downloading if needed.
+
+  `model_path` carries `info.content_tag` and only verified bytes are ever
+  renamed onto it, so its presence at the declared byte size means the file
+  this release published; nothing is hashed again on later loads, which would
+  cost seconds for the ~540 MB acoustic models. Byte size alone could not give
+  that guarantee: a retrain that keeps the architecture keeps the tflite/onnx
+  size too — the size check told the geo v3.0.3 and v3.0.4 caches apart only
+  because their class counts differ.
+
+  A matching file left at `legacy_path` by a release before names carried the
+  checksum is adopted rather than fetched again, so upgrading stays offline for
+  anyone already holding it. One that hashes differently is left alone: it
+  belongs to another installed version still reading it from there.
+  """
+  assert info.sha256 is not None
+  if model_path.is_file() and model_path.stat().st_size == info.file_size:
+    return
+
+  model_path.parent.mkdir(parents=True, exist_ok=True)
+  try:
+    if (
+      legacy_path.is_file()
+      and legacy_path.stat().st_size == info.file_size
+      and sha256_file(legacy_path) == info.sha256
+    ):
+      # Windows refuses this while another process has the file open; the
+      # re-check below then sends this process to the download instead.
+      os.replace(legacy_path, model_path)
+      return
+  except OSError:
+    # The legacy file vanished mid-probe: a concurrent process adopted it.
+    pass
+  # Downloads are not serialized, so a concurrent process may have adopted or
+  # downloaded the file while this one was probing; its bytes are the wanted
+  # ones (only verified content ever lands at this path).
+  if model_path.is_file() and model_path.stat().st_size == info.file_size:
+    return
+
+  # Downloaded next to the target and renamed only after verification, so a
+  # process killed during the hash cannot leave bytes nobody checked at a name
+  # every later load trusts. The scratch name is per-process; a shared one
+  # would let concurrent downloads fail each other's rename on Windows.
+  fd, temp_name = tempfile.mkstemp(
+    dir=model_path.parent,
+    prefix=f"{model_path.name}.",
+    suffix=".unverified",
+  )
+  os.close(fd)
+  temp_path = Path(temp_name)
+  try:
+    download_file_tqdm(
+      info.dl_url, temp_path, download_size=info.dl_size, description=description
+    )
+    actual = sha256_file(temp_path)
+    if actual != info.sha256:
+      raise RuntimeError(
+        f"The file downloaded from {info.dl_url} does not match its expected "
+        f"checksum ({actual} instead of {info.sha256}). It was discarded; "
+        "retry, and if this persists the published file has changed."
+      )
+    try:
+      temp_path.replace(model_path)
+    except OSError:
+      # Windows refuses this while a concurrent process still holds the file it
+      # just published open. Anything already at this path carries the same
+      # content tag, so those are the wanted bytes and this one's are redundant.
+      if not (model_path.is_file() and model_path.stat().st_size == info.file_size):
+        raise
+  finally:
+    temp_path.unlink(missing_ok=True)
 
 
 def itertools_batched(iterable: Iterable, n: int) -> Generator[Any, None, None]:

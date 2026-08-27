@@ -10,7 +10,11 @@ from birdnet.globals import (
   MODEL_PRECISION_FP32,
   MODEL_PRECISIONS,
 )
-from birdnet.utils.helper import ModelInfo, download_file_tqdm, get_species_from_file
+from birdnet.utils.helper import (
+  ModelInfo,
+  ensure_single_file_model,
+  get_species_from_file,
+)
 from birdnet.utils.local_data import get_lang_dir, get_model_path
 
 models = {
@@ -19,12 +23,14 @@ models = {
     dl_file_name="BirdNET+_V3.0-preview3.1_Global_11K_FP16.tflite",
     dl_size=270496424,
     file_size=270496424,
+    sha256="5f6528f1456be3c682b776d72a4faa256a6710fa47ca47ebaeed4c69898cf5cf",
   ),
   MODEL_PRECISION_FP32: ModelInfo(
     dl_url="https://zenodo.org/records/20703646/files/BirdNET+_V3.0-preview3.1_Global_11K_FP32.tflite",
     dl_file_name="BirdNET+_V3.0-preview3.1_Global_11K_FP32.tflite",
     dl_size=540471440,
     file_size=540471440,
+    sha256="a932aea50ec90984467e4c6da3d4d7bcc6a650a40e8bf35cf084219fef69fcd7",
   ),
 }
 
@@ -45,6 +51,7 @@ class AcousticTFDownloaderV3_0(AcousticDownloaderBaseV3_0):
       "3.0",
       MODEL_BACKEND_TF,
       precision,
+      content_tag=models[precision].content_tag,
     )
     lang_dir = get_lang_dir(
       "acoustic",
@@ -67,11 +74,10 @@ class AcousticTFDownloaderV3_0(AcousticDownloaderBaseV3_0):
   @classmethod
   def _download_model(cls, precision: MODEL_PRECISIONS) -> None:
     model_path, _lang_dir = cls._get_paths(precision)
-    model_path.parent.mkdir(parents=True, exist_ok=True)
-    download_file_tqdm(
-      models[precision].dl_url,
+    ensure_single_file_model(
+      models[precision],
       model_path,
-      download_size=models[precision].dl_size,
+      legacy_path=get_model_path("acoustic", "3.0", MODEL_BACKEND_TF, precision),
       description=f"Downloading acoustic model v3.0 (tf, {precision})",
     )
 
