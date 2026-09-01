@@ -20,6 +20,8 @@ GPU-Consumption.ods
 src/*_debug/
 benchmarks/consistency_reports*
 benchmarks/consistency_evaluation*
+benchmarks/corpus/
+benchmarks/results/
 example/soundscape.BirdNET.selection.table.txt
 example/soundscape.birdnet_legacy.selection.table.txt
 src/birdnet_legacy
