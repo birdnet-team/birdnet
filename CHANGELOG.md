@@ -7,11 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-09-02
+
 ### Bugfixes
 
-- A worker killed while writing a large result no longer freezes the whole run. Above 16 KB a queue message crosses the pipe in more than one write, so a killed writer can leave a message whose remainder never arrives — and reading it blocks with nothing raised, before any of the pipeline's failure handling gets a chance to run. Reachable with `top_k=None`, with `encode` at `batch_size >= 4`, and for large-batch GPU work; library defaults were not affected. The parent now reads every child-to-parent queue through a sacrificial thread with real timeouts, so a half-written message costs a parked thread instead of the session, and the existing liveness check reports the dead worker ([#83](https://github.com/birdnet-team/birdnet/issues/83)).
-- A child killed on its way out — after signalling it had finished but before its last message was flushed — left the parent waiting on that message forever, invisible to the liveness check because the finish signal was already set. This covered a worker's end-of-work sentinel, a producer's unprocessable-input report and per-file completion markers, and the performance tracker's summary; all of those waits now carry a deadline and fail the run with a clear error naming what was lost.
-- Oversized log records (exception dumps with stack traces, exactly what a dying child emits) are truncated before crossing the process boundary, narrowing the widest window for a killed child to leave the session log's reader a half-written record.
+- A worker killed while writing a large result no longer freezes the whole run. Above 16 KB a queue message crosses the pipe in more than one write, so a killed writer can leave a message whose remainder never arrives — and reading it blocks with nothing raised, before any of the pipeline's failure handling gets a chance to run. Reachable with `top_k=None`, with `encode` at `batch_size >= 4`, and for large-batch GPU work; library defaults were not affected. The parent now reads every child-to-parent queue through a sacrificial thread with real timeouts, so a half-written message costs a parked thread instead of the session, and the existing liveness check reports the dead worker ([#83](https://github.com/birdnet-team/birdnet/issues/83), [#104](https://github.com/birdnet-team/birdnet/pull/104)).
+- A child killed on its way out — after signalling it had finished but before its last message was flushed — left the parent waiting on that message forever, invisible to the liveness check because the finish signal was already set. This covered a worker's end-of-work sentinel, a producer's unprocessable-input report and per-file completion markers, and the performance tracker's summary; all of those waits now carry a deadline and fail the run with a clear error naming what was lost ([#104](https://github.com/birdnet-team/birdnet/pull/104)).
+- Oversized log records (exception dumps with stack traces, exactly what a dying child emits) are truncated before crossing the process boundary, narrowing the widest window for a killed child to leave the session log's reader a half-written record ([#104](https://github.com/birdnet-team/birdnet/pull/104)).
 - The official v3.0 model downloads (acoustic and geo, `tf`/`onnx`/`pt`) could serve a stale file: the cache was judged current by byte size alone, which cannot tell two releases apart — a retrained model of the same architecture keeps its size — and let two installed versions sharing one app data directory overwrite each other's ~0.5 GB downloads on every load. Like the label and taxonomy downloads since 1.1.0, they are now checksum-verified and cached under content-addressed names, so replacing a model in a release forces exactly one re-download; a file cached before this release is renamed to its new name after a one-time hash check, which costs an older installed version sharing the directory one re-download ([#105](https://github.com/birdnet-team/birdnet/pull/105)).
 
 ## [1.1.0] - 2026-08-21
@@ -337,7 +339,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release
 
-[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/birdnet-team/birdnet/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/birdnet-team/birdnet/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/birdnet-team/birdnet/compare/v0.2.16...v1.0.0
 [0.2.16]: https://github.com/birdnet-team/birdnet/compare/v0.2.15...v0.2.16
