@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Bugfixes
+
+- The `model_loader.pyi` stub declared no `tf`/`pb` overloads for the acoustic 3.0 model and pinned its `onnx`/`tf` backends to `fp32`, so documented calls such as `birdnet.load("acoustic", "3.0", "tf")` or `load("acoustic", "3.0", "onnx", precision="fp16")` failed mypy/pyright with "No overload variant of `load` matches" even though they run fine. The stub now mirrors the loader, like the geo 3.0 overloads already did ([#108](https://github.com/birdnet-team/birdnet/pull/108)).
+- The quick-start's multiple-files example no longer imports `AudioDataset`, a name that does not exist in the package and made the copy-pasted example fail with an `ImportError` before reaching any real code ([#108](https://github.com/birdnet-team/birdnet/pull/108)).
+
 ## [1.1.1] - 2026-09-02
 
 ### Bugfixes
