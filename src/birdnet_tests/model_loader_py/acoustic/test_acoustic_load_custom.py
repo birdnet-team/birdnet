@@ -5,10 +5,7 @@ import pytest
 from birdnet.acoustic.models.v2_4.model import AcousticModelV2_4
 from birdnet.acoustic.models.v2_4.pb import AcousticPBDownloaderV2_4
 from birdnet.acoustic.models.v2_4.tf import (
-  AcousticTFBackendFP32CustomAppendHiddenV2_4,
-  AcousticTFBackendFP32CustomAppendV2_4,
-  AcousticTFBackendFP32CustomReplaceHiddenV2_4,
-  AcousticTFBackendFP32V2_4,
+  AcousticTFBackendCustomV2_4,
   AcousticTFDownloaderV2_4,
 )
 from birdnet.globals import MODEL_PRECISIONS
@@ -349,7 +346,7 @@ def test_custom_from_analyzer_v2_4_append_tf_fp32() -> None:
   )
   assert isinstance(model, AcousticModelV2_4)
   if check_validity():
-    assert model.backend_type is AcousticTFBackendFP32CustomAppendV2_4
+    assert model.backend_type is AcousticTFBackendCustomV2_4
 
 
 @pytest.mark.litert
@@ -367,7 +364,7 @@ def test_custom_from_analyzer_v2_4_append_litert_fp32() -> None:
     precision="fp32",
   )
   assert isinstance(model, AcousticModelV2_4)
-  assert model.backend_type is AcousticTFBackendFP32CustomAppendV2_4
+  assert model.backend_type is AcousticTFBackendCustomV2_4
 
 
 def test_custom_from_analyzer_v2_4_replace_hidden_tf_fp32() -> None:
@@ -383,7 +380,7 @@ def test_custom_from_analyzer_v2_4_replace_hidden_tf_fp32() -> None:
   )
   assert isinstance(model, AcousticModelV2_4)
   if check_validity():
-    assert model.backend_type is AcousticTFBackendFP32CustomReplaceHiddenV2_4
+    assert model.backend_type is AcousticTFBackendCustomV2_4
 
 
 @pytest.mark.litert
@@ -401,7 +398,7 @@ def test_custom_from_analyzer_v2_4_replace_hidden_litert_fp32() -> None:
     precision="fp32",
   )
   assert isinstance(model, AcousticModelV2_4)
-  assert model.backend_type is AcousticTFBackendFP32CustomReplaceHiddenV2_4
+  assert model.backend_type is AcousticTFBackendCustomV2_4
 
 
 def test_custom_from_analyzer_v2_4_append_hidden_tf_fp32() -> None:
@@ -417,7 +414,7 @@ def test_custom_from_analyzer_v2_4_append_hidden_tf_fp32() -> None:
   )
   assert isinstance(model, AcousticModelV2_4)
   if check_validity():
-    assert model.backend_type is AcousticTFBackendFP32CustomAppendHiddenV2_4
+    assert model.backend_type is AcousticTFBackendCustomV2_4
 
 
 @pytest.mark.litert
@@ -435,7 +432,7 @@ def test_custom_from_analyzer_v2_4_append_hidden_litert_fp32() -> None:
     precision="fp32",
   )
   assert isinstance(model, AcousticModelV2_4)
-  assert model.backend_type is AcousticTFBackendFP32CustomAppendHiddenV2_4
+  assert model.backend_type is AcousticTFBackendCustomV2_4
 
 
 def test_custom_classifier_types_explicit_no_check_validity() -> None:
@@ -444,19 +441,19 @@ def test_custom_classifier_types_explicit_no_check_validity() -> None:
       "custom_models/tf/append.tflite",
       "custom_models/tf/append_Labels.txt",
       "append",
-      AcousticTFBackendFP32CustomAppendV2_4,
+      AcousticTFBackendCustomV2_4,
     ),
     (
       "custom_models/tf/replace+hidden1024.tflite",
       "custom_models/tf/replace+hidden1024_Labels.txt",
       "replace_hidden",
-      AcousticTFBackendFP32CustomReplaceHiddenV2_4,
+      AcousticTFBackendCustomV2_4,
     ),
     (
       "custom_models/tf/append+hidden1024.tflite",
       "custom_models/tf/append+hidden1024_Labels.txt",
       "append_hidden",
-      AcousticTFBackendFP32CustomAppendHiddenV2_4,
+      AcousticTFBackendCustomV2_4,
     ),
   ]
   for model_file, labels_file, classifier_type, expected_backend in cases:
@@ -488,7 +485,7 @@ def test_custom_replace_explicit_no_check_validity() -> None:
     classifier_type="replace",
   )
   assert isinstance(model, AcousticModelV2_4)
-  assert model.backend_type is AcousticTFBackendFP32V2_4
+  assert model.backend_type is AcousticTFBackendCustomV2_4
 
 
 def test_custom_species_mismatch_raises_error() -> None:

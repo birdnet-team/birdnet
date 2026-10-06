@@ -37,6 +37,9 @@ jobs:
     env:
       # Under the workspace because job-level env has no `runner` context.
       BIRDNET_APP_DATA: ${{ github.workspace }}/.birdnet-app-data
+      # Outside BIRDNET_APP_DATA, which the model cache stores: the classifier
+      # exports the tests build are 1.2 GB and the cache limit is 10 GB.
+      BIRDNET_TEST_EXPORTS_DIR: ${{ github.workspace }}/.birdnet-test-exports
       # Enables the hang watchdog in birdnet_tests/conftest.py.
       BIRDNET_TEST_WATCHDOG_DIR: ${{ github.workspace }}/.watchdog-dumps
 

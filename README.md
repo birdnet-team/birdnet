@@ -148,6 +148,36 @@ The V3.0 acoustic and geo models are both available in four backends (TFLite/Lit
 
 Load a V3.0 model by passing the version and backend, e.g. `birdnet.load("acoustic", "3.0", "onnx")` or `birdnet.load("geo", "3.0", "tf")`.
 
+The acoustic V3.0 `tf` and `pb` exports have a static batch dimension of 1, so `batch_size` above 1 raises a `ValueError` for them (workers still run in parallel); `onnx` and `pt` take any batch size. The official V3.0 SavedModel (`pb`) and ONNX exports return NaN scores for a segment with no variance, such as digital silence.
+
+### Custom classifiers
+
+Classifiers trained with [BirdNET-Analyzer](https://github.com/birdnet-team/BirdNET-Analyzer) load with `birdnet.load_custom`, on the BirdNET 2.4 and the 3.0 base:
+
+```python
+import birdnet
+
+# TFLite export; "auto" reads the base version from the file
+model = birdnet.load_custom("acoustic", "auto", "tf", "CustomClassifier.tflite", "CustomClassifier_Labels.txt")
+predictions = model.predict("example/soundscape.wav")
+
+# What a file is, without importing TensorFlow into this process
+info = birdnet.inspect_custom_tflite("CustomClassifier.tflite")
+info.version, info.mode, info.n_species  # e.g. ("3.0", "append", 11563)
+
+# Raven export (SavedModel with the "basic" signature)
+raven = birdnet.load_custom("acoustic", "3.0", "pb", "CustomClassifier", "CustomClassifier/labels.txt", is_raven=True)
+```
+
+| **Export** | TFLite 2.4 | TFLite 3.0 | Raven 2.4 | Raven 3.0 |
+| --- | --- | --- | --- | --- |
+| `predict(..)` | ✅ | ✅ | ✅ | ✅ |
+| `encode(..)` | ✅ | ✅ | ❌ | ❌ |
+| Scores | logits, sigmoid applied by birdnet | probabilities | probabilities | probabilities |
+| `batch_size > 1` | ✅ | ❌ | ✅ | ❌ |
+
+For exports that output probabilities, `sigmoid_sensitivity` other than `1.0` and `apply_softmax=True` raise a `ValueError`. Detached classifier heads (`*_detached.tflite`, which take embeddings instead of audio) are rejected with a message naming them.
+
 ### Perch V2
 
 | **Model** | Acoustic | Geo |

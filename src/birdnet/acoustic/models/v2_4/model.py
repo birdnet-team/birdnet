@@ -21,7 +21,11 @@ from birdnet.acoustic.inference.session import (
   AcousticEncodingSession,
   AcousticPredictionSession,
 )
-from birdnet.acoustic.models.base import AcousticModelBase
+from birdnet.acoustic.models.base import (
+  AcousticModelBase,
+  validate_batch_size_for_backend,
+  validate_probability_output_options,
+)
 from birdnet.core.backends import BackendLoader, VersionedAcousticBackendProtocol
 from birdnet.globals import ACOUSTIC_MODEL_VERSION_V2_4, ACOUSTIC_MODEL_VERSIONS
 from birdnet.utils.helper import validate_species_list
@@ -212,6 +216,7 @@ class AcousticModelV2_4(AcousticModelBase):
     Returns:
       AcousticEncodingSession: Session capable of running encodings.
     """
+    validate_batch_size_for_backend(batch_size, self.backend_type)
     return AcousticEncodingSession(
       species_list=self.species_list,
       model_path=self.model_path,
@@ -309,9 +314,25 @@ class AcousticModelV2_4(AcousticModelBase):
         of the caller's context; file inputs only (not run_arrays). A callback
         that raises cancels the run.
 
+    A Raven export (``load_custom(.., "pb", .., is_raven=True)``) applies the
+    sigmoid inside its graph and outputs probabilities. For it ``apply_sigmoid``
+    changes nothing, and ``sigmoid_sensitivity`` other than ``1.0`` or
+    ``apply_softmax=True`` raise a ``ValueError``, as for the V3.0 models.
+
     Returns:
       AcousticPredictionSession: Session capable of running predictions.
     """
+    validate_batch_size_for_backend(batch_size, self.backend_type)
+    if self.backend_type.outputs_probabilities():
+      validate_probability_output_options(
+        apply_sigmoid,
+        apply_softmax,
+        sigmoid_sensitivity,
+        f"a custom classifier on the '{self.backend_type.name()}' backend, which "
+        "outputs probabilities",
+      )
+      apply_sigmoid = False
+      sigmoid_sensitivity = None
     return AcousticPredictionSession(
       species_list=self.species_list,
       model_path=self.model_path,

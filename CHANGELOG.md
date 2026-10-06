@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Custom classifiers that BirdNET-Analyzer trains on the BirdNET 3.0 base now load and run: `birdnet.load_custom("acoustic", "3.0", "tf", model, labels)` reads the export's `predictions` and `embeddings` outputs by name, so both `predict(..)` and `encode(..)` work on replace and append exports, and `is_raven=True` loads the analyzer's 3.0 Raven SavedModel (`basic` signature, probabilities, no embeddings). Previously the 3.0 TFLite export passed the validity check and then crashed the worker process, and the 3.0 Raven export did not load at all ([#111](https://github.com/birdnet-team/birdnet/pull/111)).
+- Added `birdnet.inspect_custom_tflite(model)`, which reports a custom TFLite classifier's base version (`"2.4"` or `"3.0"`, derived from the input length and the embeddings width), whether it replaces or appends to the official species, its number of species, whether its scores are probabilities and whether it exposes embeddings. It runs in a subprocess, so the calling process never imports TensorFlow. `load_custom` accepts `version="auto"` for acoustic TFLite classifiers and uses it ([#111](https://github.com/birdnet-team/birdnet/pull/111)).
+
+### Changed
+
+- Raven exports (`load_custom(.., "pb", .., is_raven=True)`) apply the sigmoid inside their graph, and `predict(..)` now returns those probabilities unchanged. The 2.4 Raven path applied the pipeline's sigmoid on top, which squashed every score into 0.5–0.73; scores from a 2.4 Raven classifier therefore change with this release, to the values the same classifier gives as a TFLite export. As for the 3.0 models, `sigmoid_sensitivity` other than `1.0` and `apply_softmax=True` raise a `ValueError` for Raven exports ([#111](https://github.com/birdnet-team/birdnet/pull/111)).
+- The acoustic 3.0 `tf` and `pb` backends, official and custom, reject `batch_size` above 1 with a `ValueError` when the session is created: their exports have a static batch dimension of 1, and a larger batch used to crash the worker (`pb`) or silently return a single row (`tf`). `onnx` and `pt` take any batch size ([#111](https://github.com/birdnet-team/birdnet/pull/111)).
+- `classifier_type` is still accepted by `load_custom` but no longer selects anything: the layout of a custom TFLite classifier is read from the file ([#111](https://github.com/birdnet-team/birdnet/pull/111)).
+
+### Bugfixes
+
+- Custom 2.4 classifiers exported by current BirdNET-Analyzer releases (Keras 3, TensorFlow 2.16 or newer) failed to load with "Failed to detect custom classifier type", or an append classifier was misdetected and read the wrong tensor. The prediction tensor's index depends on the head and on the Keras version that exported it; it is now resolved from the file's `serving_default` signature, with the old index table kept as the fallback for exports without usable signature outputs, so every classifier that loaded before still loads with the same scores ([#111](https://github.com/birdnet-team/birdnet/pull/111)).
+- `encode(..)` on an append-mode custom 2.4 classifier returned wrong embeddings: the TFLite interpreter reuses the memory of the backbone's pooling tensor for the head, so reading it after inference gave the head's intermediate values. The embeddings tensor is now read from an interpreter that preserves intermediate tensors, which an encoding session enables on its first batch (predictions pay nothing) ([#111](https://github.com/birdnet-team/birdnet/pull/111)).
+- A custom classifier whose file lists embeddings before predictions (the 3.0 exports) reported the embeddings width as its number of species ([#111](https://github.com/birdnet-team/birdnet/pull/111)).
+
+### Known limitations
+
+- The official acoustic 3.0 SavedModel (`pb`) and ONNX exports return NaN scores and embeddings for a segment with no variance, such as digital silence or a constant offset; the `tf` and `pt` exports of the same model return finite values. Of the custom 3.0 exports, the Raven SavedModel inherits this from its base, while the TFLite export returns finite values. The export, not birdnet, is the place to fix it.
+
 ## [1.1.1] - 2026-09-02
 
 ### Bugfixes

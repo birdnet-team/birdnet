@@ -5,7 +5,7 @@ import multiprocessing
 import os
 import time
 from abc import ABC, abstractmethod
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from concurrent.futures import ProcessPoolExecutor, TimeoutError
 from pathlib import Path
 from typing import (
@@ -49,6 +49,8 @@ if TYPE_CHECKING:
   from torch import device as TorchDevice
   from torch.jit import RecursiveScriptModule
 
+  from birdnet.acoustic.models.custom_tflite import CustomTFLiteInfo
+
 BatchT = TypeVar("BatchT", np.ndarray, "Tensor", "TorchTensor")
 
 
@@ -89,6 +91,24 @@ class Backend(Generic[BatchT], ABC):
   @classmethod
   @abstractmethod
   def name(cls) -> str: ...
+
+  @classmethod
+  def outputs_probabilities(cls) -> bool:
+    """Whether `predict` returns probabilities rather than logits.
+
+    A model that applies the sigmoid inside its graph must not get the
+    pipeline's sigmoid on top: that squashes every score into [0.5, 0.73].
+    """
+    return False
+
+  @classmethod
+  def max_batch_size(cls) -> int | None:
+    """The largest batch the model accepts, or None when the batch is dynamic.
+
+    Exports compiled with a static batch dimension fail inside the worker for
+    anything larger, so the session rejects such a batch size up front.
+    """
+    return None
 
   @abstractmethod
   def copy_to_device(self, batch: np.ndarray) -> BatchT: ...
@@ -141,7 +161,11 @@ class VersionedBackendProtocol(Generic[BatchT], Protocol):
 
 @runtime_checkable
 class VersionedAcousticBackendProtocol(VersionedBackendProtocol, Protocol):
-  pass
+  @classmethod
+  def outputs_probabilities(cls) -> bool: ...
+
+  @classmethod
+  def max_batch_size(cls) -> int | None: ...
 
 
 @runtime_checkable
@@ -165,6 +189,9 @@ class TFBackend(Backend, ABC):
     super().__init__(model_path, device_name, half_precision)
     self._interp: LiteRTInterpreter | TFInterpreter | None = None
     self._cached_shape: tuple[int, ...] | None = None
+    self._input_idx: int | None = None
+    self._prediction_idx: int | None = None
+    self._embeddings_idx: int | None = None
     assert TF_BACKEND_LIB_ARG in kwargs
     self._inference_library: LIBRARY_TYPES = cast(
       LIBRARY_TYPES, kwargs[TF_BACKEND_LIB_ARG]
@@ -191,6 +218,16 @@ class TFBackend(Backend, ABC):
   @abstractmethod
   def encoding_out_idx(cls) -> int | None: ...
 
+  def _resolve_tensor_indices(
+    self, interp: LiteRTInterpreter | TFInterpreter
+  ) -> tuple[int, int, int | None]:
+    """(input, prediction, embeddings) tensor indices of the loaded file.
+
+    The official models pin them per file; a custom classifier resolves them
+    from the file itself.
+    """
+    return self.in_idx(), self.prediction_out_idx(), self.encoding_out_idx()
+
   def load(self) -> None:
     assert self._interp is None
 
@@ -199,30 +236,46 @@ class TFBackend(Backend, ABC):
       self._inference_library,
       allocate_tensors=True,
     )
+    self._input_idx, self._prediction_idx, self._embeddings_idx = (
+      self._resolve_tensor_indices(self._interp)
+    )
 
   def unload(self) -> None:
     self._interp = None
     self._cached_shape = None
+    self._input_idx = None
+    self._prediction_idx = None
+    self._embeddings_idx = None
 
   @property
   def n_species(self) -> int:
     assert self._interp is not None
-    output_details = self._interp.get_output_details()
-    n_species = output_details[0]["shape"][1]
-    return n_species
+    assert self._prediction_idx is not None
+    # Read from the prediction tensor: a file that also exposes embeddings
+    # (the v3.0 exports) may list those first.
+    details = self._interp.get_output_details()
+    if not any(int(d["index"]) == self._prediction_idx for d in details):
+      details = self._interp.get_tensor_details()
+    for detail in details:
+      if int(detail["index"]) == self._prediction_idx:
+        return int(detail["shape"][1])
+    raise ValueError(
+      f"Model '{self._model_path.absolute()}' has no tensor "
+      f"{self._prediction_idx} to read predictions from."
+    )
 
   def _set_tensor(self, batch: np.ndarray) -> None:
     assert self._interp is not None
+    assert self._input_idx is not None
     assert batch.flags["C_CONTIGUOUS"]
     assert batch.ndim == 2
-    assert self._interp is not None
 
     shape = batch.shape
     if self._cached_shape != shape:
-      self._interp.resize_tensor_input(self.in_idx(), shape, strict=True)
+      self._interp.resize_tensor_input(self._input_idx, shape, strict=True)
       self._interp.allocate_tensors()
       self._cached_shape = shape
-    self._interp.set_tensor(self.in_idx(), batch)
+    self._interp.set_tensor(self._input_idx, batch)
 
   def _infer(self, batch: np.ndarray, out_idx: int) -> np.ndarray:
     # TODO: implement load on different CPUs
@@ -233,6 +286,9 @@ class TFBackend(Backend, ABC):
     res: np.ndarray = self._interp.get_tensor(out_idx)
     assert res.dtype == np.float32
     return res
+
+  def _prepare_encoding(self) -> None:
+    """Hook run before the first `encode` call of a loaded backend."""
 
   def copy_from_device(self, inference_result: np.ndarray) -> np.ndarray:
     assert isinstance(inference_result, np.ndarray)
@@ -252,13 +308,14 @@ class TFBackend(Backend, ABC):
 
   @final
   def predict(self, batch: np.ndarray) -> np.ndarray:
-    return self._infer(batch, self.prediction_out_idx())
+    assert self._prediction_idx is not None
+    return self._infer(batch, self._prediction_idx)
 
   @final
   def encode(self, batch: np.ndarray) -> np.ndarray:
-    out_idx = self.encoding_out_idx()
-    assert out_idx is not None
-    return self._infer(batch, out_idx)
+    self._prepare_encoding()
+    assert self._embeddings_idx is not None
+    return self._infer(batch, self._embeddings_idx)
 
 
 class TorchBackend(Backend, ABC):
@@ -541,11 +598,25 @@ class PBBackend(Backend, ABC):
     self._set_logical_device()
     assert self._logical_device_name is not None
     self._model = load_pb_model(self._model_path, self._logical_device_name)
-    self._predict_fn = self._model.signatures[self.prediction_signature_name()]  # type: ignore
+    self._predict_fn = self._signature(self.prediction_signature_name())
     if self.supports_encoding():
       encoding_sig_name = self.encoding_signature_name()
       assert encoding_sig_name is not None
-      self._encoding_fn = self._model.signatures[encoding_sig_name]  # type: ignore
+      self._encoding_fn = self._signature(encoding_sig_name)
+
+  def _signature(self, name: str) -> Callable:
+    assert self._model is not None
+    signatures = self._model.signatures
+    if name not in signatures:
+      available = ", ".join(sorted(signatures.keys())) or "none"
+      raise ValueError(
+        f"SavedModel '{self._model_path.absolute()}' has no '{name}' signature "
+        f"(available: {available}). A Raven export from BirdNET-Analyzer carries "
+        "the 'basic' signature and needs is_raven=True; the official SavedModel "
+        "layout needs is_raven=False."
+      )
+    signature: Callable = signatures[name]
+    return signature
 
   def unload(self) -> None:
     self._model = None
@@ -696,7 +767,12 @@ class BackendLoader:
     model_path: Path,
     backend_type: type[VersionedBackendProtocol],
     kwargs: dict[str, Any],
-  ) -> int | None:
+  ) -> int | str:
+    """The model's species count, or the error message when it cannot load.
+
+    The message travels as a string because the exception itself may not be
+    picklable across the process boundary.
+    """
     try:
       loader = cls(model_path, backend_type, kwargs)
       loader.load_backend("CPU", half_precision=False)
@@ -704,7 +780,7 @@ class BackendLoader:
       return n_species_in_model
     except Exception as ex:
       get_logger_for_package(__name__).error(f"Error loading model: {ex}")
-      return None
+      return str(ex)
 
   @classmethod
   def check_model_can_be_loaded(
@@ -720,12 +796,11 @@ class BackendLoader:
     Returns the number of species in the model if successful.
     """
     try:
-      n_species_in_model = None
       with ProcessPoolExecutor(max_workers=1) as executor:
         future = executor.submit(cls._get_n_species, model_path, backend_type, kwargs)
         n_species_in_model = future.result(timeout=180)
-      if n_species_in_model is None:
-        raise ValueError("Failed to load model.")
+      if isinstance(n_species_in_model, str):
+        raise ValueError(f"Failed to load model: {n_species_in_model}")
       return n_species_in_model
     except (multiprocessing.TimeoutError, TimeoutError) as e:
       get_logger_for_package(__name__).error(
@@ -735,6 +810,8 @@ class BackendLoader:
       # Note: on Intel macOS python 3.12 the model could not be loaded
       # for unknown reasons
       raise ValueError("Failed to load model due to timeout.") from e
+    except ValueError:
+      raise
     except Exception as e:
       get_logger_for_package(__name__).error(f"Failed to load model in subprocess: {e}")
       raise ValueError("Failed to load model.") from e
@@ -746,56 +823,52 @@ class BackendLoader:
     library: LIBRARY_TYPES,
     prediction_to_type: dict[int, tuple[str, int]],
   ) -> tuple[int, str]:
-    """
-    Detect the custom TFLite classifier type and number of output species in a
-    subprocess to avoid loading TensorFlow in the main process.
+    """(n_species, mode) of a custom TFLite classifier.
 
-    Returns (n_species, classifier_type) if successful.
+    Superseded by `inspect_custom_tflite_model`, which also reports the base
+    version; the mode is "replace" or "append" (hidden units do not change how
+    a file is read).
     """
+    info = cls.inspect_custom_tflite_model(
+      model_path, library, prediction_to_type.keys()
+    )
+    return info.n_species, info.mode
+
+  @classmethod
+  def inspect_custom_tflite_model(
+    cls,
+    model_path: Path,
+    library: LIBRARY_TYPES,
+    legacy_prediction_indices: Collection[int],
+  ) -> CustomTFLiteInfo:
+    """Describe a custom TFLite classifier in a subprocess.
+
+    The subprocess keeps TensorFlow (or LiteRT) out of the calling process, so
+    an application can inspect a file before deciding how to load it.
+    """
+    from birdnet.acoustic.models.custom_tflite import inspect_custom_tflite_file
+
     try:
-      result: tuple[int, str] | None = None
       with ProcessPoolExecutor(max_workers=1) as executor:
         future = executor.submit(
-          _detect_tflite_custom_classifier, model_path, library, prediction_to_type
+          inspect_custom_tflite_file,
+          model_path,
+          library,
+          tuple(legacy_prediction_indices),
         )
-        result = future.result(timeout=180)
-      if result is None:
-        raise ValueError("Failed to detect custom classifier type.")
-      return result
+        return future.result(timeout=180)
     except (multiprocessing.TimeoutError, TimeoutError) as e:
       get_logger_for_package(__name__).error(
-        "Timeout while loading model in subprocess (3 min). "
-        "Could not check if model can be loaded."
+        "Timeout while inspecting model in subprocess (3 min)."
       )
-      raise ValueError("Failed to load model due to timeout.") from e
+      raise ValueError("Failed to inspect model due to timeout.") from e
     except Exception as e:
       get_logger_for_package(__name__).error(
-        f"Failed to detect custom classifier type in subprocess: {e}"
+        f"Failed to inspect custom TFLite model in subprocess: {e}"
       )
-      raise ValueError("Failed to detect custom classifier type.") from e
-
-
-def _detect_tflite_custom_classifier(
-  model_path: Path,
-  library: LIBRARY_TYPES,
-  prediction_to_type: dict[int, tuple[str, int]],
-) -> tuple[int, str] | None:
-  try:
-    interp = load_tf_model(model_path, library, allocate_tensors=True)
-    output_details = interp.get_output_details()
-    output_indices = {int(detail["index"]) for detail in output_details}
-    for pred_idx, (type_name, _enc_idx) in prediction_to_type.items():
-      if pred_idx in output_indices:
-        for detail in output_details:
-          if int(detail["index"]) == pred_idx:
-            n_species = int(detail["shape"][1])
-            return n_species, type_name
-    return None
-  except Exception as ex:
-    get_logger_for_package(__name__).error(
-      f"Error detecting custom classifier type: {ex}"
-    )
-    return None
+      raise ValueError(
+        f"Failed to inspect custom TFLite model '{model_path.absolute()}': {e}"
+      ) from e
 
 
 def import_tf() -> None:
@@ -892,24 +965,45 @@ def load_tf_model(
   model_path: Path,
   library: Literal["tflite"],
   allocate_tensors: bool = False,
+  preserve_all_tensors: bool = False,
 ) -> TFInterpreter: ...
 @overload
 def load_tf_model(
   model_path: Path,
   library: Literal["litert"],
   allocate_tensors: bool = False,
+  preserve_all_tensors: bool = False,
 ) -> LiteRTInterpreter: ...
+@overload
+def load_tf_model(
+  model_path: Path,
+  library: LIBRARY_TYPES,
+  allocate_tensors: bool = False,
+  preserve_all_tensors: bool = False,
+) -> TFInterpreter | LiteRTInterpreter: ...
 
 
 def load_tf_model(
   model_path: Path,
   library: LIBRARY_TYPES,
   allocate_tensors: bool = False,
+  preserve_all_tensors: bool = False,
 ):
+  # preserve_all_tensors keeps intermediate tensors readable after invoke().
+  # The interpreter otherwise reuses their memory, so reading one (a custom
+  # 2.4 classifier's embeddings) returns whatever was computed there last.
   if library == LIBRARY_TFLITE:
-    return load_lib_tf_model(model_path, allocate_tensors=allocate_tensors)
+    return load_lib_tf_model(
+      model_path,
+      allocate_tensors=allocate_tensors,
+      preserve_all_tensors=preserve_all_tensors,
+    )
   elif library == LIBRARY_LITERT:
-    return load_lib_litert_model(model_path, allocate_tensors=allocate_tensors)
+    return load_lib_litert_model(
+      model_path,
+      allocate_tensors=allocate_tensors,
+      preserve_all_tensors=preserve_all_tensors,
+    )
   else:
     raise AssertionError()
 
@@ -917,6 +1011,7 @@ def load_tf_model(
 def load_lib_tf_model(
   model_path: Path,
   allocate_tensors: bool = False,
+  preserve_all_tensors: bool = False,
 ) -> TFInterpreter:
   assert model_path.is_file()
   assert tf_installed()
@@ -961,6 +1056,7 @@ def load_lib_tf_model(
         str(model_path.absolute()),
         num_threads=1,
         experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,
+        experimental_preserve_all_tensors=preserve_all_tensors,
         # tensor#187 is a dynamic-sized tensor # type: ignore
       )
     except ValueError as e:
@@ -992,6 +1088,7 @@ def load_lib_tf_model(
 def load_lib_litert_model(
   model_path: Path,
   allocate_tensors: bool = False,
+  preserve_all_tensors: bool = False,
 ) -> LiteRTInterpreter:
   assert model_path.is_file()
   assert litert_installed()
@@ -1004,6 +1101,7 @@ def load_lib_litert_model(
       str(model_path.absolute()),
       num_threads=1,
       experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,
+      experimental_preserve_all_tensors=preserve_all_tensors,
       # tensor#187 is a dynamic-sized tensor # type: ignore
     )
   except ValueError as e:

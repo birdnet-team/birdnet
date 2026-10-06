@@ -262,6 +262,7 @@ install_command = uv pip install {opts} {packages}
 skip_missing_interpreters = true
 passenv =
   BIRDNET_APP_DATA
+  BIRDNET_TEST_EXPORTS_DIR
   BIRDNET_TEST_WATCHDOG_DIR
 
 deps =
@@ -291,8 +292,10 @@ deps =
 commands =
   python -c "import importlib.util as u, sys; sys.exit(u.find_spec('tensorflow') is None)"
   pytest -m "load_model" -n auto
-  pytest -m "not load_model and (not litert and not gpu and not fork)" -n auto
-  pytest -m "not load_model and litert and not fork" -n auto
+  # Without custom_exports: py312 runs it in the same CI job, which has no
+  # minutes to spare for a second pass over its pipeline runs.
+  pytest -m "not load_model and (not litert and not gpu and not fork)" -n auto --ignore=src/birdnet_tests/model_loader_py/acoustic/custom_exports
+  pytest -m "not load_model and litert and not fork" -n auto --ignore=src/birdnet_tests/model_loader_py/acoustic/custom_exports
   pytest -m "not load_model and fork and not litert and not gpu" -n 0
   pytest -m "not load_model and fork and litert and not gpu" -n 0
   # no gpu lane: not supported with the repro pins

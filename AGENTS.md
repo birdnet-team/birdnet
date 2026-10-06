@@ -16,6 +16,7 @@ Python library (`src` layout) for identifying bird species by their sounds (Bird
 - System dependency: libsndfile (`apt-get install libsndfile1` / `brew install libsndfile` / `choco install libsndfile`).
 - Install: `uv pip install -e '.[tests,tf]'` (or plain pip). TensorFlow is optional (`tf` extra; `and-cuda` implies it) and most of the suite needs it — without it only the `no_tf`/`litert` tests run, the rest is skipped by `conftest.py`. Other extras: `pt` (torch); `onnx` is a no-op alias (onnxruntime is a base dependency); the `repro` extra pins exact versions and conflicts with normal dev. On Python 3.14 add `ai-edge-litert` by hand (tox does) or the litert `no_tf` tests skip.
 - Official models auto-download on first load (~3 GB for the full set). The cache location is controlled by the `BIRDNET_APP_DATA` env var — set it to a persistent path in ephemeral environments. `pytest -m "not repro and load_model" -n auto` prefetches everything the tests need (in a TensorFlow-free env: `-m "load_model and (no_tf or litert)"`).
+- The custom classifier tests (`model_loader_py/acoustic/custom_exports/`) build BirdNET-Analyzer exports from the official SavedModels on first use: ~3 min and ~1.2 GB, with TensorFlow 2.18 or newer (a TensorFlow-free env reuses what is cached and skips otherwise). They are cached under `BIRDNET_APP_DATA`; `BIRDNET_TEST_EXPORTS_DIR` moves them, which CI uses to keep them out of its model cache.
 
 ## Commands
 

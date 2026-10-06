@@ -25,7 +25,7 @@ from birdnet.core.backends import (
   tf_installed,
   torch_installed,
 )
-from birdnet.utils.helper import check_is_intel_macos
+from birdnet.utils.helper import check_is_intel_macos, check_is_python_312
 
 
 def create_zero_len_wav(f: IO[bytes]) -> None:
@@ -272,6 +272,13 @@ def ensure_litert_or_skip() -> None:
 def ensure_torch_or_skip() -> None:
   if not torch_installed():
     pytest.skip("PyTorch runtime is not available")
+
+
+def ensure_validity_check_or_skip() -> None:
+  # Opening a model in the validity-check subprocess times out there, see
+  # model_loader_py/acoustic/test_acoustic_load_custom.py.
+  if check_is_python_312() and check_is_intel_macos():
+    pytest.skip("The model validity check times out on Intel macOS, Python 3.12")
 
 
 def ensure_onnxruntime_or_skip() -> None:

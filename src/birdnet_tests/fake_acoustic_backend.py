@@ -112,6 +112,14 @@ class FakeAcousticBackend:
   def supports_cow(cls) -> bool:
     return False
 
+  @classmethod
+  def outputs_probabilities(cls) -> bool:
+    return False
+
+  @classmethod
+  def max_batch_size(cls) -> int | None:
+    return None
+
   @property
   def n_species(self) -> int:
     return self.n_species_out
