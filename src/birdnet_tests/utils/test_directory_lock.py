@@ -1,5 +1,6 @@
 import os
 import re
+import threading
 import time
 from pathlib import Path
 
@@ -24,6 +25,24 @@ def test_releases_the_lock_when_the_block_raises(tmp_path: Path) -> None:
 
   with pytest.raises(RuntimeError, match="boom"), directory_lock(lock_dir, "a test"):
     raise RuntimeError("boom")
+
+  assert not lock_dir.exists()
+
+
+@pytest.mark.no_tf
+def test_releases_the_lock_while_a_waiter_reads_the_owner_file(
+  tmp_path: Path,
+) -> None:
+  """A waiter has `owner` open for the moment it reads the pid, and Windows
+  refuses to delete an open file. A release that gives up on that moment leaves
+  the lock behind with the holder's live pid inside, and nobody reclaims it.
+  Elsewhere the delete goes through regardless, so this only bites on Windows.
+  """
+  lock_dir = tmp_path / ".lock"
+
+  with directory_lock(lock_dir, "a test"):
+    reader = (lock_dir / "owner").open(encoding="utf-8")
+    threading.Timer(0.2, reader.close).start()
 
   assert not lock_dir.exists()
 

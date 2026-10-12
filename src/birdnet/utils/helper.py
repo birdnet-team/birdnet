@@ -242,7 +242,34 @@ def directory_lock(
   try:
     yield
   finally:
+    _release_lock(lock_dir)
+
+
+# Windows refuses to delete a file another process has open, and a waiter has
+# `owner` open for the moment it reads the pid. Retried for far longer than
+# that moment lasts.
+_LOCK_RELEASE_ATTEMPTS = 50
+_LOCK_RELEASE_WAIT_S = 0.02
+
+
+def _release_lock(lock_dir: Path) -> None:
+  """Remove the lock directory; left behind, it looks held by a live process.
+
+  Its owner pid stays valid as long as the holder runs, so no waiter would ever
+  reclaim it. If the directory cannot be removed, the pid is blanked instead,
+  which lets waiters adopt the lock after the grace period.
+  """
+  for _ in range(_LOCK_RELEASE_ATTEMPTS):
     shutil.rmtree(lock_dir, ignore_errors=True)
+    if not lock_dir.exists():
+      return
+    time.sleep(_LOCK_RELEASE_WAIT_S)
+  logging.getLogger(__name__).warning(
+    f"Could not remove the lock directory {lock_dir}; it will be adopted after "
+    f"{_LOCK_ADOPTION_GRACE_S:.0f} s."
+  )
+  with suppress(OSError):
+    (lock_dir / _LOCK_OWNER_NAME).write_text("", encoding="utf-8")
 
 
 def get_supported_audio_files_recursive(folder: Path) -> Generator[Path, None, None]:

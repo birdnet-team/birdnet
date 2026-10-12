@@ -63,6 +63,9 @@ def _cache_root() -> Path:
 
 
 _CACHE_ROOT = _cache_root()
+# One lock for both bases, so their builds never run side by side: a 3.0 build
+# peaks at ~4.7 GB RSS, a 2.4 build at ~1.3 GB, and the macOS runners have 7 GB.
+_BUILD_LOCK = _CACHE_ROOT / "build.lock"
 
 # BirdNET-Analyzer's test classifier and its labels, pinned to a commit of the
 # repository the analyzer's test suite reads them from.
@@ -207,7 +210,7 @@ def _cache_dir(version: str, pb_dir: Path) -> Path:
 def _remove_stale_caches(version: str, current: Path) -> None:
   """Drop this base's caches from other models or recipes; they are ~1 GB each."""
   for path in _CACHE_ROOT.glob(f"v{version}-*"):
-    if path != current and path.is_dir() and not path.name.endswith(".lock"):
+    if path != current and path.is_dir():
       shutil.rmtree(path, ignore_errors=True)
 
 
@@ -244,17 +247,17 @@ def ensure_exports(specs: Sequence[ExportSpec]) -> dict[ExportSpec, Export]:
       pb_dir = _official_pb_on_disk_or_skip(version)
     cache_dir = _cache_dir(version, pb_dir)
     wanted = [spec for spec in specs if spec.version == version]
-    if can_build:
+    # A finished export is renamed into place, so it can be looked for without
+    # the lock, which is for the build only.
+    if _missing(cache_dir, wanted) and can_build:
       with directory_lock(
-        cache_dir.with_name(cache_dir.name + ".lock"),
-        "custom classifier export build",
-        timeout_s=BUILD_TIMEOUT_S,
+        _BUILD_LOCK, "custom classifier export build", timeout_s=BUILD_TIMEOUT_S
       ):
-        missing = [spec for spec in wanted if not (cache_dir / spec.name).is_dir()]
+        missing = _missing(cache_dir, wanted)
         if missing:
           _build_in_subprocess(cache_dir, missing)
           _remove_stale_caches(version, cache_dir)
-    elif not all((cache_dir / spec.name).is_dir() for spec in wanted):
+    elif _missing(cache_dir, wanted):
       pytest.skip(
         f"the {version} classifier exports are not built yet, and building them "
         "needs TensorFlow"
@@ -262,6 +265,10 @@ def ensure_exports(specs: Sequence[ExportSpec]) -> dict[ExportSpec, Export]:
     for spec in wanted:
       exports[spec] = _export(spec, cache_dir / spec.name)
   return exports
+
+
+def _missing(cache_dir: Path, specs: Sequence[ExportSpec]) -> list[ExportSpec]:
+  return [spec for spec in specs if not (cache_dir / spec.name).is_dir()]
 
 
 def ensure_analyzer_fixture() -> tuple[Path, Path]:
