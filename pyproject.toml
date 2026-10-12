@@ -56,7 +56,11 @@ dependencies = [
 # No TensorFlow wheels for Python 3.14+.
 tf = [
   "tensorflow >= 2.8.0 ; (sys_platform != 'darwin' or platform_machine != 'x86_64') and python_version < '3.14'", # 2022/02/02
-  "tensorflow >= 2.8.0, <2.17 ; sys_platform == 'darwin' and platform_machine == 'x86_64' and python_version < '3.14'",
+  # 2.16 is the newest with x86_64 macOS wheels; older ones put no upper bound
+  # on NumPy and get paired with NumPy 2, which their binaries cannot import.
+  "tensorflow >= 2.16, <2.17 ; sys_platform == 'darwin' and platform_machine == 'x86_64' and python_version < '3.14'",
+  # TensorFlow 2.16 holds NumPy below 2, which pyarrow 26 refuses to import with.
+  "pyarrow < 26 ; sys_platform == 'darwin' and platform_machine == 'x86_64' and python_version < '3.14'",
 ]
 and-cuda = [
   "birdnet[tf]",

@@ -176,3 +176,11 @@ class AcousticTFBackendCustomNoEmbeddingsV3_0(AcousticTFBackendCustomV3_0):
   @classmethod
   def supports_encoding(cls) -> bool:
     return False
+
+
+class AcousticTFBackendCustomNoEmbeddingsFP16V3_0(
+  AcousticTFBackendCustomNoEmbeddingsV3_0
+):
+  @classmethod
+  def precision(cls) -> MODEL_PRECISIONS:
+    return "fp16"

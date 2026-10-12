@@ -53,6 +53,7 @@ from birdnet.acoustic.models.v3_0.pt import (
 )
 from birdnet.acoustic.models.v3_0.tf import (
   AcousticTFBackendCustomFP16V3_0,
+  AcousticTFBackendCustomNoEmbeddingsFP16V3_0,
   AcousticTFBackendCustomNoEmbeddingsV3_0,
   AcousticTFBackendCustomV3_0,
   AcousticTFBackendFP16V3_0,
@@ -167,7 +168,7 @@ _CUSTOM_TFLITE_BACKENDS: dict[
     AcousticTFBackendCustomFP16V3_0
   ),
   (ACOUSTIC_MODEL_VERSION_V3_0, MODEL_PRECISION_FP16, False): (
-    AcousticTFBackendCustomNoEmbeddingsV3_0
+    AcousticTFBackendCustomNoEmbeddingsFP16V3_0
   ),
 }
 

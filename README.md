@@ -166,7 +166,7 @@ info = birdnet.inspect_custom_tflite("CustomClassifier.tflite")
 info.version, info.mode, info.n_species  # e.g. ("3.0", "append", 11563)
 
 # Raven export (SavedModel with the "basic" signature)
-raven = birdnet.load_custom("acoustic", "3.0", "pb", "CustomClassifier", "CustomClassifier/labels.txt", is_raven=True)
+raven = birdnet.load_custom("acoustic", "3.0", "pb", "CustomClassifier", "CustomClassifier/labels/label_names.csv", is_raven=True)
 ```
 
 | **Export** | TFLite 2.4 | TFLite 3.0 | Raven 2.4 | Raven 3.0 |

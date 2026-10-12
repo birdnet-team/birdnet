@@ -97,7 +97,12 @@ SavedModel and as a detached head.
 
   # Raven export: SavedModel with the "basic" signature, probabilities, no embeddings
   raven = birdnet.load_custom(
-    "acoustic", "3.0", "pb", "CustomClassifier", "labels.txt", is_raven=True
+    "acoustic",
+    "3.0",
+    "pb",
+    "CustomClassifier",
+    "CustomClassifier/labels/label_names.csv",
+    is_raven=True,
   )
 
 * ``birdnet.inspect_custom_tflite(path)`` describes a TFLite export without

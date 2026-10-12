@@ -17,10 +17,11 @@ from birdnet.acoustic.models.v2_4.tf import (
 from birdnet.acoustic.models.v3_0.model import AcousticModelV3_0
 from birdnet.acoustic.models.v3_0.tf import (
   AcousticTFBackendCustomFP16V3_0,
+  AcousticTFBackendCustomNoEmbeddingsFP16V3_0,
   AcousticTFBackendCustomNoEmbeddingsV3_0,
   AcousticTFBackendCustomV3_0,
 )
-from birdnet.model_loader import load_custom
+from birdnet.model_loader import _CUSTOM_TFLITE_BACKENDS, load_custom
 
 pytestmark = pytest.mark.no_tf
 
@@ -87,6 +88,13 @@ def _inspection_returns(
       AcousticModelV3_0,
       AcousticTFBackendCustomNoEmbeddingsV3_0,
     ),
+    (
+      CustomTFLiteInfo("3.0", "append", 3, True, False),
+      "3.0",
+      "fp16",
+      AcousticModelV3_0,
+      AcousticTFBackendCustomNoEmbeddingsFP16V3_0,
+    ),
   ],
 )
 @pytest.mark.parametrize("requested_version", ["explicit", "auto"])
@@ -113,6 +121,18 @@ def test_inspection_selects_the_backend(
   assert type(model) is model_cls
   assert model.backend_type is backend_type
   assert model.backend_kwargs == {"inference_library": "tflite"}
+
+
+def test_every_mapped_backend_reports_what_it_was_mapped_for() -> None:
+  """The result metadata carries the backend's own precision, not the key's."""
+  for (
+    version,
+    precision,
+    supports_encoding,
+  ), backend in _CUSTOM_TFLITE_BACKENDS.items():
+    assert backend.model_version() == version, backend
+    assert backend.precision() == precision, backend
+    assert backend.supports_encoding() == supports_encoding, backend
 
 
 def test_a_file_without_embeddings_cannot_encode(

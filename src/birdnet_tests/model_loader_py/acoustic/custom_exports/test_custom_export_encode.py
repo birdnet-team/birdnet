@@ -24,6 +24,9 @@ pytestmark = pytest.mark.timeout(EXPORT_TEST_TIMEOUT_S)
 
 EMBEDDINGS_DIM = {"2.4": 1024, "3.0": 1280}
 OFFICIAL_EMBEDDINGS_ATOL = 1e-3
+# An export built on arm64 differs from the official 2.4 TFLite release by up to
+# 7.1e-3 (x86: under 1e-3); the wrong tensor is off by 2 or more.
+BUILT_EXPORT_EMBEDDINGS_ATOL = 2e-2
 
 LEGACY_DIR = TEST_FILES_DIR / "custom_models" / "tf"
 LEGACY_FIXTURES = [
@@ -52,7 +55,7 @@ def test_encode_gives_the_official_embeddings(
   np.testing.assert_allclose(
     custom_embeddings,
     official_embeddings(spec.version),
-    atol=OFFICIAL_EMBEDDINGS_ATOL,
+    atol=BUILT_EXPORT_EMBEDDINGS_ATOL,
   )
 
 
@@ -83,5 +86,5 @@ def test_encode_with_litert(get_export: GetExport) -> None:
   np.testing.assert_allclose(
     embeddings(custom),
     official_embeddings("2.4", "litert"),
-    atol=OFFICIAL_EMBEDDINGS_ATOL,
+    atol=BUILT_EXPORT_EMBEDDINGS_ATOL,
   )
