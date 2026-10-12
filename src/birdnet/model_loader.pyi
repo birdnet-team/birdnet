@@ -102,7 +102,7 @@ def load(
   backend: Literal["tf", "pb", "pt", "onnx"],
   /,
   *,
-  precision: Literal["fp32", "fp16"] = MODEL_PRECISION_FP32,
+  precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   lang: MODEL_LANGUAGES_V3_0 = MODEL_LANGUAGE_EN_US,
 ) -> AcousticModelV3_0: ...
 
