@@ -3,10 +3,10 @@ from __future__ import annotations
 import logging
 import multiprocessing
 import os
+import pickle
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Collection
-from concurrent.futures import ProcessPoolExecutor, TimeoutError
 from pathlib import Path
 from typing import (
   TYPE_CHECKING,
@@ -23,6 +23,7 @@ from typing import (
 
 import numpy as np
 
+from birdnet.core.start_method import resolve_start_method
 from birdnet.globals import (
   LIBRARY_LITERT,
   LIBRARY_TFLITE,
@@ -796,15 +797,17 @@ class BackendLoader:
     Returns the number of species in the model if successful.
     """
     try:
-      with ProcessPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(cls._get_n_species, model_path, backend_type, kwargs)
-        n_species_in_model = future.result(timeout=180)
+      n_species_in_model: int | str = run_in_subprocess(
+        cls._get_n_species,
+        (model_path, backend_type, kwargs),
+        timeout_s=_SUBPROCESS_TIMEOUT_S,
+      )
       if isinstance(n_species_in_model, str):
         raise ValueError(f"Failed to load model: {n_species_in_model}")
       return n_species_in_model
-    except (multiprocessing.TimeoutError, TimeoutError) as e:
+    except TimeoutError as e:
       get_logger_for_package(__name__).error(
-        "Timeout while loading model in subprocess (3 min). "
+        f"Timeout while loading model in subprocess ({_SUBPROCESS_TIMEOUT_S} s). "
         "Could not check if model can be loaded."
       )
       # Note: on Intel macOS python 3.12 the model could not be loaded
@@ -849,17 +852,15 @@ class BackendLoader:
     from birdnet.acoustic.models.custom_tflite import inspect_custom_tflite_file
 
     try:
-      with ProcessPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(
-          inspect_custom_tflite_file,
-          model_path,
-          library,
-          tuple(legacy_prediction_indices),
-        )
-        return future.result(timeout=180)
-    except (multiprocessing.TimeoutError, TimeoutError) as e:
+      info: CustomTFLiteInfo = run_in_subprocess(
+        inspect_custom_tflite_file,
+        (model_path, library, tuple(legacy_prediction_indices)),
+        timeout_s=_SUBPROCESS_TIMEOUT_S,
+      )
+      return info
+    except TimeoutError as e:
       get_logger_for_package(__name__).error(
-        "Timeout while inspecting model in subprocess (3 min)."
+        f"Timeout while inspecting model in subprocess ({_SUBPROCESS_TIMEOUT_S} s)."
       )
       raise ValueError("Failed to inspect model due to timeout.") from e
     except Exception as e:
@@ -869,6 +870,67 @@ class BackendLoader:
       raise ValueError(
         f"Failed to inspect custom TFLite model '{model_path.absolute()}': {e}"
       ) from e
+
+
+# The validity check and the inspection open the model in a subprocess; a
+# model that takes longer than this is reported as a timeout.
+_SUBPROCESS_TIMEOUT_S = 180
+
+
+def run_in_subprocess(
+  fn: Callable[..., Any], args: tuple[Any, ...], timeout_s: float
+) -> Any:  # noqa: ANN401
+  """Run `fn(*args)` in a fresh process and return what it returns.
+
+  A model that hangs while opening would otherwise hold up the caller, and a
+  pool worker cannot be killed, so this is a process of its own: the timeout
+  terminates it, and an exception raised inside is raised here.
+  """
+  # Pickled before anything is started: on Windows the process exists before
+  # its target is pickled, and one whose start fails is left alive, waiting on
+  # a pipe handle number the next start may reuse.
+  call = pickle.dumps((fn, args))
+  ctx: Any = multiprocessing.get_context(resolve_start_method())
+  receiver, sender = ctx.Pipe(duplex=False)
+  process = ctx.Process(target=_send_outcome, args=(sender, call), daemon=True)
+  try:
+    process.start()
+    sender.close()
+    if not receiver.poll(timeout_s):
+      raise TimeoutError(
+        f"{getattr(fn, '__name__', fn)} did not finish within {timeout_s:.0f} s"
+      )
+    try:
+      outcome, payload = receiver.recv()
+    except EOFError as err:
+      process.join(5)
+      raise RuntimeError(
+        f"The subprocess exited with code {process.exitcode} before reporting."
+      ) from err
+  finally:
+    if process.is_alive():
+      process.kill()
+      process.join(5)
+    receiver.close()
+    sender.close()
+  if outcome == "error":
+    raise payload
+  return payload
+
+
+def _send_outcome(sender: Any, call: bytes) -> None:  # noqa: ANN401
+  try:
+    fn, args = pickle.loads(call)
+    outcome: tuple[str, Any] = ("ok", fn(*args))
+  except BaseException as err:  # noqa: BLE001
+    outcome = ("error", err)
+  try:
+    sender.send(outcome)
+  except Exception:
+    # Not everything pickles; the parent still gets to know what happened.
+    sender.send(("error", RuntimeError(f"{type(outcome[1]).__name__}: {outcome[1]}")))
+  finally:
+    sender.close()
 
 
 def import_tf() -> None:

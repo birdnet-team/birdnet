@@ -122,6 +122,8 @@ SavedModel and as a detached head.
 * Exports on the 3.0 base inherit the official SavedModel's static batch of 1
   (``batch_size`` above 1 raises). The Raven export also inherits its NaN scores
   on a segment without variance; the TFLite export returns finite values there.
+* A Raven export's own ``labels/label_names.csv`` (rows of ``id,label``) is
+  accepted as its species list; the id column is dropped.
 * Detached heads (``*_detached.tflite``) take embeddings instead of audio and are
   rejected with a message naming them.
 

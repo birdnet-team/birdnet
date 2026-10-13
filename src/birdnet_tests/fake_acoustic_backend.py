@@ -142,6 +142,13 @@ class FakeAcousticBackend:
     return inference_result
 
 
+class NeverLoadingBackend(FakeAcousticBackend):
+  """Hangs in `load`, as a model whose interpreter never returns would."""
+
+  def load(self) -> None:
+    time.sleep(60)
+
+
 class WideFakeAcousticBackend(FakeAcousticBackend):
   """The same stub at realistic output widths, for the queue-tearing surface.
 

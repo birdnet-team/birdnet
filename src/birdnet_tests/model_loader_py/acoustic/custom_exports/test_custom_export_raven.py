@@ -6,6 +6,7 @@ from birdnet.acoustic.models.base import AcousticModelBase
 from birdnet.acoustic.models.v2_4.pb import AcousticRavenBackendFP32V2_4
 from birdnet.acoustic.models.v3_0.model import AcousticModelV3_0
 from birdnet.acoustic.models.v3_0.pb import AcousticRavenBackendFP32V3_0
+from birdnet.utils.helper import get_species_from_file
 from birdnet_tests.model_loader_py.acoustic.custom_exports.conftest import (
   EXPORT_TEST_TIMEOUT_S,
   N_SEGMENTS,
@@ -31,14 +32,15 @@ def _load_raven_v3_0(
   get_export: GetExport, check_validity: bool = False
 ) -> AcousticModelV3_0:
   # The validity check loads the SavedModel in a subprocess (~9 s), so only the
-  # test about loading asks for it.
+  # test about loading asks for it. The species come from the export's own
+  # Raven label file.
   export = get_export(V3_0_RAVEN)
   model = birdnet.load_custom(
     "acoustic",
     "3.0",
     "pb",
     export.model,
-    export.labels,
+    export.model / "labels" / "label_names.csv",
     is_raven=True,
     check_validity=check_validity,
   )
@@ -63,6 +65,9 @@ def test_v3_0_raven_predicts_the_probabilities_of_the_tflite_export(
 ) -> None:
   model = _load_raven_v3_0(get_export, check_validity=True)
   assert model.backend_type is AcousticRavenBackendFP32V3_0
+  assert list(model.species_list) == list(
+    get_species_from_file(get_export(V3_0_RAVEN).labels)
+  )
   scores = scores_in_model_order(model)
   assert scores.shape == (1, N_SEGMENTS, 3)
   assert np.isfinite(scores).all()
@@ -106,6 +111,7 @@ def test_v2_4_raven_scores_are_the_models_probabilities() -> None:
   raven = _load_raven_v2_4()
   assert raven.backend_type is AcousticRavenBackendFP32V2_4
   tflite = load_unchecked(TFLITE_V2_4, TFLITE_V2_4_LABELS, "2.4")
+  assert list(raven.species_list) == list(tflite.species_list)
   # The Raven graph applies the sigmoid the pipeline applies to the tflite logits.
   # SavedModel and TFLite backbones differ by up to ~2e-3 here; a second sigmoid
   # would lift a score of 0.03 to 0.51.
