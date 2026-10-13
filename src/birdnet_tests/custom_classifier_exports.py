@@ -227,7 +227,7 @@ def _can_build() -> bool:
   version = importlib.metadata.version("tensorflow")
   major, minor = (int(part) for part in version.split(".")[:2])
   if (major, minor) < (2, 18):
-    pytest.skip(f"TensorFlow {version} cannot run the 3.0 SavedModel the exports wrap")
+    pytest.skip(f"building the classifier exports needs TensorFlow 2.18, not {version}")
   return True
 
 

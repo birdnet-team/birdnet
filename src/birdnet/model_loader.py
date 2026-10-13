@@ -790,8 +790,9 @@ def inspect_custom_tflite(
   species (the length its labels file must have), whether its scores are
   probabilities and whether it exposes embeddings for `encode(..)`. The version
   is read from the input length and the embeddings width, not from the file
-  name, and the file is opened in a subprocess, so TensorFlow (or LiteRT) is
-  never imported into the calling process.
+  name. The file is opened, with its tensors allocated, in a subprocess: a file
+  the interpreter cannot run is rejected, and TensorFlow (or LiteRT) is never
+  imported into the calling process.
 
   Args:
     model: Path to the ``.tflite`` file.

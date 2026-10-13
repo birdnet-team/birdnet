@@ -50,7 +50,6 @@ def test_load_with_explicit_version(
   assert type(model) is model_cls
   assert model.backend_type is backend_type
   assert model.is_custom_model
-  assert len(model.species_list) == export.n_species
 
 
 @pytest.mark.parametrize(

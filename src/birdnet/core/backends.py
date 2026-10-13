@@ -252,8 +252,7 @@ class TFBackend(Backend, ABC):
   def n_species(self) -> int:
     assert self._interp is not None
     assert self._prediction_idx is not None
-    # Read from the prediction tensor: a file that also exposes embeddings
-    # (the v3.0 exports) may list those first.
+    # From the prediction tensor, wherever the file lists it.
     details = self._interp.get_output_details()
     if not any(int(d["index"]) == self._prediction_idx for d in details):
       details = self._interp.get_tensor_details()

@@ -304,8 +304,12 @@ def inspect_custom_tflite_file(
   library: LIBRARY_TYPES,
   legacy_prediction_indices: Collection[int] = (),
 ) -> CustomTFLiteInfo:
-  """Open the file and describe it; imports the interpreter into this process."""
-  interp = load_tf_model(model_path, library, allocate_tensors=False)
+  """Open the file and describe it; imports the interpreter into this process.
+
+  The tensors are allocated as well, so a file the interpreter cannot run is
+  rejected here rather than by the first prediction.
+  """
+  interp = load_tf_model(model_path, library, allocate_tensors=True)
   layout = resolve_custom_tflite_layout(interp, legacy_prediction_indices)
   return describe_custom_tflite_layout(layout)
 

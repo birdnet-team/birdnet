@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 import threading
 import time
 from pathlib import Path
@@ -45,6 +46,36 @@ def test_releases_the_lock_while_a_waiter_reads_the_owner_file(
     threading.Timer(0.2, reader.close).start()
 
   assert not lock_dir.exists()
+
+
+@pytest.mark.no_tf
+def test_release_leaves_a_lock_a_waiter_took_in_the_meantime(
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+  """Once the directory is gone the release is over: a waiter may already hold
+  the lock, and removing the directory again would take it from them."""
+  lock_dir = tmp_path / ".lock"
+  real_rmtree = shutil.rmtree
+  waiter_took_it = False
+
+  def rmtree_then_a_waiter_takes_the_lock(
+    path: Path, *args: object, **kw: object
+  ) -> None:
+    nonlocal waiter_took_it
+    real_rmtree(path, *args, **kw)
+    if not waiter_took_it and not Path(path).exists():
+      Path(path).mkdir()
+      (Path(path) / "owner").write_text("424242", encoding="utf-8")
+      waiter_took_it = True
+
+  monkeypatch.setattr(shutil, "rmtree", rmtree_then_a_waiter_takes_the_lock)
+  with directory_lock(lock_dir, "a test"):
+    pass
+
+  assert waiter_took_it
+  assert (lock_dir / "owner").read_text(encoding="utf-8") == "424242", (
+    "the waiter's lock was removed"
+  )
 
 
 @pytest.mark.no_tf

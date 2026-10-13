@@ -263,15 +263,25 @@ def _release_lock(lock_dir: Path) -> None:
   """
   for _ in range(_LOCK_RELEASE_ATTEMPTS):
     shutil.rmtree(lock_dir, ignore_errors=True)
-    if not lock_dir.exists():
+    # Gone, or a waiter's by now: removing it again would take theirs.
+    if not _lock_is_held_by_me(lock_dir):
       return
     time.sleep(_LOCK_RELEASE_WAIT_S)
   logging.getLogger(__name__).warning(
     f"Could not remove the lock directory {lock_dir}; it will be adopted after "
     f"{_LOCK_ADOPTION_GRACE_S:.0f} s."
   )
-  with suppress(OSError):
-    (lock_dir / _LOCK_OWNER_NAME).write_text("", encoding="utf-8")
+  if _lock_is_held_by_me(lock_dir):
+    with suppress(OSError):
+      (lock_dir / _LOCK_OWNER_NAME).write_text("", encoding="utf-8")
+
+
+def _lock_is_held_by_me(lock_dir: Path) -> bool:
+  try:
+    owner = (lock_dir / _LOCK_OWNER_NAME).read_text(encoding="utf-8")
+    return int(owner.strip()) == os.getpid()
+  except (OSError, ValueError):
+    return False
 
 
 def get_supported_audio_files_recursive(folder: Path) -> Generator[Path, None, None]:
