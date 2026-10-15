@@ -2,9 +2,11 @@ from pathlib import Path
 
 from ordered_set import OrderedSet
 
+from birdnet.acoustic.models.custom_tflite import CustomTFLiteBackend
 from birdnet.acoustic.models.v3_0.model import AcousticDownloaderBaseV3_0
 from birdnet.core.backends import TFBackend, VersionedAcousticBackendProtocol
 from birdnet.globals import (
+  ACOUSTIC_MODEL_VERSIONS,
   MODEL_BACKEND_TF,
   MODEL_PRECISION_FP16,
   MODEL_PRECISION_FP32,
@@ -101,53 +103,84 @@ class AcousticTFDownloaderV3_0(AcousticDownloaderBaseV3_0):
     return model_path, labels
 
 
-class AcousticTFBackendFP32V3_0(TFBackend, VersionedAcousticBackendProtocol):
+class _AcousticTFBackendV3_0(TFBackend, VersionedAcousticBackendProtocol):
   @classmethod
   def in_idx(cls) -> int:
     return 0
 
   @classmethod
-  def prediction_out_idx(cls) -> int:
-    return 1164
-
-  @classmethod
   def supports_encoding(cls) -> bool:
     return True
+
+  @classmethod
+  def probe_input_size_samples(cls) -> int:
+    return 96_000
+
+  @classmethod
+  def outputs_probabilities(cls) -> bool:
+    return True
+
+  @classmethod
+  def max_batch_size(cls) -> int | None:
+    # The export fixes the batch dimension to 1 (input shape signature [1, -1]).
+    return 1
+
+
+class AcousticTFBackendFP32V3_0(_AcousticTFBackendV3_0):
+  @classmethod
+  def prediction_out_idx(cls) -> int:
+    return 1164
 
   @classmethod
   def encoding_out_idx(cls) -> int | None:
     return 1090
 
   @classmethod
-  def probe_input_size_samples(cls) -> int:
-    return 96_000
-
-  @classmethod
   def precision(cls) -> MODEL_PRECISIONS:
     return MODEL_PRECISION_FP32
 
 
-class AcousticTFBackendFP16V3_0(TFBackend, VersionedAcousticBackendProtocol):
-  @classmethod
-  def in_idx(cls) -> int:
-    return 0
-
+class AcousticTFBackendFP16V3_0(_AcousticTFBackendV3_0):
   @classmethod
   def prediction_out_idx(cls) -> int:
     return 1546
-
-  @classmethod
-  def supports_encoding(cls) -> bool:
-    return True
 
   @classmethod
   def encoding_out_idx(cls) -> int | None:
     return 1472
 
   @classmethod
-  def probe_input_size_samples(cls) -> int:
-    return 96_000
-
-  @classmethod
   def precision(cls) -> MODEL_PRECISIONS:
     return MODEL_PRECISION_FP16
+
+
+class AcousticTFBackendCustomV3_0(
+  CustomTFLiteBackend, VersionedAcousticBackendProtocol
+):
+  """A custom 3.0 classifier: signature outputs 'predictions' and 'embeddings'."""
+
+  @classmethod
+  def model_version(cls) -> ACOUSTIC_MODEL_VERSIONS:
+    return "3.0"
+
+
+class AcousticTFBackendCustomFP16V3_0(AcousticTFBackendCustomV3_0):
+  @classmethod
+  def precision(cls) -> MODEL_PRECISIONS:
+    return "fp16"
+
+
+class AcousticTFBackendCustomNoEmbeddingsV3_0(AcousticTFBackendCustomV3_0):
+  """A custom 3.0 classifier whose file exposes no embeddings output."""
+
+  @classmethod
+  def supports_encoding(cls) -> bool:
+    return False
+
+
+class AcousticTFBackendCustomNoEmbeddingsFP16V3_0(
+  AcousticTFBackendCustomNoEmbeddingsV3_0
+):
+  @classmethod
+  def precision(cls) -> MODEL_PRECISIONS:
+    return "fp16"

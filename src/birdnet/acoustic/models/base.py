@@ -4,6 +4,7 @@ from typing import Any
 
 from ordered_set import OrderedSet
 
+from birdnet.acoustic.inference.configs import PredictionConfig
 from birdnet.acoustic.inference.core.encoding.encoding_result import (
   AcousticEncodingResultBase,
 )
@@ -17,6 +18,60 @@ from birdnet.acoustic.inference.session import (
 from birdnet.core.backends import VersionedAcousticBackendProtocol
 from birdnet.core.base import ModelBase
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
+
+
+def validate_probability_output_options(
+  apply_sigmoid: bool,
+  apply_softmax: bool,
+  sigmoid_sensitivity: float | None,
+  model_desc: str,
+) -> None:
+  """Reject score options a model that emits probabilities cannot honour.
+
+  Such a model applies the sigmoid inside its graph, so the pipeline's sigmoid
+  must stay off (a second one squashes every score into [0.5, 0.73]) and the
+  logits that a softmax or a scaled sigmoid need are not available.
+  """
+  if apply_softmax:
+    raise ValueError(
+      f"apply_softmax is not supported for {model_desc}: the export applies a "
+      "sigmoid inside the model graph, so the logits a softmax needs are not "
+      "available."
+    )
+  if apply_sigmoid:
+    sigmoid_sensitivity = PredictionConfig.validate_sigmoid_sensitivity(
+      sigmoid_sensitivity
+    )
+  # The sensitivity can never take effect, so a non-default value is rejected
+  # rather than silently ignored even when apply_sigmoid=False.
+  if sigmoid_sensitivity is not None and sigmoid_sensitivity != 1.0:
+    raise ValueError(
+      f"sigmoid_sensitivity is not supported for {model_desc}: the export "
+      "applies a plain sigmoid inside the model graph, so a scaled sigmoid "
+      "cannot be applied. Leave it at its default of 1.0."
+    )
+
+
+def validate_batch_size_for_backend(
+  batch_size: object, backend_type: type[VersionedAcousticBackendProtocol]
+) -> None:
+  """Reject a batch the backend's export cannot process.
+
+  Anything but an int is left to the session's own validation.
+  """
+  max_batch_size = backend_type.max_batch_size()
+  if (
+    max_batch_size is not None
+    and isinstance(batch_size, int)
+    and batch_size > max_batch_size
+  ):
+    raise ValueError(
+      f"batch_size={batch_size} is not supported by the '{backend_type.name()}' "
+      f"backend of this model: its export has a static batch dimension of "
+      f"{max_batch_size}. Use batch_size={max_batch_size} (workers still run in "
+      "parallel) or a backend with a dynamic batch, such as 'onnx' or 'pt' for "
+      "the official 3.0 model."
+    )
 
 
 class AcousticModelBase(ModelBase, ABC):

@@ -1,0 +1,52 @@
+import os
+import time
+
+import psutil
+import pytest
+
+from birdnet.core.backends import run_in_subprocess
+
+pytestmark = pytest.mark.no_tf
+
+
+def test_returns_what_the_function_returns_in_another_process() -> None:
+  pid = run_in_subprocess(os.getpid, (), timeout_s=60)
+  assert pid != os.getpid()
+
+
+def test_raises_what_the_function_raises() -> None:
+  with pytest.raises(ValueError, match=r"invalid literal"):
+    run_in_subprocess(int, ("not a number",), timeout_s=60)
+
+
+def _workers() -> set[int]:
+  """Our child processes, apart from multiprocessing's resource tracker, which
+  POSIX starts with the first spawned process and keeps for the process's life."""
+  return {
+    child.pid
+    for child in psutil.Process().children()
+    if "resource_tracker" not in " ".join(child.cmdline())
+  }
+
+
+def test_a_hanging_function_is_killed_at_the_timeout() -> None:
+  """Nothing may outlive the timeout: a worker left behind would hold up the
+  interpreter's exit."""
+  before = _workers()
+  started = time.monotonic()
+  with pytest.raises(TimeoutError, match=r"did not finish within 1 s"):
+    run_in_subprocess(time.sleep, (60,), timeout_s=1)
+
+  assert time.monotonic() - started < 10
+  assert _workers() - before == set()
+
+
+def test_a_function_that_cannot_be_pickled_starts_nothing() -> None:
+  """On Windows a process whose start fails after creation stays alive and can
+  answer the next call in its place."""
+  before = _workers()
+  with pytest.raises(Exception, match=r"[Pp]ickl"):
+    run_in_subprocess(lambda: None, (), timeout_s=5)
+
+  assert _workers() - before == set()
+  assert run_in_subprocess(os.getpid, (), timeout_s=60) != os.getpid()

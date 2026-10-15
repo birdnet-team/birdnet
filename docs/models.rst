@@ -61,6 +61,12 @@ Technical details
 * 32 kHz sampling rate (audio is automatically resampled)
 * 3 s segments (96,000 samples) covering frequencies from 0 Hz to 15 kHz
 * final embedding size of 1280
+* the ``tf`` and ``pb`` exports have a static batch dimension of 1, so
+  ``batch_size`` above 1 raises a ``ValueError`` for them; ``onnx`` and ``pt``
+  take any batch size
+* the ``pb`` and ``onnx`` exports return NaN scores and embeddings for a segment
+  with no variance (digital silence, a constant offset); ``tf`` and ``pt`` return
+  finite values
 
 .. code-block:: python
 
@@ -69,6 +75,57 @@ Technical details
   # e.g. load the ONNX backend with FP16 precision
   model = birdnet.load("acoustic", "3.0", "onnx", precision="fp16")
   predictions = model.predict("example/soundscape.wav")
+
+Custom classifiers
+------------------
+
+Classifiers trained with `BirdNET-Analyzer <https://github.com/birdnet-team/BirdNET-Analyzer>`__
+on the 2.4 or the 3.0 base load with ``birdnet.load_custom``. The analyzer exports
+each classifier as a TFLite file (with a ``_Labels.txt`` next to it), as a Raven
+SavedModel and as a detached head.
+
+.. code-block:: python
+
+  import birdnet
+
+  # TFLite export; "auto" reads the base version from the file
+  model = birdnet.load_custom(
+    "acoustic", "auto", "tf", "CustomClassifier.tflite", "CustomClassifier_Labels.txt"
+  )
+  predictions = model.predict("example/soundscape.wav")
+  embeddings = model.encode("example/soundscape.wav")
+
+  # Raven export: SavedModel with the "basic" signature, probabilities, no embeddings
+  raven = birdnet.load_custom(
+    "acoustic",
+    "3.0",
+    "pb",
+    "CustomClassifier",
+    "CustomClassifier/labels/label_names.csv",
+    is_raven=True,
+  )
+
+* ``birdnet.inspect_custom_tflite(path)`` describes a TFLite export without
+  importing TensorFlow into the calling process: the base version (``"2.4"`` or
+  ``"3.0"``, derived from the input length and the embeddings width), whether the
+  classifier replaces the official species or appends to them (the labels file
+  then lists the official species first), its number of species, whether its
+  scores are probabilities and whether it exposes embeddings.
+* The tensors of a TFLite export are resolved from its ``serving_default``
+  signature, so exports of every analyzer release load; the ``classifier_type``
+  argument is accepted but no longer needed.
+* 2.4 TFLite exports output logits and get the pipeline's sigmoid, so
+  ``sigmoid_sensitivity`` applies. 3.0 exports and Raven exports on either base
+  apply the sigmoid inside their graph; their probabilities are returned as they
+  are, and ``sigmoid_sensitivity`` other than ``1.0`` or ``apply_softmax=True``
+  raise a ``ValueError``.
+* Exports on the 3.0 base inherit the official SavedModel's static batch of 1
+  (``batch_size`` above 1 raises). The Raven export also inherits its NaN scores
+  on a segment without variance; the TFLite export returns finite values there.
+* A Raven export's own ``labels/label_names.csv`` (rows of ``id,label``) is
+  accepted as its species list; the id column is dropped.
+* Detached heads (``*_detached.tflite``) take embeddings instead of audio and are
+  rejected with a message naming them.
 
 Geo model (species range model) V3.0
 ------------------------------------

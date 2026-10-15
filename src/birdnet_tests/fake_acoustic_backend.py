@@ -112,6 +112,14 @@ class FakeAcousticBackend:
   def supports_cow(cls) -> bool:
     return False
 
+  @classmethod
+  def outputs_probabilities(cls) -> bool:
+    return False
+
+  @classmethod
+  def max_batch_size(cls) -> int | None:
+    return None
+
   @property
   def n_species(self) -> int:
     return self.n_species_out
@@ -132,6 +140,13 @@ class FakeAcousticBackend:
 
   def half_precision(self, inference_result: np.ndarray) -> np.ndarray:
     return inference_result
+
+
+class NeverLoadingBackend(FakeAcousticBackend):
+  """Hangs in `load`, as a model whose interpreter never returns would."""
+
+  def load(self) -> None:
+    time.sleep(60)
 
 
 class WideFakeAcousticBackend(FakeAcousticBackend):

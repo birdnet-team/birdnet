@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import csv
 import ctypes
 import hashlib
+import io
 import logging
 import math
 import os
@@ -242,7 +244,44 @@ def directory_lock(
   try:
     yield
   finally:
+    _release_lock(lock_dir)
+
+
+# Windows refuses to delete a file another process has open, and a waiter has
+# `owner` open for the moment it reads the pid. Retried for far longer than
+# that moment lasts.
+_LOCK_RELEASE_ATTEMPTS = 50
+_LOCK_RELEASE_WAIT_S = 0.02
+
+
+def _release_lock(lock_dir: Path) -> None:
+  """Remove the lock directory; left behind, it looks held by a live process.
+
+  Its owner pid stays valid as long as the holder runs, so no waiter would ever
+  reclaim it. If the directory cannot be removed, the pid is blanked instead,
+  which lets waiters adopt the lock after the grace period.
+  """
+  for _ in range(_LOCK_RELEASE_ATTEMPTS):
     shutil.rmtree(lock_dir, ignore_errors=True)
+    # Gone, or a waiter's by now: removing it again would take theirs.
+    if not _lock_is_held_by_me(lock_dir):
+      return
+    time.sleep(_LOCK_RELEASE_WAIT_S)
+  logging.getLogger(__name__).warning(
+    f"Could not remove the lock directory {lock_dir}; it will be adopted after "
+    f"{_LOCK_ADOPTION_GRACE_S:.0f} s."
+  )
+  if _lock_is_held_by_me(lock_dir):
+    with suppress(OSError):
+      (lock_dir / _LOCK_OWNER_NAME).write_text("", encoding="utf-8")
+
+
+def _lock_is_held_by_me(lock_dir: Path) -> bool:
+  try:
+    owner = (lock_dir / _LOCK_OWNER_NAME).read_text(encoding="utf-8")
+    return int(owner.strip()) == os.getpid()
+  except (OSError, ValueError):
+    return False
 
 
 def get_supported_audio_files_recursive(folder: Path) -> Generator[Path, None, None]:
@@ -271,7 +310,10 @@ def is_supported_audio_file(file_path: Path) -> bool:
 def validate_species_list(species_list: Path) -> OrderedSet[str]:
   loaded_species_list: OrderedSet[str]
   try:
-    loaded_species_list = get_species_from_file(species_list, encoding="utf8")
+    if species_list.name == RAVEN_LABELS_NAME:
+      loaded_species_list = get_species_from_raven_labels(species_list)
+    else:
+      loaded_species_list = get_species_from_file(species_list, encoding="utf8")
   except Exception as e:
     raise ValueError(
       f"Failed to read species list from '{species_list.absolute()}'. "
@@ -415,6 +457,28 @@ def get_species_from_file(
 ) -> OrderedSet[str]:
   species = OrderedSet(species_file.read_text(encoding).strip().splitlines())
   return species
+
+
+# BirdNET-Analyzer's Raven export keeps its species in `labels/label_names.csv`
+# as `id,label` rows; the id is derived from the label and is not a species.
+RAVEN_LABELS_NAME = "label_names.csv"
+
+
+def get_species_from_raven_labels(
+  labels_file: Path, /, *, encoding: str = "utf8"
+) -> OrderedSet[str]:
+  # The analyzer writes this file in the locale's encoding, cp1252 on Windows,
+  # while its `_Labels.txt` is UTF-8.
+  try:
+    text = labels_file.read_text(encoding)
+  except UnicodeDecodeError:
+    text = labels_file.read_text("cp1252")
+  rows = [row for row in csv.reader(io.StringIO(text, newline="")) if row]
+  if any(len(row) != 2 for row in rows):
+    raise ValueError(
+      f"'{labels_file}' is not a Raven label file: expected rows of an id and a label."
+    )
+  return OrderedSet(label for _, label in rows)
 
 
 def bandpass_signal(

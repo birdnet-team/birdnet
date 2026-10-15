@@ -20,6 +20,9 @@ LIBRARY_TF_DEFAULT = LIBRARY_TFLITE
 # name of the parameter to specify whether a custom PB model is a Raven model
 CUSTOM_PB_IS_RAVEN_PARAM = "is_raven"
 CUSTOM_PB_IS_RAVEN_DEFAULT = True
+# 3.0 custom SavedModels loaded as the official layout before Raven support
+# existed for them, so the default there stays False.
+CUSTOM_PB_IS_RAVEN_DEFAULT_V3_0 = False
 
 CUSTOM_CLASSIFIER_REPLACE = "replace"
 CUSTOM_CLASSIFIER_APPEND = "append"
@@ -60,6 +63,8 @@ VALID_ACOUSTIC_MODEL_VERSIONS = [
   ACOUSTIC_MODEL_VERSION_V2_4,
   ACOUSTIC_MODEL_VERSION_V3_0,
 ]
+# load_custom only: detect the version of a custom TFLite classifier from the file
+ACOUSTIC_MODEL_VERSION_AUTO = "auto"
 
 GEO_MODEL_VERSION_V2_4 = "2.4"
 GEO_MODEL_VERSION_V3_0 = "3.0"

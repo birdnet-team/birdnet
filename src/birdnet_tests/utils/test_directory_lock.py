@@ -1,5 +1,7 @@
 import os
 import re
+import shutil
+import threading
 import time
 from pathlib import Path
 
@@ -26,6 +28,54 @@ def test_releases_the_lock_when_the_block_raises(tmp_path: Path) -> None:
     raise RuntimeError("boom")
 
   assert not lock_dir.exists()
+
+
+@pytest.mark.no_tf
+def test_releases_the_lock_while_a_waiter_reads_the_owner_file(
+  tmp_path: Path,
+) -> None:
+  """A waiter has `owner` open for the moment it reads the pid, and Windows
+  refuses to delete an open file. A release that gives up on that moment leaves
+  the lock behind with the holder's live pid inside, and nobody reclaims it.
+  Elsewhere the delete goes through regardless, so this only bites on Windows.
+  """
+  lock_dir = tmp_path / ".lock"
+
+  with directory_lock(lock_dir, "a test"):
+    reader = (lock_dir / "owner").open(encoding="utf-8")
+    threading.Timer(0.2, reader.close).start()
+
+  assert not lock_dir.exists()
+
+
+@pytest.mark.no_tf
+def test_release_leaves_a_lock_a_waiter_took_in_the_meantime(
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+  """Once the directory is gone the release is over: a waiter may already hold
+  the lock, and removing the directory again would take it from them."""
+  lock_dir = tmp_path / ".lock"
+  real_rmtree = shutil.rmtree
+  waiter_took_it = False
+
+  def rmtree_then_a_waiter_takes_the_lock(
+    path: Path, *args: object, **kw: object
+  ) -> None:
+    nonlocal waiter_took_it
+    real_rmtree(path, *args, **kw)
+    if not waiter_took_it and not Path(path).exists():
+      Path(path).mkdir()
+      (Path(path) / "owner").write_text("424242", encoding="utf-8")
+      waiter_took_it = True
+
+  monkeypatch.setattr(shutil, "rmtree", rmtree_then_a_waiter_takes_the_lock)
+  with directory_lock(lock_dir, "a test"):
+    pass
+
+  assert waiter_took_it
+  assert (lock_dir / "owner").read_text(encoding="utf-8") == "424242", (
+    "the waiter's lock was removed"
+  )
 
 
 @pytest.mark.no_tf

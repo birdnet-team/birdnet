@@ -11,6 +11,7 @@ from birdnet.core.backends import (
   VersionedAcousticBackendProtocol,
 )
 from birdnet.globals import (
+  MODEL_BACKEND_PB,
   MODEL_PRECISION_FP32,
   MODEL_PRECISIONS,
 )
@@ -144,3 +145,67 @@ class AcousticPBBackendFP32V3_0(PBBackend, VersionedAcousticBackendProtocol):
   @classmethod
   def precision(cls) -> MODEL_PRECISIONS:
     return MODEL_PRECISION_FP32
+
+  @classmethod
+  def outputs_probabilities(cls) -> bool:
+    return True
+
+  @classmethod
+  def max_batch_size(cls) -> int | None:
+    # XLA-compiled export with a static batch of 1: a larger batch fails shape
+    # refinement inside the worker.
+    return 1
+
+
+class AcousticRavenBackendFP32V3_0(PBBackend, VersionedAcousticBackendProtocol):
+  """A Raven export from BirdNET-Analyzer on the 3.0 base.
+
+  Signature "basic" maps "inputs" (batch, 96000 samples) to "scores", which are
+  probabilities; there is no embeddings signature. It wraps the official
+  SavedModel, so it inherits its static batch of 1.
+  """
+
+  def __init__(
+    self, model_path: Path, device_name: str, half_precision: bool, **kwargs: dict
+  ) -> None:
+    super().__init__(model_path, device_name, half_precision, **kwargs)
+
+  @classmethod
+  def name(cls) -> str:
+    return f"{MODEL_BACKEND_PB}-raven"
+
+  @classmethod
+  def input_key(cls) -> str:
+    return "inputs"
+
+  @classmethod
+  def prediction_signature_name(cls) -> str:
+    return "basic"
+
+  @classmethod
+  def prediction_key(cls) -> str:
+    return "scores"
+
+  @classmethod
+  def supports_encoding(cls) -> bool:
+    return False
+
+  @classmethod
+  def encoding_signature_name(cls) -> str | None:
+    return None
+
+  @classmethod
+  def encoding_key(cls) -> str | None:
+    return None
+
+  @classmethod
+  def precision(cls) -> MODEL_PRECISIONS:
+    return "fp32"
+
+  @classmethod
+  def outputs_probabilities(cls) -> bool:
+    return True
+
+  @classmethod
+  def max_batch_size(cls) -> int | None:
+    return 1

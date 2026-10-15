@@ -56,7 +56,11 @@ dependencies = [
 # No TensorFlow wheels for Python 3.14+.
 tf = [
   "tensorflow >= 2.8.0 ; (sys_platform != 'darwin' or platform_machine != 'x86_64') and python_version < '3.14'", # 2022/02/02
-  "tensorflow >= 2.8.0, <2.17 ; sys_platform == 'darwin' and platform_machine == 'x86_64' and python_version < '3.14'",
+  # 2.16 is the newest with x86_64 macOS wheels; older ones put no upper bound
+  # on NumPy and get paired with NumPy 2, which their binaries cannot import.
+  "tensorflow >= 2.16, <2.17 ; sys_platform == 'darwin' and platform_machine == 'x86_64' and python_version < '3.14'",
+  # TensorFlow 2.16 holds NumPy below 2, which pyarrow 26 refuses to import with.
+  "pyarrow < 26 ; sys_platform == 'darwin' and platform_machine == 'x86_64' and python_version < '3.14'",
 ]
 and-cuda = [
   "birdnet[tf]",
@@ -262,6 +266,7 @@ install_command = uv pip install {opts} {packages}
 skip_missing_interpreters = true
 passenv =
   BIRDNET_APP_DATA
+  BIRDNET_TEST_EXPORTS_DIR
   BIRDNET_TEST_WATCHDOG_DIR
 
 deps =
@@ -291,8 +296,10 @@ deps =
 commands =
   python -c "import importlib.util as u, sys; sys.exit(u.find_spec('tensorflow') is None)"
   pytest -m "load_model" -n auto
-  pytest -m "not load_model and (not litert and not gpu and not fork)" -n auto
-  pytest -m "not load_model and litert and not fork" -n auto
+  # Without custom_exports: py312 and py312-coverage run it in the same CI
+  # job, which has no minutes to spare for a third pass over its pipeline runs.
+  pytest -m "not load_model and (not litert and not gpu and not fork)" -n auto --ignore=src/birdnet_tests/model_loader_py/acoustic/custom_exports
+  pytest -m "not load_model and litert and not fork" -n auto --ignore=src/birdnet_tests/model_loader_py/acoustic/custom_exports
   pytest -m "not load_model and fork and not litert and not gpu" -n 0
   pytest -m "not load_model and fork and litert and not gpu" -n 0
   # no gpu lane: not supported with the repro pins

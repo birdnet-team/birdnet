@@ -23,7 +23,7 @@ from pathlib import Path
 import pytest
 
 import birdnet
-from birdnet.acoustic.models.v2_4.tf import AcousticTFBackendFP32CustomAppendV2_4
+from birdnet.acoustic.models.v2_4.tf import AcousticTFBackendCustomV2_4
 from birdnet.core.backends import (
   litert_installed,
   onnxruntime_installed,
@@ -162,4 +162,4 @@ def test_custom_acoustic_v2_4_tf_litert_detects_classifier_without_tensorflow() 
     library="litert",
     check_validity=True,
   )
-  assert model.backend_type is AcousticTFBackendFP32CustomAppendV2_4
+  assert model.backend_type is AcousticTFBackendCustomV2_4

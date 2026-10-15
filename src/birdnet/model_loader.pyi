@@ -1,6 +1,7 @@
 from os import PathLike
 from typing import Literal, overload
 
+from birdnet.acoustic.models.custom_tflite import CustomTFLiteInfo
 from birdnet.acoustic.models.perch_v2.model import AcousticModelPerchV2
 from birdnet.acoustic.models.v2_4.model import AcousticModelV2_4
 from birdnet.acoustic.models.v3_0.model import AcousticModelV3_0
@@ -19,6 +20,12 @@ from birdnet.globals import (
 )
 
 def load_perch_v2(device: Literal["CPU", "GPU"] = "CPU") -> AcousticModelPerchV2: ...
+def inspect_custom_tflite(
+  model: str | PathLike[str],
+  /,
+  *,
+  library: LIBRARY_TYPES = "tflite",
+) -> CustomTFLiteInfo: ...
 @overload
 def load(
   model_type: Literal["acoustic"],
@@ -215,6 +222,49 @@ def load_custom(
   precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   check_validity: bool = True,
 ) -> AcousticModelV2_4: ...
+
+# "auto" reads the version from the TFLite file (see inspect_custom_tflite)
+@overload
+def load_custom(
+  model_type: Literal["acoustic"],
+  version: Literal["auto"],
+  backend: Literal["tf"],
+  model: str | PathLike[str],
+  species_list: str | PathLike[str],
+  /,
+  *,
+  precision: Literal["fp32", "fp16"] = "fp32",
+  check_validity: bool = True,
+  library: LIBRARY_TYPES = "tflite",
+  classifier_type: CUSTOM_CLASSIFIER_TYPES = "replace",
+) -> AcousticModelV2_4 | AcousticModelV3_0: ...
+@overload
+def load_custom(
+  model_type: Literal["acoustic"],
+  version: Literal["3.0"],
+  backend: Literal["tf"],
+  model: str | PathLike[str],
+  species_list: str | PathLike[str],
+  /,
+  *,
+  precision: Literal["fp32", "fp16"] = "fp32",
+  check_validity: bool = True,
+  library: LIBRARY_TYPES = "tflite",
+  classifier_type: CUSTOM_CLASSIFIER_TYPES = "replace",
+) -> AcousticModelV3_0: ...
+@overload
+def load_custom(
+  model_type: Literal["acoustic"],
+  version: Literal["3.0"],
+  backend: Literal["pb"],
+  model: str | PathLike[str],
+  species_list: str | PathLike[str],
+  /,
+  *,
+  precision: Literal["fp32"] = "fp32",
+  check_validity: bool = True,
+  is_raven: bool = False,
+) -> AcousticModelV3_0: ...
 @overload
 def load_custom(
   model_type: Literal["acoustic"],

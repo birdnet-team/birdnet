@@ -1,15 +1,19 @@
 import pytest
 
+from birdnet.acoustic.models.custom_tflite import CustomTFLiteInfo
 from birdnet.acoustic.models.v3_0.model import AcousticModelV3_0
 from birdnet.acoustic.models.v3_0.onnx import (
   AcousticOnnxBackendFP16V3_0,
   AcousticOnnxBackendFP32V3_0,
 )
-from birdnet.acoustic.models.v3_0.pb import AcousticPBBackendFP32V3_0
+from birdnet.acoustic.models.v3_0.pb import (
+  AcousticPBBackendFP32V3_0,
+  AcousticRavenBackendFP32V3_0,
+)
 from birdnet.acoustic.models.v3_0.pt import AcousticPTBackendFP32V3_0
 from birdnet.acoustic.models.v3_0.tf import (
-  AcousticTFBackendFP16V3_0,
-  AcousticTFBackendFP32V3_0,
+  AcousticTFBackendCustomFP16V3_0,
+  AcousticTFBackendCustomV3_0,
 )
 from birdnet.model_loader import load_custom
 
@@ -61,6 +65,25 @@ def test_v3_0_custom_pb_type_is_correct(
   assert model.backend_type is AcousticPBBackendFP32V3_0
 
 
+def test_v3_0_custom_pb_raven_type_is_correct(
+  tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+  model_path = _create_fake_pb_model_dir(tmp_path)
+  species_list = tmp_path / "species.txt"
+  species_list.write_text("species_a\n", encoding="utf-8")
+
+  monkeypatch.setattr(
+    "birdnet.model_loader.BackendLoader.check_model_can_be_loaded",
+    lambda *args, **kwargs: 1,
+  )
+
+  model = load_custom(
+    "acoustic", "3.0", "pb", model_path, species_list, is_raven=True
+  )
+  assert type(model) is AcousticModelV3_0
+  assert model.backend_type is AcousticRavenBackendFP32V3_0
+
+
 def test_v3_0_custom_tf_type_is_correct_fp32(
   tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -71,15 +94,15 @@ def test_v3_0_custom_tf_type_is_correct_fp32(
 
   monkeypatch.setattr("birdnet.model_loader.tf_installed", lambda: True)
   monkeypatch.setattr(
-    "birdnet.model_loader.BackendLoader.check_model_can_be_loaded",
-    lambda *args, **kwargs: 1,
+    "birdnet.model_loader.BackendLoader.inspect_custom_tflite_model",
+    lambda *args, **kwargs: CustomTFLiteInfo("3.0", "replace", 1, True, True),
   )
 
   model = load_custom(
     "acoustic", "3.0", "tf", model_path, species_list, precision="fp32"
   )
   assert type(model) is AcousticModelV3_0
-  assert model.backend_type is AcousticTFBackendFP32V3_0
+  assert model.backend_type is AcousticTFBackendCustomV3_0
 
 
 def test_v3_0_custom_tf_type_is_correct_fp16(
@@ -92,15 +115,15 @@ def test_v3_0_custom_tf_type_is_correct_fp16(
 
   monkeypatch.setattr("birdnet.model_loader.tf_installed", lambda: True)
   monkeypatch.setattr(
-    "birdnet.model_loader.BackendLoader.check_model_can_be_loaded",
-    lambda *args, **kwargs: 1,
+    "birdnet.model_loader.BackendLoader.inspect_custom_tflite_model",
+    lambda *args, **kwargs: CustomTFLiteInfo("3.0", "replace", 1, True, True),
   )
 
   model = load_custom(
     "acoustic", "3.0", "tf", model_path, species_list, precision="fp16"
   )
   assert type(model) is AcousticModelV3_0
-  assert model.backend_type is AcousticTFBackendFP16V3_0
+  assert model.backend_type is AcousticTFBackendCustomFP16V3_0
 
 
 @pytest.mark.no_tf

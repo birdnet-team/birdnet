@@ -4,10 +4,15 @@ import os
 import shutil
 import tempfile
 import zipfile
+from collections.abc import Collection
 from pathlib import Path
 
 from ordered_set import OrderedSet
 
+from birdnet.acoustic.models.custom_tflite import (
+  LEGACY_V2_4_PREDICTION_INDICES,
+  CustomTFLiteBackend,
+)
 from birdnet.acoustic.models.v2_4.model import (
   AcousticDownloaderBaseV2_4,
 )
@@ -16,10 +21,7 @@ from birdnet.core.backends import (
   VersionedAcousticBackendProtocol,
 )
 from birdnet.globals import (
-  CUSTOM_CLASSIFIER_APPEND,
-  CUSTOM_CLASSIFIER_APPEND_HIDDEN,
-  CUSTOM_CLASSIFIER_REPLACE,
-  CUSTOM_CLASSIFIER_REPLACE_HIDDEN,
+  ACOUSTIC_MODEL_VERSIONS,
   MODEL_BACKEND_TF,
   MODEL_PRECISION_FP16,
   MODEL_PRECISION_FP32,
@@ -30,12 +32,8 @@ from birdnet.utils.helper import ModelInfo, download_file_tqdm, get_species_from
 from birdnet.utils.local_data import get_lang_dir, get_model_path
 
 # Mapping: TFLite prediction output tensor index -> (classifier_type, encoding_out_idx)
-CUSTOM_TF_CLASSIFIER_INDICES: dict[int, tuple[str, int]] = {
-  546: (CUSTOM_CLASSIFIER_REPLACE, 545),
-  550: (CUSTOM_CLASSIFIER_APPEND, 547),
-  549: (CUSTOM_CLASSIFIER_REPLACE_HIDDEN, 547),
-  553: (CUSTOM_CLASSIFIER_APPEND_HIDDEN, 549),
-}
+# of the fixed-index custom backends below.
+CUSTOM_TF_CLASSIFIER_INDICES = LEGACY_V2_4_PREDICTION_INDICES
 
 models = {
   MODEL_PRECISION_INT8: ModelInfo(
@@ -219,6 +217,30 @@ class AcousticTFBackendFP32V2_4(TFBackend, VersionedAcousticBackendProtocol):
     return MODEL_PRECISION_FP32
 
 
+class AcousticTFBackendCustomV2_4(
+  CustomTFLiteBackend, VersionedAcousticBackendProtocol
+):
+  """A custom 2.4 classifier, whichever head and export version produced it."""
+
+  @classmethod
+  def model_version(cls) -> ACOUSTIC_MODEL_VERSIONS:
+    return "2.4"
+
+  @classmethod
+  def legacy_prediction_indices(cls) -> Collection[int]:
+    return tuple(CUSTOM_TF_CLASSIFIER_INDICES)
+
+
+class AcousticTFBackendCustomNoEmbeddingsV2_4(AcousticTFBackendCustomV2_4):
+  """A custom 2.4 classifier whose file exposes no embeddings tensor."""
+
+  @classmethod
+  def supports_encoding(cls) -> bool:
+    return False
+
+
+# The three fixed-index backends below read the tensor indices of 2.4 classifiers
+# exported before Keras 3; `load_custom` no longer selects them.
 class AcousticTFBackendFP32CustomAppendV2_4(
   TFBackend, VersionedAcousticBackendProtocol
 ):

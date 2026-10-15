@@ -8,6 +8,10 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 from birdnet.acoustic.models.base import AcousticModelBase
+from birdnet.acoustic.models.custom_tflite import (
+  LEGACY_V2_4_PREDICTION_INDICES,
+  CustomTFLiteInfo,
+)
 from birdnet.acoustic.models.perch_v2.model import AcousticModelPerchV2
 from birdnet.acoustic.models.perch_v2.pb import (
   AcousticPBBackendFP32PerchV2,
@@ -23,11 +27,9 @@ from birdnet.acoustic.models.v2_4.pb import (
   AcousticRavenBackendFP32V2_4,
 )
 from birdnet.acoustic.models.v2_4.tf import (
-  CUSTOM_TF_CLASSIFIER_INDICES,
+  AcousticTFBackendCustomNoEmbeddingsV2_4,
+  AcousticTFBackendCustomV2_4,
   AcousticTFBackendFP16V2_4,
-  AcousticTFBackendFP32CustomAppendHiddenV2_4,
-  AcousticTFBackendFP32CustomAppendV2_4,
-  AcousticTFBackendFP32CustomReplaceHiddenV2_4,
   AcousticTFBackendFP32V2_4,
   AcousticTFBackendInt8V2_4,
   AcousticTFDownloaderV2_4,
@@ -43,12 +45,17 @@ from birdnet.acoustic.models.v3_0.onnx import (
 from birdnet.acoustic.models.v3_0.pb import (
   AcousticPBBackendFP32V3_0,
   AcousticPBDownloaderV3_0,
+  AcousticRavenBackendFP32V3_0,
 )
 from birdnet.acoustic.models.v3_0.pt import (
   AcousticPTBackendFP32V3_0,
   AcousticPTDownloaderV3_0,
 )
 from birdnet.acoustic.models.v3_0.tf import (
+  AcousticTFBackendCustomFP16V3_0,
+  AcousticTFBackendCustomNoEmbeddingsFP16V3_0,
+  AcousticTFBackendCustomNoEmbeddingsV3_0,
+  AcousticTFBackendCustomV3_0,
   AcousticTFBackendFP16V3_0,
   AcousticTFBackendFP32V3_0,
   AcousticTFDownloaderV3_0,
@@ -91,16 +98,15 @@ from birdnet.geo.models.v3_0.tf import (
   check_tf_library_for_v3_0,
 )
 from birdnet.globals import (
+  ACOUSTIC_MODEL_VERSION_AUTO,
   ACOUSTIC_MODEL_VERSION_V2_4,
   ACOUSTIC_MODEL_VERSION_V3_0,
   ACOUSTIC_MODEL_VERSIONS,
-  CUSTOM_CLASSIFIER_APPEND,
-  CUSTOM_CLASSIFIER_APPEND_HIDDEN,
   CUSTOM_CLASSIFIER_REPLACE,
-  CUSTOM_CLASSIFIER_REPLACE_HIDDEN,
   CUSTOM_CLASSIFIER_TF_TYPE_PARAM,
   CUSTOM_CLASSIFIER_TYPES,
   CUSTOM_PB_IS_RAVEN_DEFAULT,
+  CUSTOM_PB_IS_RAVEN_DEFAULT_V3_0,
   CUSTOM_PB_IS_RAVEN_PARAM,
   GEO_MODEL_VERSION_V2_4,
   GEO_MODEL_VERSION_V3_0,
@@ -141,13 +147,29 @@ from birdnet.utils.helper import (
   validate_species_list,
 )
 
-_CUSTOM_TF_TYPE_TO_BACKEND: dict[
-  CUSTOM_CLASSIFIER_TYPES, type[VersionedAcousticBackendProtocol]
+# (base version, precision, file exposes embeddings) -> backend of a custom
+# TFLite classifier. The backend resolves the tensors from the file itself.
+_CUSTOM_TFLITE_BACKENDS: dict[
+  tuple[str, str, bool], type[VersionedAcousticBackendProtocol]
 ] = {
-  CUSTOM_CLASSIFIER_REPLACE: AcousticTFBackendFP32V2_4,
-  CUSTOM_CLASSIFIER_APPEND: AcousticTFBackendFP32CustomAppendV2_4,
-  CUSTOM_CLASSIFIER_REPLACE_HIDDEN: AcousticTFBackendFP32CustomReplaceHiddenV2_4,
-  CUSTOM_CLASSIFIER_APPEND_HIDDEN: AcousticTFBackendFP32CustomAppendHiddenV2_4,
+  (ACOUSTIC_MODEL_VERSION_V2_4, MODEL_PRECISION_FP32, True): (
+    AcousticTFBackendCustomV2_4
+  ),
+  (ACOUSTIC_MODEL_VERSION_V2_4, MODEL_PRECISION_FP32, False): (
+    AcousticTFBackendCustomNoEmbeddingsV2_4
+  ),
+  (ACOUSTIC_MODEL_VERSION_V3_0, MODEL_PRECISION_FP32, True): (
+    AcousticTFBackendCustomV3_0
+  ),
+  (ACOUSTIC_MODEL_VERSION_V3_0, MODEL_PRECISION_FP32, False): (
+    AcousticTFBackendCustomNoEmbeddingsV3_0
+  ),
+  (ACOUSTIC_MODEL_VERSION_V3_0, MODEL_PRECISION_FP16, True): (
+    AcousticTFBackendCustomFP16V3_0
+  ),
+  (ACOUSTIC_MODEL_VERSION_V3_0, MODEL_PRECISION_FP16, False): (
+    AcousticTFBackendCustomNoEmbeddingsFP16V3_0
+  ),
 }
 
 
@@ -749,6 +771,94 @@ def _load_geo_model_V2_4(
     )
 
 
+def _inspect_custom_tflite(model: Path, library: LIBRARY_TYPES) -> CustomTFLiteInfo:
+  return BackendLoader.inspect_custom_tflite_model(
+    model, library, tuple(LEGACY_V2_4_PREDICTION_INDICES)
+  )
+
+
+def inspect_custom_tflite(
+  model: str | PathLike[str],
+  /,
+  *,
+  library: str = LIBRARY_TF_DEFAULT,
+) -> CustomTFLiteInfo:
+  """Describe a custom TFLite classifier exported by BirdNET-Analyzer.
+
+  Reports the BirdNET version the classifier was trained on ("2.4" or "3.0"),
+  whether it replaces the official species or appends to them, its number of
+  species (the length its labels file must have), whether its scores are
+  probabilities and whether it exposes embeddings for `encode(..)`. The version
+  is read from the input length and the embeddings width, not from the file
+  name. The file is opened, with its tensors allocated, in a subprocess: a file
+  the interpreter cannot run is rejected, and TensorFlow (or LiteRT) is never
+  imported into the calling process.
+
+  Args:
+    model: Path to the ``.tflite`` file.
+    library: Interpreter to open it with, ``"tflite"`` (TensorFlow) or
+      ``"litert"``.
+
+  Raises:
+    ValueError: The file is not a BirdNET classifier, e.g. a detached head that
+      takes embeddings instead of audio.
+  """
+  model = _validate_tf_file(model)
+  library = _validate_library(library)
+  return _inspect_custom_tflite(model, library)
+
+
+def _detect_custom_acoustic_version(
+  backend: MODEL_BACKENDS, model: Path, model_kwargs: dict[str, object]
+) -> tuple[ACOUSTIC_MODEL_VERSIONS, CustomTFLiteInfo]:
+  if backend != MODEL_BACKEND_TF:
+    raise ValueError(
+      f"version='{ACOUSTIC_MODEL_VERSION_AUTO}' is only supported for custom "
+      f"acoustic '{MODEL_BACKEND_TF}' (TFLite) models; pass the version explicitly "
+      f"for the '{backend}' backend."
+    )
+  model = _validate_tf_file(model)
+  library = _validate_library(model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT))
+  info = _inspect_custom_tflite(model, library)
+  return info.version, info
+
+
+def _custom_tflite_backend_type(
+  version: ACOUSTIC_MODEL_VERSIONS,
+  precision: MODEL_PRECISIONS,
+  model: Path,
+  species_list: Path,
+  check_validity: bool,
+  library: LIBRARY_TYPES,
+  info: CustomTFLiteInfo | None,
+) -> type[VersionedAcousticBackendProtocol]:
+  """Validate a custom TFLite classifier and pick the backend that reads it.
+
+  `info` is the file's description when the caller already inspected it (the
+  "auto" version); otherwise the file is inspected here if `check_validity`.
+  """
+  if info is None and check_validity:
+    info = _inspect_custom_tflite(model, library)
+  supports_encoding = True
+  if info is not None:
+    if info.version != version:
+      raise ValueError(
+        f"Model '{model.absolute()}' is a BirdNET {info.version} classifier, but "
+        f"version '{version}' was requested. Pass version='{info.version}' or "
+        f"version='{ACOUSTIC_MODEL_VERSION_AUTO}'."
+      )
+    supports_encoding = info.supports_encoding
+    if check_validity:
+      loaded_species = validate_species_list(species_list)
+      if info.n_species != len(loaded_species):
+        raise ValueError(
+          f"Model '{model.absolute()}' has {info.n_species} outputs, but "
+          f"species list '{species_list.absolute()}' has "
+          f"{len(loaded_species)} species!"
+        )
+  return _CUSTOM_TFLITE_BACKENDS[(version, precision, supports_encoding)]
+
+
 def load_custom(
   model_type: str,
   version: str,
@@ -761,6 +871,14 @@ def load_custom(
   check_validity: bool = True,
   **model_kwargs: object,
 ) -> ModelBase:
+  """Load a custom model, e.g. a classifier trained with BirdNET-Analyzer.
+
+  For acoustic ``tf`` (TFLite) classifiers ``version`` may be ``"auto"``: the
+  BirdNET version the classifier was trained on is then read from the file (see
+  `inspect_custom_tflite`). With ``check_validity`` (the default) the file is
+  inspected in a subprocess before loading, which also rejects a version that
+  does not match the file and a species list of the wrong length.
+  """
   model_type = _validate_model_type(model_type)
   backend = _validate_backend(backend)
   _validate_tf_backend_runtime(backend, model_kwargs)
@@ -769,6 +887,11 @@ def load_custom(
   precision = _validate_precision(precision)
 
   if model_type == MODEL_TYPE_ACOUSTIC:
+    tflite_info: CustomTFLiteInfo | None = None
+    if version == ACOUSTIC_MODEL_VERSION_AUTO:
+      version, tflite_info = _detect_custom_acoustic_version(
+        backend, model, model_kwargs
+      )
     version = _validate_acoustic_model_version(version)
     return _load_custom_acoustic_model(
       version=version,
@@ -777,6 +900,7 @@ def load_custom(
       model=model,
       species_list=species_list,
       check_validity=check_validity,
+      tflite_info=tflite_info,
       **model_kwargs,
     )
   elif model_type == MODEL_TYPE_GEO:
@@ -801,6 +925,7 @@ def _load_custom_acoustic_model(
   model: Path,
   species_list: Path,
   check_validity: bool,
+  tflite_info: CustomTFLiteInfo | None,
   **model_kwargs: object,
 ) -> AcousticModelBase:
   if version == ACOUSTIC_MODEL_VERSION_V2_4:
@@ -810,6 +935,7 @@ def _load_custom_acoustic_model(
       species_list=species_list,
       model=model,
       check_validity=check_validity,
+      tflite_info=tflite_info,
       **model_kwargs,
     )
   elif version == ACOUSTIC_MODEL_VERSION_V3_0:
@@ -819,6 +945,7 @@ def _load_custom_acoustic_model(
       species_list=species_list,
       model=model,
       check_validity=check_validity,
+      tflite_info=tflite_info,
       **model_kwargs,
     )
   else:
@@ -852,6 +979,7 @@ def _load_custom_acoustic_model_V2_4(
   model: Path,
   species_list: Path,
   check_validity: bool,
+  tflite_info: CustomTFLiteInfo | None = None,
   **model_kwargs: object,
 ) -> AcousticModelV2_4:
   if backend == MODEL_BACKEND_TF:
@@ -860,59 +988,44 @@ def _load_custom_acoustic_model_V2_4(
       model_kwargs, {LIBRARY_TF_PARAM, CUSTOM_CLASSIFIER_TF_TYPE_PARAM}
     )
     library = _validate_library(model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT))
+    # Accepted for compatibility only: the backend reads the head's layout from
+    # the file, so the classifier type no longer selects anything.
+    _validate_custom_classifier_type(
+      model_kwargs.get(CUSTOM_CLASSIFIER_TF_TYPE_PARAM, CUSTOM_CLASSIFIER_REPLACE)
+    )
 
     backend_type: type[VersionedAcousticBackendProtocol]
+    if precision == MODEL_PRECISION_FP32:
+      backend_type = _custom_tflite_backend_type(
+        ACOUSTIC_MODEL_VERSION_V2_4,
+        precision,
+        model,
+        species_list,
+        check_validity,
+        library,
+        tflite_info,
+      )
+      return AcousticModelV2_4.load_custom(
+        model,
+        species_list,
+        backend_type=backend_type,
+        backend_kwargs={TF_BACKEND_LIB_ARG: library},
+        check_validity=False,
+      )
+    # The quantized official models carry fixed indices; a classifier export is
+    # always fp32.
     if precision == MODEL_PRECISION_INT8:
       backend_type = AcousticTFBackendInt8V2_4
-      return AcousticModelV2_4.load_custom(
-        model,
-        species_list,
-        backend_type=backend_type,
-        backend_kwargs={TF_BACKEND_LIB_ARG: library},
-        check_validity=check_validity,
-      )
-    elif precision == MODEL_PRECISION_FP16:
-      backend_type = AcousticTFBackendFP16V2_4
-      return AcousticModelV2_4.load_custom(
-        model,
-        species_list,
-        backend_type=backend_type,
-        backend_kwargs={TF_BACKEND_LIB_ARG: library},
-        check_validity=check_validity,
-      )
     else:
-      assert precision == MODEL_PRECISION_FP32
-      if check_validity:
-        n_species, auto_type = BackendLoader.check_custom_tflite_model(
-          model, library, CUSTOM_TF_CLASSIFIER_INDICES
-        )
-        loaded_species = validate_species_list(species_list)
-        if n_species != len(loaded_species):
-          raise ValueError(
-            f"Model '{model.absolute()}' has {n_species} outputs, but "
-            f"species list '{species_list.absolute()}' has "
-            f"{len(loaded_species)} species!"
-          )
-        backend_type = _CUSTOM_TF_TYPE_TO_BACKEND[auto_type]
-        return AcousticModelV2_4.load_custom(
-          model,
-          species_list,
-          backend_type=backend_type,
-          backend_kwargs={TF_BACKEND_LIB_ARG: library},
-          check_validity=False,
-        )
-      else:
-        classifier_type = _validate_custom_classifier_type(
-          model_kwargs.get(CUSTOM_CLASSIFIER_TF_TYPE_PARAM, CUSTOM_CLASSIFIER_REPLACE)
-        )
-        backend_type = _CUSTOM_TF_TYPE_TO_BACKEND[classifier_type]
-        return AcousticModelV2_4.load_custom(
-          model,
-          species_list,
-          backend_type=backend_type,
-          backend_kwargs={TF_BACKEND_LIB_ARG: library},
-          check_validity=False,
-        )
+      assert precision == MODEL_PRECISION_FP16
+      backend_type = AcousticTFBackendFP16V2_4
+    return AcousticModelV2_4.load_custom(
+      model,
+      species_list,
+      backend_type=backend_type,
+      backend_kwargs={TF_BACKEND_LIB_ARG: library},
+      check_validity=check_validity,
+    )
   elif backend == MODEL_BACKEND_PB:
     if precision != MODEL_PRECISION_FP32:
       raise ValueError(
@@ -954,25 +1067,34 @@ def _load_custom_acoustic_model_V3_0(
   model: Path,
   species_list: Path,
   check_validity: bool,
+  tflite_info: CustomTFLiteInfo | None = None,
   **model_kwargs: object,
 ) -> AcousticModelV3_0:
   if backend == MODEL_BACKEND_TF:
     model = _validate_tf_file(model)
-    model_kwargs = _validate_kwargs_allowed(model_kwargs, {LIBRARY_TF_PARAM})
+    model_kwargs = _validate_kwargs_allowed(
+      model_kwargs, {LIBRARY_TF_PARAM, CUSTOM_CLASSIFIER_TF_TYPE_PARAM}
+    )
     library = _validate_library(model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT))
+    _validate_custom_classifier_type(
+      model_kwargs.get(CUSTOM_CLASSIFIER_TF_TYPE_PARAM, CUSTOM_CLASSIFIER_REPLACE)
+    )
 
-    backend_type: type[VersionedAcousticBackendProtocol]
-    if precision == MODEL_PRECISION_FP32:
-      backend_type = AcousticTFBackendFP32V3_0
-    elif precision == MODEL_PRECISION_FP16:
-      backend_type = AcousticTFBackendFP16V3_0
-    else:
+    if precision not in (MODEL_PRECISION_FP32, MODEL_PRECISION_FP16):
       raise ValueError(
         f"Unsupported model precision for acoustic tf model: {precision}. "
         "Currently supported precisions are: "
         f"{MODEL_PRECISION_FP32}, {MODEL_PRECISION_FP16}."
       )
-
+    backend_type = _custom_tflite_backend_type(
+      ACOUSTIC_MODEL_VERSION_V3_0,
+      precision,
+      model,
+      species_list,
+      check_validity,
+      library,
+      tflite_info,
+    )
     return AcousticModelV3_0.load_custom(
       model,
       species_list,
@@ -980,7 +1102,7 @@ def _load_custom_acoustic_model_V3_0(
       backend_kwargs={
         TF_BACKEND_LIB_ARG: library,
       },
-      check_validity=check_validity,
+      check_validity=False,
     )
   elif backend == MODEL_BACKEND_PB:
     if precision != MODEL_PRECISION_FP32:
@@ -990,12 +1112,21 @@ def _load_custom_acoustic_model_V3_0(
       )
 
     model = _validate_pb_model_folder(model)
-    model_kwargs = _validate_kwargs_allowed(model_kwargs, None)
+    model_kwargs = _validate_kwargs_allowed(model_kwargs, {CUSTOM_PB_IS_RAVEN_PARAM})
+    is_raven = _validate_custom_pb_is_raven(
+      model_kwargs.get(CUSTOM_PB_IS_RAVEN_PARAM, CUSTOM_PB_IS_RAVEN_DEFAULT_V3_0)
+    )
+
+    pb_backend_type: type[VersionedAcousticBackendProtocol]
+    if is_raven:
+      pb_backend_type = AcousticRavenBackendFP32V3_0
+    else:
+      pb_backend_type = AcousticPBBackendFP32V3_0
 
     return AcousticModelV3_0.load_custom(
       model,
       species_list,
-      backend_type=AcousticPBBackendFP32V3_0,
+      backend_type=pb_backend_type,
       backend_kwargs={},
       check_validity=check_validity,
     )

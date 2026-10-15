@@ -9,7 +9,7 @@ from typing import Any, Literal, final
 import numpy.typing as npt
 from ordered_set import OrderedSet
 
-from birdnet.acoustic.inference.configs import InferenceConfig, PredictionConfig
+from birdnet.acoustic.inference.configs import InferenceConfig
 from birdnet.acoustic.inference.core.encoding.encoding_result import (
   AcousticEncodingResultBase,
   AcousticFileEncodingResult,
@@ -23,7 +23,11 @@ from birdnet.acoustic.inference.session import (
   AcousticEncodingSession,
   AcousticPredictionSession,
 )
-from birdnet.acoustic.models.base import AcousticModelBase
+from birdnet.acoustic.models.base import (
+  AcousticModelBase,
+  validate_batch_size_for_backend,
+  validate_probability_output_options,
+)
 from birdnet.core.backends import BackendLoader, VersionedAcousticBackendProtocol
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V3_0,
@@ -347,6 +351,7 @@ class AcousticModelV3_0(AcousticModelBase):
     segment_size_s: float = _DEFAULT_SEGMENT_SIZE_S,
     on_file_complete: Callable[[AcousticFileEncodingResult], None] | None = None,
   ) -> AcousticEncodingSession:
+    validate_batch_size_for_backend(batch_size, self.backend_type)
     return AcousticEncodingSession(
       species_list=self.species_list,
       model_path=self.model_path,
@@ -413,27 +418,15 @@ class AcousticModelV3_0(AcousticModelBase):
     identical raw model output. Because the model does not expose logits,
     ``sigmoid_sensitivity`` values other than ``1.0`` and ``apply_softmax=True``
     raise a ``ValueError``.
+
+    The ``tf`` and ``pb`` exports (official and custom) have a static batch
+    dimension of 1, so ``batch_size`` above 1 raises a ``ValueError`` for them;
+    ``onnx`` and ``pt`` take any batch size.
     """
-    if apply_softmax:
-      raise ValueError(
-        "apply_softmax is not supported for acoustic V3.0 models: the exports "
-        "apply a sigmoid inside the model graph, so the logits a softmax needs "
-        "are not available."
-      )
-    if apply_sigmoid:
-      sigmoid_sensitivity = PredictionConfig.validate_sigmoid_sensitivity(
-        sigmoid_sensitivity
-      )
-    # the sensitivity can never take effect for V3.0, so a non-default value
-    # is rejected rather than silently ignored even when apply_sigmoid=False.
-    if sigmoid_sensitivity is not None and sigmoid_sensitivity != 1.0:
-      raise ValueError(
-        "sigmoid_sensitivity is not supported for acoustic V3.0 models: the "
-        "exports apply a plain sigmoid inside the model graph, so a scaled "
-        "sigmoid cannot be applied. Leave it at its default of 1.0."
-      )
-    # The model output is already a probability; applying the pipeline
-    # sigmoid on top would squash every score into [0.5, 0.73].
+    validate_batch_size_for_backend(batch_size, self.backend_type)
+    validate_probability_output_options(
+      apply_sigmoid, apply_softmax, sigmoid_sensitivity, "acoustic V3.0 models"
+    )
     apply_sigmoid = False
     sigmoid_sensitivity = None
     return AcousticPredictionSession(
