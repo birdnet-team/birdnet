@@ -20,13 +20,13 @@ from birdnet.core.base import ModelBase
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
 
 
-def validate_probability_output_options(
+def validate_in_graph_sigmoid_options(
   apply_sigmoid: bool,
   apply_softmax: bool,
   sigmoid_sensitivity: float | None,
   model_desc: str,
 ) -> None:
-  """Reject score options a model that emits probabilities cannot honour.
+  """Reject score options a model with the sigmoid in its graph cannot honour.
 
   Such a model applies the sigmoid inside its graph, so the pipeline's sigmoid
   must stay off (a second one squashes every score into [0.5, 0.73]) and the

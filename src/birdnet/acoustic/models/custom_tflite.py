@@ -71,9 +71,9 @@ class CustomTFLiteInfo:
       output, "replace" when the output holds the custom species only.
     n_species: Width of the prediction output, i.e. the length its labels file
       must have.
-    outputs_probabilities: True when the sigmoid is applied inside the graph
+    applies_sigmoid: True when the sigmoid is applied inside the graph
       (every 3.0 export); False when the output holds logits (the 2.4 exports),
-      which the prediction session turns into probabilities itself.
+      which the prediction session turns into scores itself.
     supports_encoding: Whether the file exposes the backbone's embeddings, so
       `encode(..)` works on it.
   """
@@ -81,7 +81,7 @@ class CustomTFLiteInfo:
   version: ACOUSTIC_MODEL_VERSIONS
   mode: CUSTOM_CLASSIFIER_MODES
   n_species: int
-  outputs_probabilities: bool
+  applies_sigmoid: bool
   supports_encoding: bool
 
 
@@ -109,7 +109,7 @@ class _BaseModel:
   # Official class count: a classifier with more outputs than this appends to
   # the official species, one with at most this many replaces them.
   n_official_species: int
-  outputs_probabilities: bool
+  applies_sigmoid: bool
 
 
 _BASE_MODELS = (
@@ -118,14 +118,14 @@ _BASE_MODELS = (
     AcousticModelV2_4.get_segment_size_samples(),
     AcousticModelV2_4.get_embeddings_dim(),
     n_official_species=6522,
-    outputs_probabilities=False,
+    applies_sigmoid=False,
   ),
   _BaseModel(
     "3.0",
     AcousticModelV3_0.get_segment_size_samples(),
     AcousticModelV3_0.get_embeddings_dim(),
     n_official_species=11560,
-    outputs_probabilities=True,
+    applies_sigmoid=True,
   ),
 )
 
@@ -294,7 +294,7 @@ def describe_custom_tflite_layout(layout: CustomTFLiteLayout) -> CustomTFLiteInf
     version=base.version,
     mode=mode,
     n_species=layout.n_species,
-    outputs_probabilities=base.outputs_probabilities,
+    applies_sigmoid=base.applies_sigmoid,
     supports_encoding=layout.embeddings_idx is not None,
   )
 
@@ -353,8 +353,8 @@ class CustomTFLiteBackend(TFBackend, ABC):
     return True
 
   @classmethod
-  def outputs_probabilities(cls) -> bool:
-    return _base_model(cls.model_version()).outputs_probabilities
+  def applies_sigmoid(cls) -> bool:
+    return _base_model(cls.model_version()).applies_sigmoid
 
   @classmethod
   def max_batch_size(cls) -> int | None:

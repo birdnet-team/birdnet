@@ -121,7 +121,7 @@ class GeoPTBackendFP32V3_0(TorchBackend, VersionedGeoBackendProtocol):
   def prediction_needs_sigmoid(cls) -> bool:
     # The TorchScript export ends at the linear layer, while the TFLite, ProtoBuf
     # and ONNX exports all end in a sigmoid. Apply it here so that every backend
-    # returns the same probabilities.
+    # returns the same scores.
     #
     # This backend also serves load_custom("geo", "3.0", "pt", ...), so a custom
     # TorchScript geo model is expected to return logits as well - one that

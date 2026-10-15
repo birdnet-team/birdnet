@@ -126,19 +126,19 @@ class Export:
 class _Base:
   segment_samples: int
   embeddings_dim: int
-  outputs_probabilities: bool
+  applies_sigmoid: bool
 
 
 _BASES: dict[str, _Base] = {
   "2.4": _Base(
     AcousticModelV2_4.get_segment_size_samples(),
     AcousticModelV2_4.get_embeddings_dim(),
-    outputs_probabilities=False,
+    applies_sigmoid=False,
   ),
   "3.0": _Base(
     AcousticModelV3_0.get_segment_size_samples(),
     AcousticModelV3_0.get_embeddings_dim(),
-    outputs_probabilities=True,
+    applies_sigmoid=True,
   ),
 }
 
@@ -358,7 +358,7 @@ def _save_tflite(
     def call(self, inputs: object) -> object:
       return self.fn(**{self.input_key: inputs})[self.output_key]
 
-  if base.outputs_probabilities:
+  if base.applies_sigmoid:
     inputs = keras.Input(shape=(base.segment_samples,), dtype=tf.float32, name="x")
     embeddings = SignatureLayer("embeddings")(inputs)
     output = keras.layers.Activation("sigmoid")(head(embeddings))  # type: ignore[operator]
@@ -404,7 +404,7 @@ def _save_raven(
         return classified
       fn, in_key, out_key = _signature(self.pb_model, spec.version, "predictions")
       scores = fn(**{in_key: inputs})[out_key]
-      if not base.outputs_probabilities:
+      if not base.applies_sigmoid:
         scores = tf.sigmoid(scores)
       return tf.concat([scores, classified], axis=-1)
 
@@ -435,7 +435,7 @@ def _save_detached(head: object, base: _Base, path: Path) -> None:
     shape=(base.embeddings_dim,), dtype=tf.float32, name="detached_input"
   )
   outputs = head(inputs)  # type: ignore[operator]
-  if base.outputs_probabilities:
+  if base.applies_sigmoid:
     outputs = keras.layers.Activation("sigmoid")(outputs)
   detached = keras.Model(inputs=inputs, outputs=outputs, name="detached_classifier")
   converter = tf.lite.TFLiteConverter.from_keras_model(detached)

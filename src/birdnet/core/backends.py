@@ -94,8 +94,8 @@ class Backend(Generic[BatchT], ABC):
   def name(cls) -> str: ...
 
   @classmethod
-  def outputs_probabilities(cls) -> bool:
-    """Whether `predict` returns probabilities rather than logits.
+  def applies_sigmoid(cls) -> bool:
+    """Whether the sigmoid is applied inside the model graph.
 
     A model that applies the sigmoid inside its graph must not get the
     pipeline's sigmoid on top: that squashes every score into [0.5, 0.73].
@@ -163,7 +163,7 @@ class VersionedBackendProtocol(Generic[BatchT], Protocol):
 @runtime_checkable
 class VersionedAcousticBackendProtocol(VersionedBackendProtocol, Protocol):
   @classmethod
-  def outputs_probabilities(cls) -> bool: ...
+  def applies_sigmoid(cls) -> bool: ...
 
   @classmethod
   def max_batch_size(cls) -> int | None: ...
@@ -354,12 +354,12 @@ class TorchBackend(Backend, ABC):
 
   @classmethod
   def prediction_needs_sigmoid(cls) -> bool:
-    """Whether the model's prediction head returns logits instead of probabilities.
+    """Whether the model's prediction head returns logits instead of sigmoid scores.
 
     The exported TorchScript modules are not consistent about this: the acoustic
     model applies the activation itself, the geo model does not. Backends whose
     model returns logits declare it here so that all backends of a model yield
-    the same probabilities.
+    the same scores.
     """
     return False
 

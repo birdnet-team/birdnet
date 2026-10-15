@@ -147,7 +147,7 @@ class AcousticPBBackendFP32V3_0(PBBackend, VersionedAcousticBackendProtocol):
     return MODEL_PRECISION_FP32
 
   @classmethod
-  def outputs_probabilities(cls) -> bool:
+  def applies_sigmoid(cls) -> bool:
     return True
 
   @classmethod
@@ -160,8 +160,8 @@ class AcousticPBBackendFP32V3_0(PBBackend, VersionedAcousticBackendProtocol):
 class AcousticRavenBackendFP32V3_0(PBBackend, VersionedAcousticBackendProtocol):
   """A Raven export from BirdNET-Analyzer on the 3.0 base.
 
-  Signature "basic" maps "inputs" (batch, 96000 samples) to "scores", which are
-  probabilities; there is no embeddings signature. It wraps the official
+  Signature "basic" maps "inputs" (batch, 96000 samples) to "scores", with the
+  sigmoid applied; there is no embeddings signature. It wraps the official
   SavedModel, so it inherits its static batch of 1.
   """
 
@@ -203,7 +203,7 @@ class AcousticRavenBackendFP32V3_0(PBBackend, VersionedAcousticBackendProtocol):
     return "fp32"
 
   @classmethod
-  def outputs_probabilities(cls) -> bool:
+  def applies_sigmoid(cls) -> bool:
     return True
 
   @classmethod

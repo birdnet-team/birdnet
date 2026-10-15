@@ -787,8 +787,8 @@ def inspect_custom_tflite(
 
   Reports the BirdNET version the classifier was trained on ("2.4" or "3.0"),
   whether it replaces the official species or appends to them, its number of
-  species (the length its labels file must have), whether its scores are
-  probabilities and whether it exposes embeddings for `encode(..)`. The version
+  species (the length its labels file must have), whether it applies the
+  sigmoid itself and whether it exposes embeddings for `encode(..)`. The version
   is read from the input length and the embeddings width, not from the file
   name. The file is opened, with its tensors allocated, in a subprocess: a file
   the interpreter cannot run is rejected, and TensorFlow (or LiteRT) is never

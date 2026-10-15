@@ -24,7 +24,7 @@ from birdnet.acoustic.inference.session import (
 from birdnet.acoustic.models.base import (
   AcousticModelBase,
   validate_batch_size_for_backend,
-  validate_probability_output_options,
+  validate_in_graph_sigmoid_options,
 )
 from birdnet.core.backends import BackendLoader, VersionedAcousticBackendProtocol
 from birdnet.globals import ACOUSTIC_MODEL_VERSION_V2_4, ACOUSTIC_MODEL_VERSIONS
@@ -289,12 +289,12 @@ class AcousticModelV2_4(AcousticModelBase):
       speed: Resampling multiplier to accommodate different recording speeds.
       apply_sigmoid: Whether to transform logits with a sigmoid. When False, output
         scores are raw logits and thresholds are interpreted in logit space rather than
-        as probabilities.
+        as sigmoid scores.
       apply_softmax: Whether to transform logits with a softmax. When False, output
         scores are raw logits unless apply_sigmoid=True.
       sigmoid_sensitivity: Optional scale for the sigmoid function.
       default_confidence_threshold: Base threshold to emit a detection.
-        When apply_sigmoid=True this is a probability (typical range 0 to 1);
+        When apply_sigmoid=True this is a sigmoid score (range 0 to 1);
         when apply_sigmoid=False it is a logit value.
       custom_confidence_thresholds: Species-specific override thresholds.
       custom_species_list: Path or iterable defining a subset of species.
@@ -315,7 +315,7 @@ class AcousticModelV2_4(AcousticModelBase):
         that raises cancels the run.
 
     A Raven export (``load_custom(.., "pb", .., is_raven=True)``) applies the
-    sigmoid inside its graph and outputs probabilities. For it ``apply_sigmoid``
+    sigmoid inside its graph. For it ``apply_sigmoid``
     changes nothing, and ``sigmoid_sensitivity`` other than ``1.0`` or
     ``apply_softmax=True`` raise a ``ValueError``, as for the V3.0 models.
 
@@ -323,13 +323,12 @@ class AcousticModelV2_4(AcousticModelBase):
       AcousticPredictionSession: Session capable of running predictions.
     """
     validate_batch_size_for_backend(batch_size, self.backend_type)
-    if self.backend_type.outputs_probabilities():
-      validate_probability_output_options(
+    if self.backend_type.applies_sigmoid():
+      validate_in_graph_sigmoid_options(
         apply_sigmoid,
         apply_softmax,
         sigmoid_sensitivity,
-        f"a custom classifier on the '{self.backend_type.name()}' backend, which "
-        "outputs probabilities",
+        f"a custom classifier on the '{self.backend_type.name()}' backend",
       )
       apply_sigmoid = False
       sigmoid_sensitivity = None
@@ -557,10 +556,10 @@ class AcousticModelV2_4(AcousticModelBase):
       speed: Resampling multiplier to accommodate different recording speeds.
       apply_sigmoid: Whether to transform logits with a sigmoid.
         When False, output scores are raw logits and thresholds are interpreted in logit
-        space rather than as probabilities.
+        space rather than as sigmoid scores.
       sigmoid_sensitivity: Optional scale for the sigmoid function.
       default_confidence_threshold: Base threshold to emit a detection.
-        When apply_sigmoid=True this is a probability (typical range 0 to 1);
+        When apply_sigmoid=True this is a sigmoid score (range 0 to 1);
         when apply_sigmoid=False it is a logit value.
       custom_confidence_thresholds: Species-specific override thresholds.
       custom_species_list: Path or iterable defining a subset of species.
@@ -652,12 +651,12 @@ class AcousticModelV2_4(AcousticModelBase):
       speed: Resampling multiplier to accommodate different recording speeds.
       apply_sigmoid: Whether to transform logits with a sigmoid.
         When False, output scores are raw logits and thresholds are interpreted in
-        logit space rather than as probabilities.
+        logit space rather than as sigmoid scores.
       apply_softmax: Whether to transform logits with a softmax. When False, output
         scores are raw logits unless apply_sigmoid=True.
       sigmoid_sensitivity: Optional scale for the sigmoid function.
       default_confidence_threshold: Base threshold to emit a detection.
-        When apply_sigmoid=True this is a probability (typical range 0 to 1);
+        When apply_sigmoid=True this is a sigmoid score (range 0 to 1);
         when apply_sigmoid=False it is a logit value.
       custom_confidence_thresholds: Species-specific override thresholds.
       custom_species_list: Path or iterable defining a subset of species.

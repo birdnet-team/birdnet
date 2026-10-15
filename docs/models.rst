@@ -95,7 +95,7 @@ SavedModel and as a detached head.
   predictions = model.predict("example/soundscape.wav")
   embeddings = model.encode("example/soundscape.wav")
 
-  # Raven export: SavedModel with the "basic" signature, probabilities, no embeddings
+  # Raven export: SavedModel with the "basic" signature, sigmoid in the model, no embeddings
   raven = birdnet.load_custom(
     "acoustic",
     "3.0",
@@ -109,14 +109,14 @@ SavedModel and as a detached head.
   importing TensorFlow into the calling process: the base version (``"2.4"`` or
   ``"3.0"``, derived from the input length and the embeddings width), whether the
   classifier replaces the official species or appends to them (the labels file
-  then lists the official species first), its number of species, whether its
-  scores are probabilities and whether it exposes embeddings.
+  then lists the official species first), its number of species, whether it
+  applies the sigmoid itself and whether it exposes embeddings.
 * The tensors of a TFLite export are resolved from its ``serving_default``
   signature, so exports of every analyzer release load; the ``classifier_type``
   argument is accepted but no longer needed.
 * 2.4 TFLite exports output logits and get the pipeline's sigmoid, so
   ``sigmoid_sensitivity`` applies. 3.0 exports and Raven exports on either base
-  apply the sigmoid inside their graph; their probabilities are returned as they
+  apply the sigmoid inside their graph; their scores are returned as they
   are, and ``sigmoid_sensitivity`` other than ``1.0`` or ``apply_softmax=True``
   raise a ``ValueError``.
 * Exports on the 3.0 base inherit the official SavedModel's static batch of 1
