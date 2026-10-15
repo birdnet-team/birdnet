@@ -244,12 +244,12 @@ class AcousticModelPerchV2(AcousticModelBase):
       speed: Resampling multiplier to accommodate different recording speeds.
       apply_sigmoid: Whether to transform logits with a sigmoid.
         When False, output scores are raw logits and thresholds are interpreted in
-        logit space rather than as probabilities.
+        logit space rather than as sigmoid scores.
       apply_softmax: Whether to transform logits with a softmax. When False, output
         scores are raw logits unless apply_sigmoid=True.
       sigmoid_sensitivity: Optional scale for the sigmoid function.
       default_confidence_threshold: Base threshold to emit a detection.
-        When apply_sigmoid=True this is a probability (typical range 0 to 1);
+        When apply_sigmoid=True this is a sigmoid score (range 0 to 1);
         when apply_sigmoid=False it is a logit value.
       custom_confidence_thresholds: Species-specific override thresholds.
       custom_species_list: Path or iterable defining a subset of species.
@@ -477,12 +477,12 @@ class AcousticModelPerchV2(AcousticModelBase):
       speed: Resampling multiplier to accommodate different recording speeds.
       apply_sigmoid: Whether to transform logits with a sigmoid.
         When False, output scores are raw logits and thresholds are interpreted in
-        logit space rather than as probabilities.
+        logit space rather than as sigmoid scores.
       apply_softmax: Whether to transform logits with a softmax. When False, output
         scores are raw logits unless apply_sigmoid=True.
       sigmoid_sensitivity: Optional scale for the sigmoid function.
       default_confidence_threshold: Base threshold to emit a detection.
-        When apply_sigmoid=True this is a probability (typical range 0 to 1);
+        When apply_sigmoid=True this is a sigmoid score (range 0 to 1);
         when apply_sigmoid=False it is a logit value.
       custom_confidence_thresholds: Species-specific override thresholds.
       custom_species_list: Path or iterable defining a subset of species.
@@ -568,12 +568,12 @@ class AcousticModelPerchV2(AcousticModelBase):
       speed: Resampling multiplier to accommodate different recording speeds.
       apply_sigmoid: Whether to transform logits with a sigmoid.
         When False, output scores are raw logits and thresholds are interpreted in
-        logit space rather than as probabilities.
+        logit space rather than as sigmoid scores.
       sigmoid_sensitivity: Optional scale for the sigmoid function.
       apply_softmax: Whether to transform logits with a softmax. When False, output
         scores are raw logits unless apply_sigmoid=True.
       default_confidence_threshold: Base threshold to emit a detection.
-        When apply_sigmoid=True this is a probability (typical range 0 to 1);
+        When apply_sigmoid=True this is a sigmoid score (range 0 to 1);
         when apply_sigmoid=False it is a logit value.
       custom_confidence_thresholds: Species-specific override thresholds.
       custom_species_list: Path or iterable defining a subset of species.

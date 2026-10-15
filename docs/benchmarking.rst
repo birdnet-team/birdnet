@@ -49,10 +49,10 @@ File types within the run folder
      - Complete metric set in JSON format.
    * - **Inference Results**
      - ``result-{timestamp}.npz``
-     - Space-efficient binary file containing per-segment probabilities for all species (source for all other formats).
+     - Space-efficient binary file containing per-segment scores for all species (source for all other formats).
    * -
      - ``result-{timestamp}.csv``
-     - Tabular view of probabilities; first column holds the full recording path.
+     - Tabular view of scores; first column holds the full recording path.
    * - **Log**
      - ``log-{timestamp}.log``
      - Full log of the benchmark run.

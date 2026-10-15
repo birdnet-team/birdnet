@@ -150,7 +150,7 @@ class AcousticRavenBackendFP32V2_4(PBBackend, VersionedAcousticBackendProtocol):
     return f"{MODEL_BACKEND_PB}-raven"
 
   @classmethod
-  def outputs_probabilities(cls) -> bool:
+  def applies_sigmoid(cls) -> bool:
     # The Raven export bakes the sigmoid into the graph on both bases.
     return True
 

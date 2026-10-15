@@ -117,7 +117,7 @@ class _AcousticTFBackendV3_0(TFBackend, VersionedAcousticBackendProtocol):
     return 96_000
 
   @classmethod
-  def outputs_probabilities(cls) -> bool:
+  def applies_sigmoid(cls) -> bool:
     return True
 
   @classmethod

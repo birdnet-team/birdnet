@@ -113,7 +113,7 @@ class FakeAcousticBackend:
     return False
 
   @classmethod
-  def outputs_probabilities(cls) -> bool:
+  def applies_sigmoid(cls) -> bool:
     return False
 
   @classmethod

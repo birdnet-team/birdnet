@@ -10,13 +10,13 @@ The analysis pipeline processes **recordings** with five logically distinct comp
 1. **Producers** – Read the recordings, split them into 3-second segments, group them to batches, and fill the buffer.
 2. **Buffer** – An intermediate store that holds batches of 3-second audio segments.
 3. **Workers** – Take batches from the buffer and perform inference with the model.
-4. **Consumer** – Receives the probabilities calculated by the *Workers* and writes them to the result array.
+4. **Consumer** – Receives the scores calculated by the *Workers* and writes them to the result array.
 5. **Result** – A three-dimensional matrix in which:
 
    - **Dimension 1** represents the recordings.
    - **Dimension 2** represents the consecutive 3-second segments.
    - **Dimension 3** represents the species covered by the model.
-   - Each matrix cell stores the predicted probability for a given species in the corresponding segment of the file.
+   - Each matrix cell stores the predicted score for a given species in the corresponding segment of the file.
 
 Parallelisation and Resource Management
 ---------------------------------------

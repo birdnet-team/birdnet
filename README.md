@@ -173,10 +173,10 @@ raven = birdnet.load_custom("acoustic", "3.0", "pb", "CustomClassifier", "Custom
 | --- | --- | --- | --- | --- |
 | `predict(..)` | ✅ | ✅ | ✅ | ✅ |
 | `encode(..)` | ✅ | ✅ | ❌ | ❌ |
-| Scores | logits, sigmoid applied by birdnet | probabilities | probabilities | probabilities |
+| Scores | logits, sigmoid applied by birdnet | sigmoid applied in the model | sigmoid applied in the model | sigmoid applied in the model |
 | `batch_size > 1` | ✅ | ❌ | ✅ | ❌ |
 
-For exports that output probabilities, `sigmoid_sensitivity` other than `1.0` and `apply_softmax=True` raise a `ValueError`. Detached classifier heads (`*_detached.tflite`, which take embeddings instead of audio) are rejected with a message naming them.
+For exports that apply the sigmoid themselves, `sigmoid_sensitivity` other than `1.0` and `apply_softmax=True` raise a `ValueError`. Detached classifier heads (`*_detached.tflite`, which take embeddings instead of audio) are rejected with a message naming them.
 
 ### Perch V2
 
