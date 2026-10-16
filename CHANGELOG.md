@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-16
+
 ### Added
 
 - Custom classifiers that BirdNET-Analyzer trains on the BirdNET 3.0 base now load and run: `birdnet.load_custom("acoustic", "3.0", "tf", model, labels)` reads the export's `predictions` and `embeddings` outputs by name, so both `predict(..)` and `encode(..)` work on replace and append exports, and `is_raven=True` loads the analyzer's 3.0 Raven SavedModel (`basic` signature, sigmoid in the model, no embeddings). Previously the 3.0 TFLite export passed the validity check and then crashed the worker process, and the 3.0 Raven export did not load at all ([#111](https://github.com/birdnet-team/birdnet/pull/111)).
@@ -363,7 +365,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release
 
-[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/birdnet-team/birdnet/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/birdnet-team/birdnet/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/birdnet-team/birdnet/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/birdnet-team/birdnet/compare/v0.2.16...v1.0.0
