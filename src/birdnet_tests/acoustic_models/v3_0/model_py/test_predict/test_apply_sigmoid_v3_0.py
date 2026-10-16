@@ -1,10 +1,14 @@
+import functools
+import inspect
 from pathlib import Path
+from types import ModuleType
 from typing import Literal
 
 import numpy as np
 import pytest
 from ordered_set import OrderedSet
 
+from birdnet.acoustic.models.v3_0 import onnx, pb, pt, tf
 from birdnet.acoustic.models.v3_0.model import AcousticModelV3_0
 from birdnet.model_loader import load
 from birdnet_tests.helper import (
@@ -12,6 +16,7 @@ from birdnet_tests.helper import (
   ensure_tf_2_18_or_skip,
   ensure_torch_or_skip,
   ensure_v3_0_torch_backend_or_skip,
+  scores_at_sigmoid_sensitivity,
 )
 from birdnet_tests.test_files import TEST_FILE_SHORT
 
@@ -49,34 +54,70 @@ def test_v3_0_apply_softmax_raises_error(
     model.predict_session(apply_sigmoid=False, apply_softmax=True)
 
 
-@pytest.mark.no_tf
-def test_v3_0_non_default_sigmoid_sensitivity_raises_error(
-  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-  model = _fake_model(tmp_path, monkeypatch)
-  with pytest.raises(ValueError, match=r"sigmoid_sensitivity is not supported"):
-    model.predict_session(sigmoid_sensitivity=0.9)
-
-
-@pytest.mark.no_tf
-def test_v3_0_non_default_sigmoid_sensitivity_raises_even_without_apply_sigmoid(
-  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-  model = _fake_model(tmp_path, monkeypatch)
-  with pytest.raises(ValueError, match=r"sigmoid_sensitivity is not supported"):
-    model.predict_session(apply_sigmoid=False, sigmoid_sensitivity=0.9)
-
-
+# Sessions below are not entered: the fields are parent-side config; entering
+# would spawn workers that crash on the fake model file.
 @pytest.mark.no_tf
 def test_v3_0_apply_sigmoid_skips_the_pipeline_sigmoid(
   tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
   model = _fake_model(tmp_path, monkeypatch)
-  # Not entered: the fields are parent-side config; entering would spawn
-  # workers that crash on the fake model file.
   session = model.predict_session(top_k=None)
   assert session._specific_config.apply_sigmoid is False
   assert session._specific_config.sigmoid_sensitivity is None
+
+
+@pytest.mark.no_tf
+def test_v3_0_non_default_sigmoid_sensitivity_turns_the_pipeline_sigmoid_on(
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+  model = _fake_model(tmp_path, monkeypatch)
+  session = model.predict_session(top_k=None, sigmoid_sensitivity=0.9)
+  assert session._specific_config.apply_sigmoid is True
+  assert session._specific_config.sigmoid_sensitivity == 0.9
+
+
+@pytest.mark.no_tf
+def test_v3_0_sigmoid_sensitivity_is_ignored_without_apply_sigmoid(
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+  model = _fake_model(tmp_path, monkeypatch)
+  session = model.predict_session(
+    top_k=None, apply_sigmoid=False, sigmoid_sensitivity=0.9
+  )
+  assert session._specific_config.apply_sigmoid is False
+  assert session._specific_config.sigmoid_sensitivity is None
+
+
+@pytest.mark.no_tf
+def test_v3_0_sigmoid_sensitivity_is_validated(
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+  model = _fake_model(tmp_path, monkeypatch)
+  with pytest.raises(ValueError, match=r"range \[0.5, 1.5\]"):
+    model.predict_session(sigmoid_sensitivity=2.0)
+  with pytest.raises(TypeError, match=r"must be a number"):
+    model.predict_session(sigmoid_sensitivity="high")  # type: ignore[arg-type]
+
+
+def _backend_classes(module: ModuleType) -> list[type]:
+  return [
+    cls
+    for name, cls in inspect.getmembers(module, inspect.isclass)
+    if cls.__module__ == module.__name__ and "Backend" in name
+  ]
+
+
+@pytest.mark.no_tf
+@pytest.mark.parametrize("module", [onnx, pb, pt, tf], ids=lambda m: m.__name__)
+def test_every_v3_0_backend_declares_the_sigmoid_in_its_graph(
+  module: ModuleType,
+) -> None:
+  # The prediction worker recovers the logits only for a backend that says so;
+  # one that stays silent gets the pipeline sigmoid on top of its scores.
+  classes = _backend_classes(module)
+  assert classes
+  for cls in classes:
+    assert cls.applies_sigmoid() is True, cls.__name__
 
 
 def _load_model(backend: _Backend, precision: str) -> AcousticModelV3_0:
@@ -126,3 +167,74 @@ def test_v3_0_predict_default_confidence_is_calibrated(
   tol = _CONFIDENCE_ABS_TOL_FP16 if precision == "fp16" else _CONFIDENCE_ABS_TOL
   assert list(res.species_list)[top_species_id] == _EXPECTED_TOP_SPECIES
   assert first_segment[top_slot] == pytest.approx(_EXPECTED_TOP_CONFIDENCE, abs=tol)
+
+
+def _scores(model: AcousticModelV3_0, **kwargs: object) -> np.ndarray:
+  """Every score of every segment, species in model order; shape (segments, n)."""
+  with model.predict_session(
+    n_workers=1,
+    top_k=None,
+    default_confidence_threshold=-float("inf"),
+    **kwargs,  # type: ignore[arg-type]
+  ) as session:
+    res = session.run(TEST_FILE_SHORT)
+  order = np.argsort(np.asarray(res.species_ids), axis=-1)
+  return np.take_along_axis(np.asarray(res.species_probs), order, axis=-1)[0]
+
+
+# One run per backend and pytest process, however many tests compare against it.
+@functools.cache
+def _default_scores(backend: _Backend) -> np.ndarray:
+  return _scores(_load_model(backend, "fp32"))
+
+
+_BACKENDS = [
+  pytest.param("pt", marks=pytest.mark.no_tf),
+  pytest.param("onnx", marks=pytest.mark.no_tf),
+  "tf",
+  "pb",
+]
+
+
+@pytest.mark.parametrize("sensitivity", [0.5, 1.5])
+@pytest.mark.parametrize("backend", _BACKENDS)
+def test_v3_0_sigmoid_sensitivity_transforms_the_recovered_logits(
+  backend: _Backend, sensitivity: float
+) -> None:
+  default = _default_scores(backend)
+  scores = _scores(_load_model(backend, "fp32"), sigmoid_sensitivity=sensitivity)
+
+  # Two runs of one model differ by ~1e-7 in score, which a score next to 1
+  # turns into a visible shift of its logit; the recovery itself is good to
+  # 1.3e-5 at 0.5.
+  np.testing.assert_allclose(
+    scores, scores_at_sigmoid_sensitivity(default, sensitivity), atol=1e-4
+  )
+  # Outside this band the clip at +-15 holds a score where it is, as it holds
+  # a 2.4 model's logits.
+  moved = (default > 0.01) & (default < 0.99)
+  assert moved.any()
+  if sensitivity < 1.0:
+    assert np.all(scores[moved] < default[moved])
+  else:
+    assert np.all(scores[moved] > default[moved])
+
+
+@pytest.mark.no_tf
+def test_v3_0_threshold_applies_to_the_transformed_scores() -> None:
+  threshold = 0.1
+  # 0.75 shifts every logit by -2.5: the file's top detection (0.918) lands at
+  # 0.48 and still clears the threshold, which at 0.5 nothing does.
+  with _load_model("onnx", "fp32").predict_session(
+    n_workers=1,
+    top_k=None,
+    sigmoid_sensitivity=0.75,
+    default_confidence_threshold=threshold,
+  ) as session:
+    res = session.run(TEST_FILE_SHORT)
+
+  probs = np.asarray(res.species_probs)
+  masked = np.asarray(res.species_masked)
+  np.testing.assert_array_equal(masked, probs < threshold)
+  # The sensitivity moved scores below the threshold that cleared it before.
+  assert 0 < (~masked).sum() < (_default_scores("onnx") >= threshold).sum()

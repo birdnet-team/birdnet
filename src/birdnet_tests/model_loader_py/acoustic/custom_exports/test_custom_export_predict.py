@@ -3,7 +3,7 @@ import pytest
 
 import birdnet
 from birdnet_tests.custom_classifier_exports import ExportSpec
-from birdnet_tests.helper import ensure_litert_or_skip
+from birdnet_tests.helper import ensure_litert_or_skip, scores_at_sigmoid_sensitivity
 from birdnet_tests.model_loader_py.acoustic.custom_exports.conftest import (
   EXPORT_TEST_TIMEOUT_S,
   N_SEGMENTS,
@@ -100,10 +100,17 @@ def test_v3_0_export_rejects_batches(get_export: GetExport) -> None:
     model.predict_session(batch_size=2)
 
 
-def test_v3_0_export_rejects_a_sigmoid_sensitivity(get_export: GetExport) -> None:
+def test_v3_0_export_applies_a_sigmoid_sensitivity(get_export: GetExport) -> None:
   model = load_export_unchecked(get_export(V3_0_REPLACE))
-  with pytest.raises(ValueError, match=r"sigmoid_sensitivity is not supported"):
-    model.predict_session(sigmoid_sensitivity=0.9)
+  default = scores_in_model_order(model)
+  scores = scores_in_model_order(model, sigmoid_sensitivity=0.5)
+  # The export applies the sigmoid in its graph; the sensitivity acts on the
+  # logits recovered from its scores.
+  np.testing.assert_allclose(
+    scores, scores_at_sigmoid_sensitivity(default, 0.5), atol=1e-4
+  )
+  moved = (default > 0.01) & (default < 0.99)
+  assert np.all(scores[moved] < default[moved])
 
 
 def test_v3_0_export_scores_do_not_depend_on_apply_sigmoid(

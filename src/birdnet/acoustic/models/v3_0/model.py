@@ -25,8 +25,8 @@ from birdnet.acoustic.inference.session import (
 )
 from birdnet.acoustic.models.base import (
   AcousticModelBase,
+  resolve_in_graph_sigmoid_options,
   validate_batch_size_for_backend,
-  validate_in_graph_sigmoid_options,
 )
 from birdnet.core.backends import BackendLoader, VersionedAcousticBackendProtocol
 from birdnet.globals import (
@@ -415,20 +415,21 @@ class AcousticModelV3_0(AcousticModelBase):
     applies the sigmoid inside the model graph, so scores leave the model with
     the sigmoid applied. ``apply_sigmoid=True`` (the default) returns them unchanged —
     no second sigmoid is applied — and ``apply_sigmoid=False`` returns the
-    identical raw model output. Because the model does not expose logits,
-    ``sigmoid_sensitivity`` values other than ``1.0`` and ``apply_softmax=True``
-    raise a ``ValueError``.
+    identical raw model output. A ``sigmoid_sensitivity`` other than ``1.0``
+    is applied as it is to the 2.4 models: the logits are recovered from the
+    model's scores and the pipeline's sigmoid runs on them, so thresholds see
+    the transformed scores; with ``apply_sigmoid=False`` the sensitivity is
+    ignored, as for the 2.4 models. ``apply_softmax=True`` raises a
+    ``ValueError``.
 
     The ``tf`` and ``pb`` exports (official and custom) have a static batch
     dimension of 1, so ``batch_size`` above 1 raises a ``ValueError`` for them;
     ``onnx`` and ``pt`` take any batch size.
     """
     validate_batch_size_for_backend(batch_size, self.backend_type)
-    validate_in_graph_sigmoid_options(
+    apply_sigmoid, sigmoid_sensitivity = resolve_in_graph_sigmoid_options(
       apply_sigmoid, apply_softmax, sigmoid_sensitivity, "acoustic V3.0 models"
     )
-    apply_sigmoid = False
-    sigmoid_sensitivity = None
     return AcousticPredictionSession(
       species_list=self.species_list,
       model_path=self.model_path,
@@ -580,9 +581,11 @@ class AcousticModelV3_0(AcousticModelBase):
     the sigmoid inside the model graph. ``apply_sigmoid=True`` (the default)
     returns them unchanged and ``apply_sigmoid=False`` returns the identical
     raw model output, so confidence thresholds are sigmoid scores either way.
-    ``sigmoid_sensitivity`` values other than ``1.0`` and ``apply_softmax=True``
-    raise a ``ValueError``, because both need the logits the exports do not
-    expose. Custom V3.0 models are expected to apply the sigmoid as well.
+    A ``sigmoid_sensitivity`` other than ``1.0`` is applied as it is to the 2.4
+    models, on logits recovered from the scores, and is ignored with
+    ``apply_sigmoid=False`` as there. ``apply_softmax=True`` raises a
+    ``ValueError``. Custom V3.0 models are expected to apply the sigmoid as
+    well.
 
     ``n_workers`` sets the number of inference worker processes. Its default value,
     ``None``, uses the number of physical CPU cores. Pass a fixed integer to meet a

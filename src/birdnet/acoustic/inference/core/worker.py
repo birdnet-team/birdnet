@@ -136,6 +136,13 @@ class WorkerBase(bn_logging.LogableProcessBase):
   @abstractmethod
   def _infer(self, batch: BatchT) -> BatchT: ...
 
+  def _result_to_host(self, infer_result_tensor: BatchT) -> np.ndarray:
+    """Bring an inference result into host memory, in half precision if enabled."""
+    assert self._backend is not None
+    if self._half_precision:
+      infer_result_tensor = self._backend.half_precision(infer_result_tensor)
+    return self._backend.copy_from_device(infer_result_tensor)
+
   def _load_ring_buffers(self) -> None:
     self._log("Attaching ring buffers...")
     # attach to existing shared memory buffers
@@ -362,12 +369,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
       )
 
       perf_c = time.perf_counter()
-      if self._half_precision:
-        infer_result_tensor = self._backend.half_precision(infer_result_tensor)
-      dur_half_precision = time.perf_counter() - perf_c
-
-      perf_c = time.perf_counter()
-      infer_result = self._backend.copy_from_device(infer_result_tensor)
+      infer_result = self._result_to_host(infer_result_tensor)
       dur_to_numpy = time.perf_counter() - perf_c
 
       assert infer_result.flags.aligned
@@ -381,7 +383,6 @@ class WorkerBase(bn_logging.LogableProcessBase):
       self._log(
         f"Prediction made ({dur5_inference:.4} s). "
         f"Total predictions: {self._prediction_count}. Chunks: {segment_indices}"
-        f"Duration half precision: {dur_half_precision:.4f} s. "
         f"Duration to numpy: {dur_to_numpy:.4f} s. "
       )
 

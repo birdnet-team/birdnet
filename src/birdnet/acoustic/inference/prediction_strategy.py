@@ -141,6 +141,7 @@ class PredictionStrategy(
         apply_sigmoid=specific_config.apply_sigmoid,
         apply_softmax=specific_config.apply_softmax,
         sigmoid_sensitivity=specific_config.sigmoid_sensitivity,
+        model_applies_sigmoid=config.model_conf.backend_type.applies_sigmoid(),
         wkr_stats_queue=resources.stats_resources.wkr_stats_queue,
         cancel_event=resources.processing_resources.cancel_event,
         sem_active_workers=resources.stats_resources.sem_active_workers,

@@ -112,3 +112,9 @@ class AcousticPTBackendFP32V3_0(TorchBackend, VersionedAcousticBackendProtocol):
   @classmethod
   def precision(cls) -> MODEL_PRECISIONS:
     return MODEL_PRECISION_FP32
+
+  @classmethod
+  def applies_sigmoid(cls) -> bool:
+    # The TorchScript export applies the activation itself (prediction_needs_sigmoid
+    # is False), so its output is a score like that of every other V3.0 export.
+    return True

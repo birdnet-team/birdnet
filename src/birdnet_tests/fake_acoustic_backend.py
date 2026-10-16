@@ -165,6 +165,32 @@ class WideFakeAcousticBackend(FakeAcousticBackend):
   emb_dim_out = 1_024
 
 
+class InGraphSigmoidFakeBackend(FakeAcousticBackend):
+  """The stub as a model with the sigmoid in its graph: scores, not logits.
+
+  Every segment gets the same scores: a ramp of float32 sigmoids over the
+  logits [-15, 15] with a saturated 0.0 and 1.0 at the ends, which is the
+  range the prediction worker's logit recovery has to handle. The segment
+  marker is not applied, so ``scores()`` is what a result compares against.
+  """
+
+  @classmethod
+  def applies_sigmoid(cls) -> bool:
+    return True
+
+  @classmethod
+  def scores(cls) -> np.ndarray:
+    logits = np.linspace(-15.0, 15.0, cls.n_species_out - 2, dtype=np.float32)
+    inside = (1.0 / (1.0 + np.exp(-logits))).astype(np.float32)
+    return np.concatenate([[0.0], inside, [1.0]]).astype(np.float32)
+
+  def predict(self, batch: np.ndarray) -> np.ndarray:
+    self._stall()
+    out = np.empty((batch.shape[0], self.n_species_out), dtype=np.float32)
+    out[:] = self.scores()
+    return out
+
+
 def fake_model_path(tmp_path: Path) -> Path:
   """A file that exists, which is all the session asserts about the model."""
   path = tmp_path / "fake-model.tflite"

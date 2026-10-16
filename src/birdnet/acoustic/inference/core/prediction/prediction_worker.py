@@ -12,6 +12,7 @@ from birdnet.acoustic.inference.core.shm import RingField
 from birdnet.acoustic.inference.core.worker import WorkerBase
 from birdnet.core.backends import BackendLoader, BatchT
 from birdnet.utils.helper import (
+  flat_logit_fast,
   flat_sigmoid_logaddexp_fast,
   flat_softmax_fast,
   get_uint_dtype,
@@ -46,6 +47,7 @@ class PredictionWorker(WorkerBase):
     apply_sigmoid: bool,
     apply_softmax: bool,
     sigmoid_sensitivity: float | None,
+    model_applies_sigmoid: bool,
     wkr_stats_queue: Queue | None,
     logging_queue: Queue,
     logging_level: int,
@@ -72,6 +74,12 @@ class PredictionWorker(WorkerBase):
     if apply_sigmoid:
       assert sigmoid_sensitivity is not None
       self._sigmoid_sensitivity = sigmoid_sensitivity
+    # A model with the sigmoid in its graph outputs scores, so the pipeline
+    # sigmoid needs the logits recovered first. The models' predict_session
+    # leaves it off at the default sensitivity (resolve_in_graph_sigmoid_options),
+    # which is what keeps those scores untouched; a session built directly with
+    # apply_sigmoid=True runs the recovery at any sensitivity.
+    self._recover_logits = apply_sigmoid and model_applies_sigmoid
     self._batch_idx_cache = {}
 
     self._species_dtype: DTypeLike | None = None
@@ -109,6 +117,18 @@ class PredictionWorker(WorkerBase):
   def _infer(self, batch: BatchT) -> BatchT:
     assert self._backend is not None
     return self._backend.predict(batch)
+
+  def _result_to_host(self, infer_result_tensor: BatchT) -> np.ndarray:
+    if not self._recover_logits:
+      return super()._result_to_host(infer_result_tensor)
+    # The logits are recovered from the float32 scores; only then do they take
+    # the half-precision cast, so they reach the pipeline sigmoid in the
+    # precision a logit-output model's logits reach it.
+    assert self._backend is not None
+    logits = flat_logit_fast(self._backend.copy_from_device(infer_result_tensor))
+    if self._half_precision:
+      logits = logits.astype(np.float16, copy=False)
+    return logits
 
   def _get_block(
     self,

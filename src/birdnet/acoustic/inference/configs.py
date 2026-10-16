@@ -13,7 +13,10 @@ from ordered_set import OrderedSet
 
 from birdnet.acoustic.inference.core.perf_tracker import AcousticProgressStats
 from birdnet.acoustic.inference.core.tensor import AcousticTensorBase
-from birdnet.core.backends import VersionedBackendProtocol
+from birdnet.core.backends import (
+  VersionedAcousticBackendProtocol,
+  VersionedBackendProtocol,
+)
 from birdnet.core.base import ResultBase
 from birdnet.core.start_method import resolve_start_method
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
@@ -39,7 +42,7 @@ class ModelConfig:
   sig_fmin: int
   sig_fmax: int
   is_custom: bool
-  backend_type: type[VersionedBackendProtocol]
+  backend_type: type[VersionedAcousticBackendProtocol]
   backend_kwargs: dict[str, Any]
 
   @property

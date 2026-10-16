@@ -470,6 +470,20 @@ def get_max_relative_tolerance(a: np.ndarray, b: np.ndarray) -> float:
   return np.max(rel)
 
 
+def scores_at_sigmoid_sensitivity(scores: np.ndarray, sensitivity: float) -> np.ndarray:
+  """The pipeline's scaled sigmoid on the logits behind a model's sigmoid scores.
+
+  An independent float64 reference for what the prediction worker does with a
+  sigmoid-in-graph model at a non-default sensitivity. It shares no code with
+  the library's helpers, so a recovery that does nothing is caught.
+  """
+  p = scores.astype(np.float64)
+  with np.errstate(divide="ignore"):
+    logits = np.log(p) - np.log(1.0 - p)
+  shifted = np.clip(logits + (sensitivity - 1.0) * 10.0, -15.0, 15.0)
+  return 1.0 / (1.0 + np.exp(-shifted))
+
+
 def worst_decimal_precision(a: np.ndarray, b: np.ndarray, max_decimals: int = 8) -> int:
   diff = np.abs(a - b)
   max_diff = np.max(diff)
