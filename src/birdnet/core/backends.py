@@ -98,7 +98,9 @@ class Backend(Generic[BatchT], ABC):
     """Whether the sigmoid is applied inside the model graph.
 
     A model that applies the sigmoid inside its graph must not get the
-    pipeline's sigmoid on top: that squashes every score into [0.5, 0.73].
+    pipeline's sigmoid on top: that squashes every score into [0.5, 0.73]. The
+    prediction worker recovers the logits from such a model's scores when a
+    non-default sigmoid sensitivity asks for the pipeline sigmoid after all.
     """
     return False
 

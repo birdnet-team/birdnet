@@ -20,36 +20,40 @@ from birdnet.core.base import ModelBase
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
 
 
-def validate_in_graph_sigmoid_options(
+def resolve_in_graph_sigmoid_options(
   apply_sigmoid: bool,
   apply_softmax: bool,
   sigmoid_sensitivity: float | None,
   model_desc: str,
-) -> None:
-  """Reject score options a model with the sigmoid in its graph cannot honour.
+) -> tuple[bool, float | None]:
+  """Map the score options of a model with the sigmoid in its graph onto the pipeline's.
 
-  Such a model applies the sigmoid inside its graph, so the pipeline's sigmoid
-  must stay off (a second one squashes every score into [0.5, 0.73]) and the
-  logits that a softmax or a scaled sigmoid need are not available.
+  Returns the ``(apply_sigmoid, sigmoid_sensitivity)`` the session runs with.
+  The graph's own sigmoid is the result at the default sensitivity, so the
+  pipeline's sigmoid stays off and the scores leave the model untouched (a
+  second sigmoid would squash every score into [0.5, 0.73]). A non-default
+  sensitivity turns it on: the worker recovers the logits from the scores and
+  runs the pipeline sigmoid on them, exactly as on a logit-output model.
+  ``apply_sigmoid=False`` returns the raw model output and ignores the
+  sensitivity, as it does for a logit-output model.
+
+  A softmax stays rejected: a score saturated at 1.0 recovers to an infinite
+  logit, which the sigmoid clips but a softmax turns into NaN.
   """
   if apply_softmax:
     raise ValueError(
       f"apply_softmax is not supported for {model_desc}: the export applies a "
-      "sigmoid inside the model graph, so the logits a softmax needs are not "
-      "available."
+      "sigmoid inside the model graph, and the logits recovered from its scores "
+      "are infinite wherever a score saturates, which a softmax turns into NaN."
     )
-  if apply_sigmoid:
-    sigmoid_sensitivity = PredictionConfig.validate_sigmoid_sensitivity(
-      sigmoid_sensitivity
-    )
-  # The sensitivity can never take effect, so a non-default value is rejected
-  # rather than silently ignored even when apply_sigmoid=False.
-  if sigmoid_sensitivity is not None and sigmoid_sensitivity != 1.0:
-    raise ValueError(
-      f"sigmoid_sensitivity is not supported for {model_desc}: the export "
-      "applies a plain sigmoid inside the model graph, so a scaled sigmoid "
-      "cannot be applied. Leave it at its default of 1.0."
-    )
+  if not apply_sigmoid:
+    return False, None
+  sigmoid_sensitivity = PredictionConfig.validate_sigmoid_sensitivity(
+    sigmoid_sensitivity
+  )
+  if sigmoid_sensitivity == 1.0:
+    return False, None
+  return True, sigmoid_sensitivity
 
 
 def validate_batch_size_for_backend(

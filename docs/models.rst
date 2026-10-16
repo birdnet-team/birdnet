@@ -114,11 +114,12 @@ SavedModel and as a detached head.
 * The tensors of a TFLite export are resolved from its ``serving_default``
   signature, so exports of every analyzer release load; the ``classifier_type``
   argument is accepted but no longer needed.
-* 2.4 TFLite exports output logits and get the pipeline's sigmoid, so
-  ``sigmoid_sensitivity`` applies. 3.0 exports and Raven exports on either base
-  apply the sigmoid inside their graph; their scores are returned as they
-  are, and ``sigmoid_sensitivity`` other than ``1.0`` or ``apply_softmax=True``
-  raise a ``ValueError``.
+* 2.4 TFLite exports output logits and get the pipeline's sigmoid. 3.0 exports
+  and Raven exports on either base apply the sigmoid inside their graph; their
+  scores are returned as they are, and a ``sigmoid_sensitivity`` other than
+  ``1.0`` is applied on logits recovered from those scores, so it has the same
+  effect on every export (and ``apply_sigmoid=False`` ignores it on every
+  export). ``apply_softmax=True`` raises a ``ValueError`` for them.
 * Exports on the 3.0 base inherit the official SavedModel's static batch of 1
   (``batch_size`` above 1 raises). The Raven export also inherits its NaN scores
   on a segment without variance; the TFLite export returns finite values there.

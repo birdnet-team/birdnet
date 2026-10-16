@@ -554,6 +554,17 @@ def flat_sigmoid_logaddexp_fast(
   return np.where(positive_mask, exp_neg_abs / one_plus_exp, 1.0 / one_plus_exp)
 
 
+def flat_logit_fast(x: npt.NDArray) -> npt.NDArray:
+  """Invert a plain sigmoid: the logit each score came from, ``log(p) - log1p(-p)``.
+
+  Saturated scores (0.0 and 1.0) give ``-inf`` and ``inf``, which
+  ``flat_sigmoid_logaddexp_fast`` clips like any logit beyond ``clip_val``.
+  """
+  with np.errstate(divide="ignore"):
+    logits: npt.NDArray = np.log(x) - np.log1p(-x)
+  return logits
+
+
 def flat_softmax_fast(x: npt.NDArray) -> npt.NDArray:
   x_max = np.max(x, axis=1, keepdims=True)
   shifted = x - x_max

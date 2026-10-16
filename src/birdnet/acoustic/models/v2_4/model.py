@@ -23,8 +23,8 @@ from birdnet.acoustic.inference.session import (
 )
 from birdnet.acoustic.models.base import (
   AcousticModelBase,
+  resolve_in_graph_sigmoid_options,
   validate_batch_size_for_backend,
-  validate_in_graph_sigmoid_options,
 )
 from birdnet.core.backends import BackendLoader, VersionedAcousticBackendProtocol
 from birdnet.globals import ACOUSTIC_MODEL_VERSION_V2_4, ACOUSTIC_MODEL_VERSIONS
@@ -315,23 +315,23 @@ class AcousticModelV2_4(AcousticModelBase):
         that raises cancels the run.
 
     A Raven export (``load_custom(.., "pb", .., is_raven=True)``) applies the
-    sigmoid inside its graph. For it ``apply_sigmoid``
-    changes nothing, and ``sigmoid_sensitivity`` other than ``1.0`` or
-    ``apply_softmax=True`` raise a ``ValueError``, as for the V3.0 models.
+    sigmoid inside its graph, so ``apply_sigmoid=True`` returns its scores as
+    they are. A ``sigmoid_sensitivity`` other than ``1.0`` is applied on logits
+    recovered from those scores; ``apply_sigmoid=False`` returns the raw scores
+    and ignores the sensitivity, as for a TFLite export. ``apply_softmax=True``
+    raises a ``ValueError``, as for the V3.0 models.
 
     Returns:
       AcousticPredictionSession: Session capable of running predictions.
     """
     validate_batch_size_for_backend(batch_size, self.backend_type)
     if self.backend_type.applies_sigmoid():
-      validate_in_graph_sigmoid_options(
+      apply_sigmoid, sigmoid_sensitivity = resolve_in_graph_sigmoid_options(
         apply_sigmoid,
         apply_softmax,
         sigmoid_sensitivity,
         f"a custom classifier on the '{self.backend_type.name()}' backend",
       )
-      apply_sigmoid = False
-      sigmoid_sensitivity = None
     return AcousticPredictionSession(
       species_list=self.species_list,
       model_path=self.model_path,

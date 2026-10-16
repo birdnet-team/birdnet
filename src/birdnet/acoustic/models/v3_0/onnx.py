@@ -120,6 +120,10 @@ class AcousticOnnxBackendFP32V3_0(OnnxBackend, VersionedAcousticBackendProtocol)
   def precision(cls) -> MODEL_PRECISIONS:
     return MODEL_PRECISION_FP32
 
+  @classmethod
+  def applies_sigmoid(cls) -> bool:
+    return True
+
 
 class AcousticOnnxBackendFP16V3_0(OnnxBackend, VersionedAcousticBackendProtocol):
   @classmethod
@@ -141,3 +145,7 @@ class AcousticOnnxBackendFP16V3_0(OnnxBackend, VersionedAcousticBackendProtocol)
   @classmethod
   def precision(cls) -> MODEL_PRECISIONS:
     return MODEL_PRECISION_FP16
+
+  @classmethod
+  def applies_sigmoid(cls) -> bool:
+    return True

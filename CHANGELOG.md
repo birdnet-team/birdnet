@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `sigmoid_sensitivity` now applies to the models that apply the sigmoid inside their graph: the 3.0 models on every backend, custom 3.0 classifiers and Raven exports on either base. Any value other than `1.0` used to raise a `ValueError` for them, with or without `apply_sigmoid`. The prediction worker recovers the logits from such a model's scores and runs the pipeline's sigmoid on them, so a sensitivity moves their scores and thresholds as it moves a 2.4 model's, to within float32 rounding (at most 1.3e-5 at sensitivity 0.5); the default leaves the scores unchanged, `apply_sigmoid=False` ignores the sensitivity as it does for the 2.4 models, and `apply_softmax=True` still raises ([#114](https://github.com/birdnet-team/birdnet/pull/114)).
+
 ## [1.2.0] - 2026-10-16
 
 ### Added
