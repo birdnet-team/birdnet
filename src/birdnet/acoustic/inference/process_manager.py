@@ -153,7 +153,6 @@ class ProcessManager:
         log_file=self._res.logging_resources.session_log_file,
         cancel_event=self._res.processing_resources.cancel_event,
         stop_event=self._res.logging_resources.stop_logging_event,
-        processing_finished_event=self._res.processing_resources.processing_finished_event,
       ),
       name=f"{self._session_hash}-QueueFileWriter",
       daemon=True,
@@ -293,7 +292,6 @@ class ProcessManager:
         cancel_event=self._res.processing_resources.cancel_event,
         end_event=self._res.processing_resources.end_event,
         input_queue=self._res.analyzer_resources.input_queue,
-        finished=self._res.analyzer_resources.finished,
         start_signal=self._res.analyzer_resources.start_signal,
         finish_signal=self._res.analyzer_resources.finish_signal,
       ),
@@ -406,35 +404,29 @@ class ProcessManager:
     # exactly the retry where the user most needs the reason.
     if not res.processing_resources.cancel_event.is_set():
       self._child_death_error = None
-    # start file analyzer
     self._logger.debug("[START_SIG] Starting file analyzer...")
     res.analyzer_resources.start_signal.set()
     res.analyzer_resources.input_queue.put(input_data, block=True)
 
-    # start producers
     self._logger.debug("[START_SIG] Starting producers...")
     for i in range(res.producer_resources.n_producers):
       res.producer_resources.start_signals[i].set()
 
-    # set input data for producers
     self._logger.debug("Feeding input data to producers...")
     for input_idx, inp_data in enumerate(input_data):
       res.producer_resources.input_queue.put((input_idx, inp_data), block=True)
     for _ in range(res.producer_resources.n_producers):
       res.producer_resources.input_queue.put(None, block=True)
 
-    # start workers
     self._logger.debug("[START_SIG] Starting workers...")
     for i in range(self._cfg.processing_conf.workers):
       res.worker_resources.start_signals[i].set()
 
-    # start performance tracker
     self._logger.debug("[START_SIG] Starting performance tracker...")
     if res.stats_resources.track_performance:
       assert res.stats_resources.perf_res_start_signal is not None
       res.stats_resources.perf_res_start_signal.set()
 
-    # start progress dispatcher
     self._logger.debug("[START_SIG] Starting progress dispatcher...")
     if res.stats_resources.use_callback:
       assert res.stats_resources.callback_start_signal is not None
@@ -559,23 +551,18 @@ class ProcessManager:
   def wait_until_all_finished(self) -> None:
     res = self._res
 
-    # wait for file analyzer to finish
     self._wait_for_finish_signal(res.analyzer_resources.finish_signal)
 
-    # wait for producers to finish
     for i in range(res.producer_resources.n_producers):
       self._wait_for_finish_signal(res.producer_resources.finish_signals[i])
 
-    # wait for workers to finish
     for i in range(self._cfg.processing_conf.workers):
       self._wait_for_finish_signal(res.worker_resources.finish_signals[i])
 
-    # wait for performance tracker to finish
     if res.stats_resources.track_performance:
       assert res.stats_resources.perf_res_finish_signal is not None
       self._wait_for_finish_signal(res.stats_resources.perf_res_finish_signal)
 
-    # wait for progress dispatcher to finish
     if res.stats_resources.use_callback:
       assert res.stats_resources.callback_finish_signal is not None
       self._wait_for_finish_signal(res.stats_resources.callback_finish_signal)

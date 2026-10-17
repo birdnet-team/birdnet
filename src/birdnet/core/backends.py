@@ -280,7 +280,6 @@ class TFBackend(Backend, ABC):
     self._interp.set_tensor(self._input_idx, batch)
 
   def _infer(self, batch: np.ndarray, out_idx: int) -> np.ndarray:
-    # TODO: implement load on different CPUs
     assert self._interp is not None
 
     self._set_tensor(batch)
@@ -560,7 +559,6 @@ class PBBackend(Backend, ABC):
   ) -> None:
     super().__init__(model_path, device_name, half_precision)
     self._model: Any | None = None
-    self._logical_device: Any | None = None
     self._logical_device_name: str | None = None
     self._predict_fn: Callable | None = None
     self._encoding_fn: Callable | None = None
@@ -622,7 +620,7 @@ class PBBackend(Backend, ABC):
 
   def unload(self) -> None:
     self._model = None
-    self._logical_device = None
+    self._logical_device_name = None
     self._predict_fn = None
     self._encoding_fn = None
 
@@ -819,24 +817,6 @@ class BackendLoader:
     except Exception as e:
       get_logger_for_package(__name__).error(f"Failed to load model in subprocess: {e}")
       raise ValueError("Failed to load model.") from e
-
-  @classmethod
-  def check_custom_tflite_model(
-    cls,
-    model_path: Path,
-    library: LIBRARY_TYPES,
-    prediction_to_type: dict[int, tuple[str, int]],
-  ) -> tuple[int, str]:
-    """(n_species, mode) of a custom TFLite classifier.
-
-    Superseded by `inspect_custom_tflite_model`, which also reports the base
-    version; the mode is "replace" or "append" (hidden units do not change how
-    a file is read).
-    """
-    info = cls.inspect_custom_tflite_model(
-      model_path, library, prediction_to_type.keys()
-    )
-    return info.n_species, info.mode
 
   @classmethod
   def inspect_custom_tflite_model(
@@ -1088,7 +1068,7 @@ def load_lib_tf_model(
   tf_verbosity_before: int | None = None
   tf_verbosity_before = logging.getLogger("tensorflow").level
   logging.getLogger("tensorflow").setLevel(logging.ERROR)
-  # NOTE: import in this way is not possible:
+  # Importing it this way is not possible:
   # `import tensorflow.lite.python.interpreter as tflite`
   # This is where the tf backend first pulls TensorFlow in, so it is the import
   # that emits the native startup banner.
@@ -1099,14 +1079,7 @@ def load_lib_tf_model(
 
   import warnings
 
-  # Suppress deprecation warning about tf.lite.Interpreter
-  # because the tf Interpreter is way faster than the litert one:
-  # -> e.g. 183 seg/s vs. 238 seg/s
-  # ---
-  # "tensorflow/lite/python/interpreter.py:457: UserWarning:
-  # Warning: tf.lite.Interpreter is deprecated and is scheduled for deletion in TF 2.20.
-  # Please use the LiteRT interpreter from the ai_edge_litert package.
-  # See the [migration guide](https://ai.google.dev/edge/litert/migration) for details."
+  # tf.lite.Interpreter is deprecated but faster than LiteRT's (238 vs. 183 seg/s).
   with warnings.catch_warnings():
     warnings.filterwarnings(
       "ignore",
@@ -1120,7 +1093,7 @@ def load_lib_tf_model(
         num_threads=1,
         experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,
         experimental_preserve_all_tensors=preserve_all_tensors,
-        # tensor#187 is a dynamic-sized tensor # type: ignore
+        # tensor#187 is a dynamic-sized tensor
       )
     except ValueError as e:
       raise ValueError(
@@ -1165,7 +1138,7 @@ def load_lib_litert_model(
       num_threads=1,
       experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,
       experimental_preserve_all_tensors=preserve_all_tensors,
-      # tensor#187 is a dynamic-sized tensor # type: ignore
+      # tensor#187 is a dynamic-sized tensor
     )
   except ValueError as e:
     raise ValueError(

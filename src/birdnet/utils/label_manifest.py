@@ -64,8 +64,6 @@ def get_manifest_path(lang_dir: Path) -> Path:
 def verify_download(path: Path, expected: LabelInput) -> None:
   """Check a freshly downloaded artifact against its pinned digest.
 
-  Byte size alone cannot tell two releases apart when they happen to be the same
-  length, and it is the size check that let a different taxonomy take this path.
   A file that fails is removed, so a retry starts from nothing.
   """
   actual = sha256_file(path)
@@ -82,8 +80,7 @@ def verify_download(path: Path, expected: LabelInput) -> None:
 def artifact_is_current(expected: LabelInput) -> bool:
   """Whether the file on disk is the artifact these constants describe.
 
-  By content, not by byte size: two releases can share a length, and deciding
-  this by size is what let one version's taxonomy stand in for another's.
+  By content, not by byte size: two releases can share a length.
   """
   if not expected.path.is_file():
     return False

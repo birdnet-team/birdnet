@@ -22,11 +22,6 @@ from birdnet.acoustic.inference.resources import (
 
 class InferenceStrategyBase(Generic[ResultType, ConfigType, TensorType], ABC):
   @abstractmethod
-  def validate_config(
-    self, config: InferenceConfig, specific_config: ConfigType
-  ) -> None: ...
-
-  @abstractmethod
   def create_tensor(
     self,
     session_id: str,

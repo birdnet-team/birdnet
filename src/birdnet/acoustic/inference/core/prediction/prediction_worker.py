@@ -3,7 +3,6 @@ from __future__ import annotations
 import multiprocessing.synchronize
 from multiprocessing import Queue
 from multiprocessing.synchronize import Event, Semaphore
-from typing import TYPE_CHECKING
 
 import numpy as np
 from numpy.typing import DTypeLike
@@ -17,9 +16,6 @@ from birdnet.utils.helper import (
   flat_softmax_fast,
   get_uint_dtype,
 )
-
-if TYPE_CHECKING:
-  pass
 
 
 class PredictionWorker(WorkerBase):
@@ -80,7 +76,7 @@ class PredictionWorker(WorkerBase):
     # which is what keeps those scores untouched; a session built directly with
     # apply_sigmoid=True runs the recovery at any sensitivity.
     self._recover_logits = apply_sigmoid and model_applies_sigmoid
-    self._batch_idx_cache = {}
+    self._batch_idx_cache: dict[int, np.ndarray] = {}
 
     self._species_dtype: DTypeLike | None = None
 

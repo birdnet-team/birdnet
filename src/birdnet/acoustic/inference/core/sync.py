@@ -124,8 +124,8 @@ class ThreadedQueueReader(Generic[T]):
   One reader per queue per run. Stopping is split in two on purpose:
   ``stop()`` returns immediately, because joining a pump that is merely asleep
   in its poll costs tens of milliseconds and runs on every ``session.run``
-  call -- a fixed per-call latency this pipeline has already reintroduced and
-  re-fixed twice. ``confirm_stopped()`` does the bounded join, and is called
+  call -- a fixed per-call latency ``test_session_call_overhead`` guards
+  against. ``confirm_stopped()`` does the bounded join, and is called
   where the answer is actually needed: before the same queue is read again,
   and before it is closed. A pump that does not confirm is wedged inside the
   queue, and the owner must then leave that queue open -- closing it would
@@ -138,13 +138,13 @@ class ThreadedQueueReader(Generic[T]):
   # exit of a pump whose stop token could not be delivered.
   _PUMP_POLL_S = 0.2
 
-  # Restores the backpressure the pipe used to provide: without a bound the
-  # pump would drain everything a fast backend produces straight into the
+  # Bounded so the pipe's backpressure survives the reader thread: without a
+  # bound the pump would drain everything a fast backend produces into the
   # parent's heap. The bound is in blocks, so the bytes scale with block size:
-  # ~11 MB at the largest single-segment block (~45 KB, top_k=None), but up to
-  # ~270 MB at batch_size=32 with top_k=None -- the buffer only fills when the
-  # workers outrun the consumer, and a full buffer parks the pump, which parks
-  # the pipe, which parks the writer: the same brake as before.
+  # ~11 MB at the largest single-segment block (~45 KB, top_k=None), up to
+  # ~270 MB at batch_size=32 with top_k=None. The buffer only fills when the
+  # workers outrun the consumer; a full buffer parks the pump, which parks the
+  # pipe, which parks the writer.
   _BUFFER_MAX_ITEMS = 256
 
   def __init__(self, q: Queue, name: str) -> None:

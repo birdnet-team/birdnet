@@ -48,18 +48,14 @@ class PerformanceTrackingResult:
 class ValueTracker:
   def __init__(self, n_last: int) -> None:
     self._values = deque(maxlen=n_last)
-    self._summed_val = 0
     self._avg_val = 0
-    self._min_val = 0
     self._max_val = 0
     self._n_vals = 0
 
   def add_value(self, val: float | np.floating) -> None:
     val = float(val)
     self._values.append(val)
-    self._min_val = min(self._min_val, val) if self._n_vals > 0 else val
     self._max_val = max(self._max_val, val) if self._n_vals > 0 else val
-    self._summed_val = self._summed_val + val if self._n_vals > 0 else val
     self._avg_val = (
       (self._avg_val * self._n_vals + val) / (self._n_vals + 1)
       if self._n_vals > 0
@@ -70,9 +66,7 @@ class ValueTracker:
 
   def reset(self) -> None:
     self._values.clear()
-    self._summed_val = 0
     self._avg_val = 0
-    self._min_val = 0
     self._max_val = 0
     self._n_vals = 0
 
@@ -81,24 +75,12 @@ class ValueTracker:
     return self._avg_val
 
   @property
-  def min_val(self) -> float:
-    return self._min_val
-
-  @property
   def max_val(self) -> float:
     return self._max_val
 
   @property
-  def summed_val(self) -> float:
-    return self._summed_val
-
-  @property
   def n_vals(self) -> int:
     return self._n_vals
-
-  @property
-  def vals(self) -> deque[float]:
-    return self._values
 
   @property
   def last_val(self) -> float:
@@ -277,7 +259,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       self._finish_signal.set()
 
   def reset(self) -> None:
-    # TODO set to statisticresources start
+    # TODO: take the start time from StatisticsResources.start (no issue yet).
     self._start = time.perf_counter()
 
     self._memory_usage_MiB_tracker.reset()
@@ -294,6 +276,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._wkr_1_wait_dur_for_filled_slot_tracker.reset()
     self._wkr_2_search_dur_for_filled_slot_tracker.reset()
     self._wkr_3_get_job_dur_tracker.reset()
+    self._wkr_4_copy_to_device_tracker.reset()
     self._wkr_5_inference_dur_tracker.reset()
     self._wkr_6_add_to_queue_dur_tracker.reset()
     self._wkr_speed_xrt_tracker.reset()
@@ -370,7 +353,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       else:
         self._callback_stats(finished=False)
 
-    worker_speed_xrt_max = 0
     stats = PerformanceTrackingResult(
       worker_speed_xrt=(self._wkr_total_segments_processed * self._segment_size_s)
       / sum(self._wkr_wall_times.values())
@@ -382,7 +364,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
         if len(self._wkr_wall_times) > 0
         else 0
       ),
-      worker_speed_xrt_max=worker_speed_xrt_max,
+      worker_speed_xrt_max=self._wkr_speed_xrt_tracker.max_val,
       total_segments_processed=self._wkr_total_segments_processed,
       total_batches_processed=self._wkr_6_add_to_queue_dur_tracker.n_vals,
       n_usage_recordings=self._memory_usage_MiB_tracker.n_vals,
@@ -662,7 +644,6 @@ class WorkerStats:
   # x real time
   speed_xrt: float
 
-  # segments per second
   speed_seg_per_s: float
 
   # median wait time for a filled slot in ms
@@ -676,7 +657,6 @@ class WorkerStats:
   inference_ms: float
   add_ms: float
 
-  # total number of workers
   workers: int
 
   # median number of busy workers
@@ -688,7 +668,6 @@ class ProducerStats:
   # x real time
   speed_xrt: float
 
-  # segments per second
   speed_seg_per_s: float
 
   # median wait time for a free slot in buffer in ms
@@ -706,7 +685,6 @@ class ProducerStats:
 
 @dataclass(frozen=True)
 class BufferStats:
-  # total number of slots in buffer
   slots: int
 
   # median number of free slots which can be written to
@@ -718,7 +696,7 @@ class BufferStats:
   # median number of slots which are prepared for reading
   preloaded_slots: float
 
-  # median number of filled slots
+  # slots minus the median free count
   @property
   def filled_slots(self) -> float:
     return self.slots - self.free_slots
@@ -726,13 +704,10 @@ class BufferStats:
 
 @dataclass(frozen=True)
 class AcousticProgressStats:
-  # processing status
   finished: bool
 
-  # buffer stats
   buffer_stats: BufferStats
 
-  # producer stats
   producer_stats: ProducerStats
 
   # worker stats, or None if no worker has processed data yet
@@ -741,13 +716,10 @@ class AcousticProgressStats:
   # wall time since start in seconds
   wall_time_s: float
 
-  # memory usage in MiB
   memory_usage_MiB: float
 
-  # maximum memory usage in MiB
   memory_usage_max_MiB: float
 
-  # CPU usage in percentage
   cpu_usage_pct: float
 
   # total maximum CPU usage in percentage
@@ -765,10 +737,8 @@ class AcousticProgressStats:
       return None
     return str(datetime.timedelta(seconds=math.ceil(self.est_remaining_time_s)))
 
-  # number of processed segments
   processed_segments: int
 
-  # number of processed batches
   processed_batches: int
 
   # total segments to process, or None if still unknown
@@ -872,6 +842,5 @@ class ProgressDispatcher:
 
         finished = self._processing_finished_event.is_set()
         if finished and latest.finished:
-          # last stats should always be called
           self._log("Processing finished event is set. Exiting loop.")
           return

@@ -10,9 +10,9 @@ from birdnet.acoustic.models.v2_4.tf import (
 )
 from birdnet.globals import MODEL_PRECISIONS
 from birdnet.model_loader import load_custom
-from birdnet.utils.helper import check_is_intel_macos, check_is_python_312
+from birdnet.utils.helper import check_is_intel_macos
 from birdnet.utils.local_data import get_lang_dir, get_model_path
-from birdnet_tests.helper import ensure_litert_or_skip
+from birdnet_tests.helper import check_is_python_312, ensure_litert_or_skip
 from birdnet_tests.test_files import TEST_FILES_DIR
 
 

@@ -134,10 +134,7 @@ class AcousticEncodingResultBase(AcousticResultBase):
     embeddings_selected = self.embeddings[valid_file_idx, valid_seg_idx]
 
     hop_duration_s = self.hop_duration_s
-    # Force at least float32 for timing columns. The bulk _input_durations
-    # array is stored in a magnitude-based dtype (float16 for files <= 2**11 s),
-    # which is too coarse for accumulated i*hop products and would also produce
-    # Arrow halffloat that some implementations (e.g. R) cannot read.
+    # At least float32 for timing columns; see prediction_result.py.
     time_dtype = np.result_type(self._input_durations.dtype, np.float32)
 
     dtype = [
@@ -368,8 +365,7 @@ class AcousticFileEncodingResult(AcousticEncodingResultBase):
 
   @property
   def _input_dtype(self) -> type:
-    # NOTE: use dtype object for paths and species because these strings repeat often
-    # -> pointer to python string is more efficient
+    # object dtype: repeated path strings share one Python object.
     return object
 
 

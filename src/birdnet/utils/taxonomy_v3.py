@@ -1,9 +1,9 @@
 """The taxonomy shared by the V3.0 models, and the localized labels built from it.
 
 The taxonomy is a single CSV published by the geomodel repository (versioned
-since its v3.0.4 release) and cached in the app data directory under the file
-name from its URL. Both V3.0 models use it; the V2.4 models ship static label
-files and do not.
+since its v3.0.4 release) and cached in the app data directory, in a directory
+named after its SHA-256. Both V3.0 models use it; the V2.4 models ship static
+label files and do not.
 
 What it is *not*: it never decides what a model predicts. Species identity, count
 and order come from that model's own label file. The taxonomy only supplies the
@@ -30,11 +30,7 @@ the running version expects to find. Each generated label directory carries a
 actually read and of every file that was written; see
 ``birdnet/utils/label_manifest.py`` for why digests and not names.
 
-The taxonomy is cached under the file name from its URL rather than a generic
-one, so two releases cannot occupy the same path. That matters because the
-taxonomy is shared: under a generic name, a second installed version judges this
-release stale by byte size, downloads its own over the top, and leaves every
-other version reading a taxonomy it never asked for.
+Two releases never share a cache path; see ``_TAXONOMY_V3_DIR``.
 
 Bumping the taxonomy is therefore: update the URL, size and SHA-256 below, then
 check that every column in both models' ``_LANGUAGE_TO_COLUMN`` still exists in
@@ -69,19 +65,12 @@ _TAXONOMY_V3_DL_SHA256 = (
   "98b27fc4a77c5e321c7bbf96f924fc4b58170de9688e79ebf3ea8263d522580a"
 )
 
-# The directory is named after the content, so two releases cannot occupy one
-# path - not even if upstream re-publishes under the same file name. Under the
-# previous generic name a second installed version would judge this release stale
-# by byte size, download its own over the top, and leave every other version
-# reading a taxonomy it never asked for.
+# Named after the content, so two releases cannot occupy one path, not even if
+# upstream re-publishes under the same file name.
 _TAXONOMY_V3_DIR = APP_DIR / "taxonomy-v3" / _TAXONOMY_V3_DL_SHA256[:12]
 _TAXONOMY_V3_PATH = _TAXONOMY_V3_DIR / _TAXONOMY_V3_DL_URL.rsplit("/", 1)[-1]
 _LEGACY_TAXONOMY_V3_PATH = APP_DIR / "taxonomy_v3_0.csv"
 _TAXONOMY_V3_LOCK_DIR = APP_DIR / ".taxonomy_v3_0.lock"
-
-
-def get_taxonomy_v3_path() -> Path:
-  return _TAXONOMY_V3_PATH
 
 
 def get_taxonomy_v3_input() -> LabelInput:

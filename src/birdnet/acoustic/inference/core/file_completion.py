@@ -13,8 +13,6 @@ import birdnet.acoustic.inference.core.logs as bn_logging
 # (file_path, tensor_slice_arrays, is_invalid, duration_s)
 # ``tensor_slice_arrays`` is a strategy-specific tuple of copied per-file arrays
 # (e.g. species ids/probs/masked for predictions, embeddings/mask for encodings).
-DispatchItem = tuple[object, tuple[np.ndarray, ...], bool, float]
-
 BuildResultFn = Callable[[object, tuple[np.ndarray, ...], bool, float], object]
 
 
@@ -41,7 +39,6 @@ class FileCompletionDispatcher:
     start_signal: threading.Event,
     finish_signal: threading.Event,
   ) -> None:
-    self._session_id = session_id
     self._dispatch_queue = dispatch_queue
     self._callback_fn = callback_fn
     self._build_result_fn = build_result_fn

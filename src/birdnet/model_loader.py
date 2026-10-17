@@ -988,8 +988,7 @@ def _load_custom_acoustic_model_V2_4(
       model_kwargs, {LIBRARY_TF_PARAM, CUSTOM_CLASSIFIER_TF_TYPE_PARAM}
     )
     library = _validate_library(model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT))
-    # Accepted for compatibility only: the backend reads the head's layout from
-    # the file, so the classifier type no longer selects anything.
+    # Accepted for compatibility only: the layout is read from the file.
     _validate_custom_classifier_type(
       model_kwargs.get(CUSTOM_CLASSIFIER_TF_TYPE_PARAM, CUSTOM_CLASSIFIER_REPLACE)
     )

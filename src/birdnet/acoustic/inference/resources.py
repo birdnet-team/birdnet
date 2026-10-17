@@ -126,8 +126,7 @@ class RingBufferResources:
     max_n_files: int,
     start_method: str,
   ) -> Self:
-    # session_id is required to run multiple sessions in parallel
-    # in multiple processes or threads in the same session
+    # The session id keeps parallel sessions' shared-memory names apart.
 
     ctx = mp.get_context(start_method)
     sid_hash = get_session_id_hash(session_id)
@@ -348,13 +347,10 @@ class InputAnalyzerResources:
   tot_n_segments_ptr: mp.RawValue  # type: ignore
   max_segment_idx_ptr: mp.RawValue  # type: ignore
   max_segment_idx_init_value: int
-  finished: threading.Event
   # each resource needs own start signal to allow resetting it individually
   start_signal: threading.Event
   finish_signal: threading.Event
   segments_dtype: np.dtype
-
-  _unprocessed_inputs: set[int] | None = None
 
   _input_durations: np.ndarray | None = None
 
@@ -362,11 +358,6 @@ class InputAnalyzerResources:
   def input_durations(self) -> np.ndarray:
     assert self._input_durations is not None
     return self._input_durations
-
-  @property
-  def unprocessed_inputs(self) -> set[int]:
-    assert self._unprocessed_inputs is not None
-    return self._unprocessed_inputs
 
   def collect_input_durations(self) -> None:
     durations: list[float] = self.analyzer_queue.get(block=True, timeout=None)
@@ -379,10 +370,8 @@ class InputAnalyzerResources:
 
   def reset(self) -> None:
     object.__setattr__(self, "_input_durations", None)
-    object.__setattr__(self, "_unprocessed_inputs", None)
     self.tot_n_segments_ptr.value = 0
     self.max_segment_idx_ptr.value = self.max_segment_idx_init_value
-    self.finished.clear()
     self.start_signal.clear()
     self.finish_signal.clear()
 
@@ -421,7 +410,6 @@ class InputAnalyzerResources:
       max_segment_idx_ptr=max_segment_idx_ptr,
       segments_dtype=segments_dtype,
       max_segment_idx_init_value=max_segment_ptr_value,
-      finished=threading.Event(),
       start_signal=threading.Event(),
       finish_signal=threading.Event(),
     )
@@ -503,7 +491,6 @@ class StatisticsResources:
   benchmarking: bool
   benchmark_dir: Path | None
   benchmark_session_dir: Path | None
-  benchmark_dir_name: str
 
   _stop: float | None = None
   _end_timepoint: datetime | None = None
@@ -593,7 +580,6 @@ class StatisticsResources:
       benchmark_session_dir=benchmark_session_dir,
       perf_res_start_signal=perf_res_start_signal,
       perf_res_finish_signal=perf_res_finish_signal,
-      benchmark_dir_name=benchmark_dir_name,
       use_callback=use_callback,
       callback_queue=callback_queue,
       callback_start_signal=callback_start_signal,

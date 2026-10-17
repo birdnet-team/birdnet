@@ -9,7 +9,6 @@ from birdnet.utils.helper import (
   bandpass_signal,
   check_is_intel_macos,
   uint_ctype_from_dtype,
-  xget_max_n_segments,
 )
 
 
@@ -24,17 +23,6 @@ from birdnet.utils.helper import (
 )
 def test_uint_ctype_from_dtype(dtype: type, expected: type) -> None:
   assert uint_ctype_from_dtype(dtype) is expected
-
-
-def test_xget_max_n_segments() -> None:
-  # effective segment = 3 - 1 = 2 -> ceil(10 / 2) = 5
-  assert xget_max_n_segments(10, 3, 1) == 5
-  assert xget_max_n_segments(3, 3, 0) == 1
-
-
-def test_xget_max_n_segments_rejects_non_positive_effective_duration() -> None:
-  with pytest.raises(AssertionError):
-    xget_max_n_segments(10, 3, 3)
 
 
 @pytest.mark.parametrize(

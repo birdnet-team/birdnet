@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
 
 from birdnet.acoustic.inference.configs import (
   ConfigType,
@@ -107,10 +106,6 @@ def _create_benchmark_statistics(
   stats_human_readable_out = benchmark_run_dir / f"{prepend}-stats.txt"
   result_npz = benchmark_run_dir / f"{prepend}-result.npz"
 
-  bm = asdict(bmm)
-  del_keys = [k for k in bm if k.startswith("_")]
-  for k in del_keys:
-    del bm[k]
   bm = bmm.to_dict()
 
   with open(stats_out_json, "w", encoding="utf8") as f:

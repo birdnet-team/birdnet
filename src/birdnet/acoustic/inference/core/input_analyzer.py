@@ -36,7 +36,6 @@ class InputAnalyzer:
     tot_n_segments: ctypes.c_uint64,
     cancel_event: multiprocessing.synchronize.Event,
     end_event: multiprocessing.synchronize.Event,
-    finished: threading.Event,
     start_signal: threading.Event,
     finish_signal: threading.Event,
   ) -> None:
@@ -54,7 +53,6 @@ class InputAnalyzer:
     self._analyzing_result = analyzing_result
     self._cancel_event = cancel_event
     self._end_event = end_event
-    self._finished = finished
     self._start_signal = start_signal
     self._finish_signal = finish_signal
 
@@ -93,7 +91,6 @@ class InputAnalyzer:
 
       self._start_signal.clear()
       self._log("Received start signal. Starting processing.")
-      # check that it was resetted
       assert self._tot_n_segments.value == 0
       self.run_main()
 
@@ -187,4 +184,3 @@ class InputAnalyzer:
     self._analyzing_result.put(durations, block=True)
     self._log("Done putting analyzing result into queue.")
     self._log(f"Total duration of all inputs: {sum(durations) / 60**2:.2f} h.")
-    self._finished.set()

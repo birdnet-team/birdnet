@@ -6,10 +6,8 @@ import time
 from abc import abstractmethod
 from multiprocessing import Queue, shared_memory
 from multiprocessing.synchronize import Event, Semaphore
-from typing import TYPE_CHECKING
 
 import numpy as np
-from numpy.typing import DTypeLike
 
 import birdnet.acoustic.inference.core.logs as bn_logging
 from birdnet.acoustic.inference.core.shm import RingField
@@ -25,9 +23,6 @@ from birdnet.globals import (
   WRITABLE_FLAG,
   WRITING_FLAG,
 )
-
-if TYPE_CHECKING:
-  pass
 
 
 class WorkerBase(bn_logging.LogableProcessBase):
@@ -77,24 +72,14 @@ class WorkerBase(bn_logging.LogableProcessBase):
     self._sem_filled = sem_fill
     self._sem_active_workers = sem_active_workers
     self._prediction_count = 0
-    # Interpreter
-    self._slot = 0
-    self._batch_idx_cache = {}
 
     self._n_slots = n_slots
-    self._batch_size = batch_size
-    self._segment_duration_samples = segment_duration_samples
-
-    self._species_dtype: DTypeLike | None = None
 
     self._rf_file_indices = rf_file_indices
     self._rf_segment_indices = rf_segment_indices
     self._rf_audio_samples = rf_audio_samples
     self._rf_batch_sizes = rf_batch_sizes
     self._rf_flags = rf_flags
-
-    self._in_idx: int | None = None
-    self._out_idx: int | None = None
 
     self._shm_file_indices: shared_memory.SharedMemory | None = None
     self._shm_segment_indices: shared_memory.SharedMemory | None = None
@@ -145,9 +130,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
 
   def _load_ring_buffers(self) -> None:
     self._log("Attaching ring buffers...")
-    # attach to existing shared memory buffers
-    # NOTE: these handlers must be created that GC does not
-    # delete the shared memory access
+    # Keep the SharedMemory handles referenced: GC would drop the mapping.
     self._shm_file_indices, self._ring_file_indices = (
       self._rf_file_indices.attach_and_get_array()
     )
@@ -291,7 +274,6 @@ class WorkerBase(bn_logging.LogableProcessBase):
         for current_slot in range(self._n_slots):
           current_slot_flag = self._ring_flags[current_slot]
 
-          # TODO: check if all ring_size slots = DONE
           if current_slot_flag == READABLE_FLAG:
             claimed_slot = current_slot
             claimed_flag = current_slot_flag
@@ -307,8 +289,8 @@ class WorkerBase(bn_logging.LogableProcessBase):
         self._wkr_ring_access_lock.release()
       # Timed unconditionally: an empty scan is the shutdown wake-up and must
       # reach the exit below, not assert on a duration only set when a slot hit.
-      # The window now closes after the lock rather than at the moment the slot
-      # is found, so it also covers the READING_FLAG write and the lock release.
+      # The window ends after the lock release, so it also covers the
+      # READING_FLAG write.
       dur2_search_for_filled_slot = time.perf_counter() - perf_c
 
       if claimed_slot is None:

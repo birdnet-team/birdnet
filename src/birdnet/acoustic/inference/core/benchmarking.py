@@ -25,7 +25,6 @@ from birdnet.utils.local_data import get_package_version
 
 @dataclass
 class MinimalBenchmarkMetaBase:
-  # Timestamp
   _start_timepoint: datetime
   _end_timepoint: datetime
 
@@ -43,7 +42,6 @@ class MinimalBenchmarkMetaBase:
   def time_wall_time(self) -> str:
     return str(timedelta(seconds=self._time_wall_time_s))
 
-  # Dataset
   _file_durations: np.ndarray
 
   @property
@@ -78,7 +76,6 @@ class MinimalBenchmarkMetaBase:
 
   file_formats: str
 
-  # Memory
   mem_result_total_memory_usage_MiB: float
 
   mem_shm_size_file_indices_MiB: float
@@ -96,8 +93,6 @@ class MinimalBenchmarkMetaBase:
       + self.mem_shm_size_batch_sizes_MiB
       + self.mem_shm_size_flags_MiB
     )
-
-  # Speed
 
   file_segments_total: int
   model_segment_duration_seconds: float
@@ -146,7 +141,6 @@ class FullBenchmarkMetaBase(MinimalBenchmarkMetaBase):
       return NA
     return str(timedelta(seconds=self._time_rampup_first_line_s))
 
-  # Hardware
   @property
   def hw_host(self) -> str:
     return platform.node()
@@ -171,7 +165,6 @@ class FullBenchmarkMetaBase(MinimalBenchmarkMetaBase):
   # the global mp.get_start_method() may differ from what the pipeline used.
   sw_start_method: str
 
-  # Software
   @property
   def sw_os(self) -> str:
     return f"{platform.system()} {platform.release()}"
@@ -196,7 +189,6 @@ class FullBenchmarkMetaBase(MinimalBenchmarkMetaBase):
   def sw_litert_available(self) -> bool:
     return litert_installed()
 
-  # Model
   model_type: MODEL_TYPES
   model_backend: str
   model_version: ACOUSTIC_MODEL_VERSIONS
@@ -211,7 +203,6 @@ class FullBenchmarkMetaBase(MinimalBenchmarkMetaBase):
   file_segments_maximum: int
   file_batches_processed: int
 
-  # Parameter
   param_producers: int
   param_workers: int
   param_overlap_seconds: float
@@ -258,7 +249,6 @@ class FullBenchmarkMetaBase(MinimalBenchmarkMetaBase):
     ) / self._worker_avg_wall_time_s
     return str(timedelta(seconds=result_s))
 
-  # Memory
   mem_shm_ringsize: int
 
   mem_memory_usage_maximum_MiB: float
@@ -290,6 +280,5 @@ class FullBenchmarkMetaBase(MinimalBenchmarkMetaBase):
         result[name] = getattr(self, name)
       except Exception as exc:
         result[name] = f"<error: {exc}>"
-    # sort result by keys
     result = OrderedDict(sorted(result.items()))
     return result

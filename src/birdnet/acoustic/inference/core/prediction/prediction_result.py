@@ -291,7 +291,6 @@ class AcousticPredictionResultBase(AcousticResultBase):
       raise ValueError("Output path must have a .csv suffix")
 
     with output_path.open("w", encoding=encoding, buffering=buffer_bytes) as f:
-      # Header
       f.write(
         f"{VAR_INPUT},{VAR_START_TIME},{VAR_END_TIME},{VAR_SPECIES_NAME},{VAR_CONFIDENCE}\n"
       )
@@ -320,7 +319,7 @@ class AcousticPredictionResultBase(AcousticResultBase):
           block.append(line)
           block_size_bytes += len(line.encode(encoding))
 
-          # Gepufferte I/O
+          # Flush the buffered lines once they reach the buffer size.
           if block_size_bytes >= buffer_bytes:
             f.writelines(block)
             block.clear()
@@ -328,7 +327,7 @@ class AcousticPredictionResultBase(AcousticResultBase):
             block_size_bytes = 0
 
           pbar.update(1)
-          # show file size in GB after every GB of data written
+          # Refresh the size display every 100 MB written.
           if collected_size_bytes >= update_size_every or pbar.n == pbar.total:
             total_size_bytes += collected_size_bytes
             collected_size_bytes = 0
@@ -336,7 +335,6 @@ class AcousticPredictionResultBase(AcousticResultBase):
             if not silent:
               pbar.set_postfix({"CSV": f"{total_size_bytes / 1024**2:.0f} MB"})
 
-        # Final flush
         if block:
           f.writelines(block)
 
@@ -387,8 +385,7 @@ class AcousticFilePredictionResult(AcousticPredictionResultBase):
 
   @property
   def _input_dtype(self) -> type:
-    # NOTE: use dtype object for paths and species because these strings repeat often
-    # -> pointer to python string is more efficient
+    # object dtype: repeated path/species strings share one Python object.
     return object
 
 

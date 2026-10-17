@@ -46,36 +46,6 @@ class PredictionStrategy(
     AcousticPredictionResultBase, PredictionConfig, AcousticPredictionTensor
   ]
 ):
-  def validate_config(
-    self, config: InferenceConfig, specific_config: PredictionConfig
-  ) -> None:
-    if specific_config.apply_sigmoid and specific_config.apply_softmax:
-      raise ValueError("apply_sigmoid and apply_softmax cannot both be True")
-
-    if specific_config.apply_sigmoid:
-      if specific_config.sigmoid_sensitivity is None:
-        raise ValueError("sigmoid_sensitivity required when apply_sigmoid=True")
-      if not 0.5 <= specific_config.sigmoid_sensitivity <= 1.5:
-        raise ValueError("sigmoid_sensitivity must be in [0.5, 1.5]")
-
-    if specific_config.custom_species_list:
-      for species_name in specific_config.custom_species_list:
-        if species_name not in config.model_conf.species_list:
-          raise ValueError(f"species '{species_name}' not in model's species list")
-
-    if specific_config.custom_confidence_thresholds:
-      for species_name in specific_config.custom_confidence_thresholds:
-        if species_name not in config.model_conf.species_list:
-          raise ValueError(f"species '{species_name}' not in model's species list")
-
-    if specific_config.top_k is not None and specific_config.top_k > len(
-      config.model_conf.species_list
-    ):
-      raise ValueError(
-        f"top_k cannot be larger than species count "
-        f"({len(config.model_conf.species_list)})"
-      )
-
   def create_tensor(
     self,
     session_id: str,
@@ -349,7 +319,7 @@ class PredictionStrategy(
       if specific_config.custom_confidence_thresholds
       else 0,
       _time_rampup_first_line_s=resources.stats_resources.start_time
-      - psutil.Process(os.getpid()).create_time(),  # TODO: Berechnen
+      - psutil.Process(os.getpid()).create_time(),  # TODO: measure the real ramp-up
       _time_wall_time_s=wall_time_s,
       mem_result_total_memory_usage_MiB=pred_result.memory_size_MiB,
       mem_shm_size_file_indices_MiB=resources.ring_buffer_resources.rf_file_indices.nbytes
@@ -420,7 +390,6 @@ def create_species_blacklist(
   config: InferenceConfig, pred_config: PredictionConfig
 ) -> npt.NDArray:
   """Setup species filtering logic"""
-  # Species whitelist
   if pred_config.custom_species_list and len(pred_config.custom_species_list) > 0:
     species_ids_whitelist = np.empty(len(pred_config.custom_species_list), dtype=int)
     for i, species_name in enumerate(pred_config.custom_species_list):

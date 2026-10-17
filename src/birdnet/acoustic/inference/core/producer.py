@@ -328,7 +328,7 @@ class Producer(bn_logging.LogableProcessBase):
         self._unprocessable_inputs.add(input_idx)
         return
 
-    # fill last segment with silence up to segmentsize if it is smaller than 3s
+    # Pad the last segment with silence to the full segment length.
     segments = (
       fillup_with_silence(segment, self.segment_duration_samples)
       for segment in segments
@@ -551,7 +551,6 @@ class Producer(bn_logging.LogableProcessBase):
     self._ring_file_indices[claimed_slot, :current_batch_size] = np.asarray(
       batch_file_indices, self._ring_file_indices.dtype
     )
-    # TODO könnte man noch bei den anderen auch machen
     assert max(batch_segment_indices) < max_value_for_uint_dtype(
       self._ring_segment_indices.dtype
     )
@@ -675,28 +674,6 @@ def get_audio_n_samples_from_sf(sf_info: soundfile._SoundFileInfo) -> int:
 
 def get_sample_rate_from_sf(sf_info: soundfile._SoundFileInfo) -> int:
   result = int(sf_info.samplerate)
-  return result
-
-
-def get_audio_duration_s(audio_path: Path) -> float:
-  """
-  Returns the duration of the audio file in seconds.
-  """
-  assert audio_path.is_file()
-  assert audio_path.suffix.upper() in SF_FORMATS
-  sf_info = soundfile.info(audio_path)
-  result = get_audio_duration_from_sf(sf_info)
-  return result
-
-
-def get_audio_n_samples(audio_path: Path) -> int:
-  """
-  Returns the number of samples in the audio file.
-  """
-  assert audio_path.is_file()
-  assert audio_path.suffix.upper() in SF_FORMATS
-  sf_info = soundfile.info(audio_path)
-  result = int(sf_info.frames)
   return result
 
 
@@ -877,18 +854,6 @@ def get_segments_with_overlap_all_int(
     yield start, end
 
 
-def calculate_target_sample_count(
-  n_samples: int, sample_rate: int, target_sample_rate: int
-) -> int:
-  assert sample_rate > 0
-  assert target_sample_rate > 0
-  x, y = divmod(n_samples, sample_rate)
-  if y != 0:
-    raise ValueError("original_sample_count must be a multiple of sample_rate")
-  target_sample_count = x * target_sample_rate
-  return target_sample_count
-
-
 def resample_array_by_sr(
   array: npt.NDArray, sample_rate: int, target_sample_rate: int
 ) -> npt.NDArray:
@@ -930,12 +895,10 @@ def read_data_in_mono(
   audio_data: npt.NDArray,
 ) -> Float32Array:
   assert 0 <= start_samples < end_samples <= audio_data.shape[0]
-  if (
-    not isinstance(audio_data, np.ndarray)
-    and audio_data.dtype != np.float32
-    and audio_data.ndim not in (1, 2)
-  ):
-    raise AssertionError("Invalid audio data provided.")
+  if audio_data.ndim not in (1, 2):
+    raise ValueError(
+      f"Audio data must be 1-D or 2-D, got {audio_data.ndim} dimensions."
+    )
   audio = audio_data[start_samples:end_samples]
   audio = to_float32(audio)
   return convert_to_mono(audio)
@@ -946,7 +909,6 @@ def to_float32(audio: IntArray | FloatArray) -> Float32Array:
   Convert integer or floating audio arrays to float32.
   """
   if np.issubdtype(audio.dtype, np.floating):
-    # type: ignore because numpy can't prove cast is correct
     return np.asarray(audio, dtype=np.float32)
 
   if np.issubdtype(audio.dtype, np.integer):
@@ -971,12 +933,10 @@ def read_file_in_mono(
     audio_path, start=start_samples, stop=end_samples, dtype="float32"
   )  # type: ignore
 
-  if (
-    not isinstance(audio, np.ndarray)
-    and audio.dtype != np.float32
-    and audio.ndim not in (1, 2)
-  ):
-    raise Exception("Invalid audio data read from file using soundfile.")
+  if audio.ndim not in (1, 2):
+    raise ValueError(
+      f"Audio read from '{audio_path}' must be 1-D or 2-D, got {audio.ndim} dimensions."
+    )
 
   return convert_to_mono(audio)
 
@@ -987,7 +947,9 @@ def convert_to_mono(
   if audio_data.ndim == 2:
     n_channels = audio_data.shape[1]
     if not n_channels > 1:
-      raise Exception("Invalid audio data.")
+      raise ValueError(
+        f"2-D audio data must have more than one channel, got {n_channels}."
+      )
     result: Float32Array = np.mean(audio_data, axis=1, dtype=np.float32)
     return result
   else:

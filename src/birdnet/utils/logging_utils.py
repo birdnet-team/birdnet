@@ -1,4 +1,3 @@
-# birdnet/logging_utils.py
 from __future__ import annotations
 
 import logging
@@ -10,19 +9,6 @@ from collections.abc import Generator
 from contextlib import contextmanager
 
 from birdnet.globals import ENV_VAR_TF_VERBOSE, PKG_NAME
-
-"""
-loggers:
-
-root:
-- birdnet (INFO)
-  - birdnet.session_XXX (INFO, inherited)
-    - logger for each predict/encode session
-    - birdnet.session_XXX.modules... e.g. birdnet.session_XXX.birdnet.acoustic_models.inference_pipeline.processes
-- birdnet_file_writer.session_XXX (INFO, inherited)
-  - file writer for each predict/encode session
-
-"""  # noqa: E501
 
 
 def get_package_logger() -> logging.Logger:
