@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `AcousticModelV3_0` and `GeoModelV3_0` are importable from `birdnet`, like their 2.4 siblings ([#XXX](https://github.com/birdnet-team/birdnet/pull/XXX)).
+
 ### Bugfixes
 
 - Loading a second result from `.npz` (`AcousticFilePredictionResult.load(..)` and the other result classes) silently replaced the arrays of every result loaded earlier in the same process, because the loader stored them on the class instead of the instance; each loaded result now owns its data ([#116](https://github.com/birdnet-team/birdnet/pull/116)).
@@ -18,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `n_workers` docstrings of acoustic `predict(..)` no longer describe a worker killed mid-batch as deadlocking the run, which 1.1.0 fixed ([#116](https://github.com/birdnet-team/birdnet/pull/116)).
 - An audio array with more than two dimensions passed to `predict_arrays(..)` or `encode_arrays(..)` failed in the producer with a bare `AssertionError`, because the reader's dimension check joined its conditions with `and` and could never fire; the producer now fails with a `ValueError` naming the number of dimensions ([#117](https://github.com/birdnet-team/birdnet/pull/117)).
 - The benchmark statistics (`show_stats="benchmark"`) reported `speed_worker_xrt_max` as `0.0` on every run, because the value was hardcoded; it is now the highest worker xRT sampled during the run ([#117](https://github.com/birdnet-team/birdnet/pull/117)).
+- The type stub had no overload for the documented `load("acoustic", "3.0", "tf")` and `load("acoustic", "3.0", "pb")` calls and rejected `precision="fp16"` for the acoustic 3.0 `onnx` backend, so type checkers reported false errors and inferred `Any`; it is now in sync with the loader, which also means `library="litert"` for the geo 3.0 `tf` backend, always refused at runtime, is now a type error ([#XXX](https://github.com/birdnet-team/birdnet/pull/XXX)).
 
 ## [1.3.0] - 2026-10-16
 

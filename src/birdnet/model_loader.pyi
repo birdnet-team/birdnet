@@ -63,6 +63,27 @@ def load(
 def load(
   model_type: Literal["acoustic"],
   version: Literal["3.0"],
+  backend: Literal["tf"],
+  /,
+  *,
+  precision: Literal["fp32", "fp16"] = MODEL_PRECISION_FP32,
+  lang: MODEL_LANGUAGES_V3_0 = MODEL_LANGUAGE_EN_US,
+  library: LIBRARY_TYPES = LIBRARY_TF_DEFAULT,
+) -> AcousticModelV3_0: ...
+@overload
+def load(
+  model_type: Literal["acoustic"],
+  version: Literal["3.0"],
+  backend: Literal["pb"],
+  /,
+  *,
+  precision: Literal["fp32"] = MODEL_PRECISION_FP32,
+  lang: MODEL_LANGUAGES_V3_0 = MODEL_LANGUAGE_EN_US,
+) -> AcousticModelV3_0: ...
+@overload
+def load(
+  model_type: Literal["acoustic"],
+  version: Literal["3.0"],
   backend: Literal["pt"],
   /,
   *,
@@ -76,22 +97,21 @@ def load(
   backend: Literal["onnx"],
   /,
   *,
-  precision: Literal["fp32"] = MODEL_PRECISION_FP32,
+  precision: Literal["fp32", "fp16"] = MODEL_PRECISION_FP32,
   lang: MODEL_LANGUAGES_V3_0 = MODEL_LANGUAGE_EN_US,
 ) -> AcousticModelV3_0: ...
 
-# NOTE: to see "pt" and "onnx" overloads in the IDE
+# NOTE: to see "tf", "pb", "pt" and "onnx" overloads in the IDE
 @overload
 def load(
   model_type: Literal["acoustic"],
   version: Literal["3.0"],
-  backend: Literal["pt", "onnx"],
+  backend: Literal["tf", "pb", "pt", "onnx"],
   /,
   *,
   precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   lang: MODEL_LANGUAGES_V3_0 = MODEL_LANGUAGE_EN_US,
 ) -> AcousticModelV3_0: ...
-
 @overload
 def load(
   model_type: Literal["geo"],
@@ -134,7 +154,7 @@ def load(
   *,
   precision: MODEL_PRECISIONS = MODEL_PRECISION_FP32,
   lang: MODEL_LANGUAGES_V3_0 = MODEL_LANGUAGE_EN_US,
-  library: LIBRARY_TYPES = LIBRARY_TF_DEFAULT,
+  library: Literal["tflite"] = LIBRARY_TF_DEFAULT,
 ) -> GeoModelV3_0: ...
 @overload
 def load(
@@ -283,16 +303,16 @@ def load_custom(
   species_list: str | PathLike[str],
   /,
   *,
-  precision: Literal["fp32"] = MODEL_PRECISION_FP32,
+  precision: Literal["fp32", "fp16"] = MODEL_PRECISION_FP32,
   check_validity: bool = True,
 ) -> AcousticModelV3_0: ...
 
-# NOTE: to see "pt" and "onnx" overloads in the IDE
+# NOTE: to see "tf", "pb", "pt" and "onnx" overloads in the IDE
 @overload
 def load_custom(
   model_type: Literal["acoustic"],
   version: Literal["3.0"],
-  backend: Literal["pt", "onnx"],
+  backend: Literal["tf", "pb", "pt", "onnx"],
   model: str | PathLike[str],
   species_list: str | PathLike[str],
   /,
@@ -350,7 +370,7 @@ def load_custom(
   *,
   precision: MODEL_PRECISIONS = MODEL_PRECISION_FP32,
   check_validity: bool = True,
-  library: LIBRARY_TYPES = LIBRARY_TF_DEFAULT,
+  library: Literal["tflite"] = LIBRARY_TF_DEFAULT,
 ) -> GeoModelV3_0: ...
 @overload
 def load_custom(

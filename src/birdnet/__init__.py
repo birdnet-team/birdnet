@@ -18,10 +18,12 @@ from birdnet.acoustic.inference.session import (
 from birdnet.acoustic.models.custom_tflite import CustomTFLiteInfo
 from birdnet.acoustic.models.perch_v2.model import AcousticModelPerchV2
 from birdnet.acoustic.models.v2_4.model import AcousticModelV2_4
+from birdnet.acoustic.models.v3_0.model import AcousticModelV3_0
 from birdnet.geo.inference.prediction_result import GeoPredictionResult
 from birdnet.geo.inference.session import GeoPredictionSession
 from birdnet.geo.models.v2_4.model import GeoModelV2_4
-from birdnet.model_loader import (  # noqa: F401
+from birdnet.geo.models.v3_0.model import GeoModelV3_0
+from birdnet.model_loader import (
   inspect_custom_tflite,
   load,
   load_custom,
@@ -68,10 +70,12 @@ __all__ = [
   "AcousticProgressStats",
   # acoustic models
   "AcousticModelV2_4",
+  "AcousticModelV3_0",
   "AcousticModelPerchV2",
   # geo prediction
   "GeoPredictionSession",
   "GeoPredictionResult",
   # geo models
   "GeoModelV2_4",
+  "GeoModelV3_0",
 ]
