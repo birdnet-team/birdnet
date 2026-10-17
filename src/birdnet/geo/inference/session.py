@@ -63,6 +63,10 @@ class GeoSessionBase(SessionBase, ABC):
     assert self._backend is not None
     batch = self._backend.copy_to_device(samples)
     prediction = self._backend.predict(batch)
+    # Guarded here, as in the acoustic worker: PBBackend.half_precision casts
+    # regardless of the flag it was loaded with.
+    if self._conf.processing_conf.half_precision:
+      prediction = self._backend.half_precision(prediction)
     return self._backend.copy_from_device(prediction)
 
   def _run(self, run_config: RunConfig) -> GeoPredictionResult:

@@ -146,14 +146,13 @@ class AcousticPredictionResultBase(AcousticResultBase):
       NP_UNPROCESSABLE_INPUTS_KEY: self._unprocessable_inputs,
     }
 
-  @classmethod
-  def _set_extra_load_data(cls, data: dict[str, np.ndarray]) -> None:
+  def _set_extra_load_data(self, data: dict[str, np.ndarray]) -> None:
     super()._set_extra_load_data(data)
-    cls._species_ids = data[NP_SPECIES_IDS_KEY]
-    cls._species_probs = data[NP_SPECIES_PROBS_KEY]
-    cls._species_masked = data[NP_SPECIES_MASKED_KEY]
-    cls._species_list = data[NP_SPECIES_LIST_KEY]
-    cls._unprocessable_inputs = data[NP_UNPROCESSABLE_INPUTS_KEY]
+    self._species_ids = data[NP_SPECIES_IDS_KEY]
+    self._species_probs = data[NP_SPECIES_PROBS_KEY]
+    self._species_masked = data[NP_SPECIES_MASKED_KEY]
+    self._species_list = data[NP_SPECIES_LIST_KEY]
+    self._unprocessable_inputs = data[NP_UNPROCESSABLE_INPUTS_KEY]
 
   def to_structured_array(self) -> np.ndarray:
     valid_mask = ~self._species_masked

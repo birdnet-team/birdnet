@@ -23,7 +23,7 @@ from __future__ import annotations
 import os
 import time
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 import numpy as np
 from ordered_set import OrderedSet
@@ -212,6 +212,7 @@ def fake_predict_session(
   top_k: int | None = 5,
   seconds_per_batch: float = 0.0,
   backend: type[FakeAcousticBackend] = FakeAcousticBackend,
+  show_stats: Literal["minimal", "progress", "benchmark"] | None = None,
   **kwargs: object,
 ) -> AcousticPredictionSession:
   return AcousticPredictionSession(
@@ -242,7 +243,7 @@ def fake_predict_session(
     custom_species_list=None,
     half_precision=False,
     max_audio_duration_min=None,
-    show_stats=None,
+    show_stats=show_stats,
     progress_callback=None,
     device="CPU",
     max_n_files=1024,
@@ -258,6 +259,7 @@ def fake_encode_session(
   batch_size: int = 1,
   seconds_per_batch: float = 0.0,
   backend: type[FakeAcousticBackend] = FakeAcousticBackend,
+  show_stats: Literal["minimal", "progress", "benchmark"] | None = None,
   **kwargs: object,
 ) -> AcousticEncodingSession:
   return AcousticEncodingSession(
@@ -282,7 +284,7 @@ def fake_encode_session(
     bandpass_fmax=15_000,
     half_precision=False,
     max_audio_duration_min=None,
-    show_stats=None,
+    show_stats=show_stats,
     progress_callback=None,
     device="CPU",
     max_n_files=1024,

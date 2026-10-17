@@ -166,16 +166,15 @@ class AcousticResultBase(ResultBase):
       NP_MODEL_SR_KEY: self._model_sr,
     }
 
-  @classmethod
-  def _set_extra_load_data(cls, data: dict[str, np.ndarray]) -> None:
-    cls._inputs = data[NP_INPUTS_KEY]
-    cls._input_durations = data[NP_INPUT_DURATIONS_KEY]
-    cls._segment_duration_s = data[NP_SEGMENT_DURATION_S_KEY]
-    cls._overlap_duration_s = data[NP_OVERLAP_DURATION_S_KEY]
-    cls._speed = data[NP_SPEED_KEY]
-    cls._model_fmin = data[NP_MODEL_FMIN_KEY]
-    cls._model_fmax = data[NP_MODEL_FMAX_KEY]
-    cls._model_sr = data[NP_MODEL_SR_KEY]
+  def _set_extra_load_data(self, data: dict[str, np.ndarray]) -> None:
+    self._inputs = data[NP_INPUTS_KEY]
+    self._input_durations = data[NP_INPUT_DURATIONS_KEY]
+    self._segment_duration_s = data[NP_SEGMENT_DURATION_S_KEY]
+    self._overlap_duration_s = data[NP_OVERLAP_DURATION_S_KEY]
+    self._speed = data[NP_SPEED_KEY]
+    self._model_fmin = data[NP_MODEL_FMIN_KEY]
+    self._model_fmax = data[NP_MODEL_FMAX_KEY]
+    self._model_sr = data[NP_MODEL_SR_KEY]
 
   @property
   def memory_size_MiB(self) -> float:

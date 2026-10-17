@@ -324,12 +324,11 @@ class AcousticEncodingResultBase(AcousticResultBase):
       NP_UNPROCESSABLE_INPUTS_KEY: self._unprocessable_inputs,
     }
 
-  @classmethod
-  def _set_extra_load_data(cls, data: dict[str, np.ndarray]) -> None:
+  def _set_extra_load_data(self, data: dict[str, np.ndarray]) -> None:
     super()._set_extra_load_data(data)
-    cls._embeddings = data[NP_EMB_KEY]
-    cls._embeddings_masked = data[NP_EMB_MASKED_KEY]
-    cls._unprocessable_inputs = data[NP_UNPROCESSABLE_INPUTS_KEY]
+    self._embeddings = data[NP_EMB_KEY]
+    self._embeddings_masked = data[NP_EMB_MASKED_KEY]
+    self._unprocessable_inputs = data[NP_UNPROCESSABLE_INPUTS_KEY]
 
 
 class AcousticFileEncodingResult(AcousticEncodingResultBase):
