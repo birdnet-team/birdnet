@@ -319,7 +319,7 @@ class PredictionStrategy(
       if specific_config.custom_confidence_thresholds
       else 0,
       _time_rampup_first_line_s=resources.stats_resources.start_time
-      - psutil.Process(os.getpid()).create_time(),  # TODO: Berechnen
+      - psutil.Process(os.getpid()).create_time(),  # TODO: measure the real ramp-up
       _time_wall_time_s=wall_time_s,
       mem_result_total_memory_usage_MiB=pred_result.memory_size_MiB,
       mem_shm_size_file_indices_MiB=resources.ring_buffer_resources.rf_file_indices.nbytes
@@ -390,7 +390,6 @@ def create_species_blacklist(
   config: InferenceConfig, pred_config: PredictionConfig
 ) -> npt.NDArray:
   """Setup species filtering logic"""
-  # Species whitelist
   if pred_config.custom_species_list and len(pred_config.custom_species_list) > 0:
     species_ids_whitelist = np.empty(len(pred_config.custom_species_list), dtype=int)
     for i, species_name in enumerate(pred_config.custom_species_list):

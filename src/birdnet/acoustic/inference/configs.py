@@ -409,7 +409,6 @@ class InferenceConfig:
     parsed_audio_paths: set[Path] = set()
 
     if isinstance(input_files, Path | str):
-      # progress further as Iterable
       input_files = (Path(input_files),)
 
     if not isinstance(input_files, Iterable):

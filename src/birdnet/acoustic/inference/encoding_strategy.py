@@ -263,7 +263,7 @@ class EncodingStrategy(
       param_bandpass_fmax=config.filtering_conf.bandpass_fmax,
       param_half_precision=config.processing_conf.half_precision,
       _time_rampup_first_line_s=resources.stats_resources.start_time
-      - psutil.Process(os.getpid()).create_time(),  # TODO: Berechnen
+      - psutil.Process(os.getpid()).create_time(),  # TODO: measure the real ramp-up
       _time_wall_time_s=wall_time_s,
       mem_result_total_memory_usage_MiB=pred_result.memory_size_MiB,
       mem_shm_size_file_indices_MiB=resources.ring_buffer_resources.rf_file_indices.nbytes

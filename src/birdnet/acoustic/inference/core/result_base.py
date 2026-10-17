@@ -58,7 +58,7 @@ class AcousticResultBase(ResultBase):
     Args:
       model_path: Path to the acoustic model binary used for inference.
       model_version: Version identifier of the model.
-      model_precision: Precision string (float16/float32) backed by the model.
+      model_precision: Precision of the model ("int8", "fp16" or "fp32").
       inputs: Typed array of inputs (paths or indices) that were encoded/predicted.
       input_durations: Duration of each input in seconds.
       segment_duration_s: Segment length used by the inference pipeline.

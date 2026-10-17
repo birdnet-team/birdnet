@@ -20,7 +20,7 @@ class AcousticPredictionTensor(AcousticTensorBase):
     half_precision: bool,
     input_indices_dtype: DTypeLike,
     segment_indices_dtype: DTypeLike,
-    max_segment_index: mp.RawValue,  # TODO: watch max_n_segments instead # type: ignore
+    max_segment_index: mp.RawValue,  # TODO: track max_n_segments  # type: ignore
   ) -> None:
     self._session_id = session_id
     self._logger = get_logger_from_session(session_id, __name__)

@@ -91,7 +91,6 @@ class InputAnalyzer:
 
       self._start_signal.clear()
       self._log("Received start signal. Starting processing.")
-      # check that it was resetted
       assert self._tot_n_segments.value == 0
       self.run_main()
 

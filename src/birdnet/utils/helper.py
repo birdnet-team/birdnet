@@ -66,10 +66,8 @@ def check_protobuf_model_files_exist(folder: Path) -> bool:
   return exists
 
 
-# Written into a downloaded SavedModel directory to record which release it came
-# from. The directory name is generic, so unlike the size-checked single-file
-# models a directory cached from an older release is otherwise indistinguishable
-# from a current one and would never be re-downloaded on upgrade.
+# Records which release a SavedModel directory came from; its name is generic,
+# so nothing else tells releases apart.
 SOURCE_MARKER_NAME = ".birdnet_source"
 
 
@@ -138,7 +136,6 @@ SF_FORMATS = {
 # Not supported: {".AAC", ".WMA", ".M4A"}
 
 
-# ---------------- Mapping -----------------
 _UINT_DTYPE_TO_CTYPE = {
   np.uint8: ctypes.c_uint8,
   np.uint16: ctypes.c_uint16,
@@ -365,7 +362,7 @@ def duration_as_samples(duration_s: float, sample_rate: int) -> int:
 def uint_ctype_from_dtype(
   dtype: DTypeLike,
 ) -> ctypes.c_uint8 | ctypes.c_uint16 | ctypes.c_uint32 | ctypes.c_uint64:
-  dtype = np.dtype(dtype).type  # z. B. <class 'numpy.uint16'>
+  dtype = np.dtype(dtype).type
   code = _UINT_DTYPE_TO_CTYPE[dtype]
   return code
 
@@ -381,7 +378,7 @@ def get_uint_dtype(max_value: int) -> np.dtype:
   dtype('uint8')
   >>> get_uint_dtype(42_000)
   dtype('uint16')
-  >>> get_uint_dtype(3_000_000_000)
+  >>> get_uint_dtype(5_000_000_000)
   dtype('uint64')
 
   Notes
@@ -481,19 +478,16 @@ def bandpass_signal(
   nth_order = 5
   nyquist = rate // 2
 
-  # Highpass
   if fmin > new_fmin and fmax == new_fmax:
     low = fmin / nyquist
     b, a = butter(nth_order, low, btype="high")
     audio_signal = lfilter(b, a, audio_signal)  # type: ignore
 
-  # Lowpass
   elif fmin == new_fmin and fmax < new_fmax:
     high = fmax / nyquist
     b, a = butter(nth_order, high, btype="low")
     audio_signal = lfilter(b, a, audio_signal)  # type: ignore
 
-  # Bandpass
   elif fmin > new_fmin and fmax < new_fmax:
     low = fmin / nyquist
     high = fmax / nyquist
@@ -752,10 +746,8 @@ def ensure_single_file_model(
   `model_path` carries `info.content_tag` and only verified bytes are ever
   renamed onto it, so its presence at the declared byte size means the file
   this release published; nothing is hashed again on later loads, which would
-  cost seconds for the ~540 MB acoustic models. Byte size alone could not give
-  that guarantee: a retrain that keeps the architecture keeps the tflite/onnx
-  size too — the size check told the geo v3.0.3 and v3.0.4 caches apart only
-  because their class counts differ.
+  cost seconds for the ~540 MB acoustic models. Byte size alone is not identity
+  (see label_manifest.artifact_is_current).
 
   A matching file left at `legacy_path` by a release before names carried the
   checksum is adopted rather than fetched again, so upgrading stays offline for
@@ -821,8 +813,7 @@ def ensure_single_file_model(
 
 
 def itertools_batched(iterable: Iterable, n: int) -> Generator[Any, None, None]:
-  # https://docs.python.org/3.12/library/itertools.html#itertools.batched
-  # batched('ABCDEFG', 3) → ABC DEF G
+  # Backport of itertools.batched (Python 3.12+).
   if n < 1:
     raise ValueError("n must be at least one")
   iterator = iter(iterable)

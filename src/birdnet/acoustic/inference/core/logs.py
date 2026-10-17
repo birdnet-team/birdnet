@@ -30,7 +30,6 @@ def get_logger_from_session(session_id: str, name: str) -> logging.Logger:
 
 def remove_session_queue_handler(session_id: str, handler: QueueHandler) -> None:
   root = get_session_logger(session_id)
-  # check has queue handler already
   assert handler in root.handlers
   root.removeHandler(handler)
 
@@ -78,7 +77,7 @@ class BoundedQueueHandler(QueueHandler):
 
 def add_session_queue_handler(session_id: str, logging_queue: Queue) -> QueueHandler:
   root = get_session_logger(session_id)
-  h = BoundedQueueHandler(logging_queue)  # Just the one handler needed
+  h = BoundedQueueHandler(logging_queue)
   root.addHandler(h)
   return h
 

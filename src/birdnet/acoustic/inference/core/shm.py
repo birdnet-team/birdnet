@@ -28,7 +28,6 @@ class RingField:
   dtype: np.dtype
   shape: tuple[int, ...]
 
-  # ----------------------------------------
   @property
   def nbytes(self) -> int:
     return int(np.prod(self.shape)) * self.dtype.itemsize

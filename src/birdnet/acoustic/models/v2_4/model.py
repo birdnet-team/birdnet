@@ -188,8 +188,6 @@ class AcousticModelV2_4(AcousticModelBase):
     """Create an encoding session with explicit resource configuration.
 
     Args:
-      species_list: Ordered species collection used during the session.
-      model_path: Path to the acoustic model binary.
       n_producers: Threads tasked with producing audio batches.
       n_workers: Optional worker count for backend processing.
       batch_size: Number of records evaluated per inference call.
@@ -276,8 +274,6 @@ class AcousticModelV2_4(AcousticModelBase):
     """Create a prediction session allowing manual control over the inference lifecycle.
 
     Args:
-      species_list: Ordered species collection used during the session.
-      model_path: Path to the acoustic model binary.
       top_k: Number of highest-confidence results to return per segment.
       n_producers: Threads tasked with producing audio batches.
       n_workers: Optional worker count for backend processing.

@@ -1068,7 +1068,7 @@ def load_lib_tf_model(
   tf_verbosity_before: int | None = None
   tf_verbosity_before = logging.getLogger("tensorflow").level
   logging.getLogger("tensorflow").setLevel(logging.ERROR)
-  # NOTE: import in this way is not possible:
+  # Importing it this way is not possible:
   # `import tensorflow.lite.python.interpreter as tflite`
   # This is where the tf backend first pulls TensorFlow in, so it is the import
   # that emits the native startup banner.
@@ -1079,14 +1079,7 @@ def load_lib_tf_model(
 
   import warnings
 
-  # Suppress deprecation warning about tf.lite.Interpreter
-  # because the tf Interpreter is way faster than the litert one:
-  # -> e.g. 183 seg/s vs. 238 seg/s
-  # ---
-  # "tensorflow/lite/python/interpreter.py:457: UserWarning:
-  # Warning: tf.lite.Interpreter is deprecated and is scheduled for deletion in TF 2.20.
-  # Please use the LiteRT interpreter from the ai_edge_litert package.
-  # See the [migration guide](https://ai.google.dev/edge/litert/migration) for details."
+  # tf.lite.Interpreter is deprecated but faster than LiteRT's (238 vs. 183 seg/s).
   with warnings.catch_warnings():
     warnings.filterwarnings(
       "ignore",
@@ -1100,7 +1093,7 @@ def load_lib_tf_model(
         num_threads=1,
         experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,
         experimental_preserve_all_tensors=preserve_all_tensors,
-        # tensor#187 is a dynamic-sized tensor # type: ignore
+        # tensor#187 is a dynamic-sized tensor
       )
     except ValueError as e:
       raise ValueError(
@@ -1145,7 +1138,7 @@ def load_lib_litert_model(
       num_threads=1,
       experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,
       experimental_preserve_all_tensors=preserve_all_tensors,
-      # tensor#187 is a dynamic-sized tensor # type: ignore
+      # tensor#187 is a dynamic-sized tensor
     )
   except ValueError as e:
     raise ValueError(

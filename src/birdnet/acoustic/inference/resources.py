@@ -126,8 +126,7 @@ class RingBufferResources:
     max_n_files: int,
     start_method: str,
   ) -> Self:
-    # session_id is required to run multiple sessions in parallel
-    # in multiple processes or threads in the same session
+    # The session id keeps parallel sessions' shared-memory names apart.
 
     ctx = mp.get_context(start_method)
     sid_hash = get_session_id_hash(session_id)

@@ -328,7 +328,7 @@ class Producer(bn_logging.LogableProcessBase):
         self._unprocessable_inputs.add(input_idx)
         return
 
-    # fill last segment with silence up to segmentsize if it is smaller than 3s
+    # Pad the last segment with silence to the full segment length.
     segments = (
       fillup_with_silence(segment, self.segment_duration_samples)
       for segment in segments
@@ -909,7 +909,6 @@ def to_float32(audio: IntArray | FloatArray) -> Float32Array:
   Convert integer or floating audio arrays to float32.
   """
   if np.issubdtype(audio.dtype, np.floating):
-    # type: ignore because numpy can't prove cast is correct
     return np.asarray(audio, dtype=np.float32)
 
   if np.issubdtype(audio.dtype, np.integer):

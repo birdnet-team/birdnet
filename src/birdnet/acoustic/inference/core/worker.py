@@ -130,9 +130,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
 
   def _load_ring_buffers(self) -> None:
     self._log("Attaching ring buffers...")
-    # attach to existing shared memory buffers
-    # NOTE: these handlers must be created that GC does not
-    # delete the shared memory access
+    # Keep the SharedMemory handles referenced: GC would drop the mapping.
     self._shm_file_indices, self._ring_file_indices = (
       self._rf_file_indices.attach_and_get_array()
     )
@@ -291,8 +289,8 @@ class WorkerBase(bn_logging.LogableProcessBase):
         self._wkr_ring_access_lock.release()
       # Timed unconditionally: an empty scan is the shutdown wake-up and must
       # reach the exit below, not assert on a duration only set when a slot hit.
-      # The window now closes after the lock rather than at the moment the slot
-      # is found, so it also covers the READING_FLAG write and the lock release.
+      # The window ends after the lock release, so it also covers the
+      # READING_FLAG write.
       dur2_search_for_filled_slot = time.perf_counter() - perf_c
 
       if claimed_slot is None:

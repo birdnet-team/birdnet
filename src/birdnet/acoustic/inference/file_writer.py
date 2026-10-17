@@ -80,10 +80,8 @@ class QueueFileWriter:
             self._logger.debug("Stop logging event set and log queue is empty.")
             break
       except OSError as e:
-        # OSError can happen if the file is closed while writing
+        # Expected when the file is closed mid-write, e.g. on termination.
         if e.args[0] == "handle is closed":
-          # This is expected if the file is closed while writing
-          # e.g., when the process is terminated
           self._cancel_event.set()
           break
       except EOFError:

@@ -259,7 +259,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       self._finish_signal.set()
 
   def reset(self) -> None:
-    # TODO set to statisticresources start
+    # TODO: take the start time from StatisticsResources.start (no issue yet).
     self._start = time.perf_counter()
 
     self._memory_usage_MiB_tracker.reset()
@@ -644,7 +644,6 @@ class WorkerStats:
   # x real time
   speed_xrt: float
 
-  # segments per second
   speed_seg_per_s: float
 
   # median wait time for a filled slot in ms
@@ -658,7 +657,6 @@ class WorkerStats:
   inference_ms: float
   add_ms: float
 
-  # total number of workers
   workers: int
 
   # median number of busy workers
@@ -670,7 +668,6 @@ class ProducerStats:
   # x real time
   speed_xrt: float
 
-  # segments per second
   speed_seg_per_s: float
 
   # median wait time for a free slot in buffer in ms
@@ -688,7 +685,6 @@ class ProducerStats:
 
 @dataclass(frozen=True)
 class BufferStats:
-  # total number of slots in buffer
   slots: int
 
   # median number of free slots which can be written to
@@ -700,7 +696,7 @@ class BufferStats:
   # median number of slots which are prepared for reading
   preloaded_slots: float
 
-  # median number of filled slots
+  # slots minus the median free count
   @property
   def filled_slots(self) -> float:
     return self.slots - self.free_slots
@@ -708,13 +704,10 @@ class BufferStats:
 
 @dataclass(frozen=True)
 class AcousticProgressStats:
-  # processing status
   finished: bool
 
-  # buffer stats
   buffer_stats: BufferStats
 
-  # producer stats
   producer_stats: ProducerStats
 
   # worker stats, or None if no worker has processed data yet
@@ -723,13 +716,10 @@ class AcousticProgressStats:
   # wall time since start in seconds
   wall_time_s: float
 
-  # memory usage in MiB
   memory_usage_MiB: float
 
-  # maximum memory usage in MiB
   memory_usage_max_MiB: float
 
-  # CPU usage in percentage
   cpu_usage_pct: float
 
   # total maximum CPU usage in percentage
@@ -747,10 +737,8 @@ class AcousticProgressStats:
       return None
     return str(datetime.timedelta(seconds=math.ceil(self.est_remaining_time_s)))
 
-  # number of processed segments
   processed_segments: int
 
-  # number of processed batches
   processed_batches: int
 
   # total segments to process, or None if still unknown
@@ -854,6 +842,5 @@ class ProgressDispatcher:
 
         finished = self._processing_finished_event.is_set()
         if finished and latest.finished:
-          # last stats should always be called
           self._log("Processing finished event is set. Exiting loop.")
           return

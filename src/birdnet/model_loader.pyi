@@ -178,9 +178,6 @@ def load(
   precision: MODEL_PRECISIONS = MODEL_PRECISION_FP32,
   lang: MODEL_LANGUAGES_V3_0 = MODEL_LANGUAGE_EN_US,
 ) -> GeoModelV3_0: ...
-
-# LOAD CUSTOM MODELS
-
 @overload
 def load_custom(
   model_type: Literal["acoustic"],
