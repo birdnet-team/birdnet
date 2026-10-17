@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Bugfixes
+
+- Loading a second result from `.npz` (`AcousticFilePredictionResult.load(..)` and the other result classes) silently replaced the arrays of every result loaded earlier in the same process, because the loader stored them on the class instead of the instance; each loaded result now owns its data ([#XXX](https://github.com/birdnet-team/birdnet/pull/XXX)).
+- `GeoPredictionResult.latitude` and `.longitude` truncated the coordinates to integers, so `predict(42.5, -76.45, week=4)` reported 42 and -76; they are now floats ([#XXX](https://github.com/birdnet-team/birdnet/pull/XXX)).
+- `encode_arrays(..)` with `show_stats` set raised a `TypeError` after inference had finished, while the summary tried to list the file formats of in-memory inputs that have none ([#XXX](https://github.com/birdnet-team/birdnet/pull/XXX)).
+- `encode(..)` and `encode_arrays(..)` with `show_stats="benchmark"` raised a `TypeError` while writing the benchmark summary, which lacked the start method the prediction summary records ([#XXX](https://github.com/birdnet-team/birdnet/pull/XXX)).
+- The geo models ignored `half_precision=True` and returned float32 scores as with `False`; the session now applies the cast as the acoustic workers do ([#XXX](https://github.com/birdnet-team/birdnet/pull/XXX)).
+- An input with more segments than the pipeline's segment index can address (its capacity is `max_audio_duration_min`, when set, rounded up to the index dtype) was reported by the producer as valid with zero segments, which could reach `on_file_complete` as an empty result before the run was cancelled; the producer now marks the input unprocessable and cancels the run, as the input analyzer does ([#XXX](https://github.com/birdnet-team/birdnet/pull/XXX)).
+- The `n_workers` docstrings of acoustic `predict(..)` no longer describe a worker killed mid-batch as deadlocking the run, which 1.1.0 fixed ([#XXX](https://github.com/birdnet-team/birdnet/pull/XXX)).
+
 ## [1.3.0] - 2026-10-16
 
 ### Changed

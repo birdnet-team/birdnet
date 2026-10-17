@@ -255,6 +255,10 @@ class Producer(bn_logging.LogableProcessBase):
           f"amount of segments {self._max_supported_segment_index + 1}. "
           f"Please set maximum audio duration."
         )
+        # Same outcome as the input analyzer's check: a bare return would
+        # report the input as valid with zero segments.
+        self._unprocessable_inputs.add(input_idx)
+        self._cancel_event.set()
         return
       self._max_segment_idx_ptr.value = file_max_segment_index
 

@@ -2,6 +2,7 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from birdnet.acoustic.inference.core.encoding.encoding_result import (
   AcousticFileEncodingResult,
@@ -10,6 +11,7 @@ from birdnet.acoustic.inference.core.encoding.encoding_tensor import (
   AcousticEncodingTensor,
 )
 from birdnet.utils.helper import get_float_dtype, get_n_segments_speed
+from birdnet_tests.helper import saved_arrays
 
 
 def create_mock_tensor_one_unproc(
@@ -93,6 +95,28 @@ def test_save_and_load_is_equal() -> None:
   np.testing.assert_array_equal(
     reference._unprocessable_inputs, loaded._unprocessable_inputs
   )
+
+
+@pytest.mark.no_tf
+def test_loading_a_second_file_leaves_the_first_result_untouched(
+  tmp_path: Path,
+) -> None:
+  first = create_dummy_result(n_files=3, duration_s=20.0)
+  second = create_dummy_result(n_files=2, duration_s=12.0)
+  expected = saved_arrays(first)
+  first.save(tmp_path / "first.npz", compress=False)
+  second.save(tmp_path / "second.npz", compress=False)
+
+  loaded_first = type(first).load(tmp_path / "first.npz")
+  loaded_second = type(second).load(tmp_path / "second.npz")
+
+  actual = saved_arrays(loaded_first)
+  other = saved_arrays(loaded_second)
+  assert actual.keys() == expected.keys()
+  for key, array in expected.items():
+    np.testing.assert_array_equal(actual[key], array, err_msg=key)
+    # Equal values would hide a field the loader still stores on the class.
+    assert actual[key] is not other[key], key
 
 
 def test_memory_size_MiB() -> None:

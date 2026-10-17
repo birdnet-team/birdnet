@@ -2,21 +2,30 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
+import pytest
 from ordered_set import OrderedSet
 
 from birdnet.geo.inference.prediction_result import GeoPredictionResult
+from birdnet_tests.helper import saved_arrays
 
 
-def get_dummy_result() -> GeoPredictionResult:
+def get_dummy_result(
+  latitude: float = 10.0,
+  longitude: float = 20.0,
+  week: int = 5,
+  species_probs: np.ndarray | None = None,
+) -> GeoPredictionResult:
+  if species_probs is None:
+    species_probs = np.array([0.1, 0.5, 0.9], dtype=np.float32)
   res = GeoPredictionResult(
-    latitude=10.0,
-    longitude=20.0,
-    week=5,
+    latitude=latitude,
+    longitude=longitude,
+    week=week,
     model_path=Path("/dummy/path"),
     model_version="2.4",
     model_precision="fp32",
     species_ids=np.array([1, 2, 3], dtype=np.uint16),
-    species_probs=np.array([0.1, 0.5, 0.9], dtype=np.float32),
+    species_probs=species_probs,
     species_masked=np.array([True, False, False], dtype=bool),
     species_list=OrderedSet(["species_a", "species_b", "species_c"]),
   )
@@ -62,3 +71,30 @@ def test_save_and_load_is_equal() -> None:
   np.testing.assert_array_equal(reference._species_ids, loaded._species_ids)
   np.testing.assert_array_equal(reference._species_probs, loaded._species_probs)
   np.testing.assert_array_equal(reference._species_masked, loaded._species_masked)
+
+
+@pytest.mark.no_tf
+def test_loading_a_second_file_leaves_the_first_result_untouched(
+  tmp_path: Path,
+) -> None:
+  first = get_dummy_result()
+  second = get_dummy_result(
+    latitude=42.5,
+    longitude=-76.45,
+    week=7,
+    species_probs=np.array([0.2, 0.3, 0.4], dtype=np.float32),
+  )
+  expected = saved_arrays(first)
+  first.save(tmp_path / "first.npz", compress=False)
+  second.save(tmp_path / "second.npz", compress=False)
+
+  loaded_first = GeoPredictionResult.load(tmp_path / "first.npz")
+  loaded_second = GeoPredictionResult.load(tmp_path / "second.npz")
+
+  actual = saved_arrays(loaded_first)
+  other = saved_arrays(loaded_second)
+  assert actual.keys() == expected.keys()
+  for key, array in expected.items():
+    np.testing.assert_array_equal(actual[key], array, err_msg=key)
+    # Equal values would hide a field the loader still stores on the class.
+    assert actual[key] is not other[key], key

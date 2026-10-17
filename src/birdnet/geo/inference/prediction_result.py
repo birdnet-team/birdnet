@@ -84,12 +84,12 @@ class GeoPredictionResult(ResultBase):
     )
 
   @property
-  def latitude(self) -> int:
-    return int(self._latitude[0])
+  def latitude(self) -> float:
+    return float(self._latitude[0])
 
   @property
-  def longitude(self) -> int:
-    return int(self._longitude[0])
+  def longitude(self) -> float:
+    return float(self._longitude[0])
 
   @property
   def week(self) -> int:
@@ -126,15 +126,14 @@ class GeoPredictionResult(ResultBase):
       NP_WEEK_KEY: self._week,
     }
 
-  @classmethod
-  def _set_extra_load_data(cls, data: dict[str, np.ndarray]) -> None:
-    cls._species_ids = data[NP_SPECIES_IDS_KEY]
-    cls._species_probs = data[NP_SPECIES_PROBS_KEY]
-    cls._species_masked = data[NP_SPECIES_MASKED_KEY]
-    cls._species_list = data[NP_SPECIES_LIST_KEY]
-    cls._latitude = data[NP_LATITUDE_KEY]
-    cls._longitude = data[NP_LONGITUDE_KEY]
-    cls._week = data[NP_WEEK_KEY]
+  def _set_extra_load_data(self, data: dict[str, np.ndarray]) -> None:
+    self._species_ids = data[NP_SPECIES_IDS_KEY]
+    self._species_probs = data[NP_SPECIES_PROBS_KEY]
+    self._species_masked = data[NP_SPECIES_MASKED_KEY]
+    self._species_list = data[NP_SPECIES_LIST_KEY]
+    self._latitude = data[NP_LATITUDE_KEY]
+    self._longitude = data[NP_LONGITUDE_KEY]
+    self._week = data[NP_WEEK_KEY]
 
   def to_structured_array(
     self,

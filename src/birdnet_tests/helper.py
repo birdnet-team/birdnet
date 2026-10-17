@@ -25,6 +25,12 @@ from birdnet.core.backends import (
   tf_installed,
   torch_installed,
 )
+from birdnet.core.base import (
+  NP_MODEL_PATH_KEY,
+  NP_MODEL_PRECISION_KEY,
+  NP_MODEL_VERSION_KEY,
+  ResultBase,
+)
 from birdnet.utils.helper import check_is_intel_macos, check_is_python_312
 
 
@@ -506,3 +512,12 @@ def create_fake_lang_dir(lang_dir: Path, languages: Iterable[str]) -> None:
   lang_dir.mkdir(parents=True, exist_ok=True)
   for lang in languages:
     (lang_dir / f"{lang}.txt").write_text("Species_species_Species\n", encoding="utf-8")
+
+
+def saved_arrays(result: ResultBase) -> dict[str, np.ndarray]:
+  """Every array ``ResultBase.save`` writes, as the result holds it now."""
+  return {
+    NP_MODEL_PATH_KEY: result._model_path,
+    NP_MODEL_VERSION_KEY: result._model_version,
+    NP_MODEL_PRECISION_KEY: result._model_precision,
+  } | result._get_extra_save_data()

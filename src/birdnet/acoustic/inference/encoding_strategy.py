@@ -193,6 +193,10 @@ class EncodingStrategy(
     assert resources.stats_resources.stop is not None
     wall_time_s = resources.stats_resources.stop - resources.stats_resources.start
 
+    file_formats = NA
+    if isinstance(pred_result, AcousticFileEncodingResult):
+      file_formats = get_file_formats({Path(x) for x in pred_result.inputs})
+
     return MinimalBenchmarkEmbMeta(
       _start_timepoint=resources.stats_resources.start_timepoint,
       _end_timepoint=resources.stats_resources.end_timepoint,
@@ -210,7 +214,7 @@ class EncodingStrategy(
       mem_shm_size_flags_MiB=resources.ring_buffer_resources.rf_flags.nbytes / 1024**2,
       file_segments_total=resources.analyzer_resources.tot_n_segments_ptr.value,
       model_segment_duration_seconds=config.model_conf.segment_size_s,
-      file_formats=get_file_formats({Path(x) for x in pred_result.inputs}),
+      file_formats=file_formats,
     )
 
   def create_full_benchmark_meta(
@@ -232,6 +236,10 @@ class EncodingStrategy(
       if isinstance(config.processing_conf.device, list)
       else config.processing_conf.device
     )
+
+    file_formats = NA
+    if isinstance(pred_result, AcousticFileEncodingResult):
+      file_formats = get_file_formats({Path(x) for x in pred_result.inputs})
 
     return FullBenchmarkEmbMeta(
       _start_timepoint=resources.stats_resources.start_timepoint,
@@ -288,10 +296,11 @@ class EncodingStrategy(
       model_sig_fmin=config.model_conf.sig_fmin,
       model_sig_fmax=config.model_conf.sig_fmax,
       worker_wait_time_average_milliseconds=perf_result.avg_wait_time_ms,
-      file_formats=get_file_formats({Path(x) for x in pred_result.inputs}),
+      file_formats=file_formats,
       param_inference_library=config.model_conf.backend_kwargs.get(
         TF_BACKEND_LIB_ARG, NA
       ),
+      sw_start_method=config.start_method,
     )
 
   def get_benchmark_dir_name(self) -> str:

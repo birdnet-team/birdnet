@@ -52,9 +52,8 @@ class ResultBase(ABC):
   @abstractmethod
   def _get_extra_save_data(self) -> dict[str, np.ndarray]: ...
 
-  @classmethod
   @abstractmethod
-  def _set_extra_load_data(cls, data: dict[str, np.ndarray]) -> None: ...
+  def _set_extra_load_data(self, data: dict[str, np.ndarray]) -> None: ...
 
   def save(self, npz_out_path: os.PathLike | str, /, *, compress: bool = True) -> None:
     npz_out_path = Path(npz_out_path)
