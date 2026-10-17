@@ -46,36 +46,6 @@ class PredictionStrategy(
     AcousticPredictionResultBase, PredictionConfig, AcousticPredictionTensor
   ]
 ):
-  def validate_config(
-    self, config: InferenceConfig, specific_config: PredictionConfig
-  ) -> None:
-    if specific_config.apply_sigmoid and specific_config.apply_softmax:
-      raise ValueError("apply_sigmoid and apply_softmax cannot both be True")
-
-    if specific_config.apply_sigmoid:
-      if specific_config.sigmoid_sensitivity is None:
-        raise ValueError("sigmoid_sensitivity required when apply_sigmoid=True")
-      if not 0.5 <= specific_config.sigmoid_sensitivity <= 1.5:
-        raise ValueError("sigmoid_sensitivity must be in [0.5, 1.5]")
-
-    if specific_config.custom_species_list:
-      for species_name in specific_config.custom_species_list:
-        if species_name not in config.model_conf.species_list:
-          raise ValueError(f"species '{species_name}' not in model's species list")
-
-    if specific_config.custom_confidence_thresholds:
-      for species_name in specific_config.custom_confidence_thresholds:
-        if species_name not in config.model_conf.species_list:
-          raise ValueError(f"species '{species_name}' not in model's species list")
-
-    if specific_config.top_k is not None and specific_config.top_k > len(
-      config.model_conf.species_list
-    ):
-      raise ValueError(
-        f"top_k cannot be larger than species count "
-        f"({len(config.model_conf.species_list)})"
-      )
-
   def create_tensor(
     self,
     session_id: str,

@@ -6,10 +6,8 @@ import time
 from abc import abstractmethod
 from multiprocessing import Queue, shared_memory
 from multiprocessing.synchronize import Event, Semaphore
-from typing import TYPE_CHECKING
 
 import numpy as np
-from numpy.typing import DTypeLike
 
 import birdnet.acoustic.inference.core.logs as bn_logging
 from birdnet.acoustic.inference.core.shm import RingField
@@ -25,9 +23,6 @@ from birdnet.globals import (
   WRITABLE_FLAG,
   WRITING_FLAG,
 )
-
-if TYPE_CHECKING:
-  pass
 
 
 class WorkerBase(bn_logging.LogableProcessBase):
@@ -77,24 +72,14 @@ class WorkerBase(bn_logging.LogableProcessBase):
     self._sem_filled = sem_fill
     self._sem_active_workers = sem_active_workers
     self._prediction_count = 0
-    # Interpreter
-    self._slot = 0
-    self._batch_idx_cache = {}
 
     self._n_slots = n_slots
-    self._batch_size = batch_size
-    self._segment_duration_samples = segment_duration_samples
-
-    self._species_dtype: DTypeLike | None = None
 
     self._rf_file_indices = rf_file_indices
     self._rf_segment_indices = rf_segment_indices
     self._rf_audio_samples = rf_audio_samples
     self._rf_batch_sizes = rf_batch_sizes
     self._rf_flags = rf_flags
-
-    self._in_idx: int | None = None
-    self._out_idx: int | None = None
 
     self._shm_file_indices: shared_memory.SharedMemory | None = None
     self._shm_segment_indices: shared_memory.SharedMemory | None = None
@@ -291,7 +276,6 @@ class WorkerBase(bn_logging.LogableProcessBase):
         for current_slot in range(self._n_slots):
           current_slot_flag = self._ring_flags[current_slot]
 
-          # TODO: check if all ring_size slots = DONE
           if current_slot_flag == READABLE_FLAG:
             claimed_slot = current_slot
             claimed_flag = current_slot_flag

@@ -40,14 +40,6 @@ VALID_CUSTOM_CLASSIFIER_TYPES = [
 # name of the parameter to specify the classifier type for custom TFLite models
 CUSTOM_CLASSIFIER_TF_TYPE_PARAM = "classifier_type"
 
-MODEL_FAMILY_BIRDNET = "birdnet"
-MODEL_FAMILY_PERCH = "perch"
-MODEL_FAMILIES = Literal["birdnet", "perch"]
-VALID_MODEL_FAMILIES = [
-  MODEL_FAMILY_BIRDNET,
-  MODEL_FAMILY_PERCH,
-]
-
 MODEL_TYPE_ACOUSTIC = "acoustic"
 MODEL_TYPE_GEO = "geo"
 MODEL_TYPES = Literal["acoustic", "geo"]
@@ -225,9 +217,6 @@ VALID_MODEL_LANGUAGES_V3_0 = [
   "uk",
   "zh",
 ]
-
-MODEL_LANGUAGES = MODEL_LANGUAGES_V2_4 | MODEL_LANGUAGES_V3_0
-VALID_MODEL_LANGUAGES = VALID_MODEL_LANGUAGES_V2_4 + VALID_MODEL_LANGUAGES_V3_0
 
 PKG_NAME = "birdnet"
 

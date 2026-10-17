@@ -52,12 +52,6 @@ def check_is_intel_macos() -> bool:
   return False
 
 
-def check_is_python_312() -> bool:
-  import sys
-
-  return sys.version_info.major == 3 and sys.version_info.minor == 12
-
-
 def get_hash(session_id: str) -> str:
   hash_digest = hashlib.sha256(session_id.encode()).hexdigest()
   return hash_digest
@@ -334,15 +328,6 @@ def max_value_for_uint_dtype(dtype: np.dtype) -> int:
   return np.iinfo(dtype).max
 
 
-def xget_max_n_segments(
-  max_duration_s: float, segment_size_s: float, overlap_duration_s: float
-) -> int:
-  effective_segment_duration_s = segment_size_s - overlap_duration_s
-  assert effective_segment_duration_s > 0
-  n_segments = math.ceil(max_duration_s / effective_segment_duration_s)
-  return n_segments
-
-
 def apply_speed_to_duration(duration_s: float, speed: float) -> float:
   assert speed > 0
   scaled_duration = duration_s * speed
@@ -383,10 +368,6 @@ def uint_ctype_from_dtype(
   dtype = np.dtype(dtype).type  # z. B. <class 'numpy.uint16'>
   code = _UINT_DTYPE_TO_CTYPE[dtype]
   return code
-
-
-def uint_dtype_for_files(n_files: int) -> np.dtype:
-  return get_uint_dtype(n_files - 1)
 
 
 def get_uint_dtype(max_value: int) -> np.dtype:

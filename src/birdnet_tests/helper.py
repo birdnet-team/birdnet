@@ -2,6 +2,7 @@ import contextlib
 import ctypes
 import multiprocessing as mp
 import os
+import sys
 import threading
 import time
 from collections.abc import Callable, Generator, Iterable
@@ -31,7 +32,11 @@ from birdnet.core.base import (
   NP_MODEL_VERSION_KEY,
   ResultBase,
 )
-from birdnet.utils.helper import check_is_intel_macos, check_is_python_312
+from birdnet.utils.helper import check_is_intel_macos
+
+
+def check_is_python_312() -> bool:
+  return sys.version_info.major == 3 and sys.version_info.minor == 12
 
 
 def create_zero_len_wav(f: IO[bytes]) -> None:

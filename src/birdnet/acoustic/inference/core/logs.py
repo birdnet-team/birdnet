@@ -14,11 +14,6 @@ def get_session_logger(session_id: str) -> logging.Logger:
   return logger
 
 
-def get_session_logging_level(session_id: str) -> int:
-  result = get_session_logger(session_id).level
-  return result
-
-
 def init_session_logger(session_id: str, logging_level: int) -> None:
   init_package_logger(logging_level)
   root = get_session_logger(session_id)

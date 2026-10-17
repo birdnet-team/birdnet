@@ -280,7 +280,6 @@ class TFBackend(Backend, ABC):
     self._interp.set_tensor(self._input_idx, batch)
 
   def _infer(self, batch: np.ndarray, out_idx: int) -> np.ndarray:
-    # TODO: implement load on different CPUs
     assert self._interp is not None
 
     self._set_tensor(batch)
@@ -560,7 +559,6 @@ class PBBackend(Backend, ABC):
   ) -> None:
     super().__init__(model_path, device_name, half_precision)
     self._model: Any | None = None
-    self._logical_device: Any | None = None
     self._logical_device_name: str | None = None
     self._predict_fn: Callable | None = None
     self._encoding_fn: Callable | None = None
@@ -622,7 +620,7 @@ class PBBackend(Backend, ABC):
 
   def unload(self) -> None:
     self._model = None
-    self._logical_device = None
+    self._logical_device_name = None
     self._predict_fn = None
     self._encoding_fn = None
 
@@ -819,24 +817,6 @@ class BackendLoader:
     except Exception as e:
       get_logger_for_package(__name__).error(f"Failed to load model in subprocess: {e}")
       raise ValueError("Failed to load model.") from e
-
-  @classmethod
-  def check_custom_tflite_model(
-    cls,
-    model_path: Path,
-    library: LIBRARY_TYPES,
-    prediction_to_type: dict[int, tuple[str, int]],
-  ) -> tuple[int, str]:
-    """(n_species, mode) of a custom TFLite classifier.
-
-    Superseded by `inspect_custom_tflite_model`, which also reports the base
-    version; the mode is "replace" or "append" (hidden units do not change how
-    a file is read).
-    """
-    info = cls.inspect_custom_tflite_model(
-      model_path, library, prediction_to_type.keys()
-    )
-    return info.n_species, info.mode
 
   @classmethod
   def inspect_custom_tflite_model(

@@ -6,7 +6,6 @@ from birdnet.utils.helper import (
   get_lossless_float_dtype,
   get_uint_dtype,
   max_value_for_uint_dtype,
-  uint_dtype_for_files,
   upgrade_float_dtype_for_value,
 )
 
@@ -38,13 +37,6 @@ def test_get_uint_dtype_negative_raises_error() -> None:
 def test_get_uint_dtype_above_uint64_raises_error() -> None:
   with pytest.raises(AssertionError, match=r"Value exceeds uint64 range"):
     get_uint_dtype(2**64)
-
-
-def test_uint_dtype_for_files_uses_max_index() -> None:
-  # 256 files -> indices 0..255 -> fit into uint8
-  assert uint_dtype_for_files(256) == np.dtype(np.uint8)
-  # 257 files -> index 256 needs uint16
-  assert uint_dtype_for_files(257) == np.dtype(np.uint16)
 
 
 @pytest.mark.parametrize(

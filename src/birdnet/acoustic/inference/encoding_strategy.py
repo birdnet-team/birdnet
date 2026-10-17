@@ -42,11 +42,6 @@ class EncodingStrategy(
     AcousticEncodingResultBase, EncodingConfig, AcousticEncodingTensor
   ]
 ):
-  def validate_config(
-    self, config: InferenceConfig, specific_config: EncodingConfig
-  ) -> None:
-    pass
-
   def create_tensor(
     self,
     session_id: str,

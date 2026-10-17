@@ -80,10 +80,6 @@ _LEGACY_TAXONOMY_V3_PATH = APP_DIR / "taxonomy_v3_0.csv"
 _TAXONOMY_V3_LOCK_DIR = APP_DIR / ".taxonomy_v3_0.lock"
 
 
-def get_taxonomy_v3_path() -> Path:
-  return _TAXONOMY_V3_PATH
-
-
 def get_taxonomy_v3_input() -> LabelInput:
   """The taxonomy as an input a generated label directory can record."""
   return LabelInput(
