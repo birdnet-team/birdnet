@@ -195,21 +195,6 @@ def cpu_threads_per_worker(n_workers: int) -> int:
   return max(1, n_cores // n_workers)
 
 
-def requested_cpu_threads(backend_type: type[VersionedBackendProtocol]) -> int | None:
-  """An explicit thread count from the environment, which wins over the share.
-
-  PyTorch honours ``OMP_NUM_THREADS`` and TensorFlow ``TF_NUM_INTRAOP_THREADS`` on
-  their own; ONNX Runtime reads neither, so ``OMP_NUM_THREADS`` covers it too.
-  """
-  var = (
-    "TF_NUM_INTRAOP_THREADS"
-    if issubclass(backend_type, PBBackend)
-    else "OMP_NUM_THREADS"
-  )
-  value = os.environ.get(var, "").strip()
-  return int(value) if value.isdigit() and int(value) > 0 else None
-
-
 class TFBackend(Backend, ABC):
   def __init__(
     self,

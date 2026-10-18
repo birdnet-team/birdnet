@@ -34,7 +34,6 @@ from birdnet.core.backends import (
   PBBackend,
   TorchBackend,
   cpu_threads_per_worker,
-  requested_cpu_threads,
 )
 from birdnet.core.base import get_session_id_hash
 from birdnet.globals import MODEL_TYPE_ACOUSTIC, PKG_NAME, WRITABLE_FLAG
@@ -333,8 +332,7 @@ class WorkerResources:
     ):
       backend_kwargs = {
         **backend_kwargs,
-        CPU_THREADS_ARG: requested_cpu_threads(config.model_conf.backend_type)
-        or cpu_threads_per_worker(n_cpu_workers),
+        CPU_THREADS_ARG: cpu_threads_per_worker(n_cpu_workers),
       }
 
     backend_loader = BackendLoader(

@@ -39,8 +39,6 @@ def _backend_kwargs(
 @pytest.fixture(autouse=True)
 def _eight_cores(monkeypatch: pytest.MonkeyPatch) -> None:
   monkeypatch.setattr(psutil, "cpu_count", lambda logical=True: 8)
-  monkeypatch.delenv("OMP_NUM_THREADS", raising=False)
-  monkeypatch.delenv("TF_NUM_INTRAOP_THREADS", raising=False)
 
 
 @pytest.mark.parametrize(
@@ -70,30 +68,3 @@ def test_tflite_keeps_its_own_setting() -> None:
   )
 
   assert kwargs == {TF_BACKEND_LIB_ARG: "tflite"}
-
-
-@pytest.mark.parametrize(
-  "backend_type", [AcousticOnnxBackendFP32V3_0, AcousticPTBackendFP32V3_0]
-)
-def test_explicit_omp_num_threads_wins(
-  backend_type: type, monkeypatch: pytest.MonkeyPatch
-) -> None:
-  monkeypatch.setenv("OMP_NUM_THREADS", "3")
-
-  assert _backend_kwargs(backend_type, "CPU", 8)[CPU_THREADS_ARG] == 3
-
-
-def test_pb_reads_tf_intraop_threads_only(monkeypatch: pytest.MonkeyPatch) -> None:
-  monkeypatch.setenv("OMP_NUM_THREADS", "3")
-  monkeypatch.setenv("TF_NUM_INTRAOP_THREADS", "2")
-
-  assert _backend_kwargs(AcousticPBBackendFP32V3_0, "CPU", 8)[CPU_THREADS_ARG] == 2
-
-
-@pytest.mark.parametrize("value", ["abc", "0", "-1", ""])
-def test_invalid_env_value_falls_back_to_the_share(
-  value: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-  monkeypatch.setenv("OMP_NUM_THREADS", value)
-
-  assert _backend_kwargs(AcousticOnnxBackendFP32V3_0, "CPU", 4)[CPU_THREADS_ARG] == 2

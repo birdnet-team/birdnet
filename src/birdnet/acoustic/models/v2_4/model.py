@@ -544,9 +544,6 @@ class AcousticModelV2_4(AcousticModelBase):
         rather than hanging the call (see issue #73). Lowering ``n_workers``
         or ``batch_size`` reduces peak memory and with it how likely such a
         kill is, but cannot rule it out.
-        Each ``onnx``, ``pt`` or ``pb`` CPU worker runs physical cores / workers
-        intra-op threads; an explicit ``OMP_NUM_THREADS`` (``TF_NUM_INTRAOP_THREADS``
-        for ``pb``) is used as is.
       batch_size: Number of records evaluated per inference call.
       prefetch_ratio: How many batches to decode ahead of processing.
       overlap_duration_s: Seconds of overlap between sliding windows.
