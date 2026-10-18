@@ -596,6 +596,9 @@ class AcousticModelV3_0(AcousticModelBase):
     the dead worker rather than hanging the call (see issue #73). Lowering
     ``n_workers`` or ``batch_size`` reduces peak memory and with it how likely
     such a kill is, but cannot rule it out.
+    Each ``onnx``, ``pt`` or ``pb`` CPU worker runs physical cores / workers
+    intra-op threads; an explicit ``OMP_NUM_THREADS`` (``TF_NUM_INTRAOP_THREADS``
+    for ``pb``) is used as is.
 
     This method creates one prediction session for the call. That session shuts down
     its producer and worker processes before this method returns, including when
