@@ -9,10 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `AcousticModelV3_0`, `GeoModelV3_0`, `AcousticSessionBase` and the model vocabulary (`ACOUSTIC_MODEL_VERSIONS`, `MODEL_LANGUAGES`, `VALID_MODEL_LANGUAGES_V2_4`, `MODEL_PRECISIONS`, ... the `Literal` types, valid-value lists and defaults behind `load(..)`) are importable from `birdnet`, so typed callers no longer need `birdnet.globals` ([#121](https://github.com/birdnet-team/birdnet/pull/121)).
+- `AcousticModelV3_0`, `GeoModelV3_0`, `AcousticSessionBase` and the model vocabulary (`ACOUSTIC_MODEL_VERSIONS`, `MODEL_LANGUAGES`, `VALID_MODEL_LANGUAGES_V2_4`, `MODEL_PRECISIONS`, ... the `Literal` types, valid-value lists and defaults behind `load(..)`) are importable from `birdnet`, so typed callers no longer need `birdnet.globals` ([#123](https://github.com/birdnet-team/birdnet/pull/123)).
 
 ### Bugfixes
 
+- The type stub had no overload for the documented `load("acoustic", "3.0", "tf")` and `load("acoustic", "3.0", "pb")` calls and rejected `precision="fp16"` for the acoustic 3.0 `onnx` backend, so type checkers reported false errors and inferred `Any`; it is now in sync with the loader, which also means `library="litert"` for the geo 3.0 `tf` backend, always refused at runtime, is now a type error ([#123](https://github.com/birdnet-team/birdnet/pull/123)).
+- The `onnx`, `pt` and `pb` CPU workers used the per-worker thread share from 1.3.1 even when `OMP_NUM_THREADS` (`TF_NUM_INTRAOP_THREADS` for `pb`) was set; an explicit positive value is now used as is ([#123](https://github.com/birdnet-team/birdnet/pull/123)).
+- The quick-start example imported `AudioDataset`, a name that does not exist in the package, and raised `ImportError` when copied; the same page now lists `pt` among the geo 3.0 backends, and the setup page names the full 3.11-3.14 test matrix ([#108](https://github.com/birdnet-team/birdnet/pull/108)).
+
+## [1.3.1] - 2026-10-18
+
+### Bugfixes
+
+- CPU inference with the `onnx`, `pt` and `pb` backends started one intra-op thread per physical core in every worker, and `n_workers` defaults to the number of physical cores, so an 8-core machine ran 64 busy threads. Each CPU worker now gets its share of the cores, which makes a default 3.0 `onnx` session about 8× faster on an 8-core Linux machine and 5–10× faster on a 10-core Windows laptop; detections are unchanged and scores move by at most 1.5e-6 ([#120](https://github.com/birdnet-team/birdnet/pull/120)).
 - Loading a second result from `.npz` (`AcousticFilePredictionResult.load(..)` and the other result classes) silently replaced the arrays of every result loaded earlier in the same process, because the loader stored them on the class instead of the instance; each loaded result now owns its data ([#116](https://github.com/birdnet-team/birdnet/pull/116)).
 - `GeoPredictionResult.latitude` and `.longitude` truncated the coordinates to integers, so `predict(42.5, -76.45, week=4)` reported 42 and -76; they are now floats ([#116](https://github.com/birdnet-team/birdnet/pull/116)).
 - `encode_arrays(..)` with `show_stats` set raised a `TypeError` after inference had finished, while the summary tried to list the file formats of in-memory inputs that have none ([#116](https://github.com/birdnet-team/birdnet/pull/116)).
@@ -22,11 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `n_workers` docstrings of acoustic `predict(..)` no longer describe a worker killed mid-batch as deadlocking the run, which 1.1.0 fixed ([#116](https://github.com/birdnet-team/birdnet/pull/116)).
 - An audio array with more than two dimensions passed to `predict_arrays(..)` or `encode_arrays(..)` failed in the producer with a bare `AssertionError`, because the reader's dimension check joined its conditions with `and` and could never fire; the producer now fails with a `ValueError` naming the number of dimensions ([#117](https://github.com/birdnet-team/birdnet/pull/117)).
 - The benchmark statistics (`show_stats="benchmark"`) reported `speed_worker_xrt_max` as `0.0` on every run, because the value was hardcoded; it is now the highest worker xRT sampled during the run ([#117](https://github.com/birdnet-team/birdnet/pull/117)).
-- The type stub had no overload for the documented `load("acoustic", "3.0", "tf")` and `load("acoustic", "3.0", "pb")` calls and rejected `precision="fp16"` for the acoustic 3.0 `onnx` backend, so type checkers reported false errors and inferred `Any`; it is now in sync with the loader, which also means `library="litert"` for the geo 3.0 `tf` backend, always refused at runtime, is now a type error ([#121](https://github.com/birdnet-team/birdnet/pull/121)).
-- The quick-start example imported `AudioDataset`, a name that does not exist in the package, and raised `ImportError` when copied; the same page now lists `pt` among the geo 3.0 backends, and the setup page names the full 3.11-3.14 test matrix ([#108](https://github.com/birdnet-team/birdnet/pull/108)).
-- `birdnet.globals.MODEL_LANGUAGES` and `VALID_MODEL_LANGUAGES`, removed in [#117](https://github.com/birdnet-team/birdnet/pull/117) because nothing inside the package reads them, are back: they are part of the vocabulary consumers type their `load(..)` calls with, and their removal broke BirdNET-Analyzer on import ([#118](https://github.com/birdnet-team/birdnet/issues/118), [#121](https://github.com/birdnet-team/birdnet/pull/121)).
-- Reading an MP3 file slowed down with the square of its length: the producer reopened the file and seeked to every window, and libsndfile seeks in an MP3 by decoding from its start. Each file is now read once, front to back; WAV, FLAC and AIFF windows are unchanged, Ogg Vorbis and Opus windows now equal a decode of the whole file, and MP3 windows move by at most 2e-8 ([#119](https://github.com/birdnet-team/birdnet/pull/119)).
-- CPU inference with the `onnx`, `pt` and `pb` backends started one intra-op thread per physical core in every worker, so the default worker count oversubscribed the machine several times over. Each CPU worker now gets its share of the cores, and an explicit `OMP_NUM_THREADS` (`TF_NUM_INTRAOP_THREADS` for `pb`) is used as is; detections are unchanged and scores move by at most 1.5e-6 ([#120](https://github.com/birdnet-team/birdnet/pull/120), [#121](https://github.com/birdnet-team/birdnet/pull/121)).
+- Reading an MP3 file slowed down with the square of its length: the producer reopened the file and seeked to every 3 s window, and libsndfile seeks in an MP3 by decoding from its start. Each file is now read once, front to back, which makes a 60 min MP3 about 7× faster; WAV, FLAC and AIFF input is unchanged, Ogg Vorbis and Opus windows now equal a decode of the whole file, and MP3 windows move by at most 2e-8 ([#119](https://github.com/birdnet-team/birdnet/pull/119)).
 
 ## [1.3.0] - 2026-10-16
 
@@ -392,7 +397,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release
 
-[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/birdnet-team/birdnet/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/birdnet-team/birdnet/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/birdnet-team/birdnet/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/birdnet-team/birdnet/compare/v1.1.0...v1.1.1
