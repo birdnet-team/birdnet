@@ -195,7 +195,7 @@ def load(
   backend: Literal["tf", "pb", "pt", "onnx"],
   /,
   *,
-  precision: MODEL_PRECISIONS = MODEL_PRECISION_FP32,
+  precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   lang: MODEL_LANGUAGES_V3_0 = MODEL_LANGUAGE_EN_US,
 ) -> GeoModelV3_0: ...
 @overload
@@ -250,7 +250,7 @@ def load_custom(
   species_list: str | PathLike[str],
   /,
   *,
-  precision: Literal["fp32", "fp16"] = "fp32",
+  precision: MODEL_PRECISIONS = "fp32",
   check_validity: bool = True,
   library: LIBRARY_TYPES = "tflite",
   classifier_type: CUSTOM_CLASSIFIER_TYPES = "replace",
@@ -419,6 +419,6 @@ def load_custom(
   species_list: str | PathLike[str],
   /,
   *,
-  precision: MODEL_PRECISIONS = MODEL_PRECISION_FP32,
+  precision: Literal["fp32"] = MODEL_PRECISION_FP32,
   check_validity: bool = True,
 ) -> GeoModelV3_0: ...

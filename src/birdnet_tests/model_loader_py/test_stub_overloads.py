@@ -38,8 +38,7 @@ LOAD_ACCEPTED: list[tuple[str, str, str, tuple[str, ...], dict, tuple[str, ...]]
   ("geo", "3.0", "onnx", ("fp32", "fp16"), {"lang": ("es_mx",)}, ("GeoModelV3_0",)),
 ]  # fmt: skip
 
-# Same for the `_load_custom_*` branches. "auto" leaves out "int8", which only a
-# 2.4 classifier accepts.
+# Same for the `_load_custom_*` branches.
 LOAD_CUSTOM_ACCEPTED: list[
   tuple[str, str, str, tuple[str, ...], dict, tuple[str, ...]]
 ] = [
@@ -48,7 +47,7 @@ LOAD_CUSTOM_ACCEPTED: list[
    ("AcousticModelV2_4",)),
   ("acoustic", "2.4", "pb", ("fp32",), {"is_raven": (True, False)},
    ("AcousticModelV2_4",)),
-  ("acoustic", "auto", "tf", ("fp32", "fp16"),
+  ("acoustic", "auto", "tf", ("int8", "fp16", "fp32"),
    {"library": BOTH_LIBRARIES, "classifier_type": ALL_CLASSIFIER_TYPES},
    ("AcousticModelV2_4", "AcousticModelV3_0")),
   ("acoustic", "3.0", "tf", ("fp32", "fp16"),
@@ -82,12 +81,15 @@ REJECTED = [
   'load("acoustic", "3.0", "onnx", lang="en_uk")',
   'load("geo", "2.4", "tf", precision="int8")',
   'load("geo", "3.0", "tf", library="litert")',
+  'load("geo", "3.0", "pb", precision="int8")',
+  'load("geo", "3.0", "pt", precision="fp16")',
   'load_custom("acoustic", "2.4", "tf", "m", "s", is_raven=True)',
   'load_custom("acoustic", "3.0", "pt", "m", "s", precision="fp16")',
   'load_custom("acoustic", "3.0", "onnx", "m", "s", library="tflite")',
   'load_custom("acoustic", "auto", "onnx", "m", "s")',
   'load_custom("geo", "2.4", "pb", "m", "s", precision="fp16")',
   'load_custom("geo", "3.0", "tf", "m", "s", library="litert")',
+  'load_custom("geo", "3.0", "pb", "m", "s", precision="int8")',
   'load_perch_v2("TPU")',
   'inspect_custom_tflite("m.tflite", library="tf")',
 ]
