@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bugfixes
 
+- CPU inference with the `onnx`, `pt` and `pb` backends started one intra-op thread per physical core in every worker, and `n_workers` defaults to the number of physical cores, so an 8-core machine ran 64 busy threads. Each CPU worker now gets its share of the cores, which makes a default 3.0 `onnx` session about 8× faster on an 8-core Linux machine and 5–10× faster on a 10-core Windows laptop; detections are unchanged and scores move by at most 1.5e-6 ([#120](https://github.com/birdnet-team/birdnet/pull/120)).
 - Loading a second result from `.npz` (`AcousticFilePredictionResult.load(..)` and the other result classes) silently replaced the arrays of every result loaded earlier in the same process, because the loader stored them on the class instead of the instance; each loaded result now owns its data ([#116](https://github.com/birdnet-team/birdnet/pull/116)).
 - `GeoPredictionResult.latitude` and `.longitude` truncated the coordinates to integers, so `predict(42.5, -76.45, week=4)` reported 42 and -76; they are now floats ([#116](https://github.com/birdnet-team/birdnet/pull/116)).
 - `encode_arrays(..)` with `show_stats` set raised a `TypeError` after inference had finished, while the summary tried to list the file formats of in-memory inputs that have none ([#116](https://github.com/birdnet-team/birdnet/pull/116)).

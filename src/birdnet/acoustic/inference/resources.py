@@ -27,7 +27,14 @@ from birdnet.acoustic.inference.core.perf_tracker import (
 )
 from birdnet.acoustic.inference.core.shm import RingField, create_shm_ring
 from birdnet.acoustic.inference.core.sync import CountedSemaphore
-from birdnet.core.backends import BackendLoader
+from birdnet.core.backends import (
+  CPU_THREADS_ARG,
+  BackendLoader,
+  OnnxBackend,
+  PBBackend,
+  TorchBackend,
+  cpu_threads_per_worker,
+)
 from birdnet.core.base import get_session_id_hash
 from birdnet.globals import MODEL_TYPE_ACOUSTIC, PKG_NAME, WRITABLE_FLAG
 from birdnet.utils.helper import (
@@ -318,10 +325,20 @@ class WorkerResources:
       else [config.processing_conf.device] * n_workers
     )
 
+    backend_kwargs = config.model_conf.backend_kwargs
+    n_cpu_workers = sum("CPU" in device for device in devices)
+    if n_cpu_workers > 0 and issubclass(
+      config.model_conf.backend_type, (OnnxBackend, PBBackend, TorchBackend)
+    ):
+      backend_kwargs = {
+        **backend_kwargs,
+        CPU_THREADS_ARG: cpu_threads_per_worker(n_cpu_workers),
+      }
+
     backend_loader = BackendLoader(
       model_path=config.model_conf.path,
       backend_type=config.model_conf.backend_type,
-      backend_kwargs=config.model_conf.backend_kwargs,
+      backend_kwargs=backend_kwargs,
     )
 
     return WorkerResources(
