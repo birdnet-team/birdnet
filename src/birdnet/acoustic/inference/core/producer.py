@@ -718,8 +718,8 @@ def get_file_segments_with_overlap(
 class SequentialFileReader:
   """Reads the ``[start, end)`` windows of one open file, front to back.
 
-  Windows arrive in increasing order and overlap only their predecessor, so the
-  overlap is kept from the previous read and only new frames are decoded.
+  Windows arrive in increasing order and may overlap earlier ones; the frames
+  still held are reused, so only new frames are decoded.
   Reopening the file and seeking to every window instead costs an MP3 a scan
   from the start of the file (libsndfile has no seek index for it): 70 ms per
   3 s window of a 60 min file, i.e. quadratic in the file's duration.
@@ -748,7 +748,10 @@ class SequentialFileReader:
     self._frames = kept
     self._frames_start = start_samples
 
-    return convert_to_mono(kept[: end_samples - start_samples])
+    window = kept[: end_samples - start_samples]
+    mono = convert_to_mono(window)
+    # The buffer is reused for the next window, so hand out a copy.
+    return mono.copy() if mono is window else mono
 
 
 def get_data_segments_with_overlap(
