@@ -215,9 +215,9 @@ To run the test suite, use the following command:
 
 .. code-block:: bash
   
-  # requirement: ensure all Python versions (3.11-3.13) are installed
+  # requirement: ensure all Python versions (3.11-3.14) are installed
   
-  # run all tests for Python 3.11, 3.12, and 3.13
+  # run all tests for Python 3.11, 3.12, 3.13, and 3.14
   tox
 
 You can also run only specific tests using the following commands (examples):

@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An audio array with more than two dimensions passed to `predict_arrays(..)` or `encode_arrays(..)` failed in the producer with a bare `AssertionError`, because the reader's dimension check joined its conditions with `and` and could never fire; the producer now fails with a `ValueError` naming the number of dimensions ([#117](https://github.com/birdnet-team/birdnet/pull/117)).
 - The benchmark statistics (`show_stats="benchmark"`) reported `speed_worker_xrt_max` as `0.0` on every run, because the value was hardcoded; it is now the highest worker xRT sampled during the run ([#117](https://github.com/birdnet-team/birdnet/pull/117)).
 - The type stub had no overload for the documented `load("acoustic", "3.0", "tf")` and `load("acoustic", "3.0", "pb")` calls and rejected `precision="fp16"` for the acoustic 3.0 `onnx` backend, so type checkers reported false errors and inferred `Any`; it is now in sync with the loader, which also means `library="litert"` for the geo 3.0 `tf` backend, always refused at runtime, is now a type error ([#XXX](https://github.com/birdnet-team/birdnet/pull/XXX)).
+- The quick-start example imported `AudioDataset`, a name that does not exist in the package, and raised `ImportError` when copied; the same page now lists `pt` among the geo 3.0 backends, and the setup page names the full 3.11-3.14 test matrix ([#108](https://github.com/birdnet-team/birdnet/pull/108)).
 
 ## [1.3.0] - 2026-10-16
 
