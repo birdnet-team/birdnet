@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `n_workers` docstrings of acoustic `predict(..)` no longer describe a worker killed mid-batch as deadlocking the run, which 1.1.0 fixed ([#116](https://github.com/birdnet-team/birdnet/pull/116)).
 - An audio array with more than two dimensions passed to `predict_arrays(..)` or `encode_arrays(..)` failed in the producer with a bare `AssertionError`, because the reader's dimension check joined its conditions with `and` and could never fire; the producer now fails with a `ValueError` naming the number of dimensions ([#117](https://github.com/birdnet-team/birdnet/pull/117)).
 - The benchmark statistics (`show_stats="benchmark"`) reported `speed_worker_xrt_max` as `0.0` on every run, because the value was hardcoded; it is now the highest worker xRT sampled during the run ([#117](https://github.com/birdnet-team/birdnet/pull/117)).
+- Reading an MP3 file slowed down with the square of its length: the producer reopened the file and seeked to every 3 s window, and libsndfile seeks in an MP3 by decoding from its start. Each file is now read once, front to back, which makes a 60 min MP3 about 7× faster; WAV, FLAC and AIFF input is unchanged, Ogg Vorbis and Opus windows now equal a decode of the whole file, and MP3 windows move by at most 2e-8 ([#119](https://github.com/birdnet-team/birdnet/pull/119)).
 
 ## [1.3.0] - 2026-10-16
 

@@ -698,19 +698,57 @@ def get_file_segments_with_overlap(
     segment will have 3 * 48000 samples, independent of the speed
     setting. Changing speed only changes how many segments are produced.
   """
-  read_method = partial(read_file_in_mono, audio_path=audio_path)
+  assert audio_path.is_file()
+  assert audio_path.suffix.upper() in SF_FORMATS
 
-  segments = get_segments_with_overlap(
-    audio_n_samples,
-    sample_rate,
-    read_method,
-    segment_duration_s=segment_duration_s,
-    overlap_duration_s=overlap_duration_s,
-    speed=speed,
-    target_sample_rate=target_sample_rate,
-  )
+  with soundfile.SoundFile(audio_path) as audio_file:
+    segments = get_segments_with_overlap(
+      audio_n_samples,
+      sample_rate,
+      SequentialFileReader(audio_file),
+      segment_duration_s=segment_duration_s,
+      overlap_duration_s=overlap_duration_s,
+      speed=speed,
+      target_sample_rate=target_sample_rate,
+    )
 
-  yield from segments
+    yield from segments
+
+
+class SequentialFileReader:
+  """Reads the ``[start, end)`` windows of one open file, front to back.
+
+  Windows arrive in increasing order and overlap only their predecessor, so the
+  overlap is kept from the previous read and only new frames are decoded.
+  Reopening the file and seeking to every window instead costs an MP3 a scan
+  from the start of the file (libsndfile has no seek index for it): 70 ms per
+  3 s window of a 60 min file, i.e. quadratic in the file's duration.
+  """
+
+  def __init__(self, audio_file: soundfile.SoundFile) -> None:
+    self._file = audio_file
+    self._frames: npt.NDArray = np.empty(
+      (0, audio_file.channels) if audio_file.channels > 1 else 0, dtype=np.float32
+    )
+    self._frames_start = 0
+
+  def __call__(self, start_samples: int, end_samples: int) -> Float32Array:
+    assert 0 <= start_samples < end_samples
+    frames_end = self._frames_start + len(self._frames)
+    if not self._frames_start <= start_samples <= frames_end:
+      self._file.seek(start_samples)
+      self._frames = self._frames[:0]
+      self._frames_start = start_samples
+      frames_end = start_samples
+
+    kept = self._frames[start_samples - self._frames_start :]
+    if end_samples > frames_end:
+      new = self._file.read(end_samples - frames_end, dtype="float32")
+      kept = np.concatenate((kept, new)) if len(kept) > 0 else new
+    self._frames = kept
+    self._frames_start = start_samples
+
+    return convert_to_mono(kept[: end_samples - start_samples])
 
 
 def get_data_segments_with_overlap(
