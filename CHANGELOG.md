@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-10-18
+
 ### Bugfixes
 
 - CPU inference with the `onnx`, `pt` and `pb` backends started one intra-op thread per physical core in every worker, and `n_workers` defaults to the number of physical cores, so an 8-core machine ran 64 busy threads. Each CPU worker now gets its share of the cores, which makes a default 3.0 `onnx` session about 8× faster on an 8-core Linux machine and 5–10× faster on a 10-core Windows laptop; detections are unchanged and scores move by at most 1.5e-6 ([#120](https://github.com/birdnet-team/birdnet/pull/120)).
@@ -20,7 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An audio array with more than two dimensions passed to `predict_arrays(..)` or `encode_arrays(..)` failed in the producer with a bare `AssertionError`, because the reader's dimension check joined its conditions with `and` and could never fire; the producer now fails with a `ValueError` naming the number of dimensions ([#117](https://github.com/birdnet-team/birdnet/pull/117)).
 - The benchmark statistics (`show_stats="benchmark"`) reported `speed_worker_xrt_max` as `0.0` on every run, because the value was hardcoded; it is now the highest worker xRT sampled during the run ([#117](https://github.com/birdnet-team/birdnet/pull/117)).
 - Reading an MP3 file slowed down with the square of its length: the producer reopened the file and seeked to every 3 s window, and libsndfile seeks in an MP3 by decoding from its start. Each file is now read once, front to back, which makes a 60 min MP3 about 7× faster; WAV, FLAC and AIFF input is unchanged, Ogg Vorbis and Opus windows now equal a decode of the whole file, and MP3 windows move by at most 2e-8 ([#119](https://github.com/birdnet-team/birdnet/pull/119)).
-- `birdnet.globals.MODEL_LANGUAGES` and `VALID_MODEL_LANGUAGES`, removed in [#117](https://github.com/birdnet-team/birdnet/pull/117) because nothing inside the package reads them, are back: BirdNET-Analyzer imports the former at module level, so every one of its entry points failed on import against `main` ([#118](https://github.com/birdnet-team/birdnet/issues/118), [#121](https://github.com/birdnet-team/birdnet/pull/121)).
 
 ## [1.3.0] - 2026-10-16
 
@@ -386,7 +387,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release
 
-[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/birdnet-team/birdnet/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/birdnet-team/birdnet/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/birdnet-team/birdnet/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/birdnet-team/birdnet/compare/v1.1.0...v1.1.1
