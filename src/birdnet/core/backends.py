@@ -178,6 +178,21 @@ class VersionedGeoBackendProtocol(VersionedBackendProtocol, Protocol):
 
 
 TF_BACKEND_LIB_ARG = "inference_library"
+CPU_THREADS_ARG = "cpu_threads"
+
+
+def cpu_threads_per_worker(n_workers: int) -> int:
+  """Intra-op threads for each of ``n_workers`` CPU inference processes.
+
+  ONNX Runtime, PyTorch and TensorFlow size their thread pools to all cores in
+  every process, so ``n_workers`` workers run ``n_workers`` times as many busy
+  threads as there are cores. On 8 cores with 8 workers that made the 3.0 ONNX
+  model 8.6x slower than one thread per worker.
+  """
+  import psutil
+
+  n_cores = psutil.cpu_count(logical=False) or 1
+  return max(1, n_cores // n_workers)
 
 
 class TFBackend(Backend, ABC):
@@ -331,6 +346,7 @@ class TorchBackend(Backend, ABC):
     self._model: RecursiveScriptModule | None = None
     self._device: TorchDevice | None = None
     self._n_species: int | None = None
+    self._cpu_threads = cast(int | None, kwargs.get(CPU_THREADS_ARG))
 
   @classmethod
   def name(cls) -> str:
@@ -368,6 +384,10 @@ class TorchBackend(Backend, ABC):
     assert self._model is None
 
     self._device = set_torch_device(self._device_name)
+    if self._cpu_threads is not None and self._device.type == "cpu":
+      import torch
+
+      torch.set_num_threads(self._cpu_threads)
     self._model = load_torch_model(self._model_path, self._device)
 
   def unload(self) -> None:
@@ -459,6 +479,7 @@ class OnnxBackend(Backend, ABC):
     self._input_name: str | None = None
     self._output_names: list[str] | None = None
     self._n_species: int | None = None
+    self._cpu_threads = cast(int | None, kwargs.get(CPU_THREADS_ARG))
 
   @classmethod
   def name(cls) -> str:
@@ -484,7 +505,9 @@ class OnnxBackend(Backend, ABC):
   def load(self) -> None:
     assert self._session is None
 
-    self._session = load_onnx_model(self._model_path, self._device_name)
+    self._session = load_onnx_model(
+      self._model_path, self._device_name, self._cpu_threads
+    )
     self._input_name = self._session.get_inputs()[0].name
     self._output_names = [output.name for output in self._session.get_outputs()]
 
@@ -562,6 +585,7 @@ class PBBackend(Backend, ABC):
     self._logical_device_name: str | None = None
     self._predict_fn: Callable | None = None
     self._encoding_fn: Callable | None = None
+    self._cpu_threads = cast(int | None, kwargs.get(CPU_THREADS_ARG))
 
   @classmethod
   def name(cls) -> str:
@@ -634,7 +658,7 @@ class PBBackend(Backend, ABC):
 
   def _set_logical_device(self) -> None:
     if "CPU" in self._device_name:
-      self._logical_device_name = set_cpu_device_tf()
+      self._logical_device_name = set_cpu_device_tf(self._cpu_threads)
     elif "GPU" in self._device_name:
       self._logical_device_name = set_gpu_device_tf(
         self._device_name, memory_growth=True
@@ -923,7 +947,7 @@ def import_tf() -> None:
     import tensorflow  # noqa: F401
 
 
-def set_cpu_device_tf() -> str:
+def set_cpu_device_tf(cpu_threads: int | None = None) -> str:
   from tensorflow.config import list_logical_devices  # type: ignore
 
   # disable GPUs for TF when using CPU backend
@@ -932,6 +956,17 @@ def set_cpu_device_tf() -> str:
   # cudaSetDevice() on GPU:0 failed. Status: out of memory
   # at call of tensorflow.config.list_logical_devices("CPU")
   os.environ["CUDA_VISIBLE_DEVICES"] = ""
+
+  if cpu_threads is not None:
+    from tensorflow.config import threading  # type: ignore
+
+    try:
+      threading.set_intra_op_parallelism_threads(cpu_threads)
+      threading.set_inter_op_parallelism_threads(cpu_threads)
+    except RuntimeError:
+      # The runtime is already initialized in this process (a forked child of a
+      # parent that ran TensorFlow); it keeps the pools it was created with.
+      pass
 
   logical_devices = list_logical_devices("CPU")
 
@@ -1235,17 +1270,23 @@ def _get_onnx_session_providers(device: str) -> tuple[list[str], list[dict[str, 
   )
 
 
-def load_onnx_model(model_path: Path, device: str) -> ort.InferenceSession:
+def load_onnx_model(
+  model_path: Path, device: str, cpu_threads: int | None = None
+) -> ort.InferenceSession:
   assert model_path.is_file()
   assert onnxruntime_installed()
 
   import onnxruntime as ort
 
   providers, provider_options = _get_onnx_session_providers(device)
+  sess_options = ort.SessionOptions()
+  if cpu_threads is not None and "CPU" in device:
+    sess_options.intra_op_num_threads = cpu_threads
   start = time.perf_counter()
   try:
     session = ort.InferenceSession(
       str(model_path.absolute()),
+      sess_options=sess_options,
       providers=providers,
       provider_options=provider_options,
     )
