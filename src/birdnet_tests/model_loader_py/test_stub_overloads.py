@@ -9,7 +9,11 @@ from pathlib import Path
 import pytest
 from mypy import api as mypy_api
 
+import birdnet
+
 pytestmark = pytest.mark.no_tf
+
+STUB = Path(birdnet.__file__).with_name("model_loader.pyi")
 
 ALL_CLASSIFIER_TYPES = ("replace", "append", "replace_hidden", "append_hidden")
 BOTH_LIBRARIES = ("tflite", "litert")
@@ -69,6 +73,9 @@ LOAD_CUSTOM_ACCEPTED: list[
 OTHER_ACCEPTED: list[tuple[str, tuple[str, ...]]] = [
   ('load_perch_v2("GPU")', ("AcousticModelPerchV2",)),
   ('inspect_custom_tflite("m.tflite", library="litert")', ("CustomTFLiteInfo",)),
+  ('load("acoustic", "3.0", backend)', ("AcousticModelV3_0",)),
+  ('load("geo", "3.0", backend)', ("GeoModelV3_0",)),
+  ('load_custom("acoustic", "3.0", backend, "m", "s")', ("AcousticModelV3_0",)),
 ]
 
 # Each is rejected at runtime by model_loader.py.
@@ -94,7 +101,8 @@ REJECTED = [
   'inspect_custom_tflite("m.tflite", library="tf")',
 ]
 
-_MESSAGE = re.compile(r":(\d+): (error|note): (.*)$")
+_MESSAGE = re.compile(r"^(.*?):(\d+): (error|note): (.*)$")
+_REVEALED = re.compile(r'Revealed type is "(.*)"')
 
 
 def _accepted_calls() -> list[tuple[str, tuple[str, ...]]]:
@@ -119,7 +127,10 @@ def _accepted_calls() -> list[tuple[str, tuple[str, ...]]]:
 def test_stub_matches_loader(tmp_path: Path) -> None:
   accepted = _accepted_calls()
   lines = [
-    "from birdnet import inspect_custom_tflite, load, load_custom, load_perch_v2"
+    "from birdnet import inspect_custom_tflite, load, load_custom, load_perch_v2",
+    "from birdnet import MODEL_BACKENDS",
+    # a backend that is not a literal resolves through the combined overloads
+    'backend: MODEL_BACKENDS = "tf"',
   ]
   expected_by_line: dict[int, tuple[str, ...]] = {}
   for call, expected in accepted:
@@ -137,6 +148,7 @@ def test_stub_matches_loader(tmp_path: Path) -> None:
   stdout, stderr, _ = mypy_api.run(
     [
       str(module),
+      str(STUB),
       "--config-file",
       str(config),
       "--cache-dir",
@@ -150,11 +162,16 @@ def test_stub_matches_loader(tmp_path: Path) -> None:
 
   errors: dict[int, list[str]] = {}
   revealed: dict[int, str] = {}
+  stub_errors: list[str] = []
   for out_line in stdout.splitlines():
     match = _MESSAGE.search(out_line)
     if match is None:
       continue
-    lineno, kind, message = int(match[1]), match[2], match[3]
+    file, lineno, kind, message = match[1], int(match[2]), match[3], match[4]
+    if not file.endswith("stub_calls.py"):
+      if kind == "error":
+        stub_errors.append(out_line)
+      continue
     if kind == "error":
       errors.setdefault(lineno, []).append(message)
     elif message.startswith("Revealed type is"):
@@ -166,8 +183,12 @@ def test_stub_matches_loader(tmp_path: Path) -> None:
   assert unexpected == {}
   for lineno, call in rejected_lines.items():
     assert len(errors.get(lineno, [])) == 1, f"{call} must be rejected once"
+  # The stub itself must type-check: its defaults have to fit the Literal params.
+  assert stub_errors == []
   for lineno, expected in expected_by_line.items():
     message = revealed.get(lineno, "")
     assert "Any" not in message, lines[lineno - 1]
-    for name in expected:
-      assert f".{name}" in message, (lines[lineno - 1], message)
+    found = _REVEALED.search(message)
+    assert found is not None, (lines[lineno - 1], message)
+    names = sorted(part.strip().rsplit(".", 1)[-1] for part in found[1].split(" | "))
+    assert names == sorted(expected), (lines[lineno - 1], message)
