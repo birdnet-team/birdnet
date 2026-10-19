@@ -201,7 +201,7 @@ class TFBackend(Backend, ABC):
     model_path: Path,
     device_name: str,
     half_precision: bool,
-    **kwargs: dict,
+    **kwargs: object,
   ) -> None:
     assert device_name == "CPU"
     super().__init__(model_path, device_name, half_precision)
@@ -340,7 +340,7 @@ class TorchBackend(Backend, ABC):
     model_path: Path,
     device_name: str,
     half_precision: bool,
-    **kwargs: dict,
+    **kwargs: object,
   ) -> None:
     super().__init__(model_path, device_name, half_precision)
     self._model: RecursiveScriptModule | None = None
@@ -472,7 +472,7 @@ class OnnxBackend(Backend, ABC):
     model_path: Path,
     device_name: str,
     half_precision: bool,
-    **kwargs: dict,
+    **kwargs: object,
   ) -> None:
     super().__init__(model_path, device_name, half_precision)
     self._session: ort.InferenceSession | None = None
@@ -578,7 +578,7 @@ class PBBackend(Backend, ABC):
     model_path: Path,
     device_name: str,
     half_precision: bool,
-    **kwargs: dict,
+    **kwargs: object,
   ) -> None:
     super().__init__(model_path, device_name, half_precision)
     self._model: Any | None = None

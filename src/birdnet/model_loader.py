@@ -2,10 +2,11 @@
 Provides functions to load official and custom models.
 """
 
+import sys
 from collections.abc import Callable
 from os import PathLike
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal, NoReturn, cast
 
 from birdnet.acoustic.models.base import AcousticModelBase
 from birdnet.acoustic.models.custom_tflite import (
@@ -370,8 +371,6 @@ def _tensorflow_missing_message(
 ) -> str:
   # The advice depends on the interpreter: TensorFlow has no wheels for Python
   # 3.14+, so there it cannot be installed; on 3.11-3.13 it is the [tf] extra.
-  import sys
-
   if subject is None:
     if backend == MODEL_BACKEND_TF:
       subject = (
@@ -426,7 +425,7 @@ def _raise_unsupported_backend(
   version: str,
   backend: MODEL_BACKENDS,
   supported_backends: tuple[str, ...],
-) -> None:
+) -> NoReturn:
   raise ValueError(
     f"Unsupported backend '{backend}' for {model_type} model v{version}. "
     f"Supported backends are: {', '.join(supported_backends)}."

@@ -221,3 +221,37 @@ def pytest_configure(config: pytest.Config) -> None:
 
   root = get_package_logger()
   root.setLevel(logging.DEBUG)
+
+
+# Every `https://` literal under src/birdnet points at one of these.
+_DOWNLOAD_HOSTS = frozenset({"zenodo.org", "github.com", "tuc.cloud"})
+
+
+@pytest.fixture(autouse=True)
+def _no_internet_downloads_outside_load_model(
+  request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+  """A test without the ``load_model`` marker never downloads from the internet.
+
+  The ``load_model`` phase fills the cache; a later test that still downloads
+  ran on a cold cache, which costs minutes per model and hides which test
+  depends on which download. Only the hosts the package downloads from are
+  blocked, so local test servers and fake transports keep working.
+  """
+  if request.node.get_closest_marker("load_model") is not None:
+    return
+  from urllib.parse import urlparse
+
+  from birdnet.utils import helper
+
+  original = helper._download_file_once
+
+  def guarded(url: str, *args: object, **kwargs: object) -> int:
+    if urlparse(url).hostname not in _DOWNLOAD_HOSTS:
+      return original(url, *args, **kwargs)  # type: ignore[arg-type]
+    pytest.fail(
+      f"{request.node.nodeid} tried to download {url}; downloads belong to tests "
+      "marked load_model"
+    )
+
+  monkeypatch.setattr(helper, "_download_file_once", guarded)

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `AcousticModelV3_0`, `GeoModelV3_0`, `AcousticSessionBase` and the vocabulary of `load(..)` are importable from `birdnet`: the `Literal` types (`ACOUSTIC_MODEL_VERSIONS`, `MODEL_LANGUAGES`, `MODEL_PRECISIONS`, ...), the `VALID_*` lists (typed, and `VALID_MODEL_LANGUAGES` without its duplicates) and the defaults `MODEL_PRECISION_FP32`, `MODEL_LANGUAGE_EN_US` and `LIBRARY_TF_DEFAULT`, so typed callers no longer need `birdnet.globals` ([#123](https://github.com/birdnet-team/birdnet/pull/123)).
+
+### Bugfixes
+
+- The type stub had no overload for the documented `load("acoustic", "3.0", "tf")` and `load("acoustic", "3.0", "pb")` calls and rejected `precision="fp16"` for the acoustic 3.0 `onnx` backend, so type checkers reported false errors and inferred `Any`; it is now in sync with the loader, which also means `library="litert"` for the geo 3.0 `tf` backend, always refused at runtime, is now a type error, and `load_custom(.., "auto", "tf", ..)` accepts every precision a detected 2.4 classifier takes ([#123](https://github.com/birdnet-team/birdnet/pull/123)).
+- The quick-start example imported `AudioDataset`, a name that does not exist in the package, and raised `ImportError` when copied; the same page now lists `pt` among the geo 3.0 backends, and the setup page names the full 3.11-3.14 test matrix ([#123](https://github.com/birdnet-team/birdnet/pull/123), from [#108](https://github.com/birdnet-team/birdnet/pull/108)).
+
 ## [1.3.1] - 2026-10-18
 
 ### Bugfixes

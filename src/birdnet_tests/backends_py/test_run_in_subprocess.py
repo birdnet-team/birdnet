@@ -22,11 +22,16 @@ def test_raises_what_the_function_raises() -> None:
 def _workers() -> set[int]:
   """Our child processes, apart from multiprocessing's resource tracker, which
   POSIX starts with the first spawned process and keeps for the process's life."""
-  return {
-    child.pid
-    for child in psutil.Process().children()
-    if "resource_tracker" not in " ".join(child.cmdline())
-  }
+  workers: set[int] = set()
+  for child in psutil.Process().children():
+    try:
+      cmdline = " ".join(child.cmdline())
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+      # Exited between the listing and this call: not a leftover.
+      continue
+    if "resource_tracker" not in cmdline:
+      workers.add(child.pid)
+  return workers
 
 
 def test_a_hanging_function_is_killed_at_the_timeout() -> None:

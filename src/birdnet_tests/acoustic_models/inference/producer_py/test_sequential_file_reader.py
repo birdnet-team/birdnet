@@ -75,3 +75,17 @@ def test_lossy_windows_match_a_decode_of_the_whole_file(
       np.testing.assert_allclose(
         reader(start, end), whole[start:end], rtol=0, atol=atol
       )
+
+
+def test_returned_window_survives_in_place_mutation() -> None:
+  path = AUDIO_FORMATS_DIR / "soundscape.wav"
+  n = duration_as_samples(3.0, soundfile.info(path).samplerate)
+  overlap = n // 2
+  with soundfile.SoundFile(path) as audio_file:
+    reader = SequentialFileReader(audio_file)
+    first = reader(0, n)
+    first[:] = 0.0
+    second = reader(n - overlap, 2 * n - overlap)
+  np.testing.assert_array_equal(
+    second, read_file_in_mono(n - overlap, 2 * n - overlap, path)
+  )
