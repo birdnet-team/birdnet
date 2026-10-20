@@ -45,7 +45,7 @@ from birdnet.utils.label_manifest import (
   labels_up_to_date,
   record_generation,
 )
-from birdnet.utils.local_data import APP_DIR
+from birdnet.utils.local_data import get_birdnet_app_data_folder
 from birdnet.utils.taxonomy_v3 import (
   ensure_taxonomy_v3_available,
   get_taxonomy_v3_input,
@@ -91,12 +91,24 @@ _LANGUAGE_TO_COLUMN: dict[str, str] = {
   "zh": "common_name_zh-CN",
 }
 
-_ACOUSTIC_V3_0_BASE_DIR = APP_DIR / "acoustic-models" / "v3.0"
+
+def _acoustic_v3_0_base_dir() -> Path:
+  return get_birdnet_app_data_folder() / "acoustic-models" / "v3.0"
+
+
 # Named after the content, so an install of another version cannot overwrite
 # this release's copy with its own and leave both re-downloading forever.
-_LABELS_RAW_PATH = _ACOUSTIC_V3_0_BASE_DIR / f"labels_raw-{_LABELS_DL_SHA256[:12]}.csv"
-_LEGACY_LABELS_RAW_PATH = _ACOUSTIC_V3_0_BASE_DIR / "labels_raw.csv"
-_SETUP_LOCK_DIR = _ACOUSTIC_V3_0_BASE_DIR / ".labels_setup.lock"
+def _labels_raw_path() -> Path:
+  return _acoustic_v3_0_base_dir() / f"labels_raw-{_LABELS_DL_SHA256[:12]}.csv"
+
+
+def _legacy_labels_raw_path() -> Path:
+  return _acoustic_v3_0_base_dir() / "labels_raw.csv"
+
+
+def _setup_lock_dir() -> Path:
+  return _acoustic_v3_0_base_dir() / ".labels_setup.lock"
+
 
 # Identifies this generator in the manifest, so a directory written by the geo
 # model could never be read as an acoustic one.
@@ -117,7 +129,7 @@ class AcousticDownloaderBaseV3_0:
   @classmethod
   def _labels_input(cls) -> LabelInput:
     return LabelInput(
-      path=_LABELS_RAW_PATH,
+      path=_labels_raw_path(),
       url=_LABELS_DL_URL,
       size=_LABELS_DL_SIZE,
       sha256=_LABELS_DL_SHA256,
@@ -144,14 +156,14 @@ class AcousticDownloaderBaseV3_0:
     if cls._check_labels_available():
       return
 
-    with directory_lock(_SETUP_LOCK_DIR, "acoustic model v3.0 label setup"):
+    with directory_lock(_setup_lock_dir(), "acoustic model v3.0 label setup"):
       if cls._check_labels_available():
         return
 
       ensure_artifact(
         cls._labels_input(),
         "Downloading acoustic model v3.0 labels",
-        legacy_path=_LEGACY_LABELS_RAW_PATH,
+        legacy_path=_legacy_labels_raw_path(),
       )
       ensure_taxonomy_v3_available()
 

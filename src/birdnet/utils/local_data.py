@@ -1,3 +1,4 @@
+import functools
 import importlib.metadata
 import os
 from pathlib import Path
@@ -39,15 +40,22 @@ def get_app_data_path() -> Path:
   return result
 
 
+@functools.cache
+def _resolve_override(raw: str) -> Path:
+  # Once per value: a relative override must not move with a later chdir.
+  return Path(raw).expanduser().resolve()
+
+
 def get_birdnet_app_data_folder() -> Path:
   override = os.getenv(ENV_VAR_APP_DATA)
   if override is not None:
-    return Path(override).expanduser().resolve()
+    return _resolve_override(override)
   app_data = get_app_data_path()
   result = app_data / PKG_NAME
   return result
 
 
+# Import-time value for downstream imports; birdnet calls get_birdnet_app_data_folder().
 APP_DIR = get_birdnet_app_data_folder()
 
 
@@ -56,7 +64,10 @@ def get_benchmark_dir(
   dir_name: str,
 ) -> Path:
   result = (
-    APP_DIR / f"{model}-benchmarks" / f"lib-v{get_package_version()}" / f"{dir_name}"
+    get_birdnet_app_data_folder()
+    / f"{model}-benchmarks"
+    / f"lib-v{get_package_version()}"
+    / f"{dir_name}"
   )
   result.mkdir(parents=True, exist_ok=True)
   return result
@@ -67,7 +78,9 @@ def get_model_root_dir(
   version: ACOUSTIC_MODEL_VERSIONS | GEO_MODEL_VERSIONS,
   backend: MODEL_BACKENDS,
 ) -> Path:
-  parent_dir = APP_DIR / f"{model}-models" / f"v{version}" / backend
+  parent_dir = (
+    get_birdnet_app_data_folder() / f"{model}-models" / f"v{version}" / backend
+  )
   return parent_dir
 
 
@@ -106,7 +119,3 @@ def get_lang_dir(
   root_dir = get_model_root_dir(model, version, backend)
   result = root_dir / "labels"
   return result
-
-
-if not APP_DIR.exists():
-  APP_DIR.mkdir(parents=True, exist_ok=True)

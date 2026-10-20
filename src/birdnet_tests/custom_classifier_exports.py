@@ -42,7 +42,11 @@ from birdnet.acoustic.models.v3_0.pb import AcousticPBDownloaderV3_0
 from birdnet.core.backends import tf_installed
 from birdnet.utils.helper import directory_lock, get_species_from_file
 from birdnet.utils.label_manifest import LabelInput, ensure_artifact
-from birdnet.utils.local_data import APP_DIR, get_lang_dir, get_model_path
+from birdnet.utils.local_data import (
+  get_birdnet_app_data_folder,
+  get_lang_dir,
+  get_model_path,
+)
 
 LABELS = ["Sci a_Common a", "Sci b_Common b", "Sci c_Common c"]
 
@@ -59,7 +63,7 @@ def _cache_root() -> Path:
   override = os.getenv(ENV_VAR_EXPORTS_DIR)
   if override:
     return Path(override).expanduser().resolve()
-  return APP_DIR / "test-fixtures" / "custom-classifiers"
+  return get_birdnet_app_data_folder() / "test-fixtures" / "custom-classifiers"
 
 
 _CACHE_ROOT = _cache_root()
@@ -74,7 +78,9 @@ _ANALYZER_URL = (
   "https://raw.githubusercontent.com/birdnet-team/birdnet-test-data/"
   f"{_ANALYZER_COMMIT}/analyze/"
 )
-_ANALYZER_DIR = APP_DIR / "test-fixtures" / "analyzer" / _ANALYZER_COMMIT[:12]
+_ANALYZER_DIR = (
+  get_birdnet_app_data_folder() / "test-fixtures" / "analyzer" / _ANALYZER_COMMIT[:12]
+)
 _ANALYZER_MODEL = LabelInput(
   path=_ANALYZER_DIR / "CustomClassifier.tflite",
   url=_ANALYZER_URL + "CustomClassifier.tflite",

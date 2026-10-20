@@ -47,6 +47,7 @@ class GeoSessionBase(SessionBase, ABC):
     self._species_list.setflags(write=False)
     self._species_ids.setflags(write=False)
     self._backend: VersionedGeoBackendProtocol | None = None
+    self._backend_loader: BackendLoader | None = None
     self._is_initialized = False
     super().__init__()
 
@@ -130,6 +131,8 @@ class GeoSessionBase(SessionBase, ABC):
 
   def __exit__(self, *args) -> None:  # noqa: ANN002
     assert self._is_initialized
+    assert self._backend_loader is not None
+    self._backend_loader.unload_backend()
     self._backend = None
     self._backend_loader = None
     self._is_initialized = False

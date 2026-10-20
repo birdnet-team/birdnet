@@ -16,11 +16,13 @@ would make the manifest unportable and this test unrunnable off Windows.
 
 import hashlib
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
 import birdnet.acoustic.models.v3_0.model as acoustic_model
 import birdnet.geo.models.v3_0.model as geo_model
+from birdnet.globals import ENV_VAR_APP_DATA
 from birdnet.utils.label_manifest import LabelInput, sha256_bytes
 
 # Deliberately small and hand-written: one localized name, one blank cell falling
@@ -45,20 +47,21 @@ def _digest(path: Path) -> str:
 
 def _prepare(
   monkeypatch: pytest.MonkeyPatch,
-  module: object,
+  module: ModuleType,
   tmp_path: Path,
   labels: bytes,
   languages: dict[str, str],
 ) -> Path:
-  raw = tmp_path / "labels_raw"
-  raw.write_bytes(labels)
   taxonomy = tmp_path / "taxonomy.csv"
   taxonomy.write_bytes(_TAXONOMY)
   lang_dir = tmp_path / "labels"
 
-  monkeypatch.setattr(module, "_LABELS_RAW_PATH", raw)
+  monkeypatch.setenv(ENV_VAR_APP_DATA, str(tmp_path))
   monkeypatch.setattr(module, "_LABELS_DL_SIZE", len(labels))
   monkeypatch.setattr(module, "_LABELS_DL_SHA256", sha256_bytes(labels))
+  raw = module._labels_raw_path()
+  raw.parent.mkdir(parents=True)
+  raw.write_bytes(labels)
   monkeypatch.setattr(module, "_LANGUAGE_TO_COLUMN", languages)
   monkeypatch.setattr(
     module,
