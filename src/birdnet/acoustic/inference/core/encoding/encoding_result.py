@@ -28,6 +28,10 @@ if TYPE_CHECKING:
 
 VAR_EMBEDDING = "embedding"
 
+# A `list` column addresses its values with int32 offsets; a larger export is
+# split into chunks, as `pa.array` splits a list of lists.
+_MAX_VALUES_PER_CHUNK = np.iinfo(np.int32).max
+
 NP_EMB_KEY = "embeddings"
 NP_EMB_MASKED_KEY = "embeddings_masked"
 NP_UNPROCESSABLE_INPUTS_KEY = "unprocessable_inputs"
@@ -193,7 +197,7 @@ class AcousticEncodingResultBase(AcousticResultBase):
 
     structured = self.to_structured_array()
 
-    arrow_arrays: dict[str, pa.Array] = {}
+    arrow_arrays: dict[str, pa.Array | pa.ChunkedArray] = {}
     arrow_arrays[VAR_INPUT] = pa.array(structured[VAR_INPUT]).dictionary_encode()
     arrow_arrays[VAR_START_TIME] = pa.array(
       structured[VAR_START_TIME],
@@ -206,10 +210,7 @@ class AcousticEncodingResultBase(AcousticResultBase):
 
     embedding_element_type = pa.from_numpy_dtype(self._embeddings.dtype)
     embedding_type = pa.list_(embedding_element_type)
-    arrow_arrays[VAR_EMBEDDING] = pa.array(
-      structured[VAR_EMBEDDING].tolist(),
-      type=embedding_type,
-    )
+    arrow_arrays[VAR_EMBEDDING] = _embedding_column(structured[VAR_EMBEDDING])
 
     fields = [
       pa.field(VAR_INPUT, arrow_arrays[VAR_INPUT].type, nullable=False),
@@ -232,7 +233,7 @@ class AcousticEncodingResultBase(AcousticResultBase):
       "embedding_dim": str(self.emb_dim),
     }
     schema_with_metadata = pa.schema(fields, metadata=metadata)
-    table = pa.table(arrow_arrays, schema=schema_with_metadata)
+    table = pa.table(list(arrow_arrays.values()), schema=schema_with_metadata)
     return table
 
   def to_csv(
@@ -290,21 +291,25 @@ class AcousticEncodingResultBase(AcousticResultBase):
 
           if block_size_bytes >= buffer_bytes:
             f.writelines(block)
+            pbar.update(len(block))
             block.clear()
             collected_size_bytes += block_size_bytes
             block_size_bytes = 0
 
-          pbar.update(1)
+            if collected_size_bytes >= update_size_every:
+              total_size_bytes += collected_size_bytes
+              collected_size_bytes = 0
 
-          if collected_size_bytes >= update_size_every or pbar.n == pbar.total:
-            total_size_bytes += collected_size_bytes
-            collected_size_bytes = 0
-
-            if not silent:
-              pbar.set_postfix({"CSV": f"{total_size_bytes / 1024**2:.0f} MB"})
+              if not silent:
+                pbar.set_postfix({"CSV": f"{total_size_bytes / 1024**2:.0f} MB"})
 
         if block:
           f.writelines(block)
+          pbar.update(len(block))
+
+        if len(structured) > 0 and not silent:
+          total_size_bytes += collected_size_bytes
+          pbar.set_postfix({"CSV": f"{total_size_bytes / 1024**2:.0f} MB"})
 
   def unprocessable_inputs(self) -> np.ndarray:
     """Return the indices of inputs that could not be processed.
@@ -405,5 +410,25 @@ class AcousticDataEncodingResult(AcousticEncodingResultBase):
 
 def _format_embedding_for_csv(embedding: np.ndarray, decimals: int = 6) -> str:
   fmt = f"{{:.{decimals}f}}"
-  formatted = ",".join(fmt.format(value) for value in embedding)
+  # Python floats format about twice as fast as NumPy scalars.
+  formatted = ",".join(fmt.format(value) for value in embedding.tolist())
   return f'"{formatted}"'
+
+
+def _embedding_column(embeddings: np.ndarray) -> pa.ChunkedArray:
+  import pyarrow as pa
+
+  n_embeddings, emb_dim = embeddings.shape
+  rows_per_chunk = max(1, _MAX_VALUES_PER_CHUNK // max(1, emb_dim))
+  chunks: list[pa.ListArray] = []
+  # An empty result still gets one (empty) chunk.
+  for start in range(0, max(1, n_embeddings), rows_per_chunk):
+    rows = embeddings[start : start + rows_per_chunk]
+    offsets = np.arange(0, (len(rows) + 1) * emb_dim, emb_dim, dtype=np.int32)
+    # One contiguous copy: the field is a strided view into the structured array.
+    values = np.ascontiguousarray(rows).reshape(-1)
+    # No type=: pyarrow 7 lacks it, and the default child field is already "item".
+    chunks.append(
+      pa.ListArray.from_arrays(pa.array(offsets, type=pa.int32()), pa.array(values))
+    )
+  return pa.chunked_array(chunks)

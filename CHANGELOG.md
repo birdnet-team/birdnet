@@ -16,6 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The type stub had no overload for the documented `load("acoustic", "3.0", "tf")` and `load("acoustic", "3.0", "pb")` calls and rejected `precision="fp16"` for the acoustic 3.0 `onnx` backend, so type checkers reported false errors and inferred `Any`; it is now in sync with the loader, which also means `library="litert"` for the geo 3.0 `tf` backend, always refused at runtime, is now a type error, and `load_custom(.., "auto", "tf", ..)` accepts every precision a detected 2.4 classifier takes ([#123](https://github.com/birdnet-team/birdnet/pull/123)).
 - The quick-start example imported `AudioDataset`, a name that does not exist in the package, and raised `ImportError` when copied; the same page now lists `pt` among the geo 3.0 backends, and the setup page names the full 3.11-3.14 test matrix ([#123](https://github.com/birdnet-team/birdnet/pull/123), from [#108](https://github.com/birdnet-team/birdnet/pull/108)).
 
+### Performance
+
+- `to_arrow_table()` and `to_parquet(..)` of encoding results built the embedding column from one Python float per value; it is now built from the NumPy buffer, so 20,000 embeddings of 1,024 values convert in about 0.1 s instead of 1.5 s ([#124](https://github.com/birdnet-team/birdnet/pull/124)).
+- A geo session rebuilt the species-name and species-id arrays (14,082 entries for V3.0) on every `run(..)`, about half the time of a single-week call with the `onnx` backend; the session now builds them once and hands every result the same read-only arrays ([#124](https://github.com/birdnet-team/birdnet/pull/124)).
+- `to_csv(..)` formatted every embedding value as a NumPy scalar and advanced the progress bar once per row; values are now formatted as Python floats and the bar advances once per written block, which makes the CSV export of encoding results about 1.7× faster with identical output ([#124](https://github.com/birdnet-team/birdnet/pull/124)).
+- The producer stacked each batch of audio segments into a temporary array before copying it into shared memory; it now stacks straight into the ring slot, which cuts writing a batch of 32 segments from about 6.5 ms to 2.2 ms ([#124](https://github.com/birdnet-team/birdnet/pull/124)).
+
 ## [1.3.1] - 2026-10-18
 
 ### Bugfixes
