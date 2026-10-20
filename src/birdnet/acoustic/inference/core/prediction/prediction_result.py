@@ -322,21 +322,26 @@ class AcousticPredictionResultBase(AcousticResultBase):
           # Flush the buffered lines once they reach the buffer size.
           if block_size_bytes >= buffer_bytes:
             f.writelines(block)
+            pbar.update(len(block))
             block.clear()
             collected_size_bytes += block_size_bytes
             block_size_bytes = 0
 
-          pbar.update(1)
-          # Refresh the size display every 100 MB written.
-          if collected_size_bytes >= update_size_every or pbar.n == pbar.total:
-            total_size_bytes += collected_size_bytes
-            collected_size_bytes = 0
+            # Refresh the size display every 100 MB written.
+            if collected_size_bytes >= update_size_every:
+              total_size_bytes += collected_size_bytes
+              collected_size_bytes = 0
 
-            if not silent:
-              pbar.set_postfix({"CSV": f"{total_size_bytes / 1024**2:.0f} MB"})
+              if not silent:
+                pbar.set_postfix({"CSV": f"{total_size_bytes / 1024**2:.0f} MB"})
 
         if block:
           f.writelines(block)
+          pbar.update(len(block))
+
+        if len(structured) > 0 and not silent:
+          total_size_bytes += collected_size_bytes
+          pbar.set_postfix({"CSV": f"{total_size_bytes / 1024**2:.0f} MB"})
 
 
 class AcousticFilePredictionResult(AcousticPredictionResultBase):

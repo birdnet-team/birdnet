@@ -536,7 +536,7 @@ class Producer(bn_logging.LogableProcessBase):
     claimed_slot: int,
     batch_file_indices: tuple[int, ...],
     batch_segment_indices: tuple[int, ...],
-    batch_audio_samples: tuple[int, ...],
+    batch_audio_samples: tuple[Float32Array, ...],
   ) -> None:
     assert self._ring_audio_samples is not None
     assert self._ring_file_indices is not None
@@ -559,8 +559,10 @@ class Producer(bn_logging.LogableProcessBase):
       batch_segment_indices, self._ring_segment_indices.dtype
     )
 
-    self._ring_audio_samples[claimed_slot, :current_batch_size] = np.asarray(
-      np.stack(batch_audio_samples, 0), self._ring_audio_samples.dtype
+    np.stack(
+      batch_audio_samples,
+      0,
+      out=self._ring_audio_samples[claimed_slot, :current_batch_size],
     )
     self._ring_batch_sizes[claimed_slot] = current_batch_size
 

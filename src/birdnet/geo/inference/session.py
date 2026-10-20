@@ -36,6 +36,16 @@ class GeoSessionBase(SessionBase, ABC):
   ) -> None:
     self._conf = conf
     self._specific_config = specific_config
+    # Built once and shared, read-only, by every result of this session.
+    species_list = conf.model_conf.species_list
+    max_len = max(map(len, species_list))
+    self._species_list = np.array(list(species_list), dtype=f"<U{max_len}")
+    n_species = conf.model_conf.n_species
+    self._species_ids = np.arange(
+      n_species, dtype=get_uint_dtype(max(0, n_species - 1))
+    )
+    self._species_list.setflags(write=False)
+    self._species_ids.setflags(write=False)
     self._backend: VersionedGeoBackendProtocol | None = None
     self._is_initialized = False
     super().__init__()
@@ -102,14 +112,6 @@ class GeoSessionBase(SessionBase, ABC):
       res = np.squeeze(self._predict(sample), axis=0)
       result_week = run_config.week
 
-    n_species = self._conf.model_conf.n_species
-    species_ids = np.arange(
-      n_species,
-      dtype=get_uint_dtype(
-        max(0, n_species - 1),
-      ),
-    )
-
     invalid_mask = res < self._specific_config.min_confidence
     prediction = GeoPredictionResult(
       model_path=self._conf.model_conf.path,
@@ -118,9 +120,9 @@ class GeoSessionBase(SessionBase, ABC):
       latitude=run_config.latitude,
       longitude=run_config.longitude,
       week=result_week,
-      species_list=self._conf.model_conf.species_list,
+      species_list=self._species_list,
       species_probs=res,
-      species_ids=species_ids,
+      species_ids=self._species_ids,
       species_masked=invalid_mask,
     )
 

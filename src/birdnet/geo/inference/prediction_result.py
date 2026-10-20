@@ -38,7 +38,7 @@ class GeoPredictionResult(ResultBase):
     species_masked: np.ndarray,
     species_ids: np.ndarray,
     species_probs: np.ndarray,
-    species_list: OrderedSet[str],
+    species_list: OrderedSet[str] | np.ndarray,
   ) -> None:
     super().__init__(
       model_path=model_path,
@@ -56,8 +56,13 @@ class GeoPredictionResult(ResultBase):
       == (len(species_list),)
     )
 
-    max_len = max(map(len, species_list))
-    self._species_list = np.array(list(species_list), dtype=f"<U{max_len}")
+    # A session hands every result the same prebuilt array.
+    if isinstance(species_list, np.ndarray):
+      assert species_list.ndim == 1 and species_list.dtype.kind == "U"
+      self._species_list = species_list
+    else:
+      max_len = max(map(len, species_list))
+      self._species_list = np.array(list(species_list), dtype=f"<U{max_len}")
     self._species_probs = species_probs
     self._species_ids = species_ids
     self._species_masked = species_masked
