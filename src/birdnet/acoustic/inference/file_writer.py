@@ -47,9 +47,13 @@ class QueueFileWriter:
     assert len(self._logger.handlers) == 0
     self._logger.addHandler(mh)
 
-    self._run_main_loop()
-
-    mh.close()
+    try:
+      self._run_main_loop()
+    finally:
+      self._logger.removeHandler(mh)
+      mh.close()
+      # MemoryHandler.close() drops its target without closing it.
+      h.close()
 
   def _run_main_loop(self) -> None:
     assert len(self._logger.handlers) == 1

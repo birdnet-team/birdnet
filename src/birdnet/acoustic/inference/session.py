@@ -28,7 +28,10 @@ from birdnet.acoustic.inference.core.encoding.encoding_result import (
   AcousticDataEncodingResult,
   AcousticFileEncodingResult,
 )
-from birdnet.acoustic.inference.core.logs import get_logger_from_session
+from birdnet.acoustic.inference.core.logs import (
+  get_logger_from_session,
+  remove_session_queue_handler,
+)
 from birdnet.acoustic.inference.core.perf_tracker import AcousticProgressStats
 from birdnet.acoustic.inference.core.prediction.prediction_result import (
   AcousticDataPredictionResult,
@@ -283,6 +286,11 @@ class AcousticSessionBase(
 
     self._process_manager.join_logging()
     self._process_manager.close_queues()
+    # Not before close_queues: a warning it logs would then find no handler and
+    # reach stderr through logging.lastResort.
+    remove_session_queue_handler(
+      self._session_id, self._resources.logging_resources.queue_handler
+    )
     self._process_manager = None
 
     shutil.copyfile(

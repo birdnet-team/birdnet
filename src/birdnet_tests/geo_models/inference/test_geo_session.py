@@ -16,6 +16,7 @@ class FakeGeoBackend:
   configured_prediction_batch: ClassVar[np.ndarray] = np.empty((0, 0), dtype=np.float32)
   configured_week_inputs: ClassVar[tuple[float, ...]] = ()
   captured_batches: ClassVar[list[np.ndarray]] = []
+  unload_calls: ClassVar[int] = 0
 
   def __init__(
     self,
@@ -37,12 +38,13 @@ class FakeGeoBackend:
     cls.configured_prediction_batch = prediction_batch
     cls.configured_week_inputs = week_inputs
     cls.captured_batches = []
+    cls.unload_calls = 0
 
   def load(self) -> None:
     pass
 
   def unload(self) -> None:
-    pass
+    type(self).unload_calls += 1
 
   def predict(self, batch: np.ndarray) -> np.ndarray:
     type(self).captured_batches.append(batch.copy())

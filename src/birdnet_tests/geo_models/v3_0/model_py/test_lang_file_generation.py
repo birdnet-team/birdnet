@@ -12,7 +12,7 @@ import pytest
 import birdnet.geo.models.v3_0.model as geo_model
 import birdnet.utils.label_manifest as label_manifest
 from birdnet.geo.models.v3_0.model import GeoDownloaderBaseV3_0
-from birdnet.globals import VALID_MODEL_LANGUAGES_V3_0
+from birdnet.globals import ENV_VAR_APP_DATA, VALID_MODEL_LANGUAGES_V3_0
 from birdnet.utils.label_manifest import LabelInput, sha256_bytes
 
 RAW_LABELS = (
@@ -39,18 +39,17 @@ def taxonomy_file(tmp_path: Path) -> Path:
 def downloader(
   tmp_path: Path, monkeypatch: pytest.MonkeyPatch, taxonomy_file: Path
 ) -> type[GeoDownloaderBaseV3_0]:
-  raw_path = tmp_path / "labels_raw.txt"
-  raw_path.write_bytes(RAW_LABELS.encode("utf-8"))
+  raw_labels = RAW_LABELS.encode("utf-8")
   taxonomy_path = taxonomy_file
   lang_dir = tmp_path / "labels"
 
-  monkeypatch.setattr(geo_model, "_LABELS_RAW_PATH", raw_path)
-  monkeypatch.setattr(geo_model, "_LABELS_DL_SIZE", raw_path.stat().st_size)
-  monkeypatch.setattr(
-    geo_model, "_LABELS_DL_SHA256", sha256_bytes(raw_path.read_bytes())
-  )
-  monkeypatch.setattr(geo_model, "_SETUP_LOCK_DIR", tmp_path / ".lock")
-  monkeypatch.setattr(geo_model, "_LEGACY_LABELS_RAW_PATH", tmp_path / "legacy.txt")
+  monkeypatch.setenv(ENV_VAR_APP_DATA, str(tmp_path))
+  monkeypatch.setattr(geo_model, "_LABELS_DL_SIZE", len(raw_labels))
+  monkeypatch.setattr(geo_model, "_LABELS_DL_SHA256", sha256_bytes(raw_labels))
+  # Named after the digest pinned above, so it can only be placed now.
+  raw_path = geo_model._labels_raw_path()
+  raw_path.parent.mkdir(parents=True)
+  raw_path.write_bytes(raw_labels)
   # The taxonomy is written by this fixture; nothing may reach for the network.
   monkeypatch.setattr(geo_model, "ensure_taxonomy_v3_available", lambda: taxonomy_path)
   # The digest is pinned once, the way the real constant is: verification then
@@ -273,12 +272,9 @@ def test_check_labels_available_detects_stale_lang_file(
 
 def test_check_labels_available_false_when_raw_labels_missing(
   downloader: type[GeoDownloaderBaseV3_0],
-  monkeypatch: pytest.MonkeyPatch,
 ) -> None:
   downloader._generate_lang_files()
-  # Point at a non-existent raw labels file.
-  gone = geo_model._LABELS_RAW_PATH.parent / "gone.txt"
-  monkeypatch.setattr(geo_model, "_LABELS_RAW_PATH", gone)
+  geo_model._labels_raw_path().unlink()
   assert not downloader._check_labels_available()
 
 
@@ -291,9 +287,7 @@ def test_ensure_labels_available_returns_early_when_present(
   def _fail_download(*args: object, **kwargs: object) -> int:
     raise AssertionError("download must not be called when labels are present")
 
-  lock_dir = geo_model._LABELS_RAW_PATH.parent / ".lock"
   monkeypatch.setattr(label_manifest, "download_file_tqdm", _fail_download)
-  monkeypatch.setattr(geo_model, "_SETUP_LOCK_DIR", lock_dir)
 
   downloader.ensure_labels_available()  # must not raise / must not download
 
@@ -302,17 +296,18 @@ def test_ensure_labels_available_downloads_and_generates_when_missing(
   tmp_path: Path,
   monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-  raw_path = tmp_path / "labels_raw.txt"  # deliberately absent -> "stale"
+  # Not created: a first run has to make every directory it writes to.
+  app_data = tmp_path / "app-data"
   taxonomy_path = tmp_path / "taxonomy.csv"
-  lang_dir = tmp_path / "labels"
+  lang_dir = app_data / "labels"
   download_calls: list[Path] = []
 
-  monkeypatch.setattr(geo_model, "_LABELS_RAW_PATH", raw_path)
+  monkeypatch.setenv(ENV_VAR_APP_DATA, str(app_data))
   monkeypatch.setattr(geo_model, "_LABELS_DL_SIZE", len(RAW_LABELS.encode("utf-8")))
   monkeypatch.setattr(
     geo_model, "_LABELS_DL_SHA256", sha256_bytes(RAW_LABELS.encode("utf-8"))
   )
-  monkeypatch.setattr(geo_model, "_SETUP_LOCK_DIR", tmp_path / ".lock")
+  raw_path = geo_model._labels_raw_path()  # deliberately absent -> "stale"
   monkeypatch.setattr(
     geo_model,
     "get_taxonomy_v3_input",
@@ -345,10 +340,13 @@ def test_ensure_labels_available_downloads_and_generates_when_missing(
     def _get_lang_dir(cls) -> Path:
       return lang_dir
 
+  assert not app_data.exists()
+
   _Downloader.ensure_labels_available()
 
   assert download_calls == [raw_path]
+  assert raw_path.is_relative_to(app_data.resolve())
   assert raw_path.read_text(encoding="utf-8") == RAW_LABELS
   assert _Downloader._check_labels_available()
   # the lock directory is released after setup
-  assert not (tmp_path / ".lock").exists()
+  assert not geo_model._setup_lock_dir().exists()

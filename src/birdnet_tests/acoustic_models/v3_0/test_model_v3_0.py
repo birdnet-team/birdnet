@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import birdnet.acoustic.models.v3_0.model as model_module
 from birdnet.acoustic.models.v3_0.model import AcousticDownloaderBaseV3_0
-from birdnet.globals import VALID_MODEL_LANGUAGES_V3_0
+from birdnet.globals import ENV_VAR_APP_DATA, VALID_MODEL_LANGUAGES_V3_0
 from birdnet.utils.label_manifest import LabelInput, sha256_file
 
 if TYPE_CHECKING:
@@ -20,20 +20,20 @@ class ProbeDownloader(AcousticDownloaderBaseV3_0):
     return cls.lang_dir
 
 
-def _point_at(monkeypatch: MonkeyPatch, labels_raw: Path, taxonomy: Path) -> None:
-  """Redirect every artifact the generator touches into the test's directory.
+def _point_at(
+  monkeypatch: MonkeyPatch, app_data: Path, labels_raw: Path, taxonomy: Path
+) -> None:
+  """Give the generator a private app data directory holding these inputs.
 
-  Missing one is not obvious: the manifest stats the paths its `LabelInput`s
-  name, so an unpatched one silently reaches into the real app data directory
-  and the test then passes only on a machine that happens to have a cache.
+  `labels_raw` is moved to where the module looks for it, a path named after
+  the digest pinned here.
   """
-  monkeypatch.setattr(model_module, "_LABELS_RAW_PATH", labels_raw)
+  monkeypatch.setenv(ENV_VAR_APP_DATA, str(app_data))
   monkeypatch.setattr(model_module, "_LABELS_DL_SIZE", labels_raw.stat().st_size)
   monkeypatch.setattr(model_module, "_LABELS_DL_SHA256", sha256_file(labels_raw))
-  monkeypatch.setattr(
-    model_module, "_LEGACY_LABELS_RAW_PATH", labels_raw.parent / "legacy.csv"
-  )
-  monkeypatch.setattr(model_module, "_SETUP_LOCK_DIR", labels_raw.parent / ".lock")
+  installed = model_module._labels_raw_path()
+  installed.parent.mkdir(parents=True)
+  labels_raw.replace(installed)
   # Recomputed per call, the way the pinned constants track the current release:
   # rewriting the file is then exactly a new taxonomy release.
   monkeypatch.setattr(
@@ -64,7 +64,7 @@ def test_generate_lang_files_from_taxonomy(
     encoding="utf-8",
   )
 
-  _point_at(monkeypatch, labels_raw, taxonomy)
+  _point_at(monkeypatch, tmp_path, labels_raw, taxonomy)
   ProbeDownloader.lang_dir = tmp_path / "labels"
 
   ProbeDownloader._generate_lang_files()
@@ -102,7 +102,7 @@ def test_ensure_labels_regenerates_when_only_the_taxonomy_changed(
   )
 
   # The taxonomy is present the whole time: another model fetched it already.
-  _point_at(monkeypatch, labels_raw, taxonomy)
+  _point_at(monkeypatch, tmp_path, labels_raw, taxonomy)
   ProbeDownloader.lang_dir = tmp_path / "labels"
 
   ProbeDownloader.ensure_labels_available()

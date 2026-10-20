@@ -30,7 +30,7 @@ the running version expects to find. Each generated label directory carries a
 actually read and of every file that was written; see
 ``birdnet/utils/label_manifest.py`` for why digests and not names.
 
-Two releases never share a cache path; see ``_TAXONOMY_V3_DIR``.
+Two releases never share a cache path; see ``_taxonomy_v3_dir``.
 
 Bumping the taxonomy is therefore: update the URL, size and SHA-256 below, then
 check that every column in both models' ``_LANGUAGE_TO_COLUMN`` still exists in
@@ -50,7 +50,7 @@ from birdnet.utils.label_manifest import (
   artifact_is_current,
   ensure_artifact,
 )
-from birdnet.utils.local_data import APP_DIR
+from birdnet.utils.local_data import get_birdnet_app_data_folder
 
 # The geomodel repository versions its taxonomy since v3.0.4 (the unversioned
 # taxonomy.csv is gone). This file is the one the geo model v3.0.4 was built
@@ -65,18 +65,29 @@ _TAXONOMY_V3_DL_SHA256 = (
   "98b27fc4a77c5e321c7bbf96f924fc4b58170de9688e79ebf3ea8263d522580a"
 )
 
+
 # Named after the content, so two releases cannot occupy one path, not even if
 # upstream re-publishes under the same file name.
-_TAXONOMY_V3_DIR = APP_DIR / "taxonomy-v3" / _TAXONOMY_V3_DL_SHA256[:12]
-_TAXONOMY_V3_PATH = _TAXONOMY_V3_DIR / _TAXONOMY_V3_DL_URL.rsplit("/", 1)[-1]
-_LEGACY_TAXONOMY_V3_PATH = APP_DIR / "taxonomy_v3_0.csv"
-_TAXONOMY_V3_LOCK_DIR = APP_DIR / ".taxonomy_v3_0.lock"
+def _taxonomy_v3_dir() -> Path:
+  return get_birdnet_app_data_folder() / "taxonomy-v3" / _TAXONOMY_V3_DL_SHA256[:12]
+
+
+def _taxonomy_v3_path() -> Path:
+  return _taxonomy_v3_dir() / _TAXONOMY_V3_DL_URL.rsplit("/", 1)[-1]
+
+
+def _legacy_taxonomy_v3_path() -> Path:
+  return get_birdnet_app_data_folder() / "taxonomy_v3_0.csv"
+
+
+def _taxonomy_v3_lock_dir() -> Path:
+  return get_birdnet_app_data_folder() / ".taxonomy_v3_0.lock"
 
 
 def get_taxonomy_v3_input() -> LabelInput:
   """The taxonomy as an input a generated label directory can record."""
   return LabelInput(
-    path=_TAXONOMY_V3_PATH,
+    path=_taxonomy_v3_path(),
     url=_TAXONOMY_V3_DL_URL,
     size=_TAXONOMY_V3_DL_SIZE,
     sha256=_TAXONOMY_V3_DL_SHA256,
@@ -89,10 +100,10 @@ def taxonomy_v3_available() -> bool:
 
 
 def ensure_taxonomy_v3_available() -> Path:
-  with directory_lock(_TAXONOMY_V3_LOCK_DIR, "the shared v3.0 taxonomy setup"):
+  with directory_lock(_taxonomy_v3_lock_dir(), "the shared v3.0 taxonomy setup"):
     ensure_artifact(
       get_taxonomy_v3_input(),
       "Downloading shared v3.0 taxonomy",
-      legacy_path=_LEGACY_TAXONOMY_V3_PATH,
+      legacy_path=_legacy_taxonomy_v3_path(),
     )
-  return _TAXONOMY_V3_PATH
+  return _taxonomy_v3_path()

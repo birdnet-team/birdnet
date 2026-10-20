@@ -23,7 +23,7 @@ from birdnet.utils.helper import (
   get_species_from_file,
   write_source_marker,
 )
-from birdnet.utils.local_data import APP_DIR
+from birdnet.utils.local_data import get_birdnet_app_data_folder
 from birdnet.utils.logging_utils import suppress_native_stderr
 
 _MIN_TF_VERSION_PERCH_V2 = (2, 20)
@@ -68,7 +68,7 @@ class AcousticPBDownloaderPerchV2:
 
   @classmethod
   def _get_model_root(cls) -> Path:
-    return APP_DIR / "acoustic-models" / "perch-v2"
+    return get_birdnet_app_data_folder() / "acoustic-models" / "perch-v2"
 
   @classmethod
   def _get_paths(
