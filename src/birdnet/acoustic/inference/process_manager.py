@@ -131,6 +131,8 @@ class ProcessManager:
     self._producer_processes: list[BaseProcess] | None = None
     self._worker_processes: list[BaseProcess] | None = None
     self._child_death_error: ChildProcessError | None = None
+    self._run_error: BaseException | None = None
+    self._run_error_lock = threading.Lock()
     self._undrainable_queues: list[Queue] = []
     # Readers whose pumps were asked to stop but not yet confirmed gone.
     # Confirming joins a thread that is usually just asleep in its poll, which
@@ -143,6 +145,17 @@ class ProcessManager:
   def child_death_error(self) -> ChildProcessError | None:
     """Set when a child was found dead; the session surfaces it to the caller."""
     return self._child_death_error
+
+  @property
+  def run_error(self) -> BaseException | None:
+    """The first failure caught by a pipeline thread of this process."""
+    return self._run_error
+
+  def record_run_error(self, error: BaseException) -> None:
+    """Keep the first failure; later ones are usually its consequences."""
+    with self._run_error_lock:
+      if self._run_error is None:
+        self._run_error = error
 
   def start_file_logging_thread(self) -> threading.Thread:
     logging_listener = threading.Thread(
@@ -178,6 +191,7 @@ class ProcessManager:
       callback_queue=self._res.stats_resources.callback_queue,
       cancel_event=self._res.processing_resources.cancel_event,
       processing_finished_event=self._res.processing_resources.processing_finished_event,
+      report_error=self.record_run_error,
     )
 
     # Capture the caller's context so the progress callback runs with the same
@@ -218,6 +232,7 @@ class ProcessManager:
       end_event=self._res.processing_resources.end_event,
       start_signal=fc.start_signal,
       finish_signal=fc.finish_signal,
+      report_error=self.record_run_error,
     )
 
     # Run the callback with a copy of the caller's context (contextvars), the
@@ -294,6 +309,7 @@ class ProcessManager:
         input_queue=self._res.analyzer_resources.input_queue,
         start_signal=self._res.analyzer_resources.start_signal,
         finish_signal=self._res.analyzer_resources.finish_signal,
+        report_error=self.record_run_error,
       ),
       name=f"{self._session_hash}-FileAnalyzer",
       daemon=True,
@@ -404,6 +420,7 @@ class ProcessManager:
     # exactly the retry where the user most needs the reason.
     if not res.processing_resources.cancel_event.is_set():
       self._child_death_error = None
+      self._run_error = None
     self._logger.debug("[START_SIG] Starting file analyzer...")
     res.analyzer_resources.start_signal.set()
     res.analyzer_resources.input_queue.put(input_data, block=True)
@@ -606,6 +623,7 @@ class ProcessManager:
           sig.is_set() for sig in self._res.worker_resources.finish_signals
         ),
         report_child_death=self.record_child_death,
+        report_error=self.record_run_error,
       )
       consumer()
     finally:

@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from birdnet.acoustic.inference.configs import PredictionConfig
@@ -32,3 +33,11 @@ def test_too_large_raises_error() -> None:
 def test_non_number_raises_error() -> None:
   with pytest.raises(TypeError, match=r"sigmoid sensitivity must be a number"):
     PredictionConfig.validate_sigmoid_sensitivity("high")  # type: ignore
+
+
+@pytest.mark.no_tf
+def test_numpy_scalar_becomes_a_python_number() -> None:
+  result = PredictionConfig.validate_sigmoid_sensitivity(np.float32(1.25))
+  assert result == 1.25
+  assert type(result) is float
+  assert type(PredictionConfig.validate_sigmoid_sensitivity(1)) is int

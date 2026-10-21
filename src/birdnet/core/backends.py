@@ -791,20 +791,11 @@ class BackendLoader:
     model_path: Path,
     backend_type: type[VersionedBackendProtocol],
     kwargs: dict[str, Any],
-  ) -> int | str:
-    """The model's species count, or the error message when it cannot load.
-
-    The message travels as a string because the exception itself may not be
-    picklable across the process boundary.
-    """
-    try:
-      loader = cls(model_path, backend_type, kwargs)
-      loader.load_backend("CPU", half_precision=False)
-      n_species_in_model = loader.backend.n_species
-      return n_species_in_model
-    except Exception as ex:
-      get_logger_for_package(__name__).error(f"Error loading model: {ex}")
-      return str(ex)
+  ) -> int:
+    loader = cls(model_path, backend_type, kwargs)
+    loader.load_backend("CPU", half_precision=False)
+    n_species_in_model = loader.backend.n_species
+    return n_species_in_model
 
   @classmethod
   def check_model_can_be_loaded(
@@ -820,27 +811,16 @@ class BackendLoader:
     Returns the number of species in the model if successful.
     """
     try:
-      n_species_in_model: int | str = run_in_subprocess(
+      n_species_in_model: int = run_in_subprocess(
         cls._get_n_species,
         (model_path, backend_type, kwargs),
         timeout_s=_SUBPROCESS_TIMEOUT_S,
       )
-      if isinstance(n_species_in_model, str):
-        raise ValueError(f"Failed to load model: {n_species_in_model}")
       return n_species_in_model
-    except TimeoutError as e:
-      get_logger_for_package(__name__).error(
-        f"Timeout while loading model in subprocess ({_SUBPROCESS_TIMEOUT_S} s). "
-        "Could not check if model can be loaded."
-      )
-      # Note: on Intel macOS python 3.12 the model could not be loaded
-      # for unknown reasons
+    except _SubprocessTimeout as e:
       raise ValueError("Failed to load model due to timeout.") from e
-    except ValueError:
-      raise
     except Exception as e:
-      get_logger_for_package(__name__).error(f"Failed to load model in subprocess: {e}")
-      raise ValueError("Failed to load model.") from e
+      raise ValueError(f"Failed to load model: {e}") from e
 
   @classmethod
   def inspect_custom_tflite_model(
@@ -863,15 +843,9 @@ class BackendLoader:
         timeout_s=_SUBPROCESS_TIMEOUT_S,
       )
       return info
-    except TimeoutError as e:
-      get_logger_for_package(__name__).error(
-        f"Timeout while inspecting model in subprocess ({_SUBPROCESS_TIMEOUT_S} s)."
-      )
+    except _SubprocessTimeout as e:
       raise ValueError("Failed to inspect model due to timeout.") from e
     except Exception as e:
-      get_logger_for_package(__name__).error(
-        f"Failed to inspect custom TFLite model in subprocess: {e}"
-      )
       raise ValueError(
         f"Failed to inspect custom TFLite model '{model_path.absolute()}': {e}"
       ) from e
@@ -882,6 +856,11 @@ class BackendLoader:
 _SUBPROCESS_TIMEOUT_S = 180
 
 
+class _SubprocessTimeout(TimeoutError):
+  """`run_in_subprocess` stopped waiting; a `TimeoutError` the function itself
+  raised arrives as a plain one."""
+
+
 def run_in_subprocess(
   fn: Callable[..., Any], args: tuple[Any, ...], timeout_s: float
 ) -> Any:  # noqa: ANN401
@@ -889,7 +868,10 @@ def run_in_subprocess(
 
   A model that hangs while opening would otherwise hold up the caller, and a
   pool worker cannot be killed, so this is a process of its own: the timeout
-  terminates it, and an exception raised inside is raised here.
+  terminates it, and an exception raised inside is raised here. Only builtin
+  exceptions arrive as themselves; any other becomes a `RuntimeError` naming
+  its type, because unpickling it would import its module (TensorFlow, for a
+  TensorFlow error) into this process.
   """
   # Pickled before anything is started: on Windows the process exists before
   # its target is pickled, and one whose start fails is left alive, waiting on
@@ -902,7 +884,7 @@ def run_in_subprocess(
     process.start()
     sender.close()
     if not receiver.poll(timeout_s):
-      raise TimeoutError(
+      raise _SubprocessTimeout(
         f"{getattr(fn, '__name__', fn)} did not finish within {timeout_s:.0f} s"
       )
     try:
@@ -928,6 +910,8 @@ def _send_outcome(sender: Any, call: bytes) -> None:  # noqa: ANN401
     fn, args = pickle.loads(call)
     outcome: tuple[str, Any] = ("ok", fn(*args))
   except BaseException as err:  # noqa: BLE001
+    if type(err).__module__ != "builtins":
+      err = RuntimeError(f"{type(err).__name__}: {err}")
     outcome = ("error", err)
   try:
     sender.send(outcome)
@@ -1310,6 +1294,17 @@ def tf_installed() -> bool:
   import importlib.util
 
   return importlib.util.find_spec("tensorflow") is not None
+
+
+def _get_major_minor_version(version: str) -> tuple[int, int]:
+  version_parts = version.split(".")
+  if len(version_parts) < 2:
+    raise RuntimeError(f"Could not parse TensorFlow version {version!r}.")
+
+  try:
+    return int(version_parts[0]), int(version_parts[1])
+  except ValueError as e:
+    raise RuntimeError(f"Could not parse TensorFlow version {version!r}.") from e
 
 
 def torch_installed() -> bool:

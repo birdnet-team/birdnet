@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from birdnet.acoustic.inference.configs import (
@@ -43,3 +44,11 @@ def test_valid_small_value() -> None:
 
 def test_valid_large_value() -> None:
   assert ProcessingConfig.validate_max_audio_duration_min(1e6) == 1e6
+
+
+@pytest.mark.no_tf
+def test_numpy_scalar_becomes_a_python_number() -> None:
+  result = ProcessingConfig.validate_max_audio_duration_min(np.float32(1.5))
+  assert result == 1.5
+  assert type(result) is float
+  assert type(ProcessingConfig.validate_max_audio_duration_min(2)) is int

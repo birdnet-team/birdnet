@@ -4,6 +4,7 @@ import multiprocessing.synchronize
 import os
 import queue
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from queue import Empty
 
@@ -38,8 +39,10 @@ class InputAnalyzer:
     end_event: multiprocessing.synchronize.Event,
     start_signal: threading.Event,
     finish_signal: threading.Event,
+    report_error: Callable[[BaseException], None] | None = None,
   ) -> None:
     self._logger = bn_logging.get_logger_from_session(session_id, __name__)
+    self._report_error = report_error
     self._input_queue = input_queue
     self._segment_duration_s = segment_duration_s
     self._overlap_duration_s = overlap_duration_s
@@ -78,7 +81,12 @@ class InputAnalyzer:
       self._logger.exception(
         "InputAnalyzer encountered an exception.", exc_info=e, stack_info=True
       )
-      self._cancel_event.set()
+      self._fail(e)
+
+  def _fail(self, error: BaseException) -> None:
+    if self._report_error is not None:
+      self._report_error(error)
+    self._cancel_event.set()
 
   def run_main_loop(self) -> None:
     while True:
@@ -168,13 +176,14 @@ class InputAnalyzer:
             if isinstance(inp_data, Path)
             else f"<in-memory audio array> at index {input_idx}"
           )
-          self._logger.error(
+          message = (
             f"Input {inp_path} has a duration of {audio_duration_s / 60:.2f} min and "
             f"contains {input_n_segments} segments, which exceeds the maximum supported"
             f" amount of segments {self._max_supported_segment_index + 1}. "
             f"Please set maximum audio duration."
           )
-          self._cancel_event.set()
+          self._logger.error(message)
+          self._fail(ValueError(message))
           return
 
         current_max_segment_index = input_max_segment_index

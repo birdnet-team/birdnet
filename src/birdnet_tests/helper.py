@@ -21,6 +21,7 @@ from birdnet.acoustic.inference.core.prediction.prediction_result import (
   AcousticPredictionResultBase,
 )
 from birdnet.core.backends import (
+  _get_major_minor_version,
   litert_installed,
   onnxruntime_installed,
   tf_installed,
@@ -310,10 +311,23 @@ def _tf_version_or_skip() -> str:
   return version
 
 
-def ensure_tf_2_19_or_2_18() -> None:
+def _tf_major_minor_or_skip() -> tuple[int, int]:
   version = _tf_version_or_skip()
-  if not (version.startswith("2.19") or version.startswith("2.18")):
-    pytest.skip("TensorFlow 2.18 or 2.19 is required for this test")
+  try:
+    return _get_major_minor_version(version)
+  except RuntimeError:
+    pytest.skip(f"Unsupported TensorFlow version string for this test: {version!r}")
+
+
+def ensure_tf_2_19_or_2_18() -> None:
+  """Skip where the geo v3.0 tf backend's own version check rejects TensorFlow."""
+  _tf_version_or_skip()
+  from birdnet.geo.models.v3_0.tf import _check_tf_version_for_v3_0
+
+  try:
+    _check_tf_version_for_v3_0()
+  except RuntimeError as e:
+    pytest.skip(str(e))
 
 
 def ensure_tf_2_18_or_skip() -> None:
@@ -324,26 +338,12 @@ def ensure_tf_2_18_or_skip() -> None:
   'FULLY_CONNECTED' version '12'"). The geo v3.0 TF backend requires 2.18/2.19
   anyway, so there is nothing to verify on such a runtime.
   """
-  version = _tf_version_or_skip()
-  version_parts = version.split(".")
-  try:
-    major_minor = int(version_parts[0]), int(version_parts[1])
-  except (IndexError, ValueError):
-    pytest.skip(f"Unsupported TensorFlow version string for this test: {version!r}")
-
-  if major_minor < (2, 18):
+  if _tf_major_minor_or_skip() < (2, 18):
     pytest.skip("TensorFlow >= 2.18 is required to load the geo v3.0 models")
 
 
 def ensure_tf_2_20_or_skip() -> None:
-  version = _tf_version_or_skip()
-  version_parts = version.split(".")
-  try:
-    major_minor = int(version_parts[0]), int(version_parts[1])
-  except (IndexError, ValueError):
-    pytest.skip(f"Unsupported TensorFlow version string for this test: {version!r}")
-
-  if major_minor < (2, 20):
+  if _tf_major_minor_or_skip() < (2, 20):
     pytest.skip("TensorFlow >= 2.20 is required for this test")
 
 

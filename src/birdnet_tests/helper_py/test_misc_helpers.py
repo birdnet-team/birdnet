@@ -29,9 +29,22 @@ def test_hms_centis_fast() -> None:
   assert hms_centis_fast(59.99) == "00:00:59.99"
 
 
+def test_hms_centis_fast_carries_seconds_that_round_to_a_minute() -> None:
+  assert hms_centis_fast(59.996) == "00:01:00.00"
+  assert hms_centis_fast(119.999) == "00:02:00.00"
+  assert hms_centis_fast(3599.996) == "01:00:00.00"
+  assert hms_centis_fast(np.float32(59.996)) == "00:01:00.00"  # type: ignore[arg-type]
+  assert hms_centis_fast(59.994) == "00:00:59.99"
+
+
 def test_format_input_for_csv() -> None:
   assert format_input_for_csv("bird") == '"bird"'
   assert format_input_for_csv(42) == '"42"'
+
+
+def test_format_input_for_csv_doubles_quotes() -> None:
+  assert format_input_for_csv('a"b') == '"a""b"'
+  assert format_input_for_csv('"') == '""""'
 
 
 def test_get_hash_is_deterministic() -> None:

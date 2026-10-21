@@ -312,7 +312,7 @@ class AcousticPredictionResultBase(AcousticResultBase):
             f"{format_input_for_csv(record[VAR_INPUT])},"
             f'"{hms_centis_fast(record[VAR_START_TIME])}",'
             f'"{hms_centis_fast(record[VAR_END_TIME])}",'
-            f'"{record[VAR_SPECIES_NAME]}",'
+            f"{format_input_for_csv(record[VAR_SPECIES_NAME])},"
             f"{record[VAR_CONFIDENCE]:.6f}\n"
           )
 

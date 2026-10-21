@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.metadata
 from pathlib import Path
 
 from ordered_set import OrderedSet
@@ -7,6 +8,7 @@ from ordered_set import OrderedSet
 from birdnet.core.backends import (
   TFBackend,
   VersionedGeoBackendProtocol,
+  _get_major_minor_version,
 )
 from birdnet.geo.models.v3_0.model import GeoDownloaderBaseV3_0
 from birdnet.globals import (
@@ -25,7 +27,7 @@ from birdnet.utils.helper import (
 from birdnet.utils.local_data import get_lang_dir, get_model_path
 from birdnet.utils.logging_utils import suppress_native_stderr
 
-_SUPPORTED_TF_VERSIONS = ("2.18", "2.19")
+_SUPPORTED_TF_VERSIONS = ((2, 18), (2, 19))
 _YEAR_ROUND_WEEK_INPUTS = tuple(float(week) for week in range(1, 49))
 
 
@@ -43,13 +45,26 @@ def check_tf_runtime_compatibility_for_v3_0(library: LIBRARY_TYPES) -> None:
   _check_tf_version_for_v3_0()
 
 
-def _check_tf_version_for_v3_0() -> None:
-  with suppress_native_stderr():
-    import tensorflow as tf
+def _installed_tf_version() -> str:
+  # The loader checks before anything imports TensorFlow, so the version comes
+  # from the distribution's metadata; a build installed under another name has
+  # to be imported to ask.
+  try:
+    return importlib.metadata.version("tensorflow")
+  except importlib.metadata.PackageNotFoundError:
+    with suppress_native_stderr():
+      import tensorflow as tf
 
-  version: str = tf.__version__
-  if not any(version.startswith(v) for v in _SUPPORTED_TF_VERSIONS):
-    supported = " or ".join(_SUPPORTED_TF_VERSIONS)
+    version: str = tf.__version__
+    return version
+
+
+def _check_tf_version_for_v3_0() -> None:
+  version = _installed_tf_version()
+  if _get_major_minor_version(version) not in _SUPPORTED_TF_VERSIONS:
+    supported = " or ".join(
+      f"{major}.{minor}" for major, minor in _SUPPORTED_TF_VERSIONS
+    )
     raise RuntimeError(
       f"The geo model v3.0 TF backend requires TensorFlow {supported}, "
       f"but {version!r} is installed. "

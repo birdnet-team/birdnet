@@ -33,13 +33,23 @@ from birdnet.utils.download_progress import (
 
 
 def format_input_for_csv(input_value: Any) -> str:  # noqa: ANN401
-  return f'"{input_value}"'
+  # RFC 4180: a quote inside a quoted field is doubled.
+  escaped = f"{input_value}".replace('"', '""')
+  return f'"{escaped}"'
 
 
 def hms_centis_fast(v: float) -> str:
   h, rem = divmod(v, 3600)
   m, s = divmod(rem, 60)
-  result = f"{int(h):02}:{int(m):02}:{s:05.2f}"
+  seconds = f"{s:05.2f}"
+  if seconds == "60.00":
+    # Seconds that round up to a whole minute carry into the minutes.
+    seconds = "00.00"
+    m += 1
+    if m == 60:
+      m = 0
+      h += 1
+  result = f"{int(h):02}:{int(m):02}:{seconds}"
   return result
 
 

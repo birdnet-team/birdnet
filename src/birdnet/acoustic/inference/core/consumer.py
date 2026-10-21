@@ -41,6 +41,7 @@ class Consumer:
     check_children_alive: Callable[[], None] | None = None,
     all_workers_finished: Callable[[], bool] | None = None,
     report_child_death: Callable[[str], None] | None = None,
+    report_error: Callable[[BaseException], None] | None = None,
   ) -> None:
     self._n_workers = n_workers
     self._results = results
@@ -59,6 +60,9 @@ class Consumer:
     # Stores the diagnosis where the session surfaces it; without it a lost
     # last message ends as a bare "cancelled" with the cause only in the log.
     self._report_child_death = report_child_death
+    # Hands an exception caught here to the session, which chains it to the
+    # "Analysis was cancelled" it raises.
+    self._report_error = report_error
 
     # Per-file completion tracking (``on_file_complete``). Fully inert unless a
     # marker reader is provided, so the default hot path is byte-for-byte
@@ -98,6 +102,8 @@ class Consumer:
       self._logger.exception(
         "Consumer encountered an exception.", exc_info=e, stack_info=True
       )
+      if self._report_error is not None:
+        self._report_error(e)
       self._cancel_event.set()
     finally:
       if self._track_completion:
@@ -262,6 +268,8 @@ class Consumer:
         # sentinel below, leaving teardown on the healthy path with a failed
         # run. Route it like every other failure instead.
         self._logger.exception("Finalizing per-file completion failed.", exc_info=e)
+        if self._report_error is not None:
+          self._report_error(e)
         self._cancel_event.set()
     assert self._dispatch_queue is not None
     # Sentinel tells the dispatcher this run is done.

@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from birdnet.acoustic.inference.configs import PredictionConfig
@@ -57,3 +58,12 @@ def test_non_number_value_raises_error() -> None:
     PredictionConfig.validate_custom_confidence_thresholds(
       {"species_a": "high"}, MODEL_SPECIES
     )
+
+
+@pytest.mark.no_tf
+def test_numpy_scalar_value_is_valid() -> None:
+  thresholds = {"species_a": np.float32(0.5), "species_b": np.int64(0)}
+  assert (
+    PredictionConfig.validate_custom_confidence_thresholds(thresholds, MODEL_SPECIES)
+    == thresholds
+  )
