@@ -11,6 +11,7 @@ from ordered_set import OrderedSet
 from birdnet.core.backends import (
   PBBackend,
   VersionedAcousticBackendProtocol,
+  _get_major_minor_version,
 )
 from birdnet.globals import (
   MODEL_PRECISION_FP32,
@@ -38,17 +39,6 @@ def _get_tensorflow_version() -> str:
       "The Perch v2 model requires TensorFlow >= 2.20, but TensorFlow is not installed."
     ) from e
   return tf.__version__
-
-
-def _get_major_minor_version(version: str) -> tuple[int, int]:
-  version_parts = version.split(".")
-  if len(version_parts) < 2:
-    raise RuntimeError(f"Could not parse TensorFlow version {version!r}.")
-
-  try:
-    return int(version_parts[0]), int(version_parts[1])
-  except ValueError as e:
-    raise RuntimeError(f"Could not parse TensorFlow version {version!r}.") from e
 
 
 def check_tf_version_for_perch_v2() -> None:

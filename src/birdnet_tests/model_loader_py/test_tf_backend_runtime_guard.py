@@ -154,6 +154,30 @@ def test_validate_library_tflite_without_tensorflow_raises_actionable_error(
     ml._validate_library("tflite")
 
 
+class _ModelCheckRan(Exception):
+  pass
+
+
+def _model_check(library: str) -> None:
+  raise _ModelCheckRan
+
+
+def test_validate_library_checks_tensorflow_before_the_model_check(
+  _no_tf: None,
+) -> None:
+  # The model's check may import TensorFlow, which then fails without a hint.
+  with pytest.raises(ValueError, match=r"requires TensorFlow"):
+    ml._validate_library("tflite", compatibility_check=_model_check)
+
+
+def test_validate_library_runs_the_model_check_before_the_litert_check(
+  _no_litert: None,
+) -> None:
+  # A model that rejects litert must say so, not ask for litert to be installed.
+  with pytest.raises(_ModelCheckRan):
+    ml._validate_library("litert", compatibility_check=_model_check)
+
+
 # ----------------------------- advice in the message -----------------------------
 
 

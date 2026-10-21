@@ -96,7 +96,8 @@ from birdnet.geo.models.v3_0.tf import (
   GeoTFBackendFP32V3_0,
   GeoTFBackendInt8V3_0,
   GeoTFDownloaderV3_0,
-  check_tf_library_for_v3_0,
+  check_tf_library_for_v3_0,  # noqa: F401  # importable from here
+  check_tf_runtime_compatibility_for_v3_0,
 )
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_AUTO,
@@ -302,13 +303,15 @@ def _validate_library(
     )
 
   validated_library = cast(LIBRARY_TYPES, library)
+  # Before the model's own check, which may import TensorFlow; after it for
+  # litert, so a model that rejects litert says so instead of asking for it.
+  if validated_library == LIBRARY_TFLITE and not tf_installed():
+    raise ValueError(_tensorflow_missing_message(MODEL_BACKEND_TF))
+
   if compatibility_check is not None:
     compatibility_check(validated_library)
 
-  if validated_library == LIBRARY_TFLITE:
-    if not tf_installed():
-      raise ValueError(_tensorflow_missing_message(MODEL_BACKEND_TF))
-  elif validated_library == LIBRARY_LITERT:
+  if validated_library == LIBRARY_LITERT:
     if not litert_installed():
       message = (
         f"Parameter '{LIBRARY_TF_PARAM}': Library '{LIBRARY_LITERT}' requires "
@@ -323,7 +326,7 @@ def _validate_library(
       else:
         message += "."
       raise ValueError(message)
-  else:
+  elif validated_library != LIBRARY_TFLITE:
     raise AssertionError()
   return validated_library
 
@@ -1243,7 +1246,7 @@ def _load_geo_model_V3_0(
     model_kwargs = _validate_kwargs_allowed(model_kwargs, {LIBRARY_TF_PARAM})
     library = _validate_library(
       model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT),
-      compatibility_check=check_tf_library_for_v3_0,
+      compatibility_check=check_tf_runtime_compatibility_for_v3_0,
     )
 
     model_path, species_list = GeoTFDownloaderV3_0.get_model_path_and_labels(
@@ -1348,7 +1351,7 @@ def _load_custom_geo_model_V3_0(
     model_kwargs = _validate_kwargs_allowed(model_kwargs, {LIBRARY_TF_PARAM})
     library = _validate_library(
       model_kwargs.get(LIBRARY_TF_PARAM, LIBRARY_TF_DEFAULT),
-      compatibility_check=check_tf_library_for_v3_0,
+      compatibility_check=check_tf_runtime_compatibility_for_v3_0,
     )
 
     backend_type: type[VersionedGeoBackendProtocol]

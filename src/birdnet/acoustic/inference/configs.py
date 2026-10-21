@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import multiprocessing
+import numbers
 from collections.abc import Callable, Collection, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -30,6 +31,14 @@ from birdnet.utils.helper import (
 ResultType = TypeVar("ResultType", bound="ResultBase")
 ConfigType = TypeVar("ConfigType", bound="SpecificConfigBase")
 TensorType = TypeVar("TensorType", bound="AcousticTensorBase")
+
+
+def _plain_number(value: numbers.Real | float) -> int | float:
+  # A NumPy scalar becomes the Python number it stands for, so it serializes
+  # like one; builtin ints and floats are returned unchanged.
+  if isinstance(value, int | float):
+    return value
+  return int(value) if isinstance(value, numbers.Integral) else float(value)
 
 
 @dataclass(frozen=True)
@@ -139,11 +148,12 @@ class ProcessingConfig:
     segment_size_s: float,
   ) -> float:
     assert segment_size_s > 0
-    if not isinstance(overlap_duration_s, int | float):
+    if not isinstance(overlap_duration_s, numbers.Real):
       raise TypeError("overlap duration must be a number")
-    if not 0 <= overlap_duration_s < segment_size_s:
+    value = _plain_number(overlap_duration_s)
+    if not 0 <= value < segment_size_s:
       raise ValueError(f"overlap duration must be in [0, {segment_size_s})")
-    return overlap_duration_s
+    return value
 
   @classmethod
   def validate_device(
@@ -174,19 +184,21 @@ class ProcessingConfig:
 
   @classmethod
   def validate_max_audio_duration_min(cls, max_audio_duration_min: Any) -> float:  # noqa: ANN401
-    if not isinstance(max_audio_duration_min, int | float):
+    if not isinstance(max_audio_duration_min, numbers.Real):
       raise TypeError("max_audio_duration_min must be a number")
-    if not max_audio_duration_min > 0:
+    value = _plain_number(max_audio_duration_min)
+    if not value > 0:
       raise ValueError("max_audio_duration_min must be > 0")
-    return max_audio_duration_min
+    return value
 
   @classmethod
   def validate_speed(cls, speed: Any) -> float:  # noqa: ANN401
-    if not isinstance(speed, float | int):
+    if not isinstance(speed, numbers.Real):
       raise TypeError("speed must be a number")
-    if not 0.01 <= speed <= 100.0:
+    value = float(speed)
+    if not 0.01 <= value <= 100.0:
       raise ValueError("speed must be in the range [0.01, 100.0]")
-    return float(speed)
+    return value
 
 
 @dataclass(frozen=True)
@@ -283,7 +295,7 @@ class PredictionConfig(SpecificConfigBase):
     cls,
     default_confidence_threshold: Any,  # noqa: ANN401
   ) -> float:
-    if not isinstance(default_confidence_threshold, int | float):
+    if not isinstance(default_confidence_threshold, numbers.Real):
       raise TypeError("default confidence threshold must be a number")
     return float(default_confidence_threshold)
 
@@ -300,7 +312,7 @@ class PredictionConfig(SpecificConfigBase):
         raise TypeError("custom confidence threshold keys must be strings")
       if k not in model_species:
         raise ValueError(f"species '{k}' is not available in the model")
-      if not isinstance(v, int | float):
+      if not isinstance(v, numbers.Real):
         raise TypeError("custom confidence threshold values must be numbers")
     return custom_confidence_thresholds
 
@@ -330,11 +342,12 @@ class PredictionConfig(SpecificConfigBase):
     cls,
     sigmoid_sensitivity: Any,  # noqa: ANN401
   ) -> float:
-    if not isinstance(sigmoid_sensitivity, int | float):
+    if not isinstance(sigmoid_sensitivity, numbers.Real):
       raise TypeError("sigmoid sensitivity must be a number")
-    if not 0.5 <= sigmoid_sensitivity <= 1.5:
+    value = _plain_number(sigmoid_sensitivity)
+    if not 0.5 <= value <= 1.5:
       raise ValueError("sigmoid sensitivity must be in the range [0.5, 1.5]")
-    return sigmoid_sensitivity
+    return value
 
 
 @dataclass(frozen=True)

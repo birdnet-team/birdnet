@@ -142,7 +142,9 @@ Geo model (species range model) V3.0
 
 The model's ``.tflite`` files contain select TensorFlow ops, so the ``tf`` backend
 requires TensorFlow 2.18 or 2.19 and is not available via ``ai_edge_litert``
-(``library="litert"``). On other TensorFlow versions use ``pb``, ``onnx`` or ``pt``.
+(``library="litert"``); the interpreters of TensorFlow 2.20 and 2.21 no longer
+run select TensorFlow ops.
+On other TensorFlow versions use ``pb``, ``onnx`` or ``pt``.
 
 .. code-block:: python
 

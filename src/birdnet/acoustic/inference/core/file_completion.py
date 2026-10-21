@@ -38,7 +38,9 @@ class FileCompletionDispatcher:
     end_event: Event,
     start_signal: threading.Event,
     finish_signal: threading.Event,
+    report_error: Callable[[BaseException], None] | None = None,
   ) -> None:
+    self._report_error = report_error
     self._dispatch_queue = dispatch_queue
     self._callback_fn = callback_fn
     self._build_result_fn = build_result_fn
@@ -60,7 +62,12 @@ class FileCompletionDispatcher:
         exc_info=e,
         stack_info=True,
       )
-      self._cancel_event.set()
+      self._fail(e)
+
+  def _fail(self, error: BaseException) -> None:
+    if self._report_error is not None:
+      self._report_error(error)
+    self._cancel_event.set()
 
   def run_main_loop(self) -> None:
     while True:
@@ -100,7 +107,7 @@ class FileCompletionDispatcher:
           exc_info=e,
           stack_info=True,
         )
-        self._cancel_event.set()
+        self._fail(e)
         # Stop immediately: draining the rest of the queue would re-invoke the
         # failing callback on every remaining file (extra work and log spam)
         # after the run is already being cancelled.

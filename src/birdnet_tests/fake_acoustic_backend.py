@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import os
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import ClassVar, Literal
 
@@ -149,6 +150,41 @@ class NeverLoadingBackend(FakeAcousticBackend):
     time.sleep(60)
 
 
+class FailingToLoadBackend(FakeAcousticBackend):
+  """Raises in `load`, as a model with corrupt weights would."""
+
+  def load(self) -> None:
+    raise RuntimeError("bad weights")
+
+
+class UnpicklableErrorBackend(FakeAcousticBackend):
+  """Raises a builtin exception that cannot be pickled back to the parent."""
+
+  def load(self) -> None:
+    raise RuntimeError("bad weights", lambda: None)
+
+
+class TimeoutErrorBackend(FakeAcousticBackend):
+  """Raises a `TimeoutError` of its own in `load`, as a slow network share can."""
+
+  def load(self) -> None:
+    raise TimeoutError("network share read timed out")
+
+
+def raise_foreign_load_error() -> None:
+  """Raises an exception whose class lives in a module only this call imports."""
+  from birdnet_tests.foreign_load_error import ForeignLoadError
+
+  raise ForeignLoadError("bad weights")
+
+
+class ForeignErrorBackend(FakeAcousticBackend):
+  """Raises a non-builtin exception, as TensorFlow does for a corrupt model."""
+
+  def load(self) -> None:
+    raise_foreign_load_error()
+
+
 class WideFakeAcousticBackend(FakeAcousticBackend):
   """The same stub at realistic output widths, for the queue-tearing surface.
 
@@ -213,6 +249,9 @@ def fake_predict_session(
   seconds_per_batch: float = 0.0,
   backend: type[FakeAcousticBackend] = FakeAcousticBackend,
   show_stats: Literal["minimal", "progress", "benchmark"] | None = None,
+  speed: float = 1.0,
+  progress_callback: Callable[..., None] | None = None,
+  default_confidence_threshold: float | None = 0.1,
   **kwargs: object,
 ) -> AcousticPredictionSession:
   return AcousticPredictionSession(
@@ -232,19 +271,19 @@ def fake_predict_session(
     batch_size=batch_size,
     prefetch_ratio=1,
     overlap_duration_s=0,
-    speed=1.0,
+    speed=speed,
     bandpass_fmin=0,
     bandpass_fmax=15_000,
     apply_sigmoid=True,
     apply_softmax=False,
     sigmoid_sensitivity=1.0,
-    default_confidence_threshold=0.1,
+    default_confidence_threshold=default_confidence_threshold,
     custom_confidence_thresholds=None,
     custom_species_list=None,
     half_precision=False,
     max_audio_duration_min=None,
     show_stats=show_stats,
-    progress_callback=None,
+    progress_callback=progress_callback,
     device="CPU",
     max_n_files=1024,
     **kwargs,  # type: ignore[arg-type]
@@ -260,6 +299,8 @@ def fake_encode_session(
   seconds_per_batch: float = 0.0,
   backend: type[FakeAcousticBackend] = FakeAcousticBackend,
   show_stats: Literal["minimal", "progress", "benchmark"] | None = None,
+  speed: float = 1.0,
+  progress_callback: Callable[..., None] | None = None,
   **kwargs: object,
 ) -> AcousticEncodingSession:
   return AcousticEncodingSession(
@@ -279,13 +320,13 @@ def fake_encode_session(
     batch_size=batch_size,
     prefetch_ratio=1,
     overlap_duration_s=0,
-    speed=1.0,
+    speed=speed,
     bandpass_fmin=0,
     bandpass_fmax=15_000,
     half_precision=False,
     max_audio_duration_min=None,
     show_stats=show_stats,
-    progress_callback=None,
+    progress_callback=progress_callback,
     device="CPU",
     max_n_files=1024,
     **kwargs,  # type: ignore[arg-type]

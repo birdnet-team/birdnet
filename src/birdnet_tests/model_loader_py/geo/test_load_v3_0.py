@@ -7,6 +7,7 @@ from birdnet.geo.models.v3_0.model import GeoModelV3_0
 from birdnet.model_loader import load
 from birdnet_tests.helper import (
   ensure_onnxruntime_or_skip,
+  ensure_tf_2_19_or_2_18,
   ensure_torch_or_skip,
   ensure_v3_0_torch_backend_or_skip,
   geo_v3_0_litert_not_supported_skip,
@@ -66,6 +67,7 @@ def test_v3_0_onnx_fp16() -> None:
 
 @pytest.mark.load_model
 def test_v3_0_tf_fp32() -> None:
+  ensure_tf_2_19_or_2_18()
   try:
     model = load("geo", "3.0", "tf", precision="fp32", library="tflite")
   except ReadTimeout as e:
@@ -75,6 +77,7 @@ def test_v3_0_tf_fp32() -> None:
 
 @pytest.mark.load_model
 def test_v3_0_tf_fp16() -> None:
+  ensure_tf_2_19_or_2_18()
   try:
     model = load("geo", "3.0", "tf", precision="fp16", library="tflite")
   except ReadTimeout as e:
@@ -84,6 +87,7 @@ def test_v3_0_tf_fp16() -> None:
 
 @pytest.mark.load_model
 def test_v3_0_tf_int8() -> None:
+  ensure_tf_2_19_or_2_18()
   try:
     model = load("geo", "3.0", "tf", precision="int8", library="tflite")
   except ReadTimeout as e:
@@ -124,6 +128,7 @@ def test_v3_0_litert_raises_error() -> None:
 
 
 def test_tf_tflite_fp32_type_is_correct() -> None:
+  ensure_tf_2_19_or_2_18()
   assert type(load("geo", "3.0", "tf", library="tflite")) is GeoModelV3_0
 
 
@@ -135,6 +140,7 @@ def test_tf_litert_fp32_type_is_correct() -> None:
 
 
 def test_types_with_precisions_are_correct() -> None:
+  ensure_tf_2_19_or_2_18()
   assert (
     type(load("geo", "3.0", "tf", precision=cast(Literal["fp32"], f"fp{32}")))
     is GeoModelV3_0

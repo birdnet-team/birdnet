@@ -23,6 +23,7 @@ from birdnet.acoustic.inference.configs import (
   ProcessingConfig,
   ResultType,
   TensorType,
+  _plain_number,
 )
 from birdnet.acoustic.inference.core.encoding.encoding_result import (
   AcousticDataEncodingResult,
@@ -244,14 +245,15 @@ class AcousticSessionBase(
     # A child dying is detected deep inside the consumer, whose broad
     # ``except Exception`` turns every failure into "cancelled". Without this
     # the process name and exit code -- the only actionable part -- would reach
-    # the log but never the caller.
-    cause = (
-      self._process_manager.child_death_error
-      if self._process_manager is not None
-      else None
-    )
-    if cause is not None:
+    # the log but never the caller. The same holds for an exception a thread of
+    # this process caught; a child's own exception only reaches the log.
+    pm = self._process_manager
+    if pm is not None and pm.child_death_error is not None:
+      cause = pm.child_death_error
       raise RuntimeError(f"{cause}\n\n{message}") from cause
+    if pm is not None and pm.run_error is not None:
+      error = pm.run_error
+      raise RuntimeError(f"{type(error).__name__}: {error}\n\n{message}") from error
     raise RuntimeError(message)
 
   def cancel(self) -> None:
@@ -355,6 +357,8 @@ class AcousticEncodingSession(AcousticSessionBase):
       overlap_duration_s, model_segment_size_s
     )
 
+    speed = ProcessingConfig.validate_speed(speed)
+
     bandpass_fmin, bandpass_fmax = FilteringConfig.validate_bandpass_frequencies(
       bandpass_fmin, bandpass_fmax, model_sig_fmin, model_sig_fmax
     )
@@ -368,6 +372,12 @@ class AcousticEncodingSession(AcousticSessionBase):
 
     if show_stats is not None:
       show_stats = OutputConfig.validate_show_stats(show_stats)
+
+    if progress_callback is not None and show_stats not in ("progress", "benchmark"):
+      raise ValueError(
+        "Progress callback can only be used when 'show_stats' is set to "
+        "'progress' or 'benchmark'."
+      )
 
     max_n_files = ProcessingConfig.validate_max_n_files(max_n_files)
 
@@ -519,6 +529,13 @@ class AcousticPredictionSession(AcousticSessionBase):
 
     if apply_sigmoid and apply_softmax:
       raise ValueError("apply_sigmoid and apply_softmax cannot both be True")
+
+    if default_confidence_threshold is not None:
+      PredictionConfig.validate_default_confidence_threshold(
+        default_confidence_threshold
+      )
+      # Written to the run metadata as given; the validator would make it a float.
+      default_confidence_threshold = _plain_number(default_confidence_threshold)
 
     if custom_confidence_thresholds is not None:
       custom_confidence_thresholds = (

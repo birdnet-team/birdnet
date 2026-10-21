@@ -1,10 +1,12 @@
 import os
+import sys
 import time
 
 import psutil
 import pytest
 
 from birdnet.core.backends import run_in_subprocess
+from birdnet_tests.fake_acoustic_backend import raise_foreign_load_error
 
 pytestmark = pytest.mark.no_tf
 
@@ -17,6 +19,13 @@ def test_returns_what_the_function_returns_in_another_process() -> None:
 def test_raises_what_the_function_raises() -> None:
   with pytest.raises(ValueError, match=r"invalid literal"):
     run_in_subprocess(int, ("not a number",), timeout_s=60)
+
+
+def test_a_non_builtin_exception_arrives_as_runtime_error_naming_it() -> None:
+  """Unpickling the original would import its module into this process."""
+  with pytest.raises(RuntimeError, match=r"^ForeignLoadError: bad weights$"):
+    run_in_subprocess(raise_foreign_load_error, (), timeout_s=60)
+  assert "birdnet_tests.foreign_load_error" not in sys.modules
 
 
 def _workers() -> set[int]:

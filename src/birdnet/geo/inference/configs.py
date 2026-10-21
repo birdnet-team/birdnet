@@ -1,3 +1,4 @@
+import numbers
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -72,39 +73,43 @@ class RunConfig:
 
   @classmethod
   def validate_latitude(cls, latitude: Any) -> float:  # noqa: ANN401
-    if not isinstance(latitude, float | int):
+    if not isinstance(latitude, numbers.Real):
       raise TypeError("latitude must be a float")
-    if not -90 <= latitude <= 90:
+    value = float(latitude)
+    if not -90 <= value <= 90:
       raise ValueError(
         "Value for 'latitude' is invalid! It needs to be in interval [-90, 90]."
       )
-    return float(latitude)
+    return value
 
   @classmethod
   def validate_longitude(cls, longitude: Any) -> float:  # noqa: ANN401
-    if not isinstance(longitude, float | int):
+    if not isinstance(longitude, numbers.Real):
       raise TypeError("longitude must be a float")
-    if not -180 <= longitude <= 180:
+    value = float(longitude)
+    if not -180 <= value <= 180:
       raise ValueError(
         "Value for 'longitude' is invalid! It needs to be in interval [-180, 180]."
       )
-    return float(longitude)
+    return value
 
   @classmethod
   def validate_week(cls, week: Any) -> int | None:  # noqa: ANN401
     if week is None:
       return None
 
-    if not isinstance(week, int):
+    if not isinstance(week, numbers.Integral):
       raise TypeError("Value for 'week' is invalid! It must be an integer.")
+    # A NumPy integer becomes a Python int; a builtin int is kept as it is.
+    value = week if isinstance(week, int) else int(week)
 
-    if not (1 <= week <= 48):
+    if not (1 <= value <= 48):
       raise ValueError(
         "Value for 'week' is invalid! It needs to be either None or in"
         " interval [1, 48]."
       )
 
-    return week
+    return value
 
   @classmethod
   def validate_year_round_aggregation(

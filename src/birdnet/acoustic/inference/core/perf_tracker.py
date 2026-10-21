@@ -761,7 +761,9 @@ class ProgressDispatcher:
     finish_signal: threading.Event,
     processing_finished_event: Event,
     check_interval: float,
+    report_error: Callable[[BaseException], None] | None = None,
   ) -> None:
+    self._report_error = report_error
     self._session_id = session_id
     self._callback_queue = callback_queue
     self._cancel_event = cancel_event
@@ -795,6 +797,8 @@ class ProgressDispatcher:
       self._logger.exception(
         "ProgressDispatcher encountered an exception.", exc_info=e, stack_info=True
       )
+      if self._report_error is not None:
+        self._report_error(e)
       self._cancel_event.set()
 
   def run_main_loop(self) -> None:

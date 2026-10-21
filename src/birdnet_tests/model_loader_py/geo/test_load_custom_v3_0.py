@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Literal, cast
 
 import pytest
@@ -84,8 +85,12 @@ def test_load_custom_geo_model_v3_0_litert_fp32() -> None:
   assert isinstance(model, GeoModelV3_0)
 
 
-def test_load_custom_geo_model_v3_0_litert_raises_error() -> None:
-  model_path, _ = GeoTFDownloaderV3_0.get_model_path_and_labels("en_us", "fp32")
+def test_load_custom_geo_model_v3_0_litert_raises_error(tmp_path: Path) -> None:
+  # Refused before either file is read; the real ones would mean a download.
+  model_path = tmp_path / "model.tflite"
+  model_path.write_bytes(b"")
+  species_path = tmp_path / "species.txt"
+  species_path.write_bytes(b"a")
 
   with pytest.raises(
     RuntimeError,
@@ -96,7 +101,7 @@ def test_load_custom_geo_model_v3_0_litert_raises_error() -> None:
       "3.0",
       "tf",
       model_path,
-      get_lang_dir("geo", "3.0", "tf") / "en_us.txt",
+      species_path,
       precision="fp32",
       library="litert",
       check_validity=check_validity(),
@@ -104,6 +109,7 @@ def test_load_custom_geo_model_v3_0_litert_raises_error() -> None:
 
 
 def test_tf_types_are_correct() -> None:
+  ensure_tf_2_19_or_2_18()
   model_path, _ = GeoTFDownloaderV3_0.get_model_path_and_labels("en_us", "fp32")
   model_type, version, backend = "geo", "3.0", "tf"
   assert (
@@ -122,6 +128,7 @@ def test_tf_types_are_correct() -> None:
 
 
 def test_tf_type_with_precisions_is_correct() -> None:
+  ensure_tf_2_19_or_2_18()
   model_path, _ = GeoTFDownloaderV3_0.get_model_path_and_labels("en_us", "fp32")
   assert (
     type(
