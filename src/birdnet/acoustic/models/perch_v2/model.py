@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Callable, Collection, Iterable
 from pathlib import Path
-from typing import Any, Literal, final
+from typing import Literal, final
 
 import numpy.typing as npt
-from ordered_set import OrderedSet
 
 from birdnet.acoustic.inference.configs import InferenceConfig
 from birdnet.acoustic.inference.core.encoding.encoding_result import (
@@ -22,76 +21,10 @@ from birdnet.acoustic.inference.session import (
   AcousticPredictionSession,
 )
 from birdnet.acoustic.models.base import AcousticModelBase
-from birdnet.core.backends import BackendLoader, VersionedAcousticBackendProtocol
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
-from birdnet.utils.helper import validate_species_list
 
 
 class AcousticModelPerchV2(AcousticModelBase):
-  def __init__(
-    self,
-    model_path: Path,
-    species_list: OrderedSet[str],
-    is_custom_model: bool,
-    backend_type: type[VersionedAcousticBackendProtocol],
-    backend_kwargs: dict[str, Any],
-  ) -> None:
-    super().__init__(
-      model_path, species_list, is_custom_model, backend_type, backend_kwargs
-    )
-
-  @classmethod
-  def load(
-    cls,
-    model_path: Path,
-    species_list: OrderedSet[str],
-    backend_type: type[VersionedAcousticBackendProtocol],
-    backend_kwargs: dict[str, Any],
-  ) -> AcousticModelPerchV2:
-    result = AcousticModelPerchV2(
-      model_path,
-      species_list,
-      is_custom_model=False,
-      backend_type=backend_type,
-      backend_kwargs=backend_kwargs,
-    )
-    return result
-
-  @classmethod
-  def load_custom(
-    cls,
-    model_path: Path,
-    species_list: Path,
-    backend_type: type[VersionedAcousticBackendProtocol],
-    backend_kwargs: dict[str, Any],
-    check_validity: bool,
-  ) -> AcousticModelPerchV2:
-    assert model_path.exists()
-    assert species_list.is_file()
-
-    loaded_species_list = validate_species_list(species_list)
-
-    if check_validity:
-      n_species_in_model = BackendLoader.check_model_can_be_loaded(
-        model_path, backend_type, backend_kwargs
-      )
-
-      if n_species_in_model != len(loaded_species_list):
-        raise ValueError(
-          f"Model '{model_path.absolute()}' has {n_species_in_model} outputs, but "
-          f"species list '{species_list.absolute()}' has "
-          f"{len(loaded_species_list)} species!"
-        )
-
-    result = AcousticModelPerchV2(
-      model_path,
-      loaded_species_list,
-      is_custom_model=True,
-      backend_type=backend_type,
-      backend_kwargs=backend_kwargs,
-    )
-    return result
-
   @classmethod
   @final
   def get_version(cls) -> ACOUSTIC_MODEL_VERSIONS:

@@ -9,6 +9,7 @@ birdnet.acoustic.models.v3\_0.model module
 
 .. automodule:: birdnet.acoustic.models.v3_0.model
    :members:
+   :inherited-members:
    :show-inheritance:
    :undoc-members:
 

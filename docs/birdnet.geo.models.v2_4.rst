@@ -9,6 +9,7 @@ birdnet.geo.models.v2\_4.model module
 
 .. automodule:: birdnet.geo.models.v2_4.model
    :members:
+   :inherited-members:
    :show-inheritance:
    :undoc-members:
 

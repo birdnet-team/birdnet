@@ -116,3 +116,34 @@ Module contents
    :members:
    :show-inheritance:
    :undoc-members:
+   :exclude-members: AcousticModelPerchV2, AcousticModelV2_4, AcousticModelV3_0, GeoModelV2_4, GeoModelV3_0
+
+.. autoclass:: birdnet.AcousticModelPerchV2
+   :members:
+   :inherited-members:
+   :show-inheritance:
+   :undoc-members:
+
+.. autoclass:: birdnet.AcousticModelV2_4
+   :members:
+   :inherited-members:
+   :show-inheritance:
+   :undoc-members:
+
+.. autoclass:: birdnet.AcousticModelV3_0
+   :members:
+   :inherited-members:
+   :show-inheritance:
+   :undoc-members:
+
+.. autoclass:: birdnet.GeoModelV2_4
+   :members:
+   :inherited-members:
+   :show-inheritance:
+   :undoc-members:
+
+.. autoclass:: birdnet.GeoModelV3_0
+   :members:
+   :inherited-members:
+   :show-inheritance:
+   :undoc-members:

@@ -9,6 +9,7 @@ birdnet.acoustic.models.perch\_v2.model module
 
 .. automodule:: birdnet.acoustic.models.perch_v2.model
    :members:
+   :inherited-members:
    :show-inheritance:
    :undoc-members:
 

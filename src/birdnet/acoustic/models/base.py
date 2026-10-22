@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 
 from ordered_set import OrderedSet
 
@@ -15,9 +15,10 @@ from birdnet.acoustic.inference.session import (
   AcousticEncodingSession,
   AcousticPredictionSession,
 )
-from birdnet.core.backends import VersionedAcousticBackendProtocol
+from birdnet.core.backends import BackendLoader, VersionedAcousticBackendProtocol
 from birdnet.core.base import ModelBase
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
+from birdnet.utils.helper import validate_species_list
 
 
 def resolve_in_graph_sigmoid_options(
@@ -98,6 +99,56 @@ class AcousticModelBase(ModelBase, ABC):
   @property
   def backend_kwargs(self) -> dict[str, Any]:
     return self._backend_kwargs
+
+  @classmethod
+  def load(
+    cls,
+    model_path: Path,
+    species_list: OrderedSet[str],
+    backend_type: type[VersionedAcousticBackendProtocol],
+    backend_kwargs: dict[str, Any],
+  ) -> Self:
+    return cls(
+      model_path,
+      species_list,
+      is_custom_model=False,
+      backend_type=backend_type,
+      backend_kwargs=backend_kwargs,
+    )
+
+  @classmethod
+  def load_custom(
+    cls,
+    model_path: Path,
+    species_list: Path,
+    backend_type: type[VersionedAcousticBackendProtocol],
+    backend_kwargs: dict[str, Any],
+    check_validity: bool,
+  ) -> Self:
+    assert model_path.exists()
+    assert species_list.is_file()
+
+    loaded_species_list = validate_species_list(species_list)
+
+    if check_validity:
+      n_species_in_model = BackendLoader.check_model_can_be_loaded(
+        model_path, backend_type, backend_kwargs
+      )
+
+      if n_species_in_model != len(loaded_species_list):
+        raise ValueError(
+          f"Model '{model_path.absolute()}' has {n_species_in_model} outputs, but "
+          f"species list '{species_list.absolute()}' has "
+          f"{len(loaded_species_list)} species!"
+        )
+
+    return cls(
+      model_path,
+      loaded_species_list,
+      is_custom_model=True,
+      backend_type=backend_type,
+      backend_kwargs=backend_kwargs,
+    )
 
   @classmethod
   @abstractmethod
