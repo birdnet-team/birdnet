@@ -27,6 +27,7 @@ from birdnet.acoustic.models.base import (
   AcousticModelBase,
   resolve_in_graph_sigmoid_options,
   validate_batch_size_for_backend,
+  validate_segment_size_for_backend,
 )
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V3_0,
@@ -300,7 +301,48 @@ class AcousticModelV3_0(AcousticModelBase):
     segment_size_s: float = _DEFAULT_SEGMENT_SIZE_S,
     on_file_complete: Callable[[AcousticFileEncodingResult], None] | None = None,
   ) -> AcousticEncodingSession:
+    """Create an encoding session with explicit resource configuration.
+
+    Args:
+      n_producers: Processes tasked with producing audio batches.
+      n_workers: Optional worker count for backend processing.
+      batch_size: Number of records evaluated per inference call.
+      prefetch_ratio: How many batches to decode ahead of processing.
+      overlap_duration_s: Seconds of overlap between sliding windows.
+      speed: Resampling multiplier to accommodate different recording speeds.
+      bandpass_fmin: Lower bound for the bandpass filter in Hz.
+      bandpass_fmax: Upper bound for the bandpass filter in Hz.
+      half_precision: Cast the model's outputs to float16 after inference;
+        inference itself runs at the model's precision.
+      max_audio_duration_min: Longest single input, in minutes, the segment
+        indices are sized for; ``None`` sizes them for any length. An input with
+        more segments than they can hold raises an error.
+      show_stats: Level of statistics logging to emit.
+      progress_callback: Optional callback to report progress. Invoked from a
+        background worker thread, inheriting a copy of the caller's context
+        (contextvars) as captured when the call starts.
+      device: Target device(s) for running the backend.
+      max_n_files: Upper bound on files to limit resource consumption.
+      segment_size_s: Length in seconds of the audio segments passed to the model.
+        The official ``tf``, ``onnx`` and ``pt`` exports accept lengths other than
+        the default 3.0 s. ``pb`` and the custom classifier exports take only 3.0 s
+        and raise a ``ValueError`` for any other length; a custom TFLite export
+        loaded with ``check_validity=False`` and an explicit version fails during
+        the run instead. ``overlap_duration_s`` must be smaller than this value.
+      on_file_complete: Optional callback fired once per input file as soon as
+        that file is fully processed, receiving a single-file
+        AcousticFileEncodingResult (invalid files are reported with their input
+        marked unprocessable). Enables streaming per-file persistence. Invoked
+        from a background thread with a copy of the caller's context; file
+        inputs only (not run_arrays). A callback that raises cancels the run.
+
+    Returns:
+      AcousticEncodingSession: Session capable of running encodings.
+    """
     validate_batch_size_for_backend(batch_size, self.backend_type)
+    validate_segment_size_for_backend(
+      segment_size_s, self.get_sample_rate(), self.backend_type
+    )
     return AcousticEncodingSession(
       species_list=self.species_list,
       model_path=self.model_path,
@@ -374,8 +416,63 @@ class AcousticModelV3_0(AcousticModelBase):
     The ``tf`` and ``pb`` exports (official and custom) have a static batch
     dimension of 1, so ``batch_size`` above 1 raises a ``ValueError`` for them;
     ``onnx`` and ``pt`` take any batch size.
+
+    Args:
+      top_k: Number of highest-confidence results to return per segment.
+      n_producers: Processes tasked with producing audio batches.
+      n_workers: Optional worker count for backend processing.
+      batch_size: Number of records evaluated per inference call.
+      prefetch_ratio: How many batches to decode ahead of processing.
+      overlap_duration_s: Seconds of overlap between sliding windows.
+      speed: Resampling multiplier to accommodate different recording speeds.
+      bandpass_fmin: Lower bound for the bandpass filter in Hz.
+      bandpass_fmax: Upper bound for the bandpass filter in Hz.
+      apply_sigmoid: The 3.0 exports apply the sigmoid inside the model graph, so
+        False returns the model's scores unchanged, as does True (the default) at
+        the default ``sigmoid_sensitivity`` of 1.0. False ignores
+        ``sigmoid_sensitivity``.
+      apply_softmax: Must stay False; True raises a ``ValueError`` for the 3.0
+        models.
+      sigmoid_sensitivity: Shifts the logits, recovered from the model's scores,
+        by ``10 * (sigmoid_sensitivity - 1)`` before the sigmoid, so values above
+        1.0 raise the scores and values below lower them; between 0.5 and 1.5,
+        ``None`` means 1.0. Ignored with ``apply_sigmoid=False``.
+      default_confidence_threshold: Base threshold to emit a detection, as a
+        sigmoid score (range 0 to 1).
+      custom_confidence_thresholds: Species-specific override thresholds.
+      custom_species_list: Path or iterable defining a subset of species.
+      half_precision: Cast the model's outputs to float16 after inference;
+        inference itself runs at the model's precision.
+      max_audio_duration_min: Longest single input, in minutes, the segment
+        indices are sized for; ``None`` sizes them for any length. An input with
+        more segments than they can hold raises an error.
+      show_stats: Level of statistics logging to emit.
+      progress_callback: Optional callback to report progress. Invoked from a
+        background worker thread, inheriting a copy of the caller's context
+        (contextvars) as captured when the call starts.
+      device: Target device(s) for running the backend.
+      max_n_files: Upper bound on files to limit resource consumption.
+      segment_size_s: Length in seconds of the audio segments passed to the model.
+        The official ``tf``, ``onnx`` and ``pt`` exports accept lengths other than
+        the default 3.0 s. ``pb`` and the custom classifier exports take only 3.0 s
+        and raise a ``ValueError`` for any other length; a custom TFLite export
+        loaded with ``check_validity=False`` and an explicit version fails during
+        the run instead. ``overlap_duration_s`` must be smaller than this value.
+      on_file_complete: Optional callback fired once per input file as soon as
+        that file is fully processed, receiving a single-file
+        AcousticFilePredictionResult (invalid files are reported with their
+        input marked unprocessable). Enables streaming per-file persistence
+        (e.g. resumable analysis). Invoked from a background thread with a copy
+        of the caller's context; file inputs only (not run_arrays). A callback
+        that raises cancels the run.
+
+    Returns:
+      AcousticPredictionSession: Session capable of running predictions.
     """
     validate_batch_size_for_backend(batch_size, self.backend_type)
+    validate_segment_size_for_backend(
+      segment_size_s, self.get_sample_rate(), self.backend_type
+    )
     apply_sigmoid, sigmoid_sensitivity = resolve_in_graph_sigmoid_options(
       apply_sigmoid, apply_softmax, sigmoid_sensitivity, "acoustic V3.0 models"
     )
@@ -435,6 +532,44 @@ class AcousticModelV3_0(AcousticModelBase):
     segment_size_s: float = _DEFAULT_SEGMENT_SIZE_S,
     on_file_complete: Callable[[AcousticFileEncodingResult], None] | None = None,
   ) -> AcousticEncodingResultBase:
+    """Run encoding with the BirdNET 3.0 model on files or paths to obtain embeddings.
+
+    Args:
+      inp: Path(s) or string(s) pointing to audio files to encode.
+      n_producers: Processes tasked with producing audio batches.
+      n_workers: Optional worker count for backend processing.
+      batch_size: Number of records evaluated per inference call.
+      prefetch_ratio: How many batches to decode ahead of processing.
+      overlap_duration_s: Seconds of overlap between sliding windows.
+      speed: Resampling multiplier to accommodate different recording speeds.
+      bandpass_fmin: Lower bound for the bandpass filter in Hz.
+      bandpass_fmax: Upper bound for the bandpass filter in Hz.
+      half_precision: Cast the model's outputs to float16 after inference;
+        inference itself runs at the model's precision.
+      max_audio_duration_min: Longest single input, in minutes, the segment
+        indices are sized for; ``None`` sizes them for any length. An input with
+        more segments than they can hold raises an error.
+      show_stats: Level of statistics logging to emit.
+      progress_callback: Optional callback to report progress. Invoked from a
+        background worker thread, inheriting a copy of the caller's context
+        (contextvars) as captured when the call starts.
+      device: Target device(s) for running the backend.
+      segment_size_s: Length in seconds of the audio segments passed to the model.
+        The official ``tf``, ``onnx`` and ``pt`` exports accept lengths other than
+        the default 3.0 s. ``pb`` and the custom classifier exports take only 3.0 s
+        and raise a ``ValueError`` for any other length; a custom TFLite export
+        loaded with ``check_validity=False`` and an explicit version fails during
+        the run instead. ``overlap_duration_s`` must be smaller than this value.
+      on_file_complete: Optional callback fired once per input file as soon as
+        that file is fully processed, receiving a single-file
+        AcousticFileEncodingResult (invalid files are reported with their input
+        marked unprocessable). Enables streaming per-file persistence. Invoked
+        from a background thread with a copy of the caller's context; file
+        inputs only (not encode_arrays). A callback that raises cancels the run.
+
+    Returns:
+      AcousticEncodingResultBase: Object containing embeddings for each file.
+    """
     input_files = InferenceConfig.validate_input_files(inp)
     with self.encode_session(
       n_producers=n_producers,
@@ -476,6 +611,38 @@ class AcousticModelV3_0(AcousticModelBase):
     device: str | list[str] = "CPU",
     segment_size_s: float = _DEFAULT_SEGMENT_SIZE_S,
   ) -> AcousticEncodingResultBase:
+    """Run encoding with the BirdNET 3.0 model directly on in-memory audio arrays.
+
+    Args:
+      inp: Tuple(s) of (audio ndarray, sampling rate).
+      n_producers: Processes generating batches from the arrays.
+      n_workers: Optional worker count for backend processing.
+      batch_size: Number of records evaluated per inference call.
+      prefetch_ratio: How many batches to decode ahead of processing.
+      overlap_duration_s: Seconds of overlap between sliding windows.
+      speed: Resampling multiplier to accommodate different recording speeds.
+      bandpass_fmin: Lower bound for the bandpass filter in Hz.
+      bandpass_fmax: Upper bound for the bandpass filter in Hz.
+      half_precision: Cast the model's outputs to float16 after inference;
+        inference itself runs at the model's precision.
+      max_audio_duration_min: Longest single input, in minutes, the segment
+        indices are sized for; ``None`` sizes them for any length. An input with
+        more segments than they can hold raises an error.
+      show_stats: Level of statistics logging to emit.
+      progress_callback: Optional callback to report progress. Invoked from a
+        background worker thread, inheriting a copy of the caller's context
+        (contextvars) as captured when the call starts.
+      device: Target device(s) for running the backend.
+      segment_size_s: Length in seconds of the audio segments passed to the model.
+        The official ``tf``, ``onnx`` and ``pt`` exports accept lengths other than
+        the default 3.0 s. ``pb`` and the custom classifier exports take only 3.0 s
+        and raise a ``ValueError`` for any other length; a custom TFLite export
+        loaded with ``check_validity=False`` and an explicit version fails during
+        the run instead. ``overlap_duration_s`` must be smaller than this value.
+
+    Returns:
+      AcousticEncodingResultBase: Object containing embeddings for each input array.
+    """
     input_arrays = InferenceConfig.validate_input_audio(inp)
     with self.encode_session(
       n_producers=n_producers,
@@ -536,19 +703,70 @@ class AcousticModelV3_0(AcousticModelBase):
     ``ValueError``. Custom V3.0 models are expected to apply the sigmoid as
     well.
 
-    ``n_workers`` sets the number of inference worker processes. Its default value,
-    ``None``, uses the number of physical CPU cores. Pass a fixed integer to meet a
-    scheduler or container process limit. Each worker holds its own copy of the
-    model, so a high count raises peak memory use. In the cases the pipeline
-    guards against, a worker killed by the operating system to reclaim memory,
-    including while it is processing a batch, is reported as an error naming
-    the dead worker rather than hanging the call (see issue #73). Lowering
-    ``n_workers`` or ``batch_size`` reduces peak memory and with it how likely
-    such a kill is, but cannot rule it out.
-
     This method creates one prediction session for the call. That session shuts down
     its producer and worker processes before this method returns, including when
     inference raises an exception.
+
+    Args:
+      inp: Path(s) or string(s) pointing to audio files to analyze.
+      top_k: Number of highest-confidence results to return per segment.
+      n_producers: Processes tasked with producing audio batches.
+      n_workers: Number of inference worker processes. ``None`` uses the number of
+        physical CPU cores. Pass a fixed integer to meet a scheduler or container
+        process limit. Each worker holds its own copy of the model, so a high
+        count raises peak memory use. In the cases the pipeline guards against, a
+        worker killed by the operating system to reclaim memory, including while
+        it is processing a batch, is reported as an error naming the dead worker
+        rather than hanging the call (see issue #73). Lowering ``n_workers`` or
+        ``batch_size`` reduces peak memory and with it how likely such a kill is,
+        but cannot rule it out.
+      batch_size: Number of records evaluated per inference call.
+      prefetch_ratio: How many batches to decode ahead of processing.
+      overlap_duration_s: Seconds of overlap between sliding windows.
+      bandpass_fmin: Lower bound for the bandpass filter in Hz.
+      bandpass_fmax: Upper bound for the bandpass filter in Hz.
+      speed: Resampling multiplier to accommodate different recording speeds.
+      apply_sigmoid: The 3.0 exports apply the sigmoid inside the model graph, so
+        False returns the model's scores unchanged, as does True (the default) at
+        the default ``sigmoid_sensitivity`` of 1.0. False ignores
+        ``sigmoid_sensitivity``.
+      apply_softmax: Must stay False; True raises a ``ValueError`` for the 3.0
+        models.
+      sigmoid_sensitivity: Shifts the logits, recovered from the model's scores,
+        by ``10 * (sigmoid_sensitivity - 1)`` before the sigmoid, so values above
+        1.0 raise the scores and values below lower them; between 0.5 and 1.5,
+        ``None`` means 1.0. Ignored with ``apply_sigmoid=False``.
+      default_confidence_threshold: Base threshold to emit a detection, as a
+        sigmoid score (range 0 to 1).
+      custom_confidence_thresholds: Species-specific override thresholds.
+      custom_species_list: Path or iterable defining a subset of species.
+      half_precision: Cast the model's outputs to float16 after inference;
+        inference itself runs at the model's precision.
+      max_audio_duration_min: Longest single input, in minutes, the segment
+        indices are sized for; ``None`` sizes them for any length. An input with
+        more segments than they can hold raises an error.
+      device: Target device(s) for running the backend.
+      show_stats: Level of statistics logging to emit.
+      progress_callback: Optional callback to report progress. Invoked from a
+        background worker thread, inheriting a copy of the caller's context
+        (contextvars) as captured when the call starts.
+      segment_size_s: Length in seconds of the audio segments passed to the model.
+        The official ``tf``, ``onnx`` and ``pt`` exports accept lengths other than
+        the default 3.0 s. ``pb`` and the custom classifier exports take only 3.0 s
+        and raise a ``ValueError`` for any other length; a custom TFLite export
+        loaded with ``check_validity=False`` and an explicit version fails during
+        the run instead. ``overlap_duration_s`` must be smaller than this value.
+      on_file_complete: Optional callback fired once per input file as soon as
+        that file is fully processed, receiving a single-file
+        AcousticFilePredictionResult (invalid files are reported with their
+        input marked unprocessable). Enables streaming per-file persistence
+        (e.g. resumable analysis). Invoked from a background thread with a copy
+        of the caller's context; file inputs only (not predict_arrays). A callback
+        that raises cancels the run.
+
+    Returns:
+      AcousticPredictionResultBase: Object containing detected species and confidence
+        scores.
     """
     input_files = InferenceConfig.validate_input_files(inp)
     with self.predict_session(
@@ -605,6 +823,54 @@ class AcousticModelV3_0(AcousticModelBase):
     progress_callback: Callable[[AcousticProgressStats], None] | None = None,
     segment_size_s: float = _DEFAULT_SEGMENT_SIZE_S,
   ) -> AcousticPredictionResultBase:
+    """Run prediction with the BirdNET 3.0 model directly on in-memory audio arrays.
+
+    Args:
+      inp: Tuple(s) of (audio ndarray, sampling rate).
+      top_k: Number of highest-confidence results to return per segment.
+      n_producers: Processes generating batches from the arrays.
+      n_workers: Optional worker count for backend processing.
+      batch_size: Number of records evaluated per inference call.
+      prefetch_ratio: How many batches to decode ahead of processing.
+      overlap_duration_s: Seconds of overlap between sliding windows.
+      bandpass_fmin: Lower bound for the bandpass filter in Hz.
+      bandpass_fmax: Upper bound for the bandpass filter in Hz.
+      speed: Resampling multiplier to accommodate different recording speeds.
+      apply_sigmoid: The 3.0 exports apply the sigmoid inside the model graph, so
+        False returns the model's scores unchanged, as does True (the default) at
+        the default ``sigmoid_sensitivity`` of 1.0. False ignores
+        ``sigmoid_sensitivity``.
+      apply_softmax: Must stay False; True raises a ``ValueError`` for the 3.0
+        models.
+      sigmoid_sensitivity: Shifts the logits, recovered from the model's scores,
+        by ``10 * (sigmoid_sensitivity - 1)`` before the sigmoid, so values above
+        1.0 raise the scores and values below lower them; between 0.5 and 1.5,
+        ``None`` means 1.0. Ignored with ``apply_sigmoid=False``.
+      default_confidence_threshold: Base threshold to emit a detection, as a
+        sigmoid score (range 0 to 1).
+      custom_confidence_thresholds: Species-specific override thresholds.
+      custom_species_list: Path or iterable defining a subset of species.
+      half_precision: Cast the model's outputs to float16 after inference;
+        inference itself runs at the model's precision.
+      max_audio_duration_min: Longest single input, in minutes, the segment
+        indices are sized for; ``None`` sizes them for any length. An input with
+        more segments than they can hold raises an error.
+      device: Target device(s) for running the backend.
+      show_stats: Level of statistics logging to emit.
+      progress_callback: Optional callback to report progress. Invoked from a
+        background worker thread, inheriting a copy of the caller's context
+        (contextvars) as captured when the call starts.
+      segment_size_s: Length in seconds of the audio segments passed to the model.
+        The official ``tf``, ``onnx`` and ``pt`` exports accept lengths other than
+        the default 3.0 s. ``pb`` and the custom classifier exports take only 3.0 s
+        and raise a ``ValueError`` for any other length; a custom TFLite export
+        loaded with ``check_validity=False`` and an explicit version fails during
+        the run instead. ``overlap_duration_s`` must be smaller than this value.
+
+    Returns:
+      AcousticPredictionResultBase: Object containing detected species and confidence
+        scores.
+    """
     input_arrays = InferenceConfig.validate_input_audio(inp)
     with self.predict_session(
       top_k=top_k,

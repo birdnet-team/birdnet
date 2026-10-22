@@ -121,6 +121,10 @@ class FakeAcousticBackend:
   def max_batch_size(cls) -> int | None:
     return None
 
+  @classmethod
+  def fixed_input_samples(cls) -> int | None:
+    return None
+
   @property
   def n_species(self) -> int:
     return self.n_species_out

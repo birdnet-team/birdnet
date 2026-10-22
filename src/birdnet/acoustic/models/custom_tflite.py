@@ -76,6 +76,9 @@ class CustomTFLiteInfo:
       which the prediction session turns into scores itself.
     supports_encoding: Whether the file exposes the backbone's embeddings, so
       `encode(..)` works on it.
+    input_samples: Length of the audio input in samples when the file fixes it,
+      or None when it takes any length. A 3.0 classifier with a fixed input runs
+      only with ``segment_size_s=3.0``.
   """
 
   version: ACOUSTIC_MODEL_VERSIONS
@@ -83,6 +86,7 @@ class CustomTFLiteInfo:
   n_species: int
   applies_sigmoid: bool
   supports_encoding: bool
+  input_samples: int | None = None
 
 
 @dataclass(frozen=True)
@@ -296,6 +300,7 @@ def describe_custom_tflite_layout(layout: CustomTFLiteLayout) -> CustomTFLiteInf
     n_species=layout.n_species,
     applies_sigmoid=base.applies_sigmoid,
     supports_encoding=layout.embeddings_idx is not None,
+    input_samples=layout.input_samples,
   )
 
 

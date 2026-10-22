@@ -85,7 +85,7 @@ def test_v3_0_predict_two_np_arrays_shape(backend: _Backend) -> None:
 @pytest.mark.parametrize("backend", ["pt", "onnx"])
 @pytest.mark.parametrize(
   ("segment_size_s", "expected_segments"),
-  [(2.0, 4), (4.0, 2)],
+  [(2.0, 4), (4.0, 2), (2.01, 4), (2.5, 3)],
 )
 def test_v3_0_predict_respects_segment_size(
   backend: _Backend,

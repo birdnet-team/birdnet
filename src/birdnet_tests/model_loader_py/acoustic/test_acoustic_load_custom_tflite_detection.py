@@ -16,6 +16,10 @@ from birdnet.acoustic.models.v2_4.tf import (
 )
 from birdnet.acoustic.models.v3_0.model import AcousticModelV3_0
 from birdnet.acoustic.models.v3_0.tf import (
+  AcousticTFBackendCustomFixedInputFP16V3_0,
+  AcousticTFBackendCustomFixedInputNoEmbeddingsFP16V3_0,
+  AcousticTFBackendCustomFixedInputNoEmbeddingsV3_0,
+  AcousticTFBackendCustomFixedInputV3_0,
   AcousticTFBackendCustomFP16V3_0,
   AcousticTFBackendCustomNoEmbeddingsFP16V3_0,
   AcousticTFBackendCustomNoEmbeddingsV3_0,
@@ -95,6 +99,41 @@ def _inspection_returns(
       AcousticModelV3_0,
       AcousticTFBackendCustomNoEmbeddingsFP16V3_0,
     ),
+    (
+      CustomTFLiteInfo("2.4", "replace", 3, False, True, 144_000),
+      "2.4",
+      "fp32",
+      AcousticModelV2_4,
+      AcousticTFBackendCustomV2_4,
+    ),
+    (
+      CustomTFLiteInfo("3.0", "replace", 3, True, True, 96_000),
+      "3.0",
+      "fp32",
+      AcousticModelV3_0,
+      AcousticTFBackendCustomFixedInputV3_0,
+    ),
+    (
+      CustomTFLiteInfo("3.0", "replace", 3, True, True, 96_000),
+      "3.0",
+      "fp16",
+      AcousticModelV3_0,
+      AcousticTFBackendCustomFixedInputFP16V3_0,
+    ),
+    (
+      CustomTFLiteInfo("3.0", "append", 3, True, False, 96_000),
+      "3.0",
+      "fp32",
+      AcousticModelV3_0,
+      AcousticTFBackendCustomFixedInputNoEmbeddingsV3_0,
+    ),
+    (
+      CustomTFLiteInfo("3.0", "append", 3, True, False, 96_000),
+      "3.0",
+      "fp16",
+      AcousticModelV3_0,
+      AcousticTFBackendCustomFixedInputNoEmbeddingsFP16V3_0,
+    ),
   ],
 )
 @pytest.mark.parametrize("requested_version", ["explicit", "auto"])
@@ -129,10 +168,36 @@ def test_every_mapped_backend_reports_what_it_was_mapped_for() -> None:
     version,
     precision,
     supports_encoding,
+    fixed_input,
   ), backend in _CUSTOM_TFLITE_BACKENDS.items():
     assert backend.model_version() == version, backend
     assert backend.precision() == precision, backend
     assert backend.supports_encoding() == supports_encoding, backend
+    assert (backend.fixed_input_samples() is not None) == fixed_input, backend
+
+
+def test_a_fixed_input_rejects_other_segment_lengths(
+  model_file: Path, species_list: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+  _inspection_returns(
+    monkeypatch, CustomTFLiteInfo("3.0", "replace", 3, True, True, 96_000)
+  )
+  model = load_custom("acoustic", "3.0", "tf", model_file, species_list)
+  with pytest.raises(
+    ValueError, match=r"segment_size_s=2\.0 is not supported .* 96000 samples"
+  ):
+    model.predict_session(segment_size_s=2.0)
+  # Not entered: entering would spawn workers that crash on the fake file.
+  model.predict_session(top_k=None)
+
+
+def test_a_dynamic_input_takes_other_segment_lengths(
+  model_file: Path, species_list: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+  """The official 3.0 TFLite release, which load_custom also accepts."""
+  _inspection_returns(monkeypatch, CustomTFLiteInfo("3.0", "replace", 3, True, True))
+  model = load_custom("acoustic", "3.0", "tf", model_file, species_list)
+  model.predict_session(top_k=None, segment_size_s=2.0)
 
 
 def test_a_file_without_embeddings_cannot_encode(

@@ -7,7 +7,10 @@ from birdnet.acoustic.models.base import AcousticModelBase
 from birdnet.acoustic.models.v2_4.model import AcousticModelV2_4
 from birdnet.acoustic.models.v2_4.tf import AcousticTFBackendCustomV2_4
 from birdnet.acoustic.models.v3_0.model import AcousticModelV3_0
-from birdnet.acoustic.models.v3_0.tf import AcousticTFBackendCustomV3_0
+from birdnet.acoustic.models.v3_0.tf import (
+  AcousticTFBackendCustomFixedInputV3_0,
+  AcousticTFBackendCustomV3_0,
+)
 from birdnet.core.backends import VersionedAcousticBackendProtocol
 from birdnet_tests.custom_classifier_exports import ExportSpec
 from birdnet_tests.model_loader_py.acoustic.custom_exports.conftest import (
@@ -29,8 +32,8 @@ CASES: list[
   (V2_4_REPLACE, AcousticModelV2_4, AcousticTFBackendCustomV2_4),
   (V2_4_APPEND, AcousticModelV2_4, AcousticTFBackendCustomV2_4),
   (V2_4_REPLACE_HIDDEN, AcousticModelV2_4, AcousticTFBackendCustomV2_4),
-  (V3_0_REPLACE, AcousticModelV3_0, AcousticTFBackendCustomV3_0),
-  (V3_0_APPEND, AcousticModelV3_0, AcousticTFBackendCustomV3_0),
+  (V3_0_REPLACE, AcousticModelV3_0, AcousticTFBackendCustomFixedInputV3_0),
+  (V3_0_APPEND, AcousticModelV3_0, AcousticTFBackendCustomFixedInputV3_0),
 ]
 
 
@@ -98,7 +101,17 @@ def test_load_without_validity_check_skips_the_inspection(
   model = birdnet.load_custom(
     "acoustic", "3.0", "tf", export.model, export.labels, check_validity=False
   )
+  # Not inspected, so its fixed input is unknown and not guarded.
   assert model.backend_type is AcousticTFBackendCustomV3_0
+
+
+def test_a_3_0_export_rejects_another_segment_size(get_export: GetExport) -> None:
+  export = get_export(V3_0_REPLACE)
+  model = birdnet.load_custom("acoustic", "3.0", "tf", export.model, export.labels)
+  with pytest.raises(
+    ValueError, match=r"segment_size_s=2\.0 is not supported .* 96000 samples"
+  ):
+    model.predict_session(segment_size_s=2.0)
 
 
 def test_load_rejects_a_species_list_of_the_wrong_length(

@@ -53,6 +53,10 @@ from birdnet.acoustic.models.v3_0.pt import (
   AcousticPTDownloaderV3_0,
 )
 from birdnet.acoustic.models.v3_0.tf import (
+  AcousticTFBackendCustomFixedInputFP16V3_0,
+  AcousticTFBackendCustomFixedInputNoEmbeddingsFP16V3_0,
+  AcousticTFBackendCustomFixedInputNoEmbeddingsV3_0,
+  AcousticTFBackendCustomFixedInputV3_0,
   AcousticTFBackendCustomFP16V3_0,
   AcousticTFBackendCustomNoEmbeddingsFP16V3_0,
   AcousticTFBackendCustomNoEmbeddingsV3_0,
@@ -149,28 +153,41 @@ from birdnet.utils.helper import (
   validate_species_list,
 )
 
-# (base version, precision, file exposes embeddings) -> backend of a custom
-# TFLite classifier. The backend resolves the tensors from the file itself.
+# (base version, precision, file exposes embeddings, file fixes the input length)
+# -> backend of a custom TFLite classifier. The backend resolves the tensors from
+# the file itself.
 _CUSTOM_TFLITE_BACKENDS: dict[
-  tuple[str, str, bool], type[VersionedAcousticBackendProtocol]
+  tuple[str, str, bool, bool], type[VersionedAcousticBackendProtocol]
 ] = {
-  (ACOUSTIC_MODEL_VERSION_V2_4, MODEL_PRECISION_FP32, True): (
+  (ACOUSTIC_MODEL_VERSION_V2_4, MODEL_PRECISION_FP32, True, False): (
     AcousticTFBackendCustomV2_4
   ),
-  (ACOUSTIC_MODEL_VERSION_V2_4, MODEL_PRECISION_FP32, False): (
+  (ACOUSTIC_MODEL_VERSION_V2_4, MODEL_PRECISION_FP32, False, False): (
     AcousticTFBackendCustomNoEmbeddingsV2_4
   ),
-  (ACOUSTIC_MODEL_VERSION_V3_0, MODEL_PRECISION_FP32, True): (
+  (ACOUSTIC_MODEL_VERSION_V3_0, MODEL_PRECISION_FP32, True, False): (
     AcousticTFBackendCustomV3_0
   ),
-  (ACOUSTIC_MODEL_VERSION_V3_0, MODEL_PRECISION_FP32, False): (
+  (ACOUSTIC_MODEL_VERSION_V3_0, MODEL_PRECISION_FP32, False, False): (
     AcousticTFBackendCustomNoEmbeddingsV3_0
   ),
-  (ACOUSTIC_MODEL_VERSION_V3_0, MODEL_PRECISION_FP16, True): (
+  (ACOUSTIC_MODEL_VERSION_V3_0, MODEL_PRECISION_FP16, True, False): (
     AcousticTFBackendCustomFP16V3_0
   ),
-  (ACOUSTIC_MODEL_VERSION_V3_0, MODEL_PRECISION_FP16, False): (
+  (ACOUSTIC_MODEL_VERSION_V3_0, MODEL_PRECISION_FP16, False, False): (
     AcousticTFBackendCustomNoEmbeddingsFP16V3_0
+  ),
+  (ACOUSTIC_MODEL_VERSION_V3_0, MODEL_PRECISION_FP32, True, True): (
+    AcousticTFBackendCustomFixedInputV3_0
+  ),
+  (ACOUSTIC_MODEL_VERSION_V3_0, MODEL_PRECISION_FP32, False, True): (
+    AcousticTFBackendCustomFixedInputNoEmbeddingsV3_0
+  ),
+  (ACOUSTIC_MODEL_VERSION_V3_0, MODEL_PRECISION_FP16, True, True): (
+    AcousticTFBackendCustomFixedInputFP16V3_0
+  ),
+  (ACOUSTIC_MODEL_VERSION_V3_0, MODEL_PRECISION_FP16, False, True): (
+    AcousticTFBackendCustomFixedInputNoEmbeddingsFP16V3_0
   ),
 }
 
@@ -790,11 +807,11 @@ def inspect_custom_tflite(
   Reports the BirdNET version the classifier was trained on ("2.4" or "3.0"),
   whether it replaces the official species or appends to them, its number of
   species (the length its labels file must have), whether it applies the
-  sigmoid itself and whether it exposes embeddings for `encode(..)`. The version
-  is read from the input length and the embeddings width, not from the file
-  name. The file is opened, with its tensors allocated, in a subprocess: a file
-  the interpreter cannot run is rejected, and TensorFlow (or LiteRT) is never
-  imported into the calling process.
+  sigmoid itself, whether it exposes embeddings for `encode(..)` and the input
+  length it fixes, if any. The version is read from the input length and the
+  embeddings width, not from the file name. The file is opened, with its tensors
+  allocated, in a subprocess: a file the interpreter cannot run is rejected, and
+  TensorFlow (or LiteRT) is never imported into the calling process.
 
   Args:
     model: Path to the ``.tflite`` file.
@@ -842,6 +859,7 @@ def _custom_tflite_backend_type(
   if info is None and check_validity:
     info = _inspect_custom_tflite(model, library)
   supports_encoding = True
+  fixed_input = False
   if info is not None:
     if info.version != version:
       raise ValueError(
@@ -850,6 +868,11 @@ def _custom_tflite_backend_type(
         f"version='{ACOUSTIC_MODEL_VERSION_AUTO}'."
       )
     supports_encoding = info.supports_encoding
+    # Only the 3.0 model takes other segment lengths, so only there does a fixed
+    # input need a backend that rejects them.
+    fixed_input = (
+      version == ACOUSTIC_MODEL_VERSION_V3_0 and info.input_samples is not None
+    )
     if check_validity:
       loaded_species = validate_species_list(species_list)
       if info.n_species != len(loaded_species):
@@ -858,7 +881,7 @@ def _custom_tflite_backend_type(
           f"species list '{species_list.absolute()}' has "
           f"{len(loaded_species)} species!"
         )
-  return _CUSTOM_TFLITE_BACKENDS[(version, precision, supports_encoding)]
+  return _CUSTOM_TFLITE_BACKENDS[(version, precision, supports_encoding, fixed_input)]
 
 
 def load_custom(

@@ -26,7 +26,7 @@ from birdnet_tests.model_loader_py.acoustic.custom_exports.conftest import (
   scores_in_model_order,
 )
 
-EXPECTED = CustomTFLiteInfo("2.4", "replace", 2, False, True)
+EXPECTED = CustomTFLiteInfo("2.4", "replace", 2, False, True, 144_000)
 OFFICIAL_EMBEDDINGS_ATOL = 1e-3
 
 

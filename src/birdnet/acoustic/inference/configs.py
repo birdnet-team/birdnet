@@ -23,6 +23,7 @@ from birdnet.core.start_method import resolve_start_method
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
 from birdnet.utils.helper import (
   SF_FORMATS,
+  duration_as_samples,
   get_supported_audio_files_recursive,
   is_supported_audio_file,
   validate_species_list,
@@ -56,7 +57,7 @@ class ModelConfig:
 
   @property
   def segment_size_samples(self) -> int:
-    return int(self.segment_size_s * self.sample_rate)
+    return duration_as_samples(self.segment_size_s, self.sample_rate)
 
   @property
   def n_species(self) -> int:
@@ -342,6 +343,9 @@ class PredictionConfig(SpecificConfigBase):
     cls,
     sigmoid_sensitivity: Any,  # noqa: ANN401
   ) -> float:
+    # None asks for the plain sigmoid, which Perch V2's default relies on.
+    if sigmoid_sensitivity is None:
+      return 1.0
     if not isinstance(sigmoid_sensitivity, numbers.Real):
       raise TypeError("sigmoid sensitivity must be a number")
     value = _plain_number(sigmoid_sensitivity)

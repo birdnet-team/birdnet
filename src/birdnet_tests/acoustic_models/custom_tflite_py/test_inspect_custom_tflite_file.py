@@ -29,7 +29,7 @@ def test_the_file_is_opened_with_its_tensors_allocated(
 
   info = inspect_custom_tflite_file(Path("classifier.tflite"), "litert")
 
-  assert info == CustomTFLiteInfo("2.4", "replace", 3, False, True)
+  assert info == CustomTFLiteInfo("2.4", "replace", 3, False, True, 144_000)
   assert opened == [
     {"path": Path("classifier.tflite"), "library": "litert", "allocate_tensors": True}
   ]

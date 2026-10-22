@@ -122,7 +122,7 @@ class AcousticModelV2_4(AcousticModelBase):
     """Create an encoding session with explicit resource configuration.
 
     Args:
-      n_producers: Threads tasked with producing audio batches.
+      n_producers: Processes tasked with producing audio batches.
       n_workers: Optional worker count for backend processing.
       batch_size: Number of records evaluated per inference call.
       prefetch_ratio: How many batches to decode ahead of processing.
@@ -130,8 +130,11 @@ class AcousticModelV2_4(AcousticModelBase):
       speed: Resampling multiplier to accommodate different recording speeds.
       bandpass_fmin: Lower bound for the bandpass filter in Hz.
       bandpass_fmax: Upper bound for the bandpass filter in Hz.
-      half_precision: Use float16 where supported for inference.
-      max_audio_duration_min: Maximum total duration per call.
+      half_precision: Cast the model's outputs to float16 after inference;
+        inference itself runs at the model's precision.
+      max_audio_duration_min: Longest single input, in minutes, the segment
+        indices are sized for; ``None`` sizes them for any length. An input with
+        more segments than they can hold raises an error.
       show_stats: Level of statistics logging to emit.
       progress_callback: Optional callback to report progress. Invoked from a
         background worker thread, inheriting a copy of the caller's context
@@ -209,7 +212,7 @@ class AcousticModelV2_4(AcousticModelBase):
 
     Args:
       top_k: Number of highest-confidence results to return per segment.
-      n_producers: Threads tasked with producing audio batches.
+      n_producers: Processes tasked with producing audio batches.
       n_workers: Optional worker count for backend processing.
       batch_size: Number of records evaluated per inference call.
       prefetch_ratio: How many batches to decode ahead of processing.
@@ -222,14 +225,20 @@ class AcousticModelV2_4(AcousticModelBase):
         as sigmoid scores.
       apply_softmax: Whether to transform logits with a softmax. When False, output
         scores are raw logits unless apply_sigmoid=True.
-      sigmoid_sensitivity: Optional scale for the sigmoid function.
+      sigmoid_sensitivity: Shifts the logits by ``10 * (sigmoid_sensitivity - 1)``
+        before the sigmoid, so values above 1.0 raise the scores and values below
+        lower them; between 0.5 and 1.5, ``None`` means 1.0. Ignored with
+        ``apply_sigmoid=False``.
       default_confidence_threshold: Base threshold to emit a detection.
         When apply_sigmoid=True this is a sigmoid score (range 0 to 1);
         when apply_sigmoid=False it is a logit value.
       custom_confidence_thresholds: Species-specific override thresholds.
       custom_species_list: Path or iterable defining a subset of species.
-      half_precision: Use float16 where supported for inference.
-      max_audio_duration_min: Maximum total duration per call.
+      half_precision: Cast the model's outputs to float16 after inference;
+        inference itself runs at the model's precision.
+      max_audio_duration_min: Longest single input, in minutes, the segment
+        indices are sized for; ``None`` sizes them for any length. An input with
+        more segments than they can hold raises an error.
       show_stats: Level of statistics logging to emit.
       progress_callback: Optional callback to report progress. Invoked from a
         background worker thread, inheriting a copy of the caller's context
@@ -321,7 +330,7 @@ class AcousticModelV2_4(AcousticModelBase):
 
     Args:
       inp: Path(s) or string(s) pointing to audio files to encode.
-      n_producers: Threads tasked with producing audio batches.
+      n_producers: Processes tasked with producing audio batches.
       n_workers: Optional worker count for backend processing.
       batch_size: Number of records evaluated per inference call.
       prefetch_ratio: How many batches to decode ahead of processing.
@@ -329,8 +338,11 @@ class AcousticModelV2_4(AcousticModelBase):
       speed: Resampling multiplier to accommodate different recording speeds.
       bandpass_fmin: Lower bound for the bandpass filter in Hz.
       bandpass_fmax: Upper bound for the bandpass filter in Hz.
-      half_precision: Use float16 where supported for inference.
-      max_audio_duration_min: Maximum total duration per call.
+      half_precision: Cast the model's outputs to float16 after inference;
+        inference itself runs at the model's precision.
+      max_audio_duration_min: Longest single input, in minutes, the segment
+        indices are sized for; ``None`` sizes them for any length. An input with
+        more segments than they can hold raises an error.
       show_stats: Level of statistics logging to emit.
       progress_callback: Optional callback to report progress. Invoked from a
         background worker thread, inheriting a copy of the caller's context
@@ -340,8 +352,8 @@ class AcousticModelV2_4(AcousticModelBase):
         that file is fully processed, receiving a single-file
         AcousticFileEncodingResult (invalid files are reported with their input
         marked unprocessable). Enables streaming per-file persistence. Invoked
-        from a background thread with a copy of the caller's context. A callback
-        that raises cancels the run.
+        from a background thread with a copy of the caller's context; file
+        inputs only (not encode_arrays). A callback that raises cancels the run.
 
     Returns:
       AcousticEncodingResultBase: Object containing embeddings for each file.
@@ -391,7 +403,7 @@ class AcousticModelV2_4(AcousticModelBase):
 
     Args:
       inp: Tuple(s) of (audio ndarray, sampling rate).
-      n_producers: Threads generating batches from the arrays.
+      n_producers: Processes generating batches from the arrays.
       n_workers: Optional worker count for backend processing.
       batch_size: Number of records evaluated per inference call.
       prefetch_ratio: How many batches to decode ahead of processing.
@@ -399,8 +411,11 @@ class AcousticModelV2_4(AcousticModelBase):
       speed: Resampling multiplier to accommodate different recording speeds.
       bandpass_fmin: Lower bound for the bandpass filter in Hz.
       bandpass_fmax: Upper bound for the bandpass filter in Hz.
-      half_precision: Use float16 where supported for inference.
-      max_audio_duration_min: Maximum total duration per call.
+      half_precision: Cast the model's outputs to float16 after inference;
+        inference itself runs at the model's precision.
+      max_audio_duration_min: Longest single input, in minutes, the segment
+        indices are sized for; ``None`` sizes them for any length. An input with
+        more segments than they can hold raises an error.
       show_stats: Level of statistics logging to emit.
       progress_callback: Optional callback to report progress. Invoked from a
         background worker thread, inheriting a copy of the caller's context
@@ -468,16 +483,16 @@ class AcousticModelV2_4(AcousticModelBase):
     Args:
       inp: Path(s) or string(s) pointing to audio files to analyze.
       top_k: Number of highest-confidence results to return per segment.
-      n_producers: Threads tasked with producing audio batches.
+      n_producers: Processes tasked with producing audio batches.
       n_workers: Number of inference worker processes. ``None`` uses the number of
-        physical CPU cores. Pass a fixed integer to meet a process limit.
-        Each worker holds its own copy of the model, so a high count raises
-        peak memory use. In the cases the pipeline guards against, a worker
-        killed by the operating system to reclaim memory, including while it
-        is processing a batch, is reported as an error naming the dead worker
-        rather than hanging the call (see issue #73). Lowering ``n_workers``
-        or ``batch_size`` reduces peak memory and with it how likely such a
-        kill is, but cannot rule it out.
+        physical CPU cores. Pass a fixed integer to meet a scheduler or container
+        process limit. Each worker holds its own copy of the model, so a high
+        count raises peak memory use. In the cases the pipeline guards against, a
+        worker killed by the operating system to reclaim memory, including while
+        it is processing a batch, is reported as an error naming the dead worker
+        rather than hanging the call (see issue #73). Lowering ``n_workers`` or
+        ``batch_size`` reduces peak memory and with it how likely such a kill is,
+        but cannot rule it out.
       batch_size: Number of records evaluated per inference call.
       prefetch_ratio: How many batches to decode ahead of processing.
       overlap_duration_s: Seconds of overlap between sliding windows.
@@ -487,14 +502,22 @@ class AcousticModelV2_4(AcousticModelBase):
       apply_sigmoid: Whether to transform logits with a sigmoid.
         When False, output scores are raw logits and thresholds are interpreted in logit
         space rather than as sigmoid scores.
-      sigmoid_sensitivity: Optional scale for the sigmoid function.
+      apply_softmax: Whether to transform logits with a softmax. When False, output
+        scores are raw logits unless apply_sigmoid=True.
+      sigmoid_sensitivity: Shifts the logits by ``10 * (sigmoid_sensitivity - 1)``
+        before the sigmoid, so values above 1.0 raise the scores and values below
+        lower them; between 0.5 and 1.5, ``None`` means 1.0. Ignored with
+        ``apply_sigmoid=False``.
       default_confidence_threshold: Base threshold to emit a detection.
         When apply_sigmoid=True this is a sigmoid score (range 0 to 1);
         when apply_sigmoid=False it is a logit value.
       custom_confidence_thresholds: Species-specific override thresholds.
       custom_species_list: Path or iterable defining a subset of species.
-      half_precision: Use float16 where supported for inference.
-      max_audio_duration_min: Maximum total duration per call.
+      half_precision: Cast the model's outputs to float16 after inference;
+        inference itself runs at the model's precision.
+      max_audio_duration_min: Longest single input, in minutes, the segment
+        indices are sized for; ``None`` sizes them for any length. An input with
+        more segments than they can hold raises an error.
       device: Target device(s) for running the backend.
       show_stats: Level of statistics logging to emit.
       progress_callback: Optional callback to report progress. Invoked from a
@@ -505,7 +528,15 @@ class AcousticModelV2_4(AcousticModelBase):
         AcousticFilePredictionResult (invalid files are reported with their
         input marked unprocessable). Enables streaming per-file persistence
         (e.g. resumable analysis). Invoked from a background thread with a copy
-        of the caller's context. A callback that raises cancels the run.
+        of the caller's context; file inputs only (not predict_arrays). A callback
+        that raises cancels the run.
+
+    A Raven export (``load_custom(.., "pb", .., is_raven=True)``) applies the
+    sigmoid inside its graph, so ``apply_sigmoid=True`` returns its scores as
+    they are. A ``sigmoid_sensitivity`` other than ``1.0`` is applied on logits
+    recovered from those scores; ``apply_sigmoid=False`` returns the raw scores
+    and ignores the sensitivity, as for a TFLite export. ``apply_softmax=True``
+    raises a ``ValueError``, as for the V3.0 models.
 
     Returns:
       AcousticPredictionResultBase: Object containing detected species and confidence
@@ -571,7 +602,7 @@ class AcousticModelV2_4(AcousticModelBase):
     Args:
       inp: Tuple(s) of (audio ndarray, sampling rate).
       top_k: Number of highest-confidence results to return per segment.
-      n_producers: Threads generating batches from the arrays.
+      n_producers: Processes generating batches from the arrays.
       n_workers: Optional worker count for backend processing.
       batch_size: Number of records evaluated per inference call.
       prefetch_ratio: How many batches to decode ahead of processing.
@@ -584,19 +615,32 @@ class AcousticModelV2_4(AcousticModelBase):
         logit space rather than as sigmoid scores.
       apply_softmax: Whether to transform logits with a softmax. When False, output
         scores are raw logits unless apply_sigmoid=True.
-      sigmoid_sensitivity: Optional scale for the sigmoid function.
+      sigmoid_sensitivity: Shifts the logits by ``10 * (sigmoid_sensitivity - 1)``
+        before the sigmoid, so values above 1.0 raise the scores and values below
+        lower them; between 0.5 and 1.5, ``None`` means 1.0. Ignored with
+        ``apply_sigmoid=False``.
       default_confidence_threshold: Base threshold to emit a detection.
         When apply_sigmoid=True this is a sigmoid score (range 0 to 1);
         when apply_sigmoid=False it is a logit value.
       custom_confidence_thresholds: Species-specific override thresholds.
       custom_species_list: Path or iterable defining a subset of species.
-      half_precision: Use float16 where supported for inference.
-      max_audio_duration_min: Maximum total duration per call.
+      half_precision: Cast the model's outputs to float16 after inference;
+        inference itself runs at the model's precision.
+      max_audio_duration_min: Longest single input, in minutes, the segment
+        indices are sized for; ``None`` sizes them for any length. An input with
+        more segments than they can hold raises an error.
       device: Target device(s) for running the backend.
       show_stats: Level of statistics logging to emit.
       progress_callback: Optional callback to report progress. Invoked from a
         background worker thread, inheriting a copy of the caller's context
         (contextvars) as captured when the call starts.
+
+    A Raven export (``load_custom(.., "pb", .., is_raven=True)``) applies the
+    sigmoid inside its graph, so ``apply_sigmoid=True`` returns its scores as
+    they are. A ``sigmoid_sensitivity`` other than ``1.0`` is applied on logits
+    recovered from those scores; ``apply_sigmoid=False`` returns the raw scores
+    and ignores the sensitivity, as for a TFLite export. ``apply_softmax=True``
+    raises a ``ValueError``, as for the V3.0 models.
 
     Returns:
       AcousticPredictionResultBase: Object containing detected species and confidence
