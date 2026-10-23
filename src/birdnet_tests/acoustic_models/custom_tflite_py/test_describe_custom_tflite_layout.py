@@ -27,14 +27,18 @@ def _layout(
 
 def test_2_4_replace_from_the_input_length_and_embeddings() -> None:
   assert describe_custom_tflite_layout(_layout(3, 144_000, 1024)) == CustomTFLiteInfo(
-    "2.4", "replace", 3, False, True
+    "2.4", "replace", 3, False, True, 144_000
   )
 
 
 def test_3_0_append_from_the_species_count() -> None:
   assert describe_custom_tflite_layout(_layout(11_563, 96_000, 1280)) == (
-    CustomTFLiteInfo("3.0", "append", 11_563, True, True)
+    CustomTFLiteInfo("3.0", "append", 11_563, True, True, 96_000)
   )
+
+
+def test_a_dynamic_input_length_is_reported_as_none() -> None:
+  assert describe_custom_tflite_layout(_layout(3, None, 1280)).input_samples is None
 
 
 def test_exactly_the_official_count_is_still_replace() -> None:

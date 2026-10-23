@@ -156,13 +156,19 @@ class AcousticPBBackendFP32V3_0(PBBackend, VersionedAcousticBackendProtocol):
     # refinement inside the worker.
     return 1
 
+  @classmethod
+  def fixed_input_samples(cls) -> int | None:
+    # The compilation fixes the input to 3.0 s as well; another length fails the
+    # same shape refinement.
+    return 96_000
+
 
 class AcousticRavenBackendFP32V3_0(PBBackend, VersionedAcousticBackendProtocol):
   """A Raven export from BirdNET-Analyzer on the 3.0 base.
 
   Signature "basic" maps "inputs" (batch, 96000 samples) to "scores", with the
   sigmoid applied; there is no embeddings signature. It wraps the official
-  SavedModel, so it inherits its static batch of 1.
+  SavedModel, so it inherits its static batch of 1 and its fixed input length.
   """
 
   def __init__(
@@ -209,3 +215,7 @@ class AcousticRavenBackendFP32V3_0(PBBackend, VersionedAcousticBackendProtocol):
   @classmethod
   def max_batch_size(cls) -> int | None:
     return 1
+
+  @classmethod
+  def fixed_input_samples(cls) -> int | None:
+    return 96_000

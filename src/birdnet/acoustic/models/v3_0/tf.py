@@ -184,3 +184,39 @@ class AcousticTFBackendCustomNoEmbeddingsFP16V3_0(
   @classmethod
   def precision(cls) -> MODEL_PRECISIONS:
     return "fp16"
+
+
+class _FixedInputV3_0:
+  """A custom 3.0 classifier whose input shape signature fixes it to 3.0 s.
+
+  The classifier exports wrap the XLA-compiled SavedModel; the official TFLite
+  release, which load_custom also accepts, takes any length.
+  """
+
+  @classmethod
+  def fixed_input_samples(cls) -> int | None:
+    return 96_000
+
+
+class AcousticTFBackendCustomFixedInputV3_0(
+  _FixedInputV3_0, AcousticTFBackendCustomV3_0
+):
+  pass
+
+
+class AcousticTFBackendCustomFixedInputFP16V3_0(
+  _FixedInputV3_0, AcousticTFBackendCustomFP16V3_0
+):
+  pass
+
+
+class AcousticTFBackendCustomFixedInputNoEmbeddingsV3_0(
+  _FixedInputV3_0, AcousticTFBackendCustomNoEmbeddingsV3_0
+):
+  pass
+
+
+class AcousticTFBackendCustomFixedInputNoEmbeddingsFP16V3_0(
+  _FixedInputV3_0, AcousticTFBackendCustomNoEmbeddingsFP16V3_0
+):
+  pass

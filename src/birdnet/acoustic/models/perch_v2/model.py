@@ -83,7 +83,7 @@ class AcousticModelPerchV2(AcousticModelBase):
     """Create an encoding session with explicit resource configuration.
 
     Args:
-      n_producers: Threads tasked with producing audio batches.
+      n_producers: Processes tasked with producing audio batches.
       n_workers: Optional worker count for backend processing.
       batch_size: Number of records evaluated per inference call.
       prefetch_ratio: How many batches to decode ahead of processing.
@@ -91,14 +91,23 @@ class AcousticModelPerchV2(AcousticModelBase):
       speed: Resampling multiplier to accommodate different recording speeds.
       bandpass_fmin: Lower bound for the bandpass filter in Hz.
       bandpass_fmax: Upper bound for the bandpass filter in Hz.
-      half_precision: Use float16 where supported for inference.
-      max_audio_duration_min: Maximum total duration per call.
+      half_precision: Cast the model's outputs to float16 after inference;
+        inference itself runs at the model's precision.
+      max_audio_duration_min: Longest single input, in minutes, the segment
+        indices are sized for; ``None`` sizes them for any length. An input with
+        more segments than they can hold raises an error.
       show_stats: Level of statistics logging to emit.
       progress_callback: Optional callback to report progress. Invoked from a
         background worker thread, inheriting a copy of the caller's context
         (contextvars) as captured when the call starts.
       device: Target device(s) for running the backend.
       max_n_files: Upper bound on files to limit resource consumption.
+      on_file_complete: Optional callback fired once per input file as soon as
+        that file is fully processed, receiving a single-file
+        AcousticFileEncodingResult (invalid files are reported with their input
+        marked unprocessable). Enables streaming per-file persistence. Invoked
+        from a background thread with a copy of the caller's context; file
+        inputs only (not run_arrays). A callback that raises cancels the run.
 
     Returns:
       AcousticEncodingSession: Session capable of running encodings.
@@ -163,7 +172,7 @@ class AcousticModelPerchV2(AcousticModelBase):
 
     Args:
       top_k: Number of highest-confidence results to return per segment.
-      n_producers: Threads tasked with producing audio batches.
+      n_producers: Processes tasked with producing audio batches.
       n_workers: Optional worker count for backend processing.
       batch_size: Number of records evaluated per inference call.
       prefetch_ratio: How many batches to decode ahead of processing.
@@ -176,20 +185,33 @@ class AcousticModelPerchV2(AcousticModelBase):
         logit space rather than as sigmoid scores.
       apply_softmax: Whether to transform logits with a softmax. When False, output
         scores are raw logits unless apply_sigmoid=True.
-      sigmoid_sensitivity: Optional scale for the sigmoid function.
+      sigmoid_sensitivity: Shifts the logits by ``10 * (sigmoid_sensitivity - 1)``
+        before the sigmoid, so values above 1.0 raise the scores and values below
+        lower them; between 0.5 and 1.5, ``None`` means 1.0. Ignored with
+        ``apply_sigmoid=False``.
       default_confidence_threshold: Base threshold to emit a detection.
         When apply_sigmoid=True this is a sigmoid score (range 0 to 1);
         when apply_sigmoid=False it is a logit value.
       custom_confidence_thresholds: Species-specific override thresholds.
       custom_species_list: Path or iterable defining a subset of species.
-      half_precision: Use float16 where supported for inference.
-      max_audio_duration_min: Maximum total duration per call.
+      half_precision: Cast the model's outputs to float16 after inference;
+        inference itself runs at the model's precision.
+      max_audio_duration_min: Longest single input, in minutes, the segment
+        indices are sized for; ``None`` sizes them for any length. An input with
+        more segments than they can hold raises an error.
       show_stats: Level of statistics logging to emit.
       progress_callback: Optional callback to report progress. Invoked from a
         background worker thread, inheriting a copy of the caller's context
         (contextvars) as captured when the call starts.
       device: Target device(s) for running the backend.
       max_n_files: Upper bound on files to limit resource consumption.
+      on_file_complete: Optional callback fired once per input file as soon as
+        that file is fully processed, receiving a single-file
+        AcousticFilePredictionResult (invalid files are reported with their
+        input marked unprocessable). Enables streaming per-file persistence
+        (e.g. resumable analysis). Invoked from a background thread with a copy
+        of the caller's context; file inputs only (not run_arrays). A callback
+        that raises cancels the run.
 
     Returns:
       AcousticPredictionSession: Session capable of running predictions.
@@ -253,7 +275,7 @@ class AcousticModelPerchV2(AcousticModelBase):
 
     Args:
       inp: Path(s) or string(s) pointing to audio files to encode.
-      n_producers: Threads tasked with producing audio batches.
+      n_producers: Processes tasked with producing audio batches.
       n_workers: Optional worker count for backend processing.
       batch_size: Number of records evaluated per inference call.
       prefetch_ratio: How many batches to decode ahead of processing.
@@ -261,8 +283,11 @@ class AcousticModelPerchV2(AcousticModelBase):
       speed: Resampling multiplier to accommodate different recording speeds.
       bandpass_fmin: Lower bound for the bandpass filter in Hz.
       bandpass_fmax: Upper bound for the bandpass filter in Hz.
-      half_precision: Use float16 where supported for inference.
-      max_audio_duration_min: Maximum total duration per call.
+      half_precision: Cast the model's outputs to float16 after inference;
+        inference itself runs at the model's precision.
+      max_audio_duration_min: Longest single input, in minutes, the segment
+        indices are sized for; ``None`` sizes them for any length. An input with
+        more segments than they can hold raises an error.
       show_stats: Level of statistics logging to emit.
       progress_callback: Optional callback to report progress. Invoked from a
         background worker thread, inheriting a copy of the caller's context
@@ -323,7 +348,7 @@ class AcousticModelPerchV2(AcousticModelBase):
 
     Args:
       inp: Tuple(s) of (audio ndarray, sampling rate).
-      n_producers: Threads generating batches from the arrays.
+      n_producers: Processes generating batches from the arrays.
       n_workers: Optional worker count for backend processing.
       batch_size: Number of records evaluated per inference call.
       prefetch_ratio: How many batches to decode ahead of processing.
@@ -331,8 +356,11 @@ class AcousticModelPerchV2(AcousticModelBase):
       speed: Resampling multiplier to accommodate different recording speeds.
       bandpass_fmin: Lower bound for the bandpass filter in Hz.
       bandpass_fmax: Upper bound for the bandpass filter in Hz.
-      half_precision: Use float16 where supported for inference.
-      max_audio_duration_min: Maximum total duration per call.
+      half_precision: Cast the model's outputs to float16 after inference;
+        inference itself runs at the model's precision.
+      max_audio_duration_min: Longest single input, in minutes, the segment
+        indices are sized for; ``None`` sizes them for any length. An input with
+        more segments than they can hold raises an error.
       show_stats: Level of statistics logging to emit.
       progress_callback: Optional callback to report progress. Invoked from a
         background worker thread, inheriting a copy of the caller's context
@@ -396,7 +424,7 @@ class AcousticModelPerchV2(AcousticModelBase):
     Args:
       inp: Path(s) or string(s) pointing to audio files to analyze.
       top_k: Number of highest-confidence results to return per segment.
-      n_producers: Threads tasked with producing audio batches.
+      n_producers: Processes tasked with producing audio batches.
       n_workers: Optional worker count for backend processing.
       batch_size: Number of records evaluated per inference call.
       prefetch_ratio: How many batches to decode ahead of processing.
@@ -409,19 +437,32 @@ class AcousticModelPerchV2(AcousticModelBase):
         logit space rather than as sigmoid scores.
       apply_softmax: Whether to transform logits with a softmax. When False, output
         scores are raw logits unless apply_sigmoid=True.
-      sigmoid_sensitivity: Optional scale for the sigmoid function.
+      sigmoid_sensitivity: Shifts the logits by ``10 * (sigmoid_sensitivity - 1)``
+        before the sigmoid, so values above 1.0 raise the scores and values below
+        lower them; between 0.5 and 1.5, ``None`` means 1.0. Ignored with
+        ``apply_sigmoid=False``.
       default_confidence_threshold: Base threshold to emit a detection.
         When apply_sigmoid=True this is a sigmoid score (range 0 to 1);
         when apply_sigmoid=False it is a logit value.
       custom_confidence_thresholds: Species-specific override thresholds.
       custom_species_list: Path or iterable defining a subset of species.
-      half_precision: Use float16 where supported for inference.
-      max_audio_duration_min: Maximum total duration per call.
+      half_precision: Cast the model's outputs to float16 after inference;
+        inference itself runs at the model's precision.
+      max_audio_duration_min: Longest single input, in minutes, the segment
+        indices are sized for; ``None`` sizes them for any length. An input with
+        more segments than they can hold raises an error.
       device: Target device(s) for running the backend.
       show_stats: Level of statistics logging to emit.
       progress_callback: Optional callback to report progress. Invoked from a
         background worker thread, inheriting a copy of the caller's context
         (contextvars) as captured when the call starts.
+      on_file_complete: Optional callback fired once per input file as soon as
+        that file is fully processed, receiving a single-file
+        AcousticFilePredictionResult (invalid files are reported with their
+        input marked unprocessable). Enables streaming per-file persistence
+        (e.g. resumable analysis). Invoked from a background thread with a copy
+        of the caller's context; file inputs only (not predict_arrays). A callback
+        that raises cancels the run.
 
     Returns:
       AcousticPredictionResultBase: Object containing detected species and confidence
@@ -487,7 +528,7 @@ class AcousticModelPerchV2(AcousticModelBase):
     Args:
       inp: Tuple(s) of (audio ndarray, sampling rate).
       top_k: Number of highest-confidence results to return per segment.
-      n_producers: Threads generating batches from the arrays.
+      n_producers: Processes generating batches from the arrays.
       n_workers: Optional worker count for backend processing.
       batch_size: Number of records evaluated per inference call.
       prefetch_ratio: How many batches to decode ahead of processing.
@@ -498,7 +539,10 @@ class AcousticModelPerchV2(AcousticModelBase):
       apply_sigmoid: Whether to transform logits with a sigmoid.
         When False, output scores are raw logits and thresholds are interpreted in
         logit space rather than as sigmoid scores.
-      sigmoid_sensitivity: Optional scale for the sigmoid function.
+      sigmoid_sensitivity: Shifts the logits by ``10 * (sigmoid_sensitivity - 1)``
+        before the sigmoid, so values above 1.0 raise the scores and values below
+        lower them; between 0.5 and 1.5, ``None`` means 1.0. Ignored with
+        ``apply_sigmoid=False``.
       apply_softmax: Whether to transform logits with a softmax. When False, output
         scores are raw logits unless apply_sigmoid=True.
       default_confidence_threshold: Base threshold to emit a detection.
@@ -506,8 +550,11 @@ class AcousticModelPerchV2(AcousticModelBase):
         when apply_sigmoid=False it is a logit value.
       custom_confidence_thresholds: Species-specific override thresholds.
       custom_species_list: Path or iterable defining a subset of species.
-      half_precision: Use float16 where supported for inference.
-      max_audio_duration_min: Maximum total duration per call.
+      half_precision: Cast the model's outputs to float16 after inference;
+        inference itself runs at the model's precision.
+      max_audio_duration_min: Longest single input, in minutes, the segment
+        indices are sized for; ``None`` sizes them for any length. An input with
+        more segments than they can hold raises an error.
       device: Target device(s) for running the backend.
       show_stats: Level of statistics logging to emit.
       progress_callback: Optional callback to report progress. Invoked from a

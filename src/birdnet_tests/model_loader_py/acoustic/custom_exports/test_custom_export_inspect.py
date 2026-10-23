@@ -22,20 +22,24 @@ from birdnet_tests.test_files import TEST_FILES_DIR
 pytestmark = pytest.mark.timeout(EXPORT_TEST_TIMEOUT_S)
 
 EXPECTED: dict[ExportSpec, CustomTFLiteInfo] = {
-  V2_4_REPLACE: CustomTFLiteInfo("2.4", "replace", 3, False, True),
-  V2_4_APPEND: CustomTFLiteInfo("2.4", "append", 6522 + 3, False, True),
-  V2_4_REPLACE_HIDDEN: CustomTFLiteInfo("2.4", "replace", 3, False, True),
-  V3_0_REPLACE: CustomTFLiteInfo("3.0", "replace", 3, True, True),
-  V3_0_APPEND: CustomTFLiteInfo("3.0", "append", 11560 + 3, True, True),
+  V2_4_REPLACE: CustomTFLiteInfo("2.4", "replace", 3, False, True, 144_000),
+  V2_4_APPEND: CustomTFLiteInfo("2.4", "append", 6522 + 3, False, True, 144_000),
+  V2_4_REPLACE_HIDDEN: CustomTFLiteInfo("2.4", "replace", 3, False, True, 144_000),
+  V3_0_REPLACE: CustomTFLiteInfo("3.0", "replace", 3, True, True, 96_000),
+  V3_0_APPEND: CustomTFLiteInfo("3.0", "append", 11560 + 3, True, True, 96_000),
 }
 
 # Exports of earlier analyzer releases, checked in under TEST_FILES.
 LEGACY_DIR = TEST_FILES_DIR / "custom_models" / "tf"
 EXPECTED_LEGACY: dict[str, CustomTFLiteInfo] = {
-  "replace.tflite": CustomTFLiteInfo("2.4", "replace", 4, False, True),
-  "append.tflite": CustomTFLiteInfo("2.4", "append", 6522 + 3, False, True),
-  "replace+hidden1024.tflite": CustomTFLiteInfo("2.4", "replace", 3, False, True),
-  "append+hidden1024.tflite": CustomTFLiteInfo("2.4", "append", 6522 + 3, False, True),
+  "replace.tflite": CustomTFLiteInfo("2.4", "replace", 4, False, True, 144_000),
+  "append.tflite": CustomTFLiteInfo("2.4", "append", 6522 + 3, False, True, 144_000),
+  "replace+hidden1024.tflite": CustomTFLiteInfo(
+    "2.4", "replace", 3, False, True, 144_000
+  ),
+  "append+hidden1024.tflite": CustomTFLiteInfo(
+    "2.4", "append", 6522 + 3, False, True, 144_000
+  ),
 }
 
 

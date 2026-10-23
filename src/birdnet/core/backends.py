@@ -113,6 +113,15 @@ class Backend(Generic[BatchT], ABC):
     """
     return None
 
+  @classmethod
+  def fixed_input_samples(cls) -> int | None:
+    """The only input length, in samples, the model accepts, or None for any.
+
+    Exports compiled with a static input length fail inside the worker for any
+    other segment length, so the session rejects such a length up front.
+    """
+    return None
+
   @abstractmethod
   def copy_to_device(self, batch: np.ndarray) -> BatchT: ...
 
@@ -169,6 +178,9 @@ class VersionedAcousticBackendProtocol(VersionedBackendProtocol, Protocol):
 
   @classmethod
   def max_batch_size(cls) -> int | None: ...
+
+  @classmethod
+  def fixed_input_samples(cls) -> int | None: ...
 
 
 @runtime_checkable

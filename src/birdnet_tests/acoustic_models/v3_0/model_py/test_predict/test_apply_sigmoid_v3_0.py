@@ -77,6 +77,16 @@ def test_v3_0_non_default_sigmoid_sensitivity_turns_the_pipeline_sigmoid_on(
 
 
 @pytest.mark.no_tf
+def test_v3_0_sigmoid_sensitivity_none_is_the_default_sigmoid(
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+  model = _fake_model(tmp_path, monkeypatch)
+  session = model.predict_session(top_k=None, sigmoid_sensitivity=None)
+  assert session._specific_config.apply_sigmoid is False
+  assert session._specific_config.sigmoid_sensitivity is None
+
+
+@pytest.mark.no_tf
 def test_v3_0_sigmoid_sensitivity_is_ignored_without_apply_sigmoid(
   tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

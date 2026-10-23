@@ -1,6 +1,7 @@
+import numbers
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Self
+from typing import Any, Self, cast
 
 from ordered_set import OrderedSet
 
@@ -18,7 +19,7 @@ from birdnet.acoustic.inference.session import (
 from birdnet.core.backends import BackendLoader, VersionedAcousticBackendProtocol
 from birdnet.core.base import ModelBase
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
-from birdnet.utils.helper import validate_species_list
+from birdnet.utils.helper import duration_as_samples, validate_species_list
 
 
 def resolve_in_graph_sigmoid_options(
@@ -76,6 +77,30 @@ def validate_batch_size_for_backend(
       f"{max_batch_size}. Use batch_size={max_batch_size} (workers still run in "
       "parallel) or a backend with a dynamic batch, such as 'onnx' or 'pt' for "
       "the official 3.0 model."
+    )
+
+
+def validate_segment_size_for_backend(
+  segment_size_s: object,
+  sample_rate: int,
+  backend_type: type[VersionedAcousticBackendProtocol],
+) -> None:
+  """Reject a segment length the backend's export cannot process.
+
+  Anything but a number is left to the session's own validation.
+  """
+  fixed_samples = backend_type.fixed_input_samples()
+  if fixed_samples is None or not isinstance(segment_size_s, numbers.Real):
+    return
+  # The model's input width, rounded as ModelConfig.segment_size_samples does.
+  if duration_as_samples(cast(float, segment_size_s), sample_rate) != fixed_samples:
+    fixed_s = fixed_samples / sample_rate
+    raise ValueError(
+      f"segment_size_s={segment_size_s} is not supported by the "
+      f"'{backend_type.name()}' backend of this model: its export takes a fixed "
+      f"input of {fixed_samples} samples ({fixed_s} s). Use "
+      f"segment_size_s={fixed_s}; of the official 3.0 models, the 'tf', 'onnx' "
+      "and 'pt' exports take other lengths."
     )
 
 

@@ -132,7 +132,9 @@ class Producer(bn_logging.LogableProcessBase):
       self.sig_fmin = None
       self.sig_fmax = None
 
-    self.segment_duration_samples = target_sample_rate * int(segment_duration_s)
+    self.segment_duration_samples = duration_as_samples(
+      segment_duration_s, target_sample_rate
+    )
 
     self._rf_file_indices = rf_file_indices
     self._rf_segment_indices = rf_segment_indices
@@ -798,6 +800,7 @@ def get_segments_with_overlap(
 
   n_samples_orig_seg = duration_as_samples(segment_duration_s, audio_sr)
   n_samples_orig_overlap = duration_as_samples(overlap_duration_s, audio_sr)
+  n_samples_target_seg = duration_as_samples(segment_duration_s, target_sample_rate)
 
   if not 1 / round(segment_duration_s * audio_sr) <= speed:
     raise ValueError(
@@ -825,7 +828,13 @@ def get_segments_with_overlap(
     assert audio.dtype == np.float32
 
     audio = resample_array_by_stretching(audio, target_n_samples)
-    audio = resample_array_by_sr(audio, audio_sr, target_sample_rate)
+    if target_n_samples == n_samples_orig_seg:
+      # Rounded at two sample rates, a full segment can resample a few samples
+      # off the model's input width (48001 instead of 48000 from 11025 Hz at
+      # 1.5 s); resampling to the width directly keeps it exact.
+      audio = resample_array_by_stretching(audio, n_samples_target_seg)
+    else:
+      audio = resample_array_by_sr(audio, audio_sr, target_sample_rate)
     yield audio
 
 
