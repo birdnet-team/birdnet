@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import os
-import shutil
-import tempfile
-import zipfile
 from collections.abc import Collection
+from functools import partial
 from pathlib import Path
 
 from ordered_set import OrderedSet
@@ -28,10 +26,11 @@ from birdnet.globals import (
   MODEL_PRECISION_INT8,
   MODEL_PRECISIONS,
 )
-from birdnet.utils.helper import ModelInfo, download_file_tqdm, get_species_from_file
-from birdnet.utils.local_data import get_lang_dir, get_model_path
+from birdnet.utils.downloads import download_zip_members, ensure_download
+from birdnet.utils.helper import ModelInfo, get_species_from_file
+from birdnet.utils.local_data import get_lang_dir, get_model_path, get_model_root_dir
 
-models = {
+models: dict[MODEL_PRECISIONS, ModelInfo] = {
   MODEL_PRECISION_INT8: ModelInfo(
     dl_url="https://zenodo.org/records/15050749/files/BirdNET_v2.4_tflite_int8.zip",
     dl_file_name="audio-model-int8.tflite",
@@ -70,6 +69,11 @@ class AcousticTFDownloaderV2_4(AcousticDownloaderBaseV2_4):
     return model_path, lang_dir
 
   @classmethod
+  def _lock_dir(cls) -> Path:
+    # One lock for all precisions: they share the labels directory.
+    return get_model_root_dir("acoustic", "2.4", MODEL_BACKEND_TF) / ".download.lock"
+
+  @classmethod
   def _check_acoustic_model_available(cls, precision: MODEL_PRECISIONS) -> bool:
     model_path, lang_dir = cls._get_paths(precision)
 
@@ -88,38 +92,38 @@ class AcousticTFDownloaderV2_4(AcousticDownloaderBaseV2_4):
 
   @classmethod
   def _download_model(cls, precision: MODEL_PRECISIONS) -> None:
-    with tempfile.TemporaryDirectory(prefix="birdnet_download") as temp_dir:
-      zip_download_path = Path(temp_dir) / "download.zip"
-      download_file_tqdm(
-        models[precision].dl_url,
-        zip_download_path,
-        download_size=models[precision].dl_size,
-        description=f"Downloading acoustic model v2.4 (tf, {precision})",
-      )
-
-      extract_dir = Path(temp_dir) / "extracted"
-
-      with zipfile.ZipFile(zip_download_path, "r") as zip_ref:
-        zip_ref.extractall(extract_dir)
-
-      acoustic_model_dl_path = extract_dir / models[precision].dl_file_name
-      species_dl_dir = extract_dir / "labels"
-
-      acoustic_model_path, acoustic_lang_dir = cls._get_paths(precision)
-      acoustic_model_path.parent.mkdir(parents=True, exist_ok=True)
-      shutil.move(acoustic_model_dl_path, acoustic_model_path)
-
-      acoustic_lang_dir.parent.mkdir(parents=True, exist_ok=True)
-      shutil.rmtree(acoustic_lang_dir, ignore_errors=True)
-      shutil.move(species_dl_dir, acoustic_lang_dir)
+    model_path, lang_dir = cls._get_paths(precision)
+    members: list[tuple[str | None, Path]] = [
+      (models[precision].dl_file_name, model_path)
+    ]
+    # The precisions share the labels directory. While a sibling is usable, its
+    # labels are being read without the lock and stay in place; replacing them
+    # would pull the directory from under such a load.
+    sibling_usable = any(
+      cls._check_acoustic_model_available(other)
+      for other in models
+      if other != precision
+    )
+    if not sibling_usable:
+      members.append(("labels", lang_dir))
+    download_zip_members(
+      models[precision].dl_url,
+      models[precision].dl_size,
+      f"acoustic model v2.4 (tf, {precision})",
+      members,
+    )
 
   @classmethod
   def get_model_path_and_labels(
     cls, lang: str, precision: MODEL_PRECISIONS
   ) -> tuple[Path, OrderedSet[str]]:
     assert lang in cls.AVAILABLE_LANGUAGES
-    if not cls._check_acoustic_model_available(precision):
-      cls._download_model(precision)
+    ensure_download(
+      partial(cls._check_acoustic_model_available, precision),
+      partial(cls._download_model, precision),
+      cls._lock_dir(),
+      f"the acoustic model v2.4 (tf, {precision}) download",
+    )
     assert cls._check_acoustic_model_available(precision)
 
     model_path, langs_path = cls._get_paths(precision)

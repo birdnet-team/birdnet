@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from birdnet.utils.helper import directory_lock
+from birdnet.utils.helper import directory_lock, lock_heartbeat
 
 
 @pytest.mark.no_tf
@@ -139,3 +139,79 @@ def _a_pid_that_does_not_exist() -> int:
     if not psutil.pid_exists(candidate):
       return candidate
   raise AssertionError("no free pid found")
+
+
+def _wait_until_held(lock_dir: Path) -> None:
+  deadline = time.monotonic() + 10
+  while not lock_dir.is_dir():
+    assert time.monotonic() < deadline, "the holder never took the lock"
+    time.sleep(0.01)
+
+
+@pytest.mark.no_tf
+def test_a_waiter_outlasts_its_timeout_while_the_holder_beats(tmp_path: Path) -> None:
+  """The timeout bounds the time since the holder's last beat, not the whole
+  wait: a holder in a step longer than the timeout keeps its waiters."""
+  lock_dir = tmp_path / ".lock"
+  release = threading.Event()
+
+  def hold() -> None:
+    with directory_lock(lock_dir, "a test"), lock_heartbeat(lock_dir, interval_s=0.05):
+      release.wait(10)
+
+  holder = threading.Thread(target=hold, daemon=True)
+  holder.start()
+  _wait_until_held(lock_dir)
+  threading.Timer(1.5, release.set).start()
+
+  with directory_lock(lock_dir, "a test", timeout_s=0.5):
+    pass
+
+  holder.join(10)
+  assert not holder.is_alive()
+
+
+@pytest.mark.no_tf
+def test_a_waiter_gives_up_once_the_beat_is_stale(tmp_path: Path) -> None:
+  """A beat that stops changing is given up on after `timeout_s` of the
+  waiter's own time, whatever the file's timestamp says."""
+  lock_dir = tmp_path / ".lock"
+  with directory_lock(lock_dir, "a test"):
+    (lock_dir / "heartbeat").touch()
+
+    started = time.monotonic()
+    with (
+      pytest.raises(TimeoutError, match="waiting for a test"),
+      directory_lock(lock_dir, "a test", timeout_s=0.5),
+    ):
+      pass
+    elapsed = time.monotonic() - started
+
+  assert 0.5 <= elapsed < 10
+
+
+@pytest.mark.no_tf
+def test_a_beat_stamped_by_a_clock_behind_ours_is_not_stale(tmp_path: Path) -> None:
+  """On a network share the beat's mtime is the file server's clock. A server
+  an hour behind must not make every fresh beat look an hour old."""
+  lock_dir = tmp_path / ".lock"
+  release = threading.Event()
+
+  def hold_and_beat_an_hour_behind() -> None:
+    with directory_lock(lock_dir, "a test"):
+      beat = lock_dir / "heartbeat"
+      while not release.wait(0.05):
+        beat.touch()
+        behind = time.time() - 3600
+        os.utime(beat, (behind, behind))
+
+  holder = threading.Thread(target=hold_and_beat_an_hour_behind, daemon=True)
+  holder.start()
+  _wait_until_held(lock_dir)
+  threading.Timer(1.5, release.set).start()
+
+  with directory_lock(lock_dir, "a test", timeout_s=0.5):
+    pass
+
+  holder.join(10)
+  assert not holder.is_alive()

@@ -15,6 +15,12 @@ import birdnet.acoustic.models.v3_0.model as acoustic_model
 import birdnet.geo.models.v3_0.model as geo_model
 import birdnet.utils.taxonomy_v3 as taxonomy_v3
 from birdnet.acoustic.models.perch_v2.pb import AcousticPBDownloaderPerchV2
+from birdnet.acoustic.models.v2_4.pb import AcousticPBDownloaderV2_4
+from birdnet.acoustic.models.v2_4.tf import AcousticTFDownloaderV2_4
+from birdnet.acoustic.models.v3_0.pb import AcousticPBDownloaderV3_0
+from birdnet.geo.models.v2_4.pb import GeoPBDownloaderV2_4
+from birdnet.geo.models.v2_4.tf import GeoTFDownloaderV2_4
+from birdnet.geo.models.v3_0.pb import GeoPBDownloaderV3_0
 from birdnet.globals import ENV_VAR_APP_DATA
 from birdnet.utils.local_data import (
   get_benchmark_dir,
@@ -45,6 +51,13 @@ def test_every_cache_path_follows_the_directory_set_after_import(
     "taxonomy": taxonomy_v3.get_taxonomy_v3_input().path,
     "legacy taxonomy": taxonomy_v3._legacy_taxonomy_v3_path(),
     "taxonomy lock": taxonomy_v3._taxonomy_v3_lock_dir(),
+    "acoustic 2.4 pb download lock": AcousticPBDownloaderV2_4._lock_dir(),
+    "acoustic 2.4 tf download lock": AcousticTFDownloaderV2_4._lock_dir(),
+    "acoustic 3.0 pb download lock": AcousticPBDownloaderV3_0._lock_dir(),
+    "geo 2.4 pb download lock": GeoPBDownloaderV2_4._lock_dir(),
+    "geo 2.4 tf download lock": GeoTFDownloaderV2_4._lock_dir(),
+    "geo 3.0 pb download lock": GeoPBDownloaderV3_0._lock_dir(),
+    "perch v2 download lock": AcousticPBDownloaderPerchV2._lock_dir(),
   }
 
   stray = {

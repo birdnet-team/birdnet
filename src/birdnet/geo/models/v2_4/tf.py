@@ -1,9 +1,6 @@
 from __future__ import annotations
 
 import os
-import shutil
-import tempfile
-import zipfile
 from pathlib import Path
 
 from ordered_set import OrderedSet
@@ -17,12 +14,9 @@ from birdnet.globals import (
   MODEL_PRECISION_FP32,
   MODEL_PRECISIONS,
 )
-from birdnet.utils.helper import (
-  ModelInfo,
-  download_file_tqdm,
-  get_species_from_file,
-)
-from birdnet.utils.local_data import get_lang_dir, get_model_path
+from birdnet.utils.downloads import download_zip_members, ensure_download
+from birdnet.utils.helper import ModelInfo, get_species_from_file
+from birdnet.utils.local_data import get_lang_dir, get_model_path, get_model_root_dir
 
 
 class GeoTFDownloaderV2_4(GeoDownloaderBaseV2_4):
@@ -39,6 +33,10 @@ class GeoTFDownloaderV2_4(GeoDownloaderBaseV2_4):
     model_path = get_model_path("geo", "2.4", "tf", MODEL_PRECISION_FP32)
     lang_dir = get_lang_dir("geo", "2.4", "tf")
     return model_path, lang_dir
+
+  @classmethod
+  def _lock_dir(cls) -> Path:
+    return get_model_root_dir("geo", "2.4", "tf") / ".download.lock"
 
   @classmethod
   def _check_geo_model_available(cls) -> bool:
@@ -59,36 +57,23 @@ class GeoTFDownloaderV2_4(GeoDownloaderBaseV2_4):
 
   @classmethod
   def _download_model(cls) -> None:
-    with tempfile.TemporaryDirectory(prefix="birdnet_download") as temp_dir:
-      zip_download_path = Path(temp_dir) / "download.zip"
-      download_file_tqdm(
-        cls._model_info.dl_url,
-        zip_download_path,
-        download_size=cls._model_info.dl_size,
-        description="Downloading geo model v2.4 (tf)",
-      )
-
-      extract_dir = Path(temp_dir) / "extracted"
-
-      with zipfile.ZipFile(zip_download_path, "r") as zip_ref:
-        zip_ref.extractall(extract_dir)
-
-      geo_model_dl_path = extract_dir / cls._model_info.dl_file_name
-      species_dl_dir = extract_dir / "labels"
-
-      geo_model_path, geo_lang_dir = cls._get_paths()
-      geo_model_path.parent.mkdir(parents=True, exist_ok=True)
-      shutil.move(geo_model_dl_path, geo_model_path)
-
-      geo_lang_dir.parent.mkdir(parents=True, exist_ok=True)
-      shutil.rmtree(geo_lang_dir, ignore_errors=True)
-      shutil.move(species_dl_dir, geo_lang_dir)
+    model_path, lang_dir = cls._get_paths()
+    download_zip_members(
+      cls._model_info.dl_url,
+      cls._model_info.dl_size,
+      "geo model v2.4 (tf)",
+      [(cls._model_info.dl_file_name, model_path), ("labels", lang_dir)],
+    )
 
   @classmethod
   def get_model_path_and_labels(cls, lang: str) -> tuple[Path, OrderedSet[str]]:
     assert lang in cls.AVAILABLE_LANGUAGES
-    if not cls._check_geo_model_available():
-      cls._download_model()
+    ensure_download(
+      cls._check_geo_model_available,
+      cls._download_model,
+      cls._lock_dir(),
+      "the geo model v2.4 (tf) download",
+    )
     assert cls._check_geo_model_available()
 
     model_path, langs_path = cls._get_paths()

@@ -5,6 +5,7 @@ import os
 import sys
 import threading
 import time
+import zipfile
 from collections.abc import Callable, Generator, Iterable
 from multiprocessing import get_all_start_methods, set_start_method
 from pathlib import Path
@@ -14,6 +15,7 @@ import numpy as np
 import psutil
 import pytest
 
+import birdnet.utils.helper as birdnet_helper
 from birdnet.acoustic.inference.core.encoding.encoding_result import (
   AcousticEncodingResultBase,
 )
@@ -517,6 +519,51 @@ def create_fake_lang_dir(lang_dir: Path, languages: Iterable[str]) -> None:
   lang_dir.mkdir(parents=True, exist_ok=True)
   for lang in languages:
     (lang_dir / f"{lang}.txt").write_text("Species_species_Species\n", encoding="utf-8")
+
+
+def saved_model_members(prefix: str) -> dict[str, bytes]:
+  """Zip members of the layout `check_protobuf_model_files_exist` looks for."""
+  return {
+    f"{prefix}saved_model.pb": b"",
+    f"{prefix}variables/variables.data-00000-of-00001": b"",
+    f"{prefix}variables/variables.index": b"",
+  }
+
+
+def label_members(prefix: str, languages: Iterable[str]) -> dict[str, bytes]:
+  return {f"{prefix}{lang}.txt": b"Species_species_Species\n" for lang in languages}
+
+
+def fake_zip_downloads(
+  monkeypatch: pytest.MonkeyPatch,
+  archives: dict[str, dict[str, bytes]],
+  *,
+  held_lock: Path | None = None,
+) -> list[str]:
+  """Serve `archives` (URL to member path to content) instead of downloading.
+
+  Returns the list the requested URLs are appended to. With `held_lock`, every
+  download asserts that this lock directory is held while it runs.
+  """
+  calls: list[str] = []
+
+  def fake(
+    url: str,
+    file_path: Path,
+    *,
+    download_size: int | None = None,
+    description: str | None = None,
+  ) -> int:
+    calls.append(url)
+    if held_lock is not None:
+      assert (held_lock / "owner").is_file(), f"downloading without {held_lock}"
+    with zipfile.ZipFile(file_path, "w") as archive:
+      for member, content in archives[url].items():
+        archive.writestr(member, content)
+    return file_path.stat().st_size
+
+  monkeypatch.setattr(birdnet_helper, "download_file_tqdm", fake)
+  return calls
 
 
 def saved_arrays(result: ResultBase) -> dict[str, np.ndarray]:
