@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import shutil
-import tempfile
-import zipfile
 from pathlib import Path
 
 from ordered_set import OrderedSet
@@ -16,14 +13,13 @@ from birdnet.globals import (
   MODEL_PRECISION_FP32,
   MODEL_PRECISIONS,
 )
-from birdnet.utils.helper import (
-  check_protobuf_model_files_exist,
-  check_source_marker,
-  download_file_tqdm,
-  get_species_from_file,
-  write_source_marker,
+from birdnet.utils.downloads import (
+  download_zip_members,
+  ensure_download,
+  saved_model_is_current,
 )
-from birdnet.utils.local_data import get_lang_dir, get_model_path
+from birdnet.utils.helper import get_species_from_file, write_source_marker
+from birdnet.utils.local_data import get_lang_dir, get_model_path, get_model_root_dir
 
 _YEAR_ROUND_WEEK_INPUTS = tuple(float(week) for week in range(1, 49))
 
@@ -41,42 +37,25 @@ class GeoPBDownloaderV3_0(GeoDownloaderBaseV3_0):
     return get_model_path("geo", "3.0", "pb", MODEL_PRECISION_FP32)
 
   @classmethod
+  def _lock_dir(cls) -> Path:
+    return get_model_root_dir("geo", "3.0", "pb") / ".download.lock"
+
+  @classmethod
   def _check_geo_model_available(cls) -> bool:
-    model_path = cls._get_model_path()
-
-    if not model_path.is_dir():
+    if not saved_model_is_current(cls._get_model_path(), _PB_DL_URL):
       return False
-    if not check_protobuf_model_files_exist(model_path):
-      return False
-    if not check_source_marker(model_path, _PB_DL_URL):
-      return False
-
     return cls._check_labels_available()
 
   @classmethod
   def _download_model(cls) -> None:
-    with tempfile.TemporaryDirectory(prefix="birdnet_download") as temp_dir:
-      zip_download_path = Path(temp_dir) / "download.zip"
-      download_file_tqdm(
-        _PB_DL_URL,
-        zip_download_path,
-        download_size=_PB_DL_SIZE,
-        description="Downloading geo model v3.0 (pb)",
-      )
-
-      print("Extracting...")  # noqa: T201
-      extract_dir = Path(temp_dir) / "extracted"
-
-      with zipfile.ZipFile(zip_download_path, "r") as zip_ref:
-        zip_ref.extractall(extract_dir)
-
-      geo_model_dl_dir = extract_dir / "BirdNET+_Geomodel_V3.0.4_Global_14K_FP32_TF"
-      geo_model_dir = cls._get_model_path()
-      geo_model_dir.parent.mkdir(parents=True, exist_ok=True)
-      shutil.rmtree(geo_model_dir, ignore_errors=True)
-      shutil.move(geo_model_dl_dir, geo_model_dir)
-      write_source_marker(geo_model_dir, _PB_DL_URL)
-      print("Extracted.")  # noqa: T201
+    model_dir = cls._get_model_path()
+    download_zip_members(
+      _PB_DL_URL,
+      _PB_DL_SIZE,
+      "geo model v3.0 (pb)",
+      [("BirdNET+_Geomodel_V3.0.4_Global_14K_FP32_TF", model_dir)],
+    )
+    write_source_marker(model_dir, _PB_DL_URL)
 
   @classmethod
   def get_model_path_and_labels(
@@ -87,8 +66,12 @@ class GeoPBDownloaderV3_0(GeoDownloaderBaseV3_0):
 
     cls.ensure_labels_available()
 
-    if not cls._check_geo_model_available():
-      cls._download_model()
+    ensure_download(
+      cls._check_geo_model_available,
+      cls._download_model,
+      cls._lock_dir(),
+      "the geo model v3.0 (pb) download",
+    )
     assert cls._check_geo_model_available()
 
     lang_file = cls.get_lang_file(lang)

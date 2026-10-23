@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import shutil
-import tempfile
-import zipfile
 from pathlib import Path
 
 from ordered_set import OrderedSet
@@ -19,14 +16,13 @@ from birdnet.globals import (
   MODEL_PRECISION_FP32,
   MODEL_PRECISIONS,
 )
-from birdnet.utils.helper import (
-  check_protobuf_model_files_exist,
-  check_source_marker,
-  download_file_tqdm,
-  get_species_from_file,
-  write_source_marker,
+from birdnet.utils.downloads import (
+  download_zip_members,
+  ensure_download,
+  saved_model_is_current,
 )
-from birdnet.utils.local_data import get_lang_dir, get_model_path
+from birdnet.utils.helper import get_species_from_file, write_source_marker
+from birdnet.utils.local_data import get_lang_dir, get_model_path, get_model_root_dir
 
 _PB_DL_URL = "https://zenodo.org/records/15050749/files/BirdNET_v2.4_protobuf.zip"
 _PB_DL_SIZE = 124522908
@@ -40,58 +36,40 @@ class AcousticPBDownloaderV2_4(AcousticDownloaderBaseV2_4):
     return model_path, lang_dir
 
   @classmethod
+  def _lock_dir(cls) -> Path:
+    return get_model_root_dir("acoustic", "2.4", "pb") / ".download.lock"
+
+  @classmethod
   def _check_acoustic_model_available(cls) -> bool:
     model_path, lang_dir = cls._get_paths()
-
-    model_is_downloaded = True
-    model_is_downloaded &= model_path.is_dir()
-    model_is_downloaded &= check_protobuf_model_files_exist(model_path)
-    model_is_downloaded &= check_source_marker(model_path, _PB_DL_URL)
-
-    model_is_downloaded &= lang_dir.is_dir()
-    for lang in cls.AVAILABLE_LANGUAGES:
-      model_is_downloaded &= (lang_dir / f"{lang}.txt").is_file()
-
-    return model_is_downloaded
+    if not saved_model_is_current(model_path, _PB_DL_URL):
+      return False
+    if not lang_dir.is_dir():
+      return False
+    return all((lang_dir / f"{lang}.txt").is_file() for lang in cls.AVAILABLE_LANGUAGES)
 
   @classmethod
   def _download_model(cls) -> None:
-    with tempfile.TemporaryDirectory(prefix="birdnet_download") as temp_dir:
-      zip_download_path = Path(temp_dir) / "download.zip"
-      download_file_tqdm(
-        _PB_DL_URL,
-        zip_download_path,
-        download_size=_PB_DL_SIZE,
-        description="Downloading acoustic model v2.4 (pb)",
-      )
-
-      print("Extracting...")  # noqa: T201
-      extract_dir = Path(temp_dir) / "extracted"
-
-      with zipfile.ZipFile(zip_download_path, "r") as zip_ref:
-        zip_ref.extractall(extract_dir)
-
-      acoustic_model_dl_dir = extract_dir / "audio-model"
-      species_dl_dir = extract_dir / "labels"
-
-      acoustic_model_dir, acoustic_lang_dir = cls._get_paths()
-      acoustic_model_dir.parent.mkdir(parents=True, exist_ok=True)
-      shutil.rmtree(acoustic_model_dir, ignore_errors=True)
-      shutil.move(acoustic_model_dl_dir, acoustic_model_dir)
-      write_source_marker(acoustic_model_dir, _PB_DL_URL)
-
-      acoustic_lang_dir.parent.mkdir(parents=True, exist_ok=True)
-      shutil.rmtree(acoustic_lang_dir, ignore_errors=True)
-      shutil.move(species_dl_dir, acoustic_lang_dir)
-      print("Extracted.")  # noqa: T201
+    model_dir, lang_dir = cls._get_paths()
+    download_zip_members(
+      _PB_DL_URL,
+      _PB_DL_SIZE,
+      "acoustic model v2.4 (pb)",
+      [("audio-model", model_dir), ("labels", lang_dir)],
+    )
+    write_source_marker(model_dir, _PB_DL_URL)
 
   @classmethod
   def get_model_path_and_labels(
     cls,
     lang: str,
   ) -> tuple[Path, OrderedSet[str]]:
-    if not cls._check_acoustic_model_available():
-      cls._download_model()
+    ensure_download(
+      cls._check_acoustic_model_available,
+      cls._download_model,
+      cls._lock_dir(),
+      "the acoustic model v2.4 (pb) download",
+    )
     assert cls._check_acoustic_model_available()
 
     model_dir, langs_path = cls._get_paths()
