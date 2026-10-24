@@ -21,13 +21,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
-from contextlib import suppress
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-from birdnet.utils.helper import download_file_tqdm, sha256_file, write_text_atomic
+from birdnet.utils.downloads import ensure_verified_file
+from birdnet.utils.helper import sha256_file, write_text_atomic
 from birdnet.utils.logging_utils import get_logger_for_package
 
 MANIFEST_NAME = ".birdnet_labels.json"
@@ -94,34 +93,19 @@ def ensure_artifact(
 ) -> None:
   """Put the artifact these constants describe on disk, downloading if needed.
 
-  A file left at `legacy_path` by an earlier layout is adopted rather than
-  fetched again, so upgrading stays offline for anyone already holding it. One
-  that hashes differently is left alone: it belongs to another installed version
-  still reading it from there.
+  A hit is by content, not by byte size: two releases can share a length. The
+  inputs are small (the largest, the taxonomy, is ~11 MB), so hashing them on
+  every load is cheap.
   """
-  if artifact_is_current(expected):
-    return
-
-  expected.path.parent.mkdir(parents=True, exist_ok=True)
-  if (
-    legacy_path is not None
-    and legacy_path.is_file()
-    and legacy_path.stat().st_size == expected.size
-    and sha256_file(legacy_path) == expected.sha256
-  ):
-    with suppress(OSError):
-      # Windows refuses this while another process has the file open; falling
-      # through to the download is correct, just slower.
-      os.replace(legacy_path, expected.path)
-      return
-
-  download_file_tqdm(
-    expected.url,
+  ensure_verified_file(
     expected.path,
-    download_size=expected.size,
-    description=description,
+    expected.url,
+    expected.size,
+    expected.sha256,
+    description,
+    legacy_path,
+    hash_on_hit=True,
   )
-  verify_download(expected.path, expected)
 
 
 def _stat_of(path: Path) -> dict[str, int]:

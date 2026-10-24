@@ -1,12 +1,14 @@
-"""Shared steps of the zip-packaged official model downloads.
+"""Shared steps of the official model and label downloads.
 
-Each downloader says which archive members go where; fetching, extracting,
-placing and the cross-process serialization live here, once.
+Each zip downloader says which archive members go where; fetching, extracting,
+placing and the cross-process serialization live here, once. So does the
+checksummed single-file download that models and labels share.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 import tempfile
 import zipfile
@@ -75,6 +77,86 @@ def download_zip_members(
       else:
         destination.unlink(missing_ok=True)
       shutil.move(source, destination)
+
+
+def ensure_verified_file(
+  path: Path,
+  url: str,
+  size: int,
+  sha256: str,
+  description: str,
+  legacy_path: Path | None = None,
+  *,
+  hash_on_hit: bool,
+) -> None:
+  """Put the file `sha256` describes at `path`, downloading it if needed.
+
+  Only verified bytes ever land at `path`. A file already there is a hit at
+  `size` bytes, and with `hash_on_hit` only if its digest matches too. A
+  matching file at `legacy_path` is adopted rather than fetched; one that hashes
+  differently is left alone, for another installed version still reading it.
+  """
+
+  def is_current() -> bool:
+    if not (path.is_file() and path.stat().st_size == size):
+      return False
+    return not hash_on_hit or helper.sha256_file(path) == sha256
+
+  if is_current():
+    return
+
+  path.parent.mkdir(parents=True, exist_ok=True)
+  if legacy_path is not None:
+    try:
+      if (
+        legacy_path.is_file()
+        and legacy_path.stat().st_size == size
+        and helper.sha256_file(legacy_path) == sha256
+      ):
+        # Windows refuses this while another process has the file open; the
+        # re-check below then sends this process to the download instead.
+        os.replace(legacy_path, path)
+        return
+    except OSError:
+      # The legacy file vanished mid-probe: a concurrent process adopted it.
+      pass
+    # Downloads are not serialized, so a concurrent process may have adopted or
+    # downloaded the file while this one was probing; its bytes are the wanted
+    # ones (only verified content ever lands at this path).
+    if is_current():
+      return
+
+  # Downloaded next to the target and renamed only after verification, so a
+  # process killed during the download or the hash cannot leave bytes nobody
+  # checked at `path`. The scratch name is per-process; a shared one would let
+  # concurrent downloads fail each other's rename on Windows.
+  fd, temp_name = tempfile.mkstemp(
+    dir=path.parent, prefix=f"{path.name}.", suffix=".unverified"
+  )
+  os.close(fd)
+  temp_path = Path(temp_name)
+  try:
+    # Via the module: tests fake the transport and the hash there.
+    helper.download_file_tqdm(
+      url, temp_path, download_size=size, description=description
+    )
+    actual = helper.sha256_file(temp_path)
+    if actual != sha256:
+      raise RuntimeError(
+        f"The file downloaded from {url} does not match its expected "
+        f"checksum ({actual} instead of {sha256}). It was discarded; "
+        "retry, and if this persists the published file has changed."
+      )
+    try:
+      temp_path.replace(path)
+    except OSError:
+      # Windows refuses this while a concurrent process still holds the file it
+      # just published open. A file there that passes the hit check holds the
+      # wanted bytes, so this one's are redundant.
+      if not is_current():
+        raise
+  finally:
+    temp_path.unlink(missing_ok=True)
 
 
 def ensure_download(

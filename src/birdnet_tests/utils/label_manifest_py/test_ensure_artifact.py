@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-import birdnet.utils.label_manifest as label_manifest
+from birdnet.utils import helper
 from birdnet.utils.label_manifest import (
   LabelInput,
   artifact_is_current,
@@ -35,8 +35,18 @@ def no_network(monkeypatch: pytest.MonkeyPatch) -> list[Path]:
     file_path.write_bytes(_CONTENT)
     return len(_CONTENT)
 
-  monkeypatch.setattr(label_manifest, "download_file_tqdm", _download)
+  monkeypatch.setattr(helper, "download_file_tqdm", _download)
   return calls
+
+
+def _assert_one_verified_download(calls: list[Path], expected: LabelInput) -> None:
+  """One download, into a scratch file beside the path, then renamed onto it."""
+  assert len(calls) == 1
+  (scratch,) = calls
+  assert scratch.parent == expected.path.parent
+  assert scratch.name.startswith(expected.path.name)
+  assert scratch.name.endswith(".unverified")
+  assert expected.path.read_bytes() == _CONTENT
 
 
 @pytest.mark.no_tf
@@ -64,8 +74,7 @@ def test_replaces_a_file_whose_content_is_from_another_release(
 
   ensure_artifact(expected, "test artifact")
 
-  assert expected.path.read_bytes() == _CONTENT
-  assert no_network == [expected.path]
+  _assert_one_verified_download(no_network, expected)
   assert artifact_is_current(expected)
 
 
@@ -110,7 +119,7 @@ def test_leaves_a_legacy_file_of_another_release_alone(
   ensure_artifact(expected, "test artifact", legacy_path=legacy)
 
   assert legacy.read_bytes() == _SAME_LENGTH
-  assert no_network == [expected.path]
+  _assert_one_verified_download(no_network, expected)
 
 
 @pytest.mark.no_tf
