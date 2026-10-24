@@ -4,7 +4,7 @@ import csv
 import io
 from collections.abc import Callable, Collection, Iterable
 from pathlib import Path
-from typing import Literal, final
+from typing import ClassVar, Literal, final
 
 import numpy.typing as npt
 from ordered_set import OrderedSet
@@ -32,9 +32,14 @@ from birdnet.acoustic.models.base import (
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V3_0,
   ACOUSTIC_MODEL_VERSIONS,
+  MODEL_BACKENDS,
+  MODEL_PRECISIONS,
 )
 from birdnet.utils.helper import (
+  ModelInfo,
   directory_lock,
+  ensure_single_file_model,
+  get_species_from_file,
   write_text_atomic,
 )
 from birdnet.utils.label_manifest import (
@@ -44,7 +49,11 @@ from birdnet.utils.label_manifest import (
   labels_up_to_date,
   record_generation,
 )
-from birdnet.utils.local_data import get_birdnet_app_data_folder
+from birdnet.utils.local_data import (
+  get_birdnet_app_data_folder,
+  get_lang_dir,
+  get_model_path,
+)
 from birdnet.utils.taxonomy_v3 import (
   ensure_taxonomy_v3_available,
   get_taxonomy_v3_input,
@@ -242,6 +251,77 @@ class AcousticDownloaderBaseV3_0:
   @classmethod
   def get_lang_file(cls, lang: str) -> Path:
     return cls._get_lang_dir() / f"{lang}.txt"
+
+
+class _AcousticSingleFileDownloaderV3_0(AcousticDownloaderBaseV3_0):
+  """Shared logic of the single-file acoustic V3.0 downloads (tf, onnx, pt).
+
+  A subclass names its backend and its precision table; the paths, the
+  availability check and the download follow from those two.
+  """
+
+  _backend: ClassVar[MODEL_BACKENDS]
+  _models: ClassVar[dict[MODEL_PRECISIONS, ModelInfo]]
+
+  @classmethod
+  def _get_lang_dir(cls) -> Path:
+    return get_lang_dir("acoustic", "3.0", cls._backend)
+
+  @classmethod
+  def _get_paths(cls, precision: MODEL_PRECISIONS) -> tuple[Path, Path]:
+    model_path = get_model_path(
+      "acoustic",
+      "3.0",
+      cls._backend,
+      precision,
+      content_tag=cls._models[precision].content_tag,
+    )
+    return model_path, cls._get_lang_dir()
+
+  @classmethod
+  def _check_acoustic_model_available(cls, precision: MODEL_PRECISIONS) -> bool:
+    model_path, lang_dir = cls._get_paths(precision)
+    if not model_path.is_file():
+      return False
+    if model_path.stat().st_size != cls._models[precision].file_size:
+      return False
+    if not lang_dir.is_dir():
+      return False
+    return all((lang_dir / f"{lang}.txt").is_file() for lang in cls.AVAILABLE_LANGUAGES)
+
+  @classmethod
+  def _download_model(cls, precision: MODEL_PRECISIONS) -> None:
+    model_path, _lang_dir = cls._get_paths(precision)
+    ensure_single_file_model(
+      cls._models[precision],
+      model_path,
+      legacy_path=get_model_path("acoustic", "3.0", cls._backend, precision),
+      description=f"Downloading acoustic model v3.0 ({cls._backend}, {precision})",
+    )
+
+  @classmethod
+  def get_model_path_and_labels(
+    cls, lang: str, precision: MODEL_PRECISIONS
+  ) -> tuple[Path, OrderedSet[str]]:
+    if precision not in cls._models:
+      raise ValueError(
+        f"Unsupported model precision for acoustic {cls._backend} model: "
+        f"{precision}. Currently supported precisions are: {', '.join(cls._models)}."
+      )
+    assert lang in cls.AVAILABLE_LANGUAGES
+
+    cls.ensure_labels_available()
+    if not cls._check_acoustic_model_available(precision):
+      cls._download_model(precision)
+    assert cls._check_acoustic_model_available(precision)
+
+    model_path, _ = cls._get_paths(precision)
+    lang_file = cls.get_lang_file(lang)
+    if not lang_file.is_file():
+      raise ValueError(f"Language does not exist: {lang}")
+
+    labels = get_species_from_file(lang_file, encoding="utf8")
+    return model_path, labels
 
 
 class AcousticModelV3_0(AcousticModelBase):

@@ -1,9 +1,5 @@
-from pathlib import Path
-
-from ordered_set import OrderedSet
-
 from birdnet.acoustic.models.custom_tflite import CustomTFLiteBackend
-from birdnet.acoustic.models.v3_0.model import AcousticDownloaderBaseV3_0
+from birdnet.acoustic.models.v3_0.model import _AcousticSingleFileDownloaderV3_0
 from birdnet.core.backends import TFBackend, VersionedAcousticBackendProtocol
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSIONS,
@@ -12,14 +8,9 @@ from birdnet.globals import (
   MODEL_PRECISION_FP32,
   MODEL_PRECISIONS,
 )
-from birdnet.utils.helper import (
-  ModelInfo,
-  ensure_single_file_model,
-  get_species_from_file,
-)
-from birdnet.utils.local_data import get_lang_dir, get_model_path
+from birdnet.utils.helper import ModelInfo
 
-models = {
+models: dict[MODEL_PRECISIONS, ModelInfo] = {
   MODEL_PRECISION_FP16: ModelInfo(
     dl_url="https://zenodo.org/records/20703646/files/BirdNET+_V3.0-preview3.1_Global_11K_FP16.tflite",
     dl_file_name="BirdNET+_V3.0-preview3.1_Global_11K_FP16.tflite",
@@ -37,70 +28,9 @@ models = {
 }
 
 
-class AcousticTFDownloaderV3_0(AcousticDownloaderBaseV3_0):
-  @classmethod
-  def _get_lang_dir(cls) -> Path:
-    return get_lang_dir(
-      "acoustic",
-      "3.0",
-      MODEL_BACKEND_TF,
-    )
-
-  @classmethod
-  def _get_paths(cls, precision: MODEL_PRECISIONS) -> tuple[Path, Path]:
-    model_path = get_model_path(
-      "acoustic",
-      "3.0",
-      MODEL_BACKEND_TF,
-      precision,
-      content_tag=models[precision].content_tag,
-    )
-    lang_dir = get_lang_dir(
-      "acoustic",
-      "3.0",
-      MODEL_BACKEND_TF,
-    )
-    return model_path, lang_dir
-
-  @classmethod
-  def _check_acoustic_model_available(cls, precision: MODEL_PRECISIONS) -> bool:
-    model_path, lang_dir = cls._get_paths(precision)
-    if not model_path.is_file():
-      return False
-    if model_path.stat().st_size != models[precision].file_size:
-      return False
-    if not lang_dir.is_dir():
-      return False
-    return all((lang_dir / f"{lang}.txt").is_file() for lang in cls.AVAILABLE_LANGUAGES)
-
-  @classmethod
-  def _download_model(cls, precision: MODEL_PRECISIONS) -> None:
-    model_path, _lang_dir = cls._get_paths(precision)
-    ensure_single_file_model(
-      models[precision],
-      model_path,
-      legacy_path=get_model_path("acoustic", "3.0", MODEL_BACKEND_TF, precision),
-      description=f"Downloading acoustic model v3.0 (tf, {precision})",
-    )
-
-  @classmethod
-  def get_model_path_and_labels(
-    cls, lang: str, precision: MODEL_PRECISIONS
-  ) -> tuple[Path, OrderedSet[str]]:
-    assert lang in cls.AVAILABLE_LANGUAGES
-
-    cls.ensure_labels_available()
-    if not cls._check_acoustic_model_available(precision):
-      cls._download_model(precision)
-    assert cls._check_acoustic_model_available(precision)
-
-    model_path, _ = cls._get_paths(precision)
-    lang_file = cls.get_lang_file(lang)
-    if not lang_file.is_file():
-      raise ValueError(f"Language does not exist: {lang}")
-
-    labels = get_species_from_file(lang_file, encoding="utf8")
-    return model_path, labels
+class AcousticTFDownloaderV3_0(_AcousticSingleFileDownloaderV3_0):
+  _backend = MODEL_BACKEND_TF
+  _models = models
 
 
 class _AcousticTFBackendV3_0(TFBackend, VersionedAcousticBackendProtocol):
