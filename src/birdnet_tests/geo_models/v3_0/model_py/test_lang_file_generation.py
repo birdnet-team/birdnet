@@ -12,7 +12,7 @@ import pytest
 import birdnet.geo.models.v3_0.model as geo_model
 from birdnet.geo.models.v3_0.model import GeoDownloaderBaseV3_0
 from birdnet.globals import ENV_VAR_APP_DATA, VALID_MODEL_LANGUAGES_V3_0
-from birdnet.utils import helper
+from birdnet.utils import helper, v3_labels
 from birdnet.utils.label_manifest import LabelInput, sha256_bytes
 
 RAW_LABELS = (
@@ -212,7 +212,7 @@ def test_an_interrupted_generation_leaves_a_directory_that_fails_verification(
   downloader._generate_lang_files()
   assert downloader._check_labels_available()
 
-  original = geo_model.write_text_atomic
+  original = v3_labels.write_text_atomic
   written: list[Path] = []
 
   def _die_after_the_first_file(path: Path, content: str, **kwargs: object) -> None:
@@ -221,7 +221,7 @@ def test_an_interrupted_generation_leaves_a_directory_that_fails_verification(
     written.append(path)
     original(path, content, **kwargs)
 
-  monkeypatch.setattr(geo_model, "write_text_atomic", _die_after_the_first_file)
+  monkeypatch.setattr(v3_labels, "write_text_atomic", _die_after_the_first_file)
 
   with pytest.raises(OSError, match="interrupted"):
     downloader._generate_lang_files()
@@ -252,7 +252,7 @@ def test_a_current_cache_is_served_without_writing_anything(
   def _fail(*args: object, **kwargs: object) -> None:
     raise AssertionError("a current cache must not acquire the setup lock")
 
-  monkeypatch.setattr(geo_model, "directory_lock", _fail)
+  monkeypatch.setattr(v3_labels, "directory_lock", _fail)
 
   downloader.ensure_labels_available()
 

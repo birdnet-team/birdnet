@@ -21,8 +21,9 @@ The two models join to it on **different keys**, deliberately:
   nothing in it). That is why it leaves a few hundred species unresolved where
   geo leaves none: scientific names drift between taxonomy versions.
 
-The two live in separate files, so a change to one is worth checking against the
-other.
+Each model's label parsing and join live in its own file, so a change to one is
+worth checking against the other. The rest of the generation is shared, in
+``birdnet/utils/v3_labels.py``.
 
 Staleness is decided from what a directory records about itself, not from what
 the running version expects to find. Each generated label directory carries a
@@ -36,8 +37,10 @@ Bumping the taxonomy is therefore: update the URL, size and SHA-256 below, then
 check that every column in both models' ``_LANGUAGE_TO_COLUMN`` still exists in
 the new file. A missing column does not raise - it yields a complete file of
 English names, which is how Estonian outlived the column being dropped. Changing
-either model's generation logic means bumping its ``_GENERATION_VERSION``; the
-golden-digest tests fail until both that and the expected digests are updated.
+either model's generation logic means bumping its ``_GENERATION_VERSION``, and
+changing the shared part in ``v3_labels.py`` means bumping both. The
+golden-digest tests fail when the bytes generated from their fixtures move;
+nothing forces the bump when their digests are updated.
 """
 
 from __future__ import annotations
