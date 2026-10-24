@@ -3,28 +3,22 @@ from __future__ import annotations
 import importlib.metadata
 from pathlib import Path
 
-from ordered_set import OrderedSet
-
 from birdnet.core.backends import (
   TFBackend,
   VersionedGeoBackendProtocol,
   _get_major_minor_version,
 )
-from birdnet.geo.models.v3_0.model import GeoDownloaderBaseV3_0
+from birdnet.geo.models.v3_0.model import _GeoSingleFileDownloaderV3_0
 from birdnet.globals import (
   LIBRARY_LITERT,
   LIBRARY_TYPES,
+  MODEL_BACKEND_TF,
   MODEL_PRECISION_FP16,
   MODEL_PRECISION_FP32,
   MODEL_PRECISION_INT8,
   MODEL_PRECISIONS,
 )
-from birdnet.utils.helper import (
-  ModelInfo,
-  ensure_single_file_model,
-  get_species_from_file,
-)
-from birdnet.utils.local_data import get_lang_dir, get_model_path
+from birdnet.utils.helper import ModelInfo
 from birdnet.utils.logging_utils import suppress_native_stderr
 
 _SUPPORTED_TF_VERSIONS = ((2, 18), (2, 19))
@@ -72,7 +66,7 @@ def _check_tf_version_for_v3_0() -> None:
     )
 
 
-models = {
+models: dict[MODEL_PRECISIONS, ModelInfo] = {
   MODEL_PRECISION_INT8: ModelInfo(
     dl_url="https://github.com/birdnet-team/geomodel/releases/download/v3.0.4/BirdNET+_Geomodel_V3.0.4_Global_14K_INT8.tflite",
     dl_file_name="BirdNET+_Geomodel_V3.0.4_Global_14K_INT8.tflite",
@@ -97,56 +91,9 @@ models = {
 }
 
 
-class GeoTFDownloaderV3_0(GeoDownloaderBaseV3_0):
-  @classmethod
-  def _get_lang_dir(cls) -> Path:
-    return get_lang_dir("geo", "3.0", "tf")
-
-  @classmethod
-  def _get_model_path(cls, precision: MODEL_PRECISIONS) -> Path:
-    return get_model_path(
-      "geo", "3.0", "tf", precision, content_tag=models[precision].content_tag
-    )
-
-  @classmethod
-  def _check_geo_model_available(cls, precision: MODEL_PRECISIONS) -> bool:
-    model_path = cls._get_model_path(precision)
-
-    if not model_path.is_file():
-      return False
-
-    if model_path.stat().st_size != models[precision].file_size:
-      return False
-
-    return cls._check_labels_available()
-
-  @classmethod
-  def _download_model(cls, precision: MODEL_PRECISIONS) -> None:
-    ensure_single_file_model(
-      models[precision],
-      cls._get_model_path(precision),
-      legacy_path=get_model_path("geo", "3.0", "tf", precision),
-      description=f"Downloading geo model v3.0 (tf, {precision})",
-    )
-
-  @classmethod
-  def get_model_path_and_labels(
-    cls, lang: str, precision: MODEL_PRECISIONS
-  ) -> tuple[Path, OrderedSet[str]]:
-    assert lang in cls.AVAILABLE_LANGUAGES
-
-    cls.ensure_labels_available()
-
-    if not cls._check_geo_model_available(precision):
-      cls._download_model(precision)
-    assert cls._check_geo_model_available(precision)
-
-    lang_file = cls.get_lang_file(lang)
-    if not lang_file.is_file():
-      raise ValueError(f"Language does not exist: {lang}")
-
-    labels = get_species_from_file(lang_file, encoding="utf8")
-    return cls._get_model_path(precision), labels
+class GeoTFDownloaderV3_0(_GeoSingleFileDownloaderV3_0):
+  _backend = MODEL_BACKEND_TF
+  _models = models
 
 
 class GeoTFBackendFP32V3_0(TFBackend, VersionedGeoBackendProtocol):

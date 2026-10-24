@@ -2,24 +2,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ordered_set import OrderedSet
-
 from birdnet.core.backends import (
   TorchBackend,
   VersionedGeoBackendProtocol,
 )
-from birdnet.geo.models.v3_0.model import GeoDownloaderBaseV3_0
+from birdnet.geo.models.v3_0.model import _GeoSingleFileDownloaderV3_0
 from birdnet.globals import (
   MODEL_BACKEND_PT,
   MODEL_PRECISION_FP32,
   MODEL_PRECISIONS,
 )
-from birdnet.utils.helper import (
-  ModelInfo,
-  ensure_single_file_model,
-  get_species_from_file,
-)
-from birdnet.utils.local_data import get_lang_dir, get_model_path
+from birdnet.utils.helper import ModelInfo
 
 # The geo model input is [latitude, longitude, week] (see GeoSessionBase._run).
 _GEO_INPUT_FEATURES = 3
@@ -28,7 +21,7 @@ _YEAR_ROUND_WEEK_INPUTS = tuple(float(week) for week in range(1, 49))
 # The release also contains BirdNET+_Geomodel_V3.0.4_Global_14K_FP32.pt, which is a
 # training checkpoint (a state dict), not a loadable module. The TorchScript export
 # is the one to use here.
-models = {
+models: dict[MODEL_PRECISIONS, ModelInfo] = {
   MODEL_PRECISION_FP32: ModelInfo(
     dl_url="https://github.com/birdnet-team/geomodel/releases/download/v3.0.4/BirdNET+_Geomodel_V3.0.4_Global_14K_TorchScript.pt",
     dl_file_name="BirdNET+_Geomodel_V3.0.4_Global_14K_TorchScript.pt",
@@ -39,65 +32,24 @@ models = {
 }
 
 
-class GeoPTDownloaderV3_0(GeoDownloaderBaseV3_0):
-  @classmethod
-  def _get_lang_dir(cls) -> Path:
-    return get_lang_dir("geo", "3.0", MODEL_BACKEND_PT)
+class GeoPTDownloaderV3_0(_GeoSingleFileDownloaderV3_0):
+  _backend = MODEL_BACKEND_PT
+  _models = models
 
+  # The single precision stays callable without an argument.
   @classmethod
-  def _get_model_path(cls) -> Path:
-    return get_model_path(
-      "geo",
-      "3.0",
-      MODEL_BACKEND_PT,
-      MODEL_PRECISION_FP32,
-      content_tag=models[MODEL_PRECISION_FP32].content_tag,
-    )
+  def _get_model_path(cls, precision: MODEL_PRECISIONS = MODEL_PRECISION_FP32) -> Path:
+    return super()._get_model_path(precision)
 
   @classmethod
-  def _check_geo_model_available(cls) -> bool:
-    model_path = cls._get_model_path()
-
-    if not model_path.is_file():
-      return False
-
-    if model_path.stat().st_size != models[MODEL_PRECISION_FP32].file_size:
-      return False
-
-    return cls._check_labels_available()
+  def _check_geo_model_available(
+    cls, precision: MODEL_PRECISIONS = MODEL_PRECISION_FP32
+  ) -> bool:
+    return super()._check_geo_model_available(precision)
 
   @classmethod
-  def _download_model(cls) -> None:
-    ensure_single_file_model(
-      models[MODEL_PRECISION_FP32],
-      cls._get_model_path(),
-      legacy_path=get_model_path("geo", "3.0", MODEL_BACKEND_PT, MODEL_PRECISION_FP32),
-      description="Downloading geo model v3.0 (pt, fp32)",
-    )
-
-  @classmethod
-  def get_model_path_and_labels(
-    cls, lang: str, precision: MODEL_PRECISIONS
-  ) -> tuple[Path, OrderedSet[str]]:
-    if precision not in models:
-      raise ValueError(
-        f"Unsupported model precision for geo pt model: {precision}. "
-        f"Currently supported precision is: {MODEL_PRECISION_FP32}."
-      )
-    assert lang in cls.AVAILABLE_LANGUAGES
-
-    cls.ensure_labels_available()
-
-    if not cls._check_geo_model_available():
-      cls._download_model()
-    assert cls._check_geo_model_available()
-
-    lang_file = cls.get_lang_file(lang)
-    if not lang_file.is_file():
-      raise ValueError(f"Language does not exist: {lang}")
-
-    labels = get_species_from_file(lang_file, encoding="utf8")
-    return cls._get_model_path(), labels
+  def _download_model(cls, precision: MODEL_PRECISIONS = MODEL_PRECISION_FP32) -> None:
+    return super()._download_model(precision)
 
 
 class GeoPTBackendFP32V3_0(TorchBackend, VersionedGeoBackendProtocol):

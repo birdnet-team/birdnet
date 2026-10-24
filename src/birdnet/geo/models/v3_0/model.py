@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import io
 from pathlib import Path
-from typing import final
+from typing import ClassVar, final
 
 from ordered_set import OrderedSet
 
@@ -11,11 +11,16 @@ from birdnet.geo.models.base import GeoModelBase
 from birdnet.globals import (
   GEO_MODEL_VERSION_V3_0,
   GEO_MODEL_VERSIONS,
+  MODEL_BACKENDS,
+  MODEL_PRECISIONS,
   MODEL_TYPE_GEO,
   MODEL_TYPES,
 )
 from birdnet.utils.helper import (
+  ModelInfo,
   directory_lock,
+  ensure_single_file_model,
+  get_species_from_file,
   write_text_atomic,
 )
 from birdnet.utils.label_manifest import (
@@ -25,7 +30,11 @@ from birdnet.utils.label_manifest import (
   labels_up_to_date,
   record_generation,
 )
-from birdnet.utils.local_data import get_birdnet_app_data_folder
+from birdnet.utils.local_data import (
+  get_birdnet_app_data_folder,
+  get_lang_dir,
+  get_model_path,
+)
 from birdnet.utils.taxonomy_v3 import (
   ensure_taxonomy_v3_available,
   get_taxonomy_v3_input,
@@ -230,6 +239,72 @@ class GeoDownloaderBaseV3_0:
   @classmethod
   def get_lang_file(cls, lang: str) -> Path:
     return cls._get_lang_dir() / f"{lang}.txt"
+
+
+class _GeoSingleFileDownloaderV3_0(GeoDownloaderBaseV3_0):
+  """Shared logic of the single-file geo V3.0 downloads (tf, onnx, pt).
+
+  A subclass names its backend and its precision table; the paths, the
+  availability check and the download follow from those two.
+  """
+
+  _backend: ClassVar[MODEL_BACKENDS]
+  _models: ClassVar[dict[MODEL_PRECISIONS, ModelInfo]]
+
+  @classmethod
+  def _get_lang_dir(cls) -> Path:
+    return get_lang_dir("geo", "3.0", cls._backend)
+
+  @classmethod
+  def _get_model_path(cls, precision: MODEL_PRECISIONS) -> Path:
+    return get_model_path(
+      "geo",
+      "3.0",
+      cls._backend,
+      precision,
+      content_tag=cls._models[precision].content_tag,
+    )
+
+  @classmethod
+  def _check_geo_model_available(cls, precision: MODEL_PRECISIONS) -> bool:
+    model_path = cls._get_model_path(precision)
+    if not model_path.is_file():
+      return False
+    if model_path.stat().st_size != cls._models[precision].file_size:
+      return False
+    return cls._check_labels_available()
+
+  @classmethod
+  def _download_model(cls, precision: MODEL_PRECISIONS) -> None:
+    ensure_single_file_model(
+      cls._models[precision],
+      cls._get_model_path(precision),
+      legacy_path=get_model_path("geo", "3.0", cls._backend, precision),
+      description=f"Downloading geo model v3.0 ({cls._backend}, {precision})",
+    )
+
+  @classmethod
+  def get_model_path_and_labels(
+    cls, lang: str, precision: MODEL_PRECISIONS
+  ) -> tuple[Path, OrderedSet[str]]:
+    if precision not in cls._models:
+      raise ValueError(
+        f"Unsupported model precision for geo {cls._backend} model: {precision}. "
+        f"Currently supported precisions are: {', '.join(cls._models)}."
+      )
+    assert lang in cls.AVAILABLE_LANGUAGES
+
+    cls.ensure_labels_available()
+    if not cls._check_geo_model_available(precision):
+      cls._download_model(precision)
+    assert cls._check_geo_model_available(precision)
+
+    lang_file = cls.get_lang_file(lang)
+    if not lang_file.is_file():
+      raise ValueError(f"Language does not exist: {lang}")
+
+    labels = get_species_from_file(lang_file, encoding="utf8")
+    return cls._get_model_path(precision), labels
 
 
 class GeoModelV3_0(GeoModelBase):
