@@ -803,73 +803,24 @@ def ensure_single_file_model(
 ) -> None:
   """Put the model file `info` describes at `model_path`, downloading if needed.
 
-  `model_path` carries `info.content_tag` and only verified bytes are ever
-  renamed onto it, so its presence at the declared byte size means the file
-  this release published; nothing is hashed again on later loads, which would
-  cost seconds for the ~540 MB acoustic models. Byte size alone is not identity
-  (see label_manifest.artifact_is_current).
-
-  A matching file left at `legacy_path` by a release before names carried the
-  checksum is adopted rather than fetched again, so upgrading stays offline for
-  anyone already holding it. One that hashes differently is left alone: it
-  belongs to another installed version still reading it from there.
+  A hit is by byte size alone: `model_path` carries `info.content_tag`, so a
+  file there at the declared size is the one this release published. Hashing it
+  on every load would cost seconds for the ~540 MB acoustic models. Byte size
+  alone is not identity (see label_manifest.artifact_is_current).
   """
+  # Imported here: downloads imports this module.
+  from birdnet.utils.downloads import ensure_verified_file
+
   assert info.sha256 is not None
-  if model_path.is_file() and model_path.stat().st_size == info.file_size:
-    return
-
-  model_path.parent.mkdir(parents=True, exist_ok=True)
-  try:
-    if (
-      legacy_path.is_file()
-      and legacy_path.stat().st_size == info.file_size
-      and sha256_file(legacy_path) == info.sha256
-    ):
-      # Windows refuses this while another process has the file open; the
-      # re-check below then sends this process to the download instead.
-      os.replace(legacy_path, model_path)
-      return
-  except OSError:
-    # The legacy file vanished mid-probe: a concurrent process adopted it.
-    pass
-  # Downloads are not serialized, so a concurrent process may have adopted or
-  # downloaded the file while this one was probing; its bytes are the wanted
-  # ones (only verified content ever lands at this path).
-  if model_path.is_file() and model_path.stat().st_size == info.file_size:
-    return
-
-  # Downloaded next to the target and renamed only after verification, so a
-  # process killed during the hash cannot leave bytes nobody checked at a name
-  # every later load trusts. The scratch name is per-process; a shared one
-  # would let concurrent downloads fail each other's rename on Windows.
-  fd, temp_name = tempfile.mkstemp(
-    dir=model_path.parent,
-    prefix=f"{model_path.name}.",
-    suffix=".unverified",
+  ensure_verified_file(
+    model_path,
+    info.dl_url,
+    info.file_size,
+    info.sha256,
+    description,
+    legacy_path,
+    hash_on_hit=False,
   )
-  os.close(fd)
-  temp_path = Path(temp_name)
-  try:
-    download_file_tqdm(
-      info.dl_url, temp_path, download_size=info.dl_size, description=description
-    )
-    actual = sha256_file(temp_path)
-    if actual != info.sha256:
-      raise RuntimeError(
-        f"The file downloaded from {info.dl_url} does not match its expected "
-        f"checksum ({actual} instead of {info.sha256}). It was discarded; "
-        "retry, and if this persists the published file has changed."
-      )
-    try:
-      temp_path.replace(model_path)
-    except OSError:
-      # Windows refuses this while a concurrent process still holds the file it
-      # just published open. Anything already at this path carries the same
-      # content tag, so those are the wanted bytes and this one's are redundant.
-      if not (model_path.is_file() and model_path.stat().st_size == info.file_size):
-        raise
-  finally:
-    temp_path.unlink(missing_ok=True)
 
 
 def itertools_batched(iterable: Iterable, n: int) -> Generator[Any, None, None]:

@@ -5,9 +5,9 @@ import pytest
 
 import birdnet.acoustic.models.v3_0.model as acoustic_model
 import birdnet.geo.models.v3_0.model as geo_model
-import birdnet.utils.label_manifest as label_manifest
 import birdnet.utils.taxonomy_v3 as taxonomy_v3
 from birdnet.globals import ENV_VAR_APP_DATA
+from birdnet.utils import helper
 from birdnet.utils.label_manifest import sha256_bytes
 
 
@@ -61,7 +61,7 @@ def test_ensure_taxonomy_v3_available_downloads_missing_file(
     file_path.write_bytes(b"data")
     return 4
 
-  monkeypatch.setattr(label_manifest, "download_file_tqdm", fake_download)
+  monkeypatch.setattr(helper, "download_file_tqdm", fake_download)
   assert not app_data.exists()
 
   result = taxonomy_v3.ensure_taxonomy_v3_available()
@@ -70,14 +70,17 @@ def test_ensure_taxonomy_v3_available_downloads_missing_file(
   assert taxonomy_path.is_relative_to(app_data.resolve())
   assert taxonomy_path.read_bytes() == b"data"
   assert not lock_dir.exists()
-  assert calls == [
-    (
-      "https://github.com/birdnet-team/geomodel/raw/refs/tags/v3.0.4/taxonomy_v0.2-Jun2026.csv",
-      taxonomy_path,
-      4,
-      "Downloading shared v3.0 taxonomy",
-    )
-  ]
+  assert len(calls) == 1
+  url, scratch, download_size, description = calls[0]
+  assert (url, download_size, description) == (
+    "https://github.com/birdnet-team/geomodel/raw/refs/tags/v3.0.4/taxonomy_v0.2-Jun2026.csv",
+    4,
+    "Downloading shared v3.0 taxonomy",
+  )
+  # Into a scratch file beside the target, renamed onto it once verified.
+  assert scratch.parent == taxonomy_path.parent
+  assert scratch.name.startswith(taxonomy_path.name)
+  assert scratch.name.endswith(".unverified")
 
 
 @pytest.mark.load_model
