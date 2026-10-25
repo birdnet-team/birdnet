@@ -198,7 +198,12 @@ class AcousticEncodingResultBase(AcousticResultBase):
     structured = self.to_structured_array()
 
     arrow_arrays: dict[str, pa.Array | pa.ChunkedArray] = {}
-    arrow_arrays[VAR_INPUT] = pa.array(structured[VAR_INPUT]).dictionary_encode()
+    # An empty object column would infer `null`, which Parquet refuses in a
+    # non-nullable field.
+    input_type = pa.string() if structured[VAR_INPUT].dtype == object else None
+    arrow_arrays[VAR_INPUT] = pa.array(
+      structured[VAR_INPUT], type=input_type
+    ).dictionary_encode()
     arrow_arrays[VAR_START_TIME] = pa.array(
       structured[VAR_START_TIME],
       type=pa.from_numpy_dtype(structured[VAR_START_TIME].dtype),
