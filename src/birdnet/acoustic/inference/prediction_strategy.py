@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import numpy as np
 import numpy.typing as npt
-import psutil
 
 from birdnet.acoustic.inference.configs import (
   InferenceConfig,
@@ -33,12 +31,6 @@ from birdnet.acoustic.inference.resources import (
 from birdnet.acoustic.inference.strategy import (
   InferenceStrategyBase,
 )
-from birdnet.core.backends import TF_BACKEND_LIB_ARG
-from birdnet.globals import (
-  MODEL_TYPE_ACOUSTIC,
-  NA,
-)
-from birdnet.utils.helper import get_file_formats
 
 
 class PredictionStrategy(
@@ -87,39 +79,14 @@ class PredictionStrategy(
 
     return [
       PredictionWorker(
-        session_id=session_id,
-        backend_loader=resources.worker_resources.backend_loader,
-        device=resources.worker_resources.devices[i],
+        **self._worker_kwargs(session_id, config, resources, i),
         top_k=top_k,
         species_thresholds=species_thresholds,
         species_blacklist=species_blacklist,
-        batch_size=config.processing_conf.batch_size,
-        wkr_ring_access_lock=resources.worker_resources.ring_access_lock,
-        n_slots=config.processing_conf.n_slots,
-        segment_duration_samples=config.model_conf.segment_size_samples,
-        out_q=resources.worker_resources.results_queue,
-        logging_queue=resources.logging_resources.logging_queue,
-        logging_level=resources.logging_resources.logging_level,
-        all_producers_finished=resources.producer_resources.all_finished,
-        rf_file_indices=resources.ring_buffer_resources.rf_file_indices,
-        rf_segment_indices=resources.ring_buffer_resources.rf_segment_indices,
-        rf_audio_samples=resources.ring_buffer_resources.rf_audio_samples,
-        rf_batch_sizes=resources.ring_buffer_resources.rf_batch_sizes,
-        rf_flags=resources.ring_buffer_resources.rf_flags,
-        sem_fill=resources.ring_buffer_resources.sem_filled_slots,
-        sem_free=resources.ring_buffer_resources.sem_free_slots,
         apply_sigmoid=specific_config.apply_sigmoid,
         apply_softmax=specific_config.apply_softmax,
         sigmoid_sensitivity=specific_config.sigmoid_sensitivity,
         model_applies_sigmoid=config.model_conf.backend_type.applies_sigmoid(),
-        wkr_stats_queue=resources.stats_resources.wkr_stats_queue,
-        cancel_event=resources.processing_resources.cancel_event,
-        sem_active_workers=resources.stats_resources.sem_active_workers,
-        end_event=resources.processing_resources.end_event,
-        start_signal=resources.worker_resources.start_signals[i],
-        finish_signal=resources.worker_resources.finish_signals[i],
-        half_precision=config.processing_conf.half_precision,
-        start_method=config.start_method,
       )
       for i in range(config.processing_conf.workers)
     ]
@@ -132,19 +99,11 @@ class PredictionStrategy(
     files: list[Path],
   ) -> AcousticPredictionResultBase:
     return AcousticFilePredictionResult(
+      **self._result_kwargs(config),
       tensor=tensor,
       files=files,
-      segment_duration_s=config.model_conf.segment_size_s,
-      overlap_duration_s=config.processing_conf.overlap_duration_s,
-      speed=config.processing_conf.speed,
       species_list=config.model_conf.species_list,
       file_durations=resources.analyzer_resources.input_durations,
-      model_path=config.model_conf.path,
-      model_fmin=config.model_conf.sig_fmin,
-      model_fmax=config.model_conf.sig_fmax,
-      model_sr=config.model_conf.sample_rate,
-      model_precision=config.model_conf.backend_type.precision(),
-      model_version=config.model_conf.version,
     )
 
   def _species_list_array(self, config: InferenceConfig) -> npt.NDArray:
@@ -181,20 +140,12 @@ class PredictionStrategy(
     tensor.set_unprocessable_inputs({0} if is_invalid else set())
 
     return AcousticFilePredictionResult(
+      **self._result_kwargs(config),
       tensor=tensor,
       files=[Path(file_path)],
-      segment_duration_s=config.model_conf.segment_size_s,
-      overlap_duration_s=config.processing_conf.overlap_duration_s,
-      speed=config.processing_conf.speed,
       species_list=config.model_conf.species_list,
       species_list_array=self._species_list_array(config),
       file_durations=np.array([duration_s], dtype=np.float32),
-      model_path=config.model_conf.path,
-      model_fmin=config.model_conf.sig_fmin,
-      model_fmax=config.model_conf.sig_fmax,
-      model_sr=config.model_conf.sample_rate,
-      model_precision=config.model_conf.backend_type.precision(),
-      model_version=config.model_conf.version,
     )
 
   def create_array_result(
@@ -204,18 +155,10 @@ class PredictionStrategy(
     resources: PipelineResources,
   ) -> AcousticPredictionResultBase:
     return AcousticDataPredictionResult(
+      **self._result_kwargs(config),
       tensor=tensor,
-      segment_duration_s=config.model_conf.segment_size_s,
-      overlap_duration_s=config.processing_conf.overlap_duration_s,
-      speed=config.processing_conf.speed,
       species_list=config.model_conf.species_list,
       input_durations=resources.analyzer_resources.input_durations,
-      model_path=config.model_conf.path,
-      model_fmin=config.model_conf.sig_fmin,
-      model_fmax=config.model_conf.sig_fmax,
-      model_sr=config.model_conf.sample_rate,
-      model_precision=config.model_conf.backend_type.precision(),
-      model_version=config.model_conf.version,
     )
 
   def create_minimal_benchmark_meta(
@@ -225,32 +168,8 @@ class PredictionStrategy(
     resources: PipelineResources,
     pred_result: AcousticPredictionResultBase,
   ) -> MinimalBenchmarkMeta:
-    assert resources.stats_resources.end_timepoint is not None
-    assert resources.stats_resources.stop is not None
-    wall_time_s = resources.stats_resources.stop - resources.stats_resources.start
-
-    file_formats = NA
-    if isinstance(pred_result, AcousticFilePredictionResult):
-      file_formats = get_file_formats({Path(x) for x in pred_result.inputs})
-
     return MinimalBenchmarkMeta(
-      _start_timepoint=resources.stats_resources.start_timepoint,
-      _end_timepoint=resources.stats_resources.end_timepoint,
-      _time_wall_time_s=wall_time_s,
-      _file_durations=resources.analyzer_resources.input_durations,
-      mem_result_total_memory_usage_MiB=pred_result.memory_size_MiB,
-      mem_shm_size_file_indices_MiB=resources.ring_buffer_resources.rf_file_indices.nbytes
-      / 1024**2,
-      mem_shm_size_segment_indices_MiB=resources.ring_buffer_resources.rf_segment_indices.nbytes
-      / 1024**2,
-      mem_shm_size_audio_samples_MiB=resources.ring_buffer_resources.rf_audio_samples.nbytes
-      / 1024**2,
-      mem_shm_size_batch_sizes_MiB=resources.ring_buffer_resources.rf_batch_sizes.nbytes
-      / 1024**2,
-      mem_shm_size_flags_MiB=resources.ring_buffer_resources.rf_flags.nbytes / 1024**2,
-      file_segments_total=resources.analyzer_resources.tot_n_segments_ptr.value,
-      model_segment_duration_seconds=config.model_conf.segment_size_s,
-      file_formats=file_formats,
+      **self._minimal_meta_kwargs(config, resources, pred_result)
     )
 
   def create_full_benchmark_meta(
@@ -260,55 +179,14 @@ class PredictionStrategy(
     resources: PipelineResources,
     pred_result: AcousticPredictionResultBase,
   ) -> FullBenchmarkMeta:
-    perf_result = resources.stats_resources.tracking_result
-    assert perf_result is not None
-
-    assert resources.stats_resources.end_timepoint is not None
-    assert resources.stats_resources.stop is not None
-    wall_time_s = resources.stats_resources.stop - resources.stats_resources.start
-
-    device_str = (
-      ", ".join(config.processing_conf.device)
-      if isinstance(config.processing_conf.device, list)
-      else config.processing_conf.device
-    )
-
-    file_formats = NA
-    if isinstance(pred_result, AcousticFilePredictionResult):
-      file_formats = get_file_formats({Path(x) for x in pred_result.inputs})
-
     return FullBenchmarkMeta(
-      _start_timepoint=resources.stats_resources.start_timepoint,
-      _end_timepoint=resources.stats_resources.end_timepoint,
-      sw_start_method=config.start_method,
-      param_producers=config.processing_conf.producers,
-      param_workers=config.processing_conf.workers,
-      _worker_avg_wall_time_s=perf_result.worker_avg_wall_time_s,
-      param_devices=device_str,
-      model_type=MODEL_TYPE_ACOUSTIC,
-      model_version=config.model_conf.version,
-      model_is_custom=config.model_conf.is_custom,
-      model_path=str(config.model_conf.path.absolute()),
-      model_species=len(config.model_conf.species_list),
-      model_precision=config.model_conf.backend_type.precision(),
-      _file_durations=resources.analyzer_resources.input_durations,
-      file_segments_maximum=resources.analyzer_resources.max_segment_idx_ptr.value + 1,
-      file_segments_total=resources.analyzer_resources.tot_n_segments_ptr.value,
-      model_segment_duration_seconds=config.model_conf.segment_size_s,
-      param_overlap_seconds=config.processing_conf.overlap_duration_s,
-      param_batch_size=config.processing_conf.batch_size,
+      **self._full_meta_kwargs(config, resources, pred_result),
       param_top_k=specific_config.top_k,
-      param_prefetch_ratio=config.processing_conf.prefetch_ratio,
-      mem_shm_ringsize=config.processing_conf.workers
-      + (config.processing_conf.workers * config.processing_conf.prefetch_ratio),
       param_sigmoid_apply=specific_config.apply_sigmoid,
       param_softmax_apply=specific_config.apply_softmax,
       param_sigmoid_sensitivity=specific_config.sigmoid_sensitivity
       if specific_config.apply_sigmoid
       else None,
-      param_bandpass_fmin=config.filtering_conf.bandpass_fmin,
-      param_bandpass_fmax=config.filtering_conf.bandpass_fmax,
-      param_half_precision=config.processing_conf.half_precision,
       param_confidence_threshold_default=specific_config.default_confidence_threshold,
       param_custom_species=len(specific_config.custom_species_list)
       if specific_config.custom_species_list
@@ -318,39 +196,6 @@ class PredictionStrategy(
       )
       if specific_config.custom_confidence_thresholds
       else 0,
-      _time_rampup_first_line_s=resources.stats_resources.start_time
-      - psutil.Process(os.getpid()).create_time(),  # TODO: measure the real ramp-up
-      _time_wall_time_s=wall_time_s,
-      mem_result_total_memory_usage_MiB=pred_result.memory_size_MiB,
-      mem_shm_size_file_indices_MiB=resources.ring_buffer_resources.rf_file_indices.nbytes
-      / 1024**2,
-      mem_shm_size_segment_indices_MiB=resources.ring_buffer_resources.rf_segment_indices.nbytes
-      / 1024**2,
-      mem_shm_size_audio_samples_MiB=resources.ring_buffer_resources.rf_audio_samples.nbytes
-      / 1024**2,
-      mem_shm_size_batch_sizes_MiB=resources.ring_buffer_resources.rf_batch_sizes.nbytes
-      / 1024**2,
-      mem_shm_size_flags_MiB=resources.ring_buffer_resources.rf_flags.nbytes / 1024**2,
-      mem_memory_usage_maximum_MiB=perf_result.max_memory_usages_MiB,
-      mem_memory_usage_average_MiB=perf_result.avg_memory_usages_MiB,
-      cpu_usage_maximum_pct=perf_result.max_cpu_usages_pct,
-      cpu_usage_average_pct=perf_result.avg_cpu_usages_pct,
-      mem_shm_slots_average_free=perf_result.avg_free_slots,
-      mem_shm_slots_average_busy=perf_result.avg_busy_slots,
-      mem_shm_slots_average_buffered=perf_result.avg_preloaded_slots,
-      worker_busy_average=perf_result.avg_busy_workers,
-      file_batches_processed=perf_result.total_batches_processed,
-      speed_worker_xrt=perf_result.worker_speed_xrt,
-      speed_worker_xrt_max=perf_result.worker_speed_xrt_max,
-      model_backend=config.model_conf.backend_type.name(),
-      model_sample_rate=config.model_conf.sample_rate,
-      model_sig_fmin=config.model_conf.sig_fmin,
-      model_sig_fmax=config.model_conf.sig_fmax,
-      worker_wait_time_average_milliseconds=perf_result.avg_wait_time_ms,
-      file_formats=file_formats,
-      param_inference_library=config.model_conf.backend_kwargs.get(
-        TF_BACKEND_LIB_ARG, NA
-      ),
     )
 
   def get_benchmark_dir_name(self) -> str:
