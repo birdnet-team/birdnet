@@ -144,6 +144,9 @@ class FakeAcousticBackend:
     return inference_result
 
   def half_precision(self, inference_result: np.ndarray) -> np.ndarray:
+    # As the real backends do, so a worker's precision shows in its output.
+    if self._half_precision:
+      return inference_result.astype(np.float16, copy=False)
     return inference_result
 
 
@@ -256,6 +259,13 @@ def fake_predict_session(
   speed: float = 1.0,
   progress_callback: Callable[..., None] | None = None,
   default_confidence_threshold: float | None = 0.1,
+  prefetch_ratio: int = 1,
+  overlap_duration_s: float = 0,
+  bandpass_fmin: int = 0,
+  bandpass_fmax: int = 15_000,
+  half_precision: bool = False,
+  max_audio_duration_min: float | None = None,
+  max_n_files: int = 1024,
   **kwargs: object,
 ) -> AcousticPredictionSession:
   return AcousticPredictionSession(
@@ -273,23 +283,23 @@ def fake_predict_session(
     n_producers=n_producers,
     n_workers=n_workers,
     batch_size=batch_size,
-    prefetch_ratio=1,
-    overlap_duration_s=0,
+    prefetch_ratio=prefetch_ratio,
+    overlap_duration_s=overlap_duration_s,
     speed=speed,
-    bandpass_fmin=0,
-    bandpass_fmax=15_000,
+    bandpass_fmin=bandpass_fmin,
+    bandpass_fmax=bandpass_fmax,
     apply_sigmoid=True,
     apply_softmax=False,
     sigmoid_sensitivity=1.0,
     default_confidence_threshold=default_confidence_threshold,
     custom_confidence_thresholds=None,
     custom_species_list=None,
-    half_precision=False,
-    max_audio_duration_min=None,
+    half_precision=half_precision,
+    max_audio_duration_min=max_audio_duration_min,
     show_stats=show_stats,
     progress_callback=progress_callback,
     device="CPU",
-    max_n_files=1024,
+    max_n_files=max_n_files,
     **kwargs,  # type: ignore[arg-type]
   )
 
@@ -305,6 +315,13 @@ def fake_encode_session(
   show_stats: Literal["minimal", "progress", "benchmark"] | None = None,
   speed: float = 1.0,
   progress_callback: Callable[..., None] | None = None,
+  prefetch_ratio: int = 1,
+  overlap_duration_s: float = 0,
+  bandpass_fmin: int = 0,
+  bandpass_fmax: int = 15_000,
+  half_precision: bool = False,
+  max_audio_duration_min: float | None = None,
+  max_n_files: int = 1024,
   **kwargs: object,
 ) -> AcousticEncodingSession:
   return AcousticEncodingSession(
@@ -322,17 +339,17 @@ def fake_encode_session(
     n_producers=n_producers,
     n_workers=n_workers,
     batch_size=batch_size,
-    prefetch_ratio=1,
-    overlap_duration_s=0,
+    prefetch_ratio=prefetch_ratio,
+    overlap_duration_s=overlap_duration_s,
     speed=speed,
-    bandpass_fmin=0,
-    bandpass_fmax=15_000,
-    half_precision=False,
-    max_audio_duration_min=None,
+    bandpass_fmin=bandpass_fmin,
+    bandpass_fmax=bandpass_fmax,
+    half_precision=half_precision,
+    max_audio_duration_min=max_audio_duration_min,
     show_stats=show_stats,
     progress_callback=progress_callback,
     device="CPU",
-    max_n_files=1024,
+    max_n_files=max_n_files,
     **kwargs,  # type: ignore[arg-type]
   )
 

@@ -27,7 +27,11 @@ from birdnet.acoustic.inference.configs import (
 )
 from birdnet.acoustic.inference.core.encoding.encoding_result import (
   AcousticDataEncodingResult,
+  AcousticEncodingResultBase,
   AcousticFileEncodingResult,
+)
+from birdnet.acoustic.inference.core.encoding.encoding_tensor import (
+  AcousticEncodingTensor,
 )
 from birdnet.acoustic.inference.core.logs import (
   get_logger_from_session,
@@ -37,6 +41,10 @@ from birdnet.acoustic.inference.core.perf_tracker import AcousticProgressStats
 from birdnet.acoustic.inference.core.prediction.prediction_result import (
   AcousticDataPredictionResult,
   AcousticFilePredictionResult,
+  AcousticPredictionResultBase,
+)
+from birdnet.acoustic.inference.core.prediction.prediction_tensor import (
+  AcousticPredictionTensor,
 )
 from birdnet.acoustic.inference.encoding_strategy import (
   EncodingStrategy,
@@ -73,6 +81,113 @@ class AcousticSessionBase(
     self._is_initialized = False
     super().__init__()
 
+  @staticmethod
+  def _build_config(
+    *,
+    species_list: OrderedSet[str],
+    model_path: Path,
+    model_segment_size_s: float,
+    model_sample_rate: int,
+    model_is_custom: bool,
+    model_sig_fmin: int,
+    model_sig_fmax: int,
+    model_version: ACOUSTIC_MODEL_VERSIONS,
+    model_backend_type: type[VersionedAcousticBackendProtocol],
+    model_backend_custom_kwargs: dict[str, Any],
+    n_producers: int,
+    n_workers: int | None,
+    batch_size: int,
+    prefetch_ratio: int,
+    overlap_duration_s: float,
+    speed: float,
+    bandpass_fmin: int,
+    bandpass_fmax: int,
+    half_precision: bool,
+    max_audio_duration_min: float | None,
+    show_stats: None | Literal["minimal", "progress", "benchmark"],
+    progress_callback: Callable[[AcousticProgressStats], None] | None,
+    device: str | list[str],
+    max_n_files: int,
+    on_file_complete: Callable[[Any], None] | None,
+  ) -> InferenceConfig:
+    assert len(species_list) > 0
+    assert model_path.exists()
+    assert model_segment_size_s > 0
+    assert model_sample_rate > 0
+    assert 0 <= model_sig_fmin < model_sig_fmax
+    assert model_backend_custom_kwargs is not None
+
+    if on_file_complete is not None and not callable(on_file_complete):
+      raise TypeError("on_file_complete must be callable")
+
+    n_producers = ProcessingConfig.validate_n_producers(n_producers)
+    n_workers = ProcessingConfig.validate_n_workers(n_workers)
+    batch_size = ProcessingConfig.validate_batch_size(batch_size)
+    prefetch_ratio = ProcessingConfig.validate_prefetch_ratio(prefetch_ratio)
+    overlap_duration_s = ProcessingConfig.validate_overlap_duration(
+      overlap_duration_s, model_segment_size_s
+    )
+
+    speed = ProcessingConfig.validate_speed(speed)
+
+    bandpass_fmin, bandpass_fmax = FilteringConfig.validate_bandpass_frequencies(
+      bandpass_fmin, bandpass_fmax, model_sig_fmin, model_sig_fmax
+    )
+
+    half_precision = ProcessingConfig.validate_half_precision(half_precision)
+
+    if max_audio_duration_min is not None:
+      max_audio_duration_min = ProcessingConfig.validate_max_audio_duration_min(
+        max_audio_duration_min
+      )
+
+    if show_stats is not None:
+      show_stats = OutputConfig.validate_show_stats(show_stats)
+
+    if progress_callback is not None and show_stats not in ("progress", "benchmark"):
+      raise ValueError(
+        "Progress callback can only be used when 'show_stats' is set to "
+        "'progress' or 'benchmark'."
+      )
+
+    max_n_files = ProcessingConfig.validate_max_n_files(max_n_files)
+
+    return InferenceConfig(
+      model_conf=ModelConfig(
+        species_list=species_list,
+        path=model_path,
+        is_custom=model_is_custom,
+        version=model_version,
+        segment_size_s=model_segment_size_s,
+        sample_rate=model_sample_rate,
+        sig_fmin=model_sig_fmin,
+        sig_fmax=model_sig_fmax,
+        backend_type=model_backend_type,
+        backend_kwargs=model_backend_custom_kwargs,
+      ),
+      processing_conf=ProcessingConfig(
+        producers=n_producers,
+        workers=n_workers,
+        batch_size=batch_size,
+        prefetch_ratio=prefetch_ratio,
+        overlap_duration_s=overlap_duration_s,
+        half_precision=half_precision,
+        max_audio_duration_min=max_audio_duration_min,
+        device=device,
+        max_n_files=max_n_files,
+        speed=speed,
+      ),
+      filtering_conf=FilteringConfig(
+        bandpass_fmin=bandpass_fmin,
+        bandpass_fmax=bandpass_fmax,
+      ),
+      output_conf=OutputConfig(
+        show_stats=show_stats,
+        progress_callback=progress_callback,
+        file_completion_callback=on_file_complete,
+      ),
+    )
+
   def __enter__(self) -> Self:
     assert not self._is_initialized
     self._resource_manager = ResourceManager(self._conf)
@@ -102,6 +217,27 @@ class AcousticSessionBase(
     assert self._resource_manager is not None
     assert self._resource_manager.resources is not None
     return self._resource_manager.resources
+
+  def _run_files(self, inputs: Path | str | Iterable[Path | str]) -> ResultType:
+    inputs = InferenceConfig.validate_input_files(inputs)
+
+    if len(inputs) > self._conf.processing_conf.max_n_files:
+      raise RuntimeError(
+        f"Number of input files ({len(inputs)}) exceeds the maximum "
+        f"allowed ({self._conf.processing_conf.max_n_files})."
+      )
+
+    return self._run(inputs)
+
+  def _run_arrays(
+    self, inputs: tuple[npt.NDArray, int] | Iterable[tuple[npt.NDArray, int]]
+  ) -> ResultType:
+    if self._conf.output_conf.file_completion_callback is not None:
+      raise RuntimeError(
+        "on_file_complete is only supported for file inputs (run), not run_arrays."
+      )
+    data = InferenceConfig.validate_input_audio(inputs)
+    return self._run(data)
 
   def _run(self, inputs: list[Path] | list[tuple[np.ndarray, int]]) -> ResultType:
     assert self._is_initialized
@@ -305,7 +441,11 @@ class AcousticSessionBase(
     self._logger = None
 
 
-class AcousticEncodingSession(AcousticSessionBase):
+class AcousticEncodingSession(
+  AcousticSessionBase[
+    AcousticEncodingResultBase, EncodingConfig, AcousticEncodingTensor
+  ]
+):
   def __init__(
     self,
     species_list: OrderedSet[str],
@@ -336,87 +476,39 @@ class AcousticEncodingSession(AcousticSessionBase):
     max_n_files: int,  # Limit to avoid excessive memory usage
     on_file_complete: Callable[[AcousticFileEncodingResult], None] | None = None,
   ) -> None:
-    assert len(species_list) > 0
-    assert model_path.exists()
-    assert model_segment_size_s > 0
-    assert model_sample_rate > 0
-    assert 0 <= model_sig_fmin < model_sig_fmax
-    assert model_backend_custom_kwargs is not None
+    conf = self._build_config(
+      species_list=species_list,
+      model_path=model_path,
+      model_segment_size_s=model_segment_size_s,
+      model_sample_rate=model_sample_rate,
+      model_is_custom=model_is_custom,
+      model_sig_fmin=model_sig_fmin,
+      model_sig_fmax=model_sig_fmax,
+      model_version=model_version,
+      model_backend_type=model_backend_type,
+      model_backend_custom_kwargs=model_backend_custom_kwargs,
+      n_producers=n_producers,
+      n_workers=n_workers,
+      batch_size=batch_size,
+      prefetch_ratio=prefetch_ratio,
+      overlap_duration_s=overlap_duration_s,
+      speed=speed,
+      bandpass_fmin=bandpass_fmin,
+      bandpass_fmax=bandpass_fmax,
+      half_precision=half_precision,
+      max_audio_duration_min=max_audio_duration_min,
+      show_stats=show_stats,
+      progress_callback=progress_callback,
+      device=device,
+      max_n_files=max_n_files,
+      on_file_complete=on_file_complete,
+    )
+
     assert model_emb_dim > 0
-
-    if on_file_complete is not None and not callable(on_file_complete):
-      raise TypeError("on_file_complete must be callable")
-    self._on_file_complete = on_file_complete
-
     ModelConfig.validate_backend_supports_embeddings(model_backend_type)
-    n_producers = ProcessingConfig.validate_n_producers(n_producers)
-    n_workers = ProcessingConfig.validate_n_workers(n_workers)
-    batch_size = ProcessingConfig.validate_batch_size(batch_size)
-    prefetch_ratio = ProcessingConfig.validate_prefetch_ratio(prefetch_ratio)
-    overlap_duration_s = ProcessingConfig.validate_overlap_duration(
-      overlap_duration_s, model_segment_size_s
-    )
-
-    speed = ProcessingConfig.validate_speed(speed)
-
-    bandpass_fmin, bandpass_fmax = FilteringConfig.validate_bandpass_frequencies(
-      bandpass_fmin, bandpass_fmax, model_sig_fmin, model_sig_fmax
-    )
-
-    half_precision = ProcessingConfig.validate_half_precision(half_precision)
-
-    if max_audio_duration_min is not None:
-      max_audio_duration_min = ProcessingConfig.validate_max_audio_duration_min(
-        max_audio_duration_min
-      )
-
-    if show_stats is not None:
-      show_stats = OutputConfig.validate_show_stats(show_stats)
-
-    if progress_callback is not None and show_stats not in ("progress", "benchmark"):
-      raise ValueError(
-        "Progress callback can only be used when 'show_stats' is set to "
-        "'progress' or 'benchmark'."
-      )
-
-    max_n_files = ProcessingConfig.validate_max_n_files(max_n_files)
 
     super().__init__(
-      conf=InferenceConfig(
-        model_conf=ModelConfig(
-          species_list=species_list,
-          path=model_path,
-          is_custom=model_is_custom,
-          version=model_version,
-          segment_size_s=model_segment_size_s,
-          sample_rate=model_sample_rate,
-          sig_fmin=model_sig_fmin,
-          sig_fmax=model_sig_fmax,
-          backend_type=model_backend_type,
-          backend_kwargs=model_backend_custom_kwargs,
-        ),
-        processing_conf=ProcessingConfig(
-          producers=n_producers,
-          workers=n_workers,
-          batch_size=batch_size,
-          prefetch_ratio=prefetch_ratio,
-          overlap_duration_s=overlap_duration_s,
-          half_precision=half_precision,
-          max_audio_duration_min=max_audio_duration_min,
-          device=device,
-          max_n_files=max_n_files,
-          speed=speed,
-        ),
-        filtering_conf=FilteringConfig(
-          bandpass_fmin=bandpass_fmin,
-          bandpass_fmax=bandpass_fmax,
-        ),
-        output_conf=OutputConfig(
-          show_stats=show_stats,
-          progress_callback=progress_callback,
-          file_completion_callback=on_file_complete,
-        ),
-      ),
+      conf=conf,
       strategy=EncodingStrategy(),
       specific_config=EncodingConfig(
         emb_dim=model_emb_dim,
@@ -426,28 +518,19 @@ class AcousticEncodingSession(AcousticSessionBase):
   def run(
     self, inputs: Path | str | Iterable[Path | str]
   ) -> AcousticFileEncodingResult:
-    inputs = InferenceConfig.validate_input_files(inputs)
-
-    if len(inputs) > self._conf.processing_conf.max_n_files:
-      raise RuntimeError(
-        f"Number of input files ({len(inputs)}) exceeds the maximum "
-        f"allowed ({self._conf.processing_conf.max_n_files})."
-      )
-
-    return super()._run(inputs)
+    return cast(AcousticFileEncodingResult, self._run_files(inputs))
 
   def run_arrays(
     self, inputs: tuple[npt.NDArray, int] | Iterable[tuple[npt.NDArray, int]]
   ) -> AcousticDataEncodingResult:
-    if self._on_file_complete is not None:
-      raise RuntimeError(
-        "on_file_complete is only supported for file inputs (run), not run_arrays."
-      )
-    data = InferenceConfig.validate_input_audio(inputs)
-    return super()._run(data)
+    return cast(AcousticDataEncodingResult, self._run_arrays(inputs))
 
 
-class AcousticPredictionSession(AcousticSessionBase):
+class AcousticPredictionSession(
+  AcousticSessionBase[
+    AcousticPredictionResultBase, PredictionConfig, AcousticPredictionTensor
+  ]
+):
   def __init__(
     self,
     species_list: OrderedSet[str],
@@ -484,48 +567,36 @@ class AcousticPredictionSession(AcousticSessionBase):
     max_n_files: int,
     on_file_complete: Callable[[AcousticFilePredictionResult], None] | None = None,
   ) -> None:
-    assert len(species_list) > 0
-    assert model_path.exists()
-    assert model_segment_size_s > 0
-    assert model_sample_rate > 0
-    assert 0 <= model_sig_fmin < model_sig_fmax
-    assert model_backend_custom_kwargs is not None
-
-    if on_file_complete is not None and not callable(on_file_complete):
-      raise TypeError("on_file_complete must be callable")
-    self._on_file_complete = on_file_complete
+    conf = self._build_config(
+      species_list=species_list,
+      model_path=model_path,
+      model_segment_size_s=model_segment_size_s,
+      model_sample_rate=model_sample_rate,
+      model_is_custom=model_is_custom,
+      model_sig_fmin=model_sig_fmin,
+      model_sig_fmax=model_sig_fmax,
+      model_version=model_version,
+      model_backend_type=model_backend_type,
+      model_backend_custom_kwargs=model_backend_custom_kwargs,
+      n_producers=n_producers,
+      n_workers=n_workers,
+      batch_size=batch_size,
+      prefetch_ratio=prefetch_ratio,
+      overlap_duration_s=overlap_duration_s,
+      speed=speed,
+      bandpass_fmin=bandpass_fmin,
+      bandpass_fmax=bandpass_fmax,
+      half_precision=half_precision,
+      max_audio_duration_min=max_audio_duration_min,
+      show_stats=show_stats,
+      progress_callback=progress_callback,
+      device=device,
+      max_n_files=max_n_files,
+      on_file_complete=on_file_complete,
+    )
 
     if top_k is not None:
       top_k = PredictionConfig.validate_top_k(top_k, len(species_list))
-    n_producers = ProcessingConfig.validate_n_producers(n_producers)
-    n_workers = ProcessingConfig.validate_n_workers(n_workers)
-    batch_size = ProcessingConfig.validate_batch_size(batch_size)
-    prefetch_ratio = ProcessingConfig.validate_prefetch_ratio(prefetch_ratio)
-    overlap_duration_s = ProcessingConfig.validate_overlap_duration(
-      overlap_duration_s, model_segment_size_s
-    )
-
-    speed = ProcessingConfig.validate_speed(speed)
-
-    bandpass_fmin, bandpass_fmax = FilteringConfig.validate_bandpass_frequencies(
-      bandpass_fmin, bandpass_fmax, model_sig_fmin, model_sig_fmax
-    )
-
-    half_precision = ProcessingConfig.validate_half_precision(half_precision)
-
-    if max_audio_duration_min is not None:
-      max_audio_duration_min = ProcessingConfig.validate_max_audio_duration_min(
-        max_audio_duration_min
-      )
-
-    if show_stats is not None:
-      show_stats = OutputConfig.validate_show_stats(show_stats)
-
-    if progress_callback is not None and show_stats not in ("progress", "benchmark"):
-      raise ValueError(
-        "Progress callback can only be used when 'show_stats' is set to "
-        "'progress' or 'benchmark'."
-      )
 
     if apply_sigmoid and apply_softmax:
       raise ValueError("apply_sigmoid and apply_softmax cannot both be True")
@@ -554,44 +625,8 @@ class AcousticPredictionSession(AcousticSessionBase):
         sigmoid_sensitivity
       )
 
-    max_n_files = ProcessingConfig.validate_max_n_files(max_n_files)
-
     super().__init__(
-      conf=InferenceConfig(
-        model_conf=ModelConfig(
-          species_list=species_list,
-          path=model_path,
-          is_custom=model_is_custom,
-          version=model_version,
-          segment_size_s=model_segment_size_s,
-          sample_rate=model_sample_rate,
-          sig_fmin=model_sig_fmin,
-          sig_fmax=model_sig_fmax,
-          backend_type=model_backend_type,
-          backend_kwargs=model_backend_custom_kwargs,
-        ),
-        processing_conf=ProcessingConfig(
-          producers=n_producers,
-          workers=n_workers,
-          batch_size=batch_size,
-          prefetch_ratio=prefetch_ratio,
-          overlap_duration_s=overlap_duration_s,
-          half_precision=half_precision,
-          max_audio_duration_min=max_audio_duration_min,
-          device=device,
-          max_n_files=max_n_files,
-          speed=speed,
-        ),
-        filtering_conf=FilteringConfig(
-          bandpass_fmin=bandpass_fmin,
-          bandpass_fmax=bandpass_fmax,
-        ),
-        output_conf=OutputConfig(
-          show_stats=show_stats,
-          progress_callback=progress_callback,
-          file_completion_callback=on_file_complete,
-        ),
-      ),
+      conf=conf,
       strategy=PredictionStrategy(),
       specific_config=PredictionConfig(
         top_k=top_k,
@@ -607,22 +642,9 @@ class AcousticPredictionSession(AcousticSessionBase):
   def run(
     self, inputs: Path | str | Iterable[Path | str]
   ) -> AcousticFilePredictionResult:
-    inputs = InferenceConfig.validate_input_files(inputs)
-
-    if len(inputs) > self._conf.processing_conf.max_n_files:
-      raise RuntimeError(
-        f"Number of input files ({len(inputs)}) exceeds the maximum "
-        f"allowed ({self._conf.processing_conf.max_n_files})."
-      )
-
-    return super()._run(inputs)
+    return cast(AcousticFilePredictionResult, self._run_files(inputs))
 
   def run_arrays(
     self, inputs: tuple[npt.NDArray, int] | Iterable[tuple[npt.NDArray, int]]
   ) -> AcousticDataPredictionResult:
-    if self._on_file_complete is not None:
-      raise RuntimeError(
-        "on_file_complete is only supported for file inputs (run), not run_arrays."
-      )
-    data = InferenceConfig.validate_input_audio(inputs)
-    return super()._run(data)
+    return cast(AcousticDataPredictionResult, self._run_arrays(inputs))
