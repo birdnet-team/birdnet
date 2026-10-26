@@ -2,14 +2,16 @@ from __future__ import annotations
 
 import os
 from abc import abstractmethod
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 import numpy as np
+from tqdm import tqdm
 
 from birdnet.core.base import ResultBase
 from birdnet.utils.helper import (
+  apply_speed_to_duration,
   get_hop_duration_s,
   get_lossless_float_dtype,
   get_uint_dtype,
@@ -94,6 +96,16 @@ class AcousticResultBase(ResultBase):
     self._model_fmax = np.array([model_fmax], dtype=get_uint_dtype(model_fmax))
     self._model_sr = np.array([model_sr], dtype=get_uint_dtype(model_sr))
 
+  @staticmethod
+  def _inputs_from_files(files: list[Path]) -> np.ndarray:
+    all_files = [str(file.absolute()) for file in files]
+    max_len = max(map(len, all_files))
+    return np.asarray(all_files, dtype=f"<U{max_len}")
+
+  @staticmethod
+  def _inputs_from_count(n: int) -> np.ndarray:
+    return np.arange(n, dtype=get_uint_dtype(n - 1))
+
   @property
   def _input_dtype(self) -> type:
     return self._inputs.dtype
@@ -149,6 +161,14 @@ class AcousticResultBase(ResultBase):
       self._segment_duration_s[0], self._overlap_duration_s[0], self._speed[0]
     )
 
+  @property
+  def _time_dtype(self) -> np.dtype:
+    # Force at least float32 for timing columns. The bulk _input_durations
+    # array is stored in a magnitude-based dtype (float16 for files <= 2**11 s),
+    # which is too coarse for accumulated i*hop products and would also produce
+    # Arrow halffloat that some implementations (e.g. R) cannot read.
+    return np.result_type(self._input_durations.dtype, np.float32)
+
   def _get_extra_save_data(self) -> dict[str, np.ndarray]:
     return {
       NP_INPUTS_KEY: self._inputs,
@@ -195,8 +215,58 @@ class AcousticResultBase(ResultBase):
   @abstractmethod
   def to_structured_array(self) -> np.ndarray: ...
 
+  def _fill_shared_columns(
+    self,
+    structured: np.ndarray,
+    file_idx_flat: np.ndarray,
+    chunk_idx_flat: np.ndarray,
+  ) -> None:
+    time_dtype = structured.dtype[VAR_START_TIME]
+    start_times = chunk_idx_flat.astype(time_dtype) * self.hop_duration_s
+
+    structured[VAR_START_TIME] = start_times
+    structured[VAR_END_TIME] = np.minimum(
+      start_times
+      + apply_speed_to_duration(self._segment_duration_s[0], self._speed[0]),
+      self._input_durations[file_idx_flat].astype(time_dtype),
+    )
+    del start_times
+    structured[VAR_INPUT] = self._inputs[file_idx_flat]
+
   @abstractmethod
   def to_arrow_table(self) -> pa.Table: ...
+
+  def _arrow_shared_columns(
+    self, structured: np.ndarray
+  ) -> dict[str, pa.Array | pa.ChunkedArray]:
+    import pyarrow as pa
+
+    arrow_arrays: dict[str, pa.Array | pa.ChunkedArray] = {}
+    # An empty object column would infer `null`, which Parquet refuses in a
+    # non-nullable field.
+    input_type = pa.string() if structured[VAR_INPUT].dtype == object else None
+    arrow_arrays[VAR_INPUT] = pa.array(
+      structured[VAR_INPUT], type=input_type
+    ).dictionary_encode()
+    arrow_arrays[VAR_START_TIME] = pa.array(
+      structured[VAR_START_TIME],
+      type=pa.from_numpy_dtype(structured[VAR_START_TIME].dtype),
+    )
+    arrow_arrays[VAR_END_TIME] = pa.array(
+      structured[VAR_END_TIME],
+      type=pa.from_numpy_dtype(structured[VAR_END_TIME].dtype),
+    )
+    return arrow_arrays
+
+  @staticmethod
+  def _arrow_fields(
+    arrays: Mapping[str, pa.Array | pa.ChunkedArray],
+  ) -> list[pa.Field]:
+    import pyarrow as pa
+
+    return [
+      pa.field(name, array.type, nullable=False) for name, array in arrays.items()
+    ]
 
   @abstractmethod
   def to_csv(
@@ -207,6 +277,73 @@ class AcousticResultBase(ResultBase):
     buffer_size_kb: int = 1024,
     silent: bool = False,
   ) -> None: ...
+
+  @abstractmethod
+  def _format_csv_record(self, record: np.void) -> str: ...
+
+  def _write_csv(
+    self,
+    path: os.PathLike | str,
+    *,
+    header: str,
+    unit: str,
+    encoding: str,
+    buffer_size_kb: int,
+    silent: bool,
+  ) -> None:
+    if not silent:
+      print("Preparing CSV export...")  # noqa: T201
+
+    structured = self.to_structured_array()
+
+    buffer_bytes = buffer_size_kb * 1024
+    output_path = Path(path)
+
+    if output_path.suffix != ".csv":
+      raise ValueError("Output path must have a .csv suffix")
+
+    with output_path.open("w", encoding=encoding, buffering=buffer_bytes) as f:
+      f.write(f"{header}\n")
+
+      block: list[str] = []
+      block_size_bytes = 0
+      total_size_bytes = 0
+      collected_size_bytes = 0
+      update_size_every = 1024**2 * 100
+
+      with tqdm(
+        total=len(structured),
+        desc="Writing CSV",
+        unit=unit,
+        disable=silent,
+      ) as pbar:
+        for record in structured:
+          line = self._format_csv_record(record)
+
+          block.append(line)
+          block_size_bytes += len(line.encode(encoding))
+
+          if block_size_bytes >= buffer_bytes:
+            f.writelines(block)
+            pbar.update(len(block))
+            block.clear()
+            collected_size_bytes += block_size_bytes
+            block_size_bytes = 0
+
+            if collected_size_bytes >= update_size_every:
+              total_size_bytes += collected_size_bytes
+              collected_size_bytes = 0
+
+              if not silent:
+                pbar.set_postfix({"CSV": f"{total_size_bytes / 1024**2:.0f} MB"})
+
+        if block:
+          f.writelines(block)
+          pbar.update(len(block))
+
+        if len(structured) > 0 and not silent:
+          total_size_bytes += collected_size_bytes
+          pbar.set_postfix({"CSV": f"{total_size_bytes / 1024**2:.0f} MB"})
 
   def to_dataframe(self) -> pd.DataFrame:
     """Convert the structured array into a pandas DataFrame."""
