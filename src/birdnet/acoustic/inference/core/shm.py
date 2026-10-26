@@ -13,7 +13,7 @@ from birdnet.acoustic.inference.core.logs import get_logger_from_session
 def create_shm_ring(session_id: str, ring: RingField) -> shared_memory.SharedMemory:  # type: ignore
   shm = shared_memory.SharedMemory(name=ring.name, create=True, size=ring.nbytes)
   try:
-    yield shm  # type: ignore
+    yield shm
   finally:
     shm.close()
     with suppress(FileNotFoundError):

@@ -250,7 +250,7 @@ class Consumer:
     # concurrently; the copied arrays are what crosses to the dispatcher thread.
     # The array tuple is tensor-specific (predictions vs embeddings); the
     # strategy that built the tensor knows how to turn it back into a result.
-    arrays = self._tensor.copy_file_slice(idx, n_segments)  # type: ignore[attr-defined]
+    arrays = self._tensor.copy_file_slice(idx, n_segments)
     self._dispatch_queue.put(
       (self._inputs[idx], arrays, not valid, float(self._duration[idx]))
     )

@@ -41,7 +41,7 @@ from birdnet.utils.logging_utils import (
 
 if TYPE_CHECKING:
   import onnxruntime as ort
-  from ai_edge_litert.interpreter import (  # type: ignore
+  from ai_edge_litert.interpreter import (
     Interpreter as LiteRTInterpreter,
   )
   from tensorflow import Tensor
@@ -684,7 +684,7 @@ class PBBackend(Backend, ABC):
     assert self._logical_device_name is not None
     assert batch.dtype == np.float32
 
-    with device(self._logical_device_name):  # type: ignore
+    with device(self._logical_device_name):
       tensor = convert_to_tensor(batch, dtype=float32)
     return tensor
 
@@ -695,7 +695,7 @@ class PBBackend(Backend, ABC):
     assert self._logical_device_name is not None
     assert self._predict_fn is not None
 
-    with device(self._logical_device_name):  # type: ignore
+    with device(self._logical_device_name):
       prediction_result = self._predict_fn(**{self.input_key(): batch})
     predictions: Tensor = prediction_result[self.prediction_key()]
     assert predictions.dtype == float32
@@ -711,7 +711,7 @@ class PBBackend(Backend, ABC):
     assert self._encoding_fn is not None
     assert self._logical_device_name is not None
 
-    with device(self._logical_device_name):  # type: ignore
+    with device(self._logical_device_name):
       encoding_result = self._encoding_fn(**{self.input_key(): batch})
     embeddings: Tensor = encoding_result[encoding_key]
     assert embeddings.dtype == float32
@@ -730,7 +730,7 @@ class PBBackend(Backend, ABC):
     assert self._logical_device_name is not None
     assert isinstance(inference_result, Tensor)
     assert inference_result.dtype == float32
-    with device(self._logical_device_name):  # type: ignore
+    with device(self._logical_device_name):
       inference_result = cast(inference_result, float16)
       assert inference_result.dtype == float16
     return inference_result
@@ -944,7 +944,7 @@ def import_tf() -> None:
 
 
 def set_cpu_device_tf(cpu_threads: int | None = None) -> str:
-  from tensorflow.config import list_logical_devices  # type: ignore
+  from tensorflow.config import list_logical_devices
 
   # disable GPUs for TF when using CPU backend
   # because if GPU is available TF will try to use it by default
@@ -954,7 +954,7 @@ def set_cpu_device_tf(cpu_threads: int | None = None) -> str:
   os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
   if cpu_threads is not None:
-    from tensorflow.config import threading  # type: ignore
+    from tensorflow.config import threading
 
     try:
       threading.set_intra_op_parallelism_threads(cpu_threads)
@@ -1023,7 +1023,7 @@ def load_pb_model(model_path: Path, logical_device_name: str) -> Any:
   import tensorflow as tf
 
   start = time.perf_counter()
-  with tf.device(logical_device_name):  # type: ignore
+  with tf.device(logical_device_name):
     model = tf.saved_model.load(str(model_path.absolute()))
   end = time.perf_counter()
 

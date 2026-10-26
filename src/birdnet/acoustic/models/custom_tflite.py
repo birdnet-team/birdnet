@@ -31,7 +31,7 @@ from birdnet.globals import (
 )
 
 if TYPE_CHECKING:
-  from ai_edge_litert.interpreter import (  # type: ignore
+  from ai_edge_litert.interpreter import (
     Interpreter as LiteRTInterpreter,
   )
   from tensorflow.lite.python.interpreter import Interpreter as TFInterpreter
