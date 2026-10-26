@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 from tqdm import tqdm
 
-import birdnet.acoustic.inference.core.encoding.encoding_result as encoding_result
+import birdnet.acoustic.inference.core.result_base as result_base
 from birdnet_tests.acoustic_models.inference.encoding.encoding_result_py.test_encoding_to_structured_array import (  # noqa: E501
   create_file_encoding_result,
 )
@@ -64,7 +64,7 @@ def test_progress_bar_reaches_the_row_count(
     bars.append(bar)
     return bar
 
-  monkeypatch.setattr(encoding_result, "tqdm", recording_tqdm)
+  monkeypatch.setattr(result_base, "tqdm", recording_tqdm)
   result = create_file_encoding_result(
     n_files=2,
     duration_s=300,
@@ -91,7 +91,7 @@ def test_empty_result_shows_no_size(
     bars.append(bar)
     return bar
 
-  monkeypatch.setattr(encoding_result, "tqdm", recording_tqdm)
+  monkeypatch.setattr(result_base, "tqdm", recording_tqdm)
   result = create_file_encoding_result(
     n_files=1,
     duration_s=6,

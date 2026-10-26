@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from ordered_set import OrderedSet
-from tqdm import tqdm
 
 from birdnet.acoustic.inference.core.prediction.prediction_tensor import (
   AcousticPredictionTensor,
@@ -17,12 +16,7 @@ from birdnet.acoustic.inference.core.result_base import (
   VAR_START_TIME,
   AcousticResultBase,
 )
-from birdnet.utils.helper import (
-  apply_speed_to_duration,
-  format_input_for_csv,
-  get_uint_dtype,
-  hms_centis_fast,
-)
+from birdnet.utils.helper import format_input_for_csv, hms_centis_fast
 
 if TYPE_CHECKING:
   import pyarrow as pa
@@ -160,11 +154,7 @@ class AcousticPredictionResultBase(AcousticResultBase):
     del valid_mask
 
     n_predictions = len(valid_indices[0])
-    # Force at least float32 for timing columns. The bulk _input_durations
-    # array is stored in a magnitude-based dtype (float16 for files <= 2**11 s),
-    # which is too coarse for accumulated i*hop products and would also produce
-    # Arrow halffloat that some implementations (e.g. R) cannot read.
-    time_dtype = np.result_type(self._input_durations.dtype, np.float32)
+    time_dtype = self._time_dtype
     dtype = [
       (VAR_INPUT, self._input_dtype),
       (VAR_START_TIME, time_dtype),
@@ -202,20 +192,9 @@ class AcousticPredictionResultBase(AcousticResultBase):
     )
     del sort_indices
 
-    hop_duration_s = self.hop_duration_s
-    start_times = chunk_idx_flat.astype(time_dtype) * hop_duration_s
-    del hop_duration_s
-    del chunk_idx_flat
-
-    structured_array[VAR_START_TIME] = start_times
-    structured_array[VAR_END_TIME] = np.minimum(
-      start_times
-      + apply_speed_to_duration(self._segment_duration_s[0], self._speed[0]),
-      self._input_durations[file_idx_flat].astype(time_dtype),
-    )
-    del start_times
-    structured_array[VAR_INPUT] = self._inputs[file_idx_flat]
+    self._fill_shared_columns(structured_array, file_idx_flat, chunk_idx_flat)
     del file_idx_flat
+    del chunk_idx_flat
     structured_array[VAR_SPECIES_NAME] = self._species_list[
       self._species_ids[valid_indices]
     ]
@@ -229,20 +208,7 @@ class AcousticPredictionResultBase(AcousticResultBase):
 
     structured = self.to_structured_array()
 
-    arrow_arrays: dict[str, pa.Array] = {}
-    # An empty object column would infer `null`, which Parquet refuses in a
-    # non-nullable field.
-    input_type = pa.string() if structured[VAR_INPUT].dtype == object else None
-    arrow_arrays[VAR_INPUT] = pa.array(
-      structured[VAR_INPUT], type=input_type
-    ).dictionary_encode()
-    arrow_arrays[VAR_START_TIME] = pa.array(
-      structured[VAR_START_TIME],
-      type=pa.from_numpy_dtype(structured[VAR_START_TIME].dtype),
-    )
-    arrow_arrays[VAR_END_TIME] = pa.array(
-      structured[VAR_END_TIME], type=pa.from_numpy_dtype(structured[VAR_END_TIME].dtype)
-    )
+    arrow_arrays = self._arrow_shared_columns(structured)
     arrow_arrays[VAR_SPECIES_NAME] = pa.array(
       structured[VAR_SPECIES_NAME], type=pa.string()
     ).dictionary_encode()
@@ -251,13 +217,7 @@ class AcousticPredictionResultBase(AcousticResultBase):
       type=pa.from_numpy_dtype(structured[VAR_CONFIDENCE].dtype),
     )
 
-    fields = [
-      pa.field(VAR_INPUT, arrow_arrays[VAR_INPUT].type, nullable=False),
-      pa.field(VAR_START_TIME, arrow_arrays[VAR_START_TIME].type, nullable=False),
-      pa.field(VAR_END_TIME, arrow_arrays[VAR_END_TIME].type, nullable=False),
-      pa.field(VAR_SPECIES_NAME, arrow_arrays[VAR_SPECIES_NAME].type, nullable=False),
-      pa.field(VAR_CONFIDENCE, arrow_arrays[VAR_CONFIDENCE].type, nullable=False),
-    ]
+    fields = self._arrow_fields(arrow_arrays)
 
     metadata: dict[bytes | str, bytes | str] | None = {
       "segment_duration_s": str(self._segment_duration_s[0]),
@@ -273,7 +233,7 @@ class AcousticPredictionResultBase(AcousticResultBase):
       "model_precision": str(self._model_precision[0]),
     }
     schema_with_metadata = pa.schema(fields, metadata=metadata)
-    table = pa.table(arrow_arrays, schema=schema_with_metadata)
+    table = pa.table(list(arrow_arrays.values()), schema=schema_with_metadata)
     return table
 
   def to_csv(
@@ -284,69 +244,26 @@ class AcousticPredictionResultBase(AcousticResultBase):
     buffer_size_kb: int = 1024,
     silent: bool = False,
   ) -> None:
-    if not silent:
-      print("Preparing CSV export...")  # noqa: T201
+    self._write_csv(
+      path,
+      header=(
+        f"{VAR_INPUT},{VAR_START_TIME},{VAR_END_TIME},"
+        f"{VAR_SPECIES_NAME},{VAR_CONFIDENCE}"
+      ),
+      unit="predictions",
+      encoding=encoding,
+      buffer_size_kb=buffer_size_kb,
+      silent=silent,
+    )
 
-    structured = self.to_structured_array()
-
-    buffer_bytes = buffer_size_kb * 1024
-    output_path = Path(path)
-
-    if output_path.suffix != ".csv":
-      raise ValueError("Output path must have a .csv suffix")
-
-    with output_path.open("w", encoding=encoding, buffering=buffer_bytes) as f:
-      f.write(
-        f"{VAR_INPUT},{VAR_START_TIME},{VAR_END_TIME},{VAR_SPECIES_NAME},{VAR_CONFIDENCE}\n"
-      )
-
-      block: list[str] = []
-      block_size_bytes = 0
-      total_size_bytes = 0
-      collected_size_bytes = 0
-      update_size_every = 1024**2 * 100  # Update every 100 MB
-
-      with tqdm(
-        total=len(structured),
-        desc="Writing CSV",
-        unit="predictions",
-        disable=silent,
-      ) as pbar:
-        for record in structured:
-          line = (
-            f"{format_input_for_csv(record[VAR_INPUT])},"
-            f'"{hms_centis_fast(record[VAR_START_TIME])}",'
-            f'"{hms_centis_fast(record[VAR_END_TIME])}",'
-            f"{format_input_for_csv(record[VAR_SPECIES_NAME])},"
-            f"{record[VAR_CONFIDENCE]:.6f}\n"
-          )
-
-          block.append(line)
-          block_size_bytes += len(line.encode(encoding))
-
-          # Flush the buffered lines once they reach the buffer size.
-          if block_size_bytes >= buffer_bytes:
-            f.writelines(block)
-            pbar.update(len(block))
-            block.clear()
-            collected_size_bytes += block_size_bytes
-            block_size_bytes = 0
-
-            # Refresh the size display every 100 MB written.
-            if collected_size_bytes >= update_size_every:
-              total_size_bytes += collected_size_bytes
-              collected_size_bytes = 0
-
-              if not silent:
-                pbar.set_postfix({"CSV": f"{total_size_bytes / 1024**2:.0f} MB"})
-
-        if block:
-          f.writelines(block)
-          pbar.update(len(block))
-
-        if len(structured) > 0 and not silent:
-          total_size_bytes += collected_size_bytes
-          pbar.set_postfix({"CSV": f"{total_size_bytes / 1024**2:.0f} MB"})
+  def _format_csv_record(self, record: np.void) -> str:
+    return (
+      f"{format_input_for_csv(record[VAR_INPUT])},"
+      f'"{hms_centis_fast(record[VAR_START_TIME])}",'
+      f'"{hms_centis_fast(record[VAR_END_TIME])}",'
+      f"{format_input_for_csv(record[VAR_SPECIES_NAME])},"
+      f"{record[VAR_CONFIDENCE]:.6f}\n"
+    )
 
 
 class AcousticFilePredictionResult(AcousticPredictionResultBase):
@@ -367,9 +284,7 @@ class AcousticFilePredictionResult(AcousticPredictionResultBase):
     model_version: str,
     species_list_array: np.ndarray | None = None,
   ) -> None:
-    all_files = [str(file.absolute()) for file in files]
-    max_len = max(map(len, all_files))
-    inputs = np.asarray(all_files, dtype=f"<U{max_len}")
+    inputs = self._inputs_from_files(files)
 
     super().__init__(
       tensor=tensor,
@@ -415,8 +330,7 @@ class AcousticDataPredictionResult(AcousticPredictionResultBase):
     model_precision: str,
     model_version: str,
   ) -> None:
-    n_arrays = len(input_durations)
-    array_indices = np.arange(n_arrays, dtype=get_uint_dtype(n_arrays - 1))
+    array_indices = self._inputs_from_count(len(input_durations))
 
     super().__init__(
       tensor=tensor,

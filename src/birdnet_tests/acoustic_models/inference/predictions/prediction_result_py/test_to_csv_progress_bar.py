@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 from tqdm import tqdm
 
-import birdnet.acoustic.inference.core.prediction.prediction_result as prediction_result
+import birdnet.acoustic.inference.core.result_base as result_base
 from birdnet_tests.acoustic_models.inference.predictions.prediction_result_py.test_prediction_to_structured_array import (  # noqa: E501
   create_file_prediction_result,
 )
@@ -28,7 +28,7 @@ def test_progress_bar_reaches_the_row_count(
     bars.append(bar)
     return bar
 
-  monkeypatch.setattr(prediction_result, "tqdm", recording_tqdm)
+  monkeypatch.setattr(result_base, "tqdm", recording_tqdm)
   result = create_file_prediction_result(
     n_files=2, duration_s=3000, top_k=5, segment_duration_s=3.0, overlap_duration_s=0.0
   )
@@ -51,7 +51,7 @@ def test_empty_result_shows_no_size(
     bars.append(bar)
     return bar
 
-  monkeypatch.setattr(prediction_result, "tqdm", recording_tqdm)
+  monkeypatch.setattr(result_base, "tqdm", recording_tqdm)
   result = create_file_prediction_result(
     n_files=1, duration_s=6, top_k=2, segment_duration_s=3.0, overlap_duration_s=0.0
   )
