@@ -1,5 +1,4 @@
 import ctypes
-import multiprocessing as mp
 import multiprocessing.synchronize
 import os
 import queue
@@ -18,6 +17,7 @@ from birdnet.acoustic.inference.core.producer import (
 )
 from birdnet.acoustic.inference.core.shm import RingField
 from birdnet.utils.helper import (
+  UIntCType,
   get_n_segments_speed,
   max_value_for_uint_dtype,
 )
@@ -31,7 +31,7 @@ class InputAnalyzer:
     overlap_duration_s: float,
     speed: float,
     rf_segment_indices: RingField,
-    max_segment_idx_ptr: mp.RawValue,  # type: ignore
+    max_segment_idx_ptr: UIntCType,
     input_queue: queue.Queue,
     analyzing_result: queue.Queue,
     tot_n_segments: ctypes.c_uint64,

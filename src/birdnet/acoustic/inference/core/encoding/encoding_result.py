@@ -60,11 +60,12 @@ class AcousticEncodingResultBase(AcousticResultBase):
       model_precision=model_precision,
       model_version=model_version,
     )
-    assert tensor._emb.dtype in (np.float16, np.float32)
-    assert tensor._emb_masked.dtype == bool
+    embeddings, embeddings_masked = tensor.arrays()
+    assert embeddings.dtype in (np.float16, np.float32)
+    assert embeddings_masked.dtype == bool
 
-    self._embeddings = tensor._emb
-    self._embeddings_masked = tensor._emb_masked
+    self._embeddings = embeddings
+    self._embeddings_masked = embeddings_masked
     self._unprocessable_inputs = tensor.unprocessable_inputs
 
   @property
@@ -108,7 +109,7 @@ class AcousticEncodingResultBase(AcousticResultBase):
     Returns:
       int: Number of coefficients per embedding vector.
     """
-    return self._embeddings.shape[-1]
+    return int(self._embeddings.shape[-1])
 
   @property
   def max_n_segments(self) -> int:
@@ -117,7 +118,7 @@ class AcousticEncodingResultBase(AcousticResultBase):
     Returns:
       int: Number of overlapping windows available per file.
     """
-    return self._embeddings.shape[1]
+    return int(self._embeddings.shape[1])
 
   def to_structured_array(self) -> np.ndarray:
     """Convert the embeddings and timing metadata into a structured array.

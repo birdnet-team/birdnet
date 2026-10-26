@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import ctypes
 import multiprocessing.synchronize
 import os
 import time
@@ -35,6 +34,7 @@ from birdnet.globals import (
 )
 from birdnet.utils.helper import (
   SF_FORMATS,
+  UIntCType,
   apply_speed_to_samples,
   assert_queue_is_empty,
   bandpass_signal,
@@ -60,14 +60,8 @@ class Producer(bn_logging.LogableProcessBase):
     rf_flags: RingField,
     sem_free_slots: Semaphore,
     sem_filled_slots: CountedSemaphore,
-    max_segment_idx_ptr: ctypes.c_uint8
-    | ctypes.c_uint16
-    | ctypes.c_uint32
-    | ctypes.c_uint64,
-    prod_done_ptr: Synchronized[ctypes.c_uint8]
-    | Synchronized[ctypes.c_uint16]
-    | Synchronized[ctypes.c_uint32]
-    | Synchronized[ctypes.c_uint64],
+    max_segment_idx_ptr: UIntCType,
+    prod_done_ptr: Synchronized[int],
     end_event: Event,
     start_signal: Event,
     finish_signal: Event,
@@ -110,8 +104,8 @@ class Producer(bn_logging.LogableProcessBase):
     self._sem_filled_slots = sem_filled_slots
     self._input_queue = input_queue
     self._use_bandpass = use_bandpass
-    self._max_segment_idx_ptr = max_segment_idx_ptr  # type: ignore
-    self._prod_done_ptr: Synchronized[int] = prod_done_ptr  # type: ignore
+    self._max_segment_idx_ptr = max_segment_idx_ptr
+    self._prod_done_ptr = prod_done_ptr
     self._n_producers = n_producers
     self._start_signal = start_signal
     self._finish_signal = finish_signal
@@ -983,7 +977,7 @@ def read_file_in_mono(
 
   audio, _ = soundfile.read(
     audio_path, start=start_samples, stop=end_samples, dtype="float32"
-  )  # type: ignore
+  )
 
   if audio.ndim not in (1, 2):
     raise ValueError(

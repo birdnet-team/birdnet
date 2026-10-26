@@ -38,6 +38,7 @@ from birdnet.core.backends import (
 from birdnet.core.base import get_session_id_hash
 from birdnet.globals import MODEL_TYPE_ACOUSTIC, PKG_NAME, WRITABLE_FLAG
 from birdnet.utils.helper import (
+  UIntCType,
   get_float_dtype,
   get_n_segments_speed,
   get_uint_dtype,
@@ -235,12 +236,7 @@ class RingBufferResources:
 @dataclass(frozen=True)
 class ProducerResources:
   n_producers: int
-  n_finished_pointer: (
-    Synchronized[ctypes.c_uint8]
-    | Synchronized[ctypes.c_uint16]
-    | Synchronized[ctypes.c_uint32]
-    | Synchronized[ctypes.c_uint64]
-  )
+  n_finished_pointer: Synchronized[int]
   all_finished: multiprocessing.synchronize.Event
   ring_access_lock: multiprocessing.synchronize.Lock
   input_queue: Queue
@@ -257,7 +253,7 @@ class ProducerResources:
 
   def reset(self) -> None:
     object.__setattr__(self, "_unprocessed_inputs", None)
-    self.n_finished_pointer.value = 0  # type: ignore
+    self.n_finished_pointer.value = 0
     self.all_finished.clear()
     for start_signal in self.start_signals:
       start_signal.clear()
@@ -269,10 +265,10 @@ class ProducerResources:
     ctx = mp.get_context(conf.start_method)
     n_producers = conf.processing_conf.producers
     n_finished_pointer = ctx.Value(
-      uint_ctype_from_dtype(get_uint_dtype(n_producers)),  # type: ignore
+      uint_ctype_from_dtype(get_uint_dtype(n_producers)),
       0,
       lock=True,
-    )  # type: ignore
+    )
 
     return ProducerResources(
       n_producers=n_producers,
@@ -361,8 +357,8 @@ class WorkerResources:
 class InputAnalyzerResources:
   input_queue: queue.Queue
   analyzer_queue: queue.Queue
-  tot_n_segments_ptr: mp.RawValue  # type: ignore
-  max_segment_idx_ptr: mp.RawValue  # type: ignore
+  tot_n_segments_ptr: ctypes.c_uint64
+  max_segment_idx_ptr: UIntCType
   max_segment_idx_init_value: int
   # each resource needs own start signal to allow resetting it individually
   start_signal: threading.Event
@@ -415,10 +411,7 @@ class InputAnalyzerResources:
       max_segment_ptr_value = 0
 
     segments_code_type = uint_ctype_from_dtype(segments_dtype)
-    max_segment_idx_ptr = ctx.RawValue(
-      segments_code_type,  # type: ignore
-      max_segment_ptr_value,
-    )
+    max_segment_idx_ptr = ctx.RawValue(segments_code_type, max_segment_ptr_value)
 
     return InputAnalyzerResources(
       analyzer_queue=queue.Queue(),

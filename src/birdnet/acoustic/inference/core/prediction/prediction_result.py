@@ -62,9 +62,10 @@ class AcousticPredictionResultBase(AcousticResultBase):
       model_precision=model_precision,
       model_version=model_version,
     )
-    assert tensor._species_ids.dtype in (np.uint8, np.uint16, np.uint32, np.uint64)
-    assert tensor._species_probs.dtype in (np.float16, np.float32)
-    assert tensor._species_masked.dtype == bool
+    species_ids, species_probs, species_masked = tensor.arrays()
+    assert species_ids.dtype in (np.uint8, np.uint16, np.uint32, np.uint64)
+    assert species_probs.dtype in (np.float16, np.float32)
+    assert species_masked.dtype == bool
     assert tensor.unprocessable_inputs.dtype in (
       np.uint8,
       np.uint16,
@@ -81,9 +82,9 @@ class AcousticPredictionResultBase(AcousticResultBase):
     else:
       max_len = max(map(len, species_list))
       self._species_list = np.array(list(species_list), dtype=f"<U{max_len}")
-    self._species_probs = tensor._species_probs
-    self._species_ids = tensor._species_ids
-    self._species_masked = tensor._species_masked
+    self._species_probs = species_probs
+    self._species_ids = species_ids
+    self._species_masked = species_masked
     self._unprocessable_inputs = tensor.unprocessable_inputs
 
   @property
@@ -121,11 +122,11 @@ class AcousticPredictionResultBase(AcousticResultBase):
 
   @property
   def max_n_segments(self) -> int:
-    return self._species_ids.shape[1]
+    return int(self._species_ids.shape[1])
 
   @property
   def top_k(self) -> int:
-    return self._species_ids.shape[2]
+    return int(self._species_ids.shape[2])
 
   @property
   def unprocessable_inputs(self) -> np.ndarray:

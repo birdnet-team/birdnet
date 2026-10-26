@@ -18,7 +18,7 @@ from itertools import islice
 from multiprocessing import Queue
 from pathlib import Path
 from queue import Empty
-from typing import Any
+from typing import Any, TypeAlias
 
 import numpy as np
 import numpy.typing as npt
@@ -147,7 +147,11 @@ SF_FORMATS = {
 # Not supported: {".AAC", ".WMA", ".M4A"}
 
 
-_UINT_DTYPE_TO_CTYPE = {
+UIntCType: TypeAlias = (
+  ctypes.c_uint8 | ctypes.c_uint16 | ctypes.c_uint32 | ctypes.c_uint64
+)
+
+_UINT_DTYPE_TO_CTYPE: dict[type[np.generic], type[UIntCType]] = {
   np.uint8: ctypes.c_uint8,
   np.uint16: ctypes.c_uint16,
   np.uint32: ctypes.c_uint32,
@@ -419,9 +423,7 @@ def duration_as_samples(duration_s: float, sample_rate: int) -> int:
   return round(duration_s * sample_rate)
 
 
-def uint_ctype_from_dtype(
-  dtype: DTypeLike,
-) -> ctypes.c_uint8 | ctypes.c_uint16 | ctypes.c_uint32 | ctypes.c_uint64:
+def uint_ctype_from_dtype(dtype: DTypeLike) -> type[UIntCType]:
   dtype = np.dtype(dtype).type
   code = _UINT_DTYPE_TO_CTYPE[dtype]
   return code
