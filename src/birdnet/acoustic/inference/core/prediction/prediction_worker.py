@@ -10,12 +10,12 @@ from numpy.typing import DTypeLike
 from birdnet.acoustic.inference.core.shm import RingField
 from birdnet.acoustic.inference.core.worker import WorkerBase
 from birdnet.core.backends import BackendLoader, BatchT
-from birdnet.utils.helper import (
+from birdnet.utils.dsp import (
   flat_logit_fast,
   flat_sigmoid_logaddexp_fast,
   flat_softmax_fast,
-  get_uint_dtype,
 )
+from birdnet.utils.dtypes import get_uint_dtype
 
 
 class PredictionWorker(WorkerBase):

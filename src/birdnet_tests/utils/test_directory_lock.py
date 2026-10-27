@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from birdnet.utils.helper import directory_lock, lock_heartbeat
+from birdnet.utils.filesystem import directory_lock, lock_heartbeat
 
 
 @pytest.mark.no_tf

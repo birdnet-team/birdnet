@@ -35,7 +35,7 @@ from birdnet.acoustic.inference.session import (
   AcousticPredictionSession,
 )
 from birdnet.globals import MODEL_TYPE_ACOUSTIC, NA
-from birdnet.utils.helper import get_n_segments_speed
+from birdnet.utils.segments import get_n_segments_speed
 from birdnet_tests.fake_acoustic_backend import (
   DEFAULT_EMB_DIM,
   DEFAULT_N_SPECIES,

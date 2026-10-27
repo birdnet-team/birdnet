@@ -15,7 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-from birdnet.utils import download_progress, helper
+from birdnet.utils import download_progress, downloads
 from birdnet.utils.download_progress import DownloadProgress
 
 BODY = b"x" * 4096  # 4 chunks of the helper's 1 KiB block size
@@ -109,7 +109,7 @@ def _isolated_callback() -> Generator[None, None, None]:
 
 @pytest.fixture(autouse=True)
 def _no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
-  monkeypatch.setattr(helper.time, "sleep", lambda _s: None)
+  monkeypatch.setattr(downloads.time, "sleep", lambda _s: None)
 
 
 @pytest.fixture(autouse=True)

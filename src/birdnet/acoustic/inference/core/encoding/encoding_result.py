@@ -15,7 +15,7 @@ from birdnet.acoustic.inference.core.result_base import (
   VAR_START_TIME,
   AcousticResultBase,
 )
-from birdnet.utils.helper import format_input_for_csv, hms_centis_fast
+from birdnet.utils.csv_format import format_input_for_csv, hms_centis_fast
 
 if TYPE_CHECKING:
   import pyarrow as pa

@@ -9,7 +9,7 @@ from birdnet.acoustic.inference.core.producer import (
   get_segments_with_overlap_samples,
   read_file_in_mono,
 )
-from birdnet.utils.helper import duration_as_samples
+from birdnet.utils.segments import duration_as_samples
 from birdnet_tests.test_files import AUDIO_FORMATS_DIR
 
 pytestmark = pytest.mark.no_tf

@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from birdnet.utils import helper
-from birdnet.utils.helper import ModelInfo, ensure_single_file_model
+from birdnet.utils import downloads
+from birdnet.utils.downloads import ModelInfo, ensure_single_file_model
 
 _CONTENT = b"model bytes 0123456789"
 _OTHER_CONTENT = b"other bytes 0123456789"
@@ -43,7 +43,7 @@ def _stub_download(monkeypatch: pytest.MonkeyPatch, served: bytes | None) -> lis
     file_path.write_bytes(served)
     return len(served)
 
-  monkeypatch.setattr(helper, "download_file_tqdm", fake)
+  monkeypatch.setattr(downloads, "download_file_tqdm", fake)
   return calls
 
 
@@ -104,7 +104,7 @@ def test_does_not_hash_on_a_warm_cache(
   def never(path: Path) -> str:
     raise AssertionError(f"hashed {path} on a warm cache")
 
-  monkeypatch.setattr(helper, "sha256_file", never)
+  monkeypatch.setattr(downloads, "sha256_file", never)
 
   ensure_single_file_model(info, model_path, legacy_path, "downloading")
 
@@ -154,7 +154,7 @@ def test_skips_the_download_when_a_concurrent_process_adopted_first(
     Path(dst).write_bytes(_CONTENT)
     raise PermissionError("already being renamed by another process")
 
-  monkeypatch.setattr(helper.os, "replace", winner_replace)
+  monkeypatch.setattr(downloads.os, "replace", winner_replace)
 
   ensure_single_file_model(info, model_path, legacy_path, "downloading")
 
@@ -172,14 +172,14 @@ def test_survives_a_legacy_file_vanishing_mid_probe(
   legacy_path.write_bytes(_CONTENT)
   calls = _stub_download(monkeypatch, _CONTENT)
 
-  real_sha256_file = helper.sha256_file
+  real_sha256_file = downloads.sha256_file
 
   def vanished(path: Path) -> str:
     if path == legacy_path:
       raise FileNotFoundError(path)
     return real_sha256_file(path)
 
-  monkeypatch.setattr(helper, "sha256_file", vanished)
+  monkeypatch.setattr(downloads, "sha256_file", vanished)
 
   ensure_single_file_model(info, model_path, legacy_path, "downloading")
 

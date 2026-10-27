@@ -13,11 +13,8 @@ from birdnet.acoustic.inference.core.prediction.prediction_tensor import (
   AcousticPredictionTensor,
 )
 from birdnet.model_loader import load
-from birdnet.utils.helper import (
-  get_float_dtype,
-  get_hop_duration_s,
-  get_n_segments_speed,
-)
+from birdnet.utils.dtypes import get_float_dtype
+from birdnet.utils.segments import get_hop_duration_s, get_n_segments_speed
 from birdnet_tests.test_files import TEST_FILE_LONG
 
 

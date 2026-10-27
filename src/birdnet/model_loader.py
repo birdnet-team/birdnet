@@ -70,6 +70,7 @@ from birdnet.core.backends import (
   BackendLoader,
   VersionedAcousticBackendProtocol,
   VersionedGeoBackendProtocol,
+  check_is_intel_macos,
   litert_installed,
   onnxruntime_installed,
   tf_installed,
@@ -146,11 +147,8 @@ from birdnet.globals import (
   VALID_MODEL_PRECISIONS,
   VALID_MODEL_TYPES,
 )
-from birdnet.utils.helper import (
-  check_is_intel_macos,
-  check_protobuf_model_files_exist,
-  validate_species_list,
-)
+from birdnet.utils.downloads import check_protobuf_model_files_exist
+from birdnet.utils.species_lists import validate_species_list
 
 # (base version, precision, file exposes embeddings, file fixes the input length)
 # -> backend of a custom TFLite classifier. The backend resolves the tensors from

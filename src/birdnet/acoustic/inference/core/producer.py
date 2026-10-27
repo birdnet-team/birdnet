@@ -3,14 +3,15 @@ from __future__ import annotations
 import multiprocessing.synchronize
 import os
 import time
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Iterable
 from functools import partial
-from itertools import count
+from itertools import count, islice
 from multiprocessing import Queue, shared_memory
 from multiprocessing.sharedctypes import Synchronized
 from multiprocessing.synchronize import Event, Semaphore
 from pathlib import Path
 from queue import Empty
+from typing import Any
 
 import numpy as np
 import numpy.typing as npt
@@ -32,17 +33,13 @@ from birdnet.globals import (
   FloatArray,
   IntArray,
 )
-from birdnet.utils.helper import (
-  SF_FORMATS,
-  UIntCType,
+from birdnet.utils.audio_files import SF_FORMATS
+from birdnet.utils.dsp import bandpass_signal, fillup_with_silence
+from birdnet.utils.dtypes import UIntCType, max_value_for_uint_dtype
+from birdnet.utils.segments import (
   apply_speed_to_samples,
-  assert_queue_is_empty,
-  bandpass_signal,
   duration_as_samples,
-  fillup_with_silence,
   get_n_segments_speed,
-  itertools_batched,
-  max_value_for_uint_dtype,
 )
 
 
@@ -1001,3 +998,21 @@ def convert_to_mono(
   else:
     assert audio_data.ndim == 1
     return audio_data
+
+
+def assert_queue_is_empty(queue: Queue) -> None:
+  # qsize() doesn't work on macOS
+  try:
+    queue.get_nowait()
+    raise AssertionError("Queue is not empty!")
+  except Empty:
+    pass
+
+
+def itertools_batched(iterable: Iterable, n: int) -> Generator[Any, None, None]:
+  # Backport of itertools.batched (Python 3.12+).
+  if n < 1:
+    raise ValueError("n must be at least one")
+  iterator = iter(iterable)
+  while batch := tuple(islice(iterator, n)):
+    yield batch

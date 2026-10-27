@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from birdnet.utils.helper import validate_species_list
+from birdnet.utils.species_lists import validate_species_list
 from birdnet_tests.test_files import TEST_FILES_DIR
 
 pytestmark = pytest.mark.no_tf

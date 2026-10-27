@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from birdnet.acoustic.models.v3_0.pb import _PB_DL_URL, AcousticPBDownloaderV3_0
-from birdnet.utils.helper import write_source_marker
+from birdnet.utils.downloads import write_source_marker
 from birdnet_tests.helper import create_fake_saved_model
 
 

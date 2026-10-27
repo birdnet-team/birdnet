@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `AcousticModelV3_0`, `GeoModelV3_0`, `AcousticSessionBase` and the vocabulary of `load(..)` are importable from `birdnet`: the `Literal` types (`ACOUSTIC_MODEL_VERSIONS`, `MODEL_LANGUAGES`, `MODEL_PRECISIONS`, ...), the `VALID_*` lists (typed, and `VALID_MODEL_LANGUAGES` without its duplicates) and the defaults `MODEL_PRECISION_FP32`, `MODEL_LANGUAGE_EN_US` and `LIBRARY_TF_DEFAULT`, so typed callers no longer need `birdnet.globals` ([#123](https://github.com/birdnet-team/birdnet/pull/123)).
 - `CustomTFLiteInfo`, which `inspect_custom_tflite(..)` returns, reports `input_samples`: the input length a classifier file fixes (96,000 samples for a 3.0 export, 144,000 for 2.4), or `None` when it takes any length, as the official 3.0 TFLite release does. An inspection result no longer compares equal to a `CustomTFLiteInfo` built without it ([#129](https://github.com/birdnet-team/birdnet/pull/129)).
 
+### Changed
+
+- `birdnet.utils.helper` is split into topic modules under `birdnet.utils`: `audio_files`, `csv_format`, `downloads`, `dsp`, `dtypes`, `filesystem`, `segments` and `species_lists`; its public names stay importable from `birdnet.utils.helper`, except the internal pipeline helpers `assert_queue_is_empty` and `itertools_batched` ([#140](https://github.com/birdnet-team/birdnet/pull/140)).
+
 ### Bugfixes
 
 - The type stub had no overload for the documented `load("acoustic", "3.0", "tf")` and `load("acoustic", "3.0", "pb")` calls and rejected `precision="fp16"` for the acoustic 3.0 `onnx` backend, so type checkers reported false errors and inferred `Any`; it is now in sync with the loader, which also means `library="litert"` for the geo 3.0 `tf` backend, always refused at runtime, is now a type error, and `load_custom(.., "auto", "tf", ..)` accepts every precision a detected 2.4 classifier takes ([#123](https://github.com/birdnet-team/birdnet/pull/123)).

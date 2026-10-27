@@ -19,7 +19,8 @@ from birdnet.acoustic.inference.session import (
 from birdnet.core.backends import BackendLoader, VersionedAcousticBackendProtocol
 from birdnet.core.base import ModelBase
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
-from birdnet.utils.helper import duration_as_samples, validate_species_list
+from birdnet.utils.segments import duration_as_samples
+from birdnet.utils.species_lists import validate_species_list
 
 
 def resolve_in_graph_sigmoid_options(

@@ -61,10 +61,66 @@ birdnet.utils.download\_progress module
    :show-inheritance:
    :undoc-members:
 
-birdnet.utils.helper module
+birdnet.utils.audio\_files module
+---------------------------------
+
+.. automodule:: birdnet.utils.audio_files
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+birdnet.utils.csv\_format module
+--------------------------------
+
+.. automodule:: birdnet.utils.csv_format
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+birdnet.utils.downloads module
+------------------------------
+
+.. automodule:: birdnet.utils.downloads
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+birdnet.utils.dsp module
+------------------------
+
+.. automodule:: birdnet.utils.dsp
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+birdnet.utils.dtypes module
 ---------------------------
 
-.. automodule:: birdnet.utils.helper
+.. automodule:: birdnet.utils.dtypes
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+birdnet.utils.filesystem module
+-------------------------------
+
+.. automodule:: birdnet.utils.filesystem
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+birdnet.utils.segments module
+-----------------------------
+
+.. automodule:: birdnet.utils.segments
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+birdnet.utils.species\_lists module
+-----------------------------------
+
+.. automodule:: birdnet.utils.species_lists
    :members:
    :show-inheritance:
    :undoc-members:

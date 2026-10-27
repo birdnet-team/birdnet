@@ -33,7 +33,7 @@ from birdnet.globals import (
   MODEL_TYPE_ACOUSTIC,
   NA,
 )
-from birdnet.utils.helper import get_file_formats
+from birdnet.utils.audio_files import get_file_formats
 
 
 class InferenceStrategyBase(Generic[ResultType, ConfigType, TensorType], ABC):

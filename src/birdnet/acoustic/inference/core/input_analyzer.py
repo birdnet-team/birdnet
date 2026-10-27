@@ -16,11 +16,8 @@ from birdnet.acoustic.inference.core.producer import (
   get_sf_info,
 )
 from birdnet.acoustic.inference.core.shm import RingField
-from birdnet.utils.helper import (
-  UIntCType,
-  get_n_segments_speed,
-  max_value_for_uint_dtype,
-)
+from birdnet.utils.dtypes import UIntCType, max_value_for_uint_dtype
+from birdnet.utils.segments import get_n_segments_speed
 
 
 class InputAnalyzer:

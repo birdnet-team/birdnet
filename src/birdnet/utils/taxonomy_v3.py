@@ -47,7 +47,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from birdnet.utils.helper import directory_lock
+from birdnet.utils.filesystem import directory_lock
 from birdnet.utils.label_manifest import (
   LabelInput,
   artifact_is_current,

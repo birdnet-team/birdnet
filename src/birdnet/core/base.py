@@ -1,3 +1,4 @@
+import hashlib
 import os
 import time
 from abc import ABC, abstractmethod
@@ -8,8 +9,6 @@ from typing import Self
 
 import numpy as np
 from ordered_set import OrderedSet
-
-from birdnet.utils.helper import get_hash
 
 NP_MODEL_PATH_KEY = "model_path"
 NP_MODEL_PRECISION_KEY = "model_precision"
@@ -137,6 +136,11 @@ def get_session_id() -> str:
   timestamp = time.time_ns()
   result = f"{proc.ident}_{thread.ident}_{timestamp}"
   return result
+
+
+def get_hash(session_id: str) -> str:
+  hash_digest = hashlib.sha256(session_id.encode()).hexdigest()
+  return hash_digest
 
 
 def get_session_id_hash(session_id: str) -> str:

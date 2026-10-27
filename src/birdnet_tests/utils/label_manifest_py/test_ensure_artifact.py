@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from birdnet.utils import helper
+from birdnet.utils import downloads
 from birdnet.utils.label_manifest import (
   LabelInput,
   artifact_is_current,
@@ -35,7 +35,7 @@ def no_network(monkeypatch: pytest.MonkeyPatch) -> list[Path]:
     file_path.write_bytes(_CONTENT)
     return len(_CONTENT)
 
-  monkeypatch.setattr(helper, "download_file_tqdm", _download)
+  monkeypatch.setattr(downloads, "download_file_tqdm", _download)
   return calls
 
 

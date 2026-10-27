@@ -8,7 +8,7 @@ import numpy as np
 from numpy.typing import DTypeLike
 
 from birdnet.acoustic.inference.core.logs import get_logger_from_session
-from birdnet.utils.helper import UIntCType, get_uint_dtype
+from birdnet.utils.dtypes import UIntCType, get_uint_dtype
 
 
 class AcousticTensorBase:

@@ -51,7 +51,7 @@ def test_unsupported_precision_is_rejected(
     if hasattr(module, "ensure_single_file_model"):
       monkeypatch.setattr(module, "ensure_single_file_model", _must_not_be_called)
   monkeypatch.setattr(
-    "birdnet.utils.helper.ensure_single_file_model", _must_not_be_called
+    "birdnet.utils.downloads.ensure_single_file_model", _must_not_be_called
   )
 
   with pytest.raises(

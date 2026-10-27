@@ -10,12 +10,8 @@ import numpy as np
 from tqdm import tqdm
 
 from birdnet.core.base import ResultBase
-from birdnet.utils.helper import (
-  apply_speed_to_duration,
-  get_hop_duration_s,
-  get_lossless_float_dtype,
-  get_uint_dtype,
-)
+from birdnet.utils.dtypes import get_lossless_float_dtype, get_uint_dtype
+from birdnet.utils.segments import apply_speed_to_duration, get_hop_duration_s
 
 if TYPE_CHECKING:
   import pandas as pd

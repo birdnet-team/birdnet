@@ -37,15 +37,15 @@ from birdnet.core.backends import (
 )
 from birdnet.core.base import get_session_id_hash
 from birdnet.globals import MODEL_TYPE_ACOUSTIC, PKG_NAME, WRITABLE_FLAG
-from birdnet.utils.helper import (
+from birdnet.utils.dtypes import (
   UIntCType,
   get_float_dtype,
-  get_n_segments_speed,
   get_uint_dtype,
   uint_ctype_from_dtype,
 )
 from birdnet.utils.local_data import get_benchmark_dir
 from birdnet.utils.logging_utils import get_package_logging_level
+from birdnet.utils.segments import get_n_segments_speed
 
 
 @dataclass(frozen=True)

@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from birdnet.acoustic.inference.core.producer import get_data_segments_with_overlap
-from birdnet.utils.helper import duration_as_samples
+from birdnet.utils.segments import duration_as_samples
 
 pytestmark = pytest.mark.no_tf
 

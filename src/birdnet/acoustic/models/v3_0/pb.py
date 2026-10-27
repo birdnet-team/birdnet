@@ -17,9 +17,10 @@ from birdnet.utils.downloads import (
   download_zip_members,
   ensure_download,
   saved_model_is_current,
+  write_source_marker,
 )
-from birdnet.utils.helper import get_species_from_file, write_source_marker
 from birdnet.utils.local_data import get_lang_dir, get_model_path, get_model_root_dir
+from birdnet.utils.species_lists import get_species_from_file
 
 _PB_DL_URL = "https://zenodo.org/records/20703646/files/BirdNET+_V3.0-preview3.1_Global_11K_FP32_Protobuf.zip"
 _PB_DL_SIZE = 499609919

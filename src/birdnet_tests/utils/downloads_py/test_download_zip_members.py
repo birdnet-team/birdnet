@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from birdnet.utils import helper
+from birdnet.utils import downloads
 from birdnet.utils.downloads import download_zip_members
 
 pytestmark = pytest.mark.no_tf
@@ -44,7 +44,7 @@ def served(source_zip: Path, monkeypatch: pytest.MonkeyPatch) -> list[str]:
     file_path.write_bytes(source_zip.read_bytes())
     return file_path.stat().st_size
 
-  monkeypatch.setattr(helper, "download_file_tqdm", fake)
+  monkeypatch.setattr(downloads, "download_file_tqdm", fake)
   return calls
 
 
@@ -114,7 +114,7 @@ def test_the_scratch_directory_sits_beside_the_destination(
     file_path.write_bytes(source_zip.read_bytes())
     return file_path.stat().st_size
 
-  monkeypatch.setattr(helper, "download_file_tqdm", fake)
+  monkeypatch.setattr(downloads, "download_file_tqdm", fake)
   destination = tmp_path / "models" / "model-fp32"
 
   _download([(None, destination)])
@@ -137,7 +137,7 @@ def test_the_scratch_directory_is_removed_when_extraction_fails(
     file_path.write_bytes(b"not a zip")
     return 9
 
-  monkeypatch.setattr(helper, "download_file_tqdm", serve_garbage)
+  monkeypatch.setattr(downloads, "download_file_tqdm", serve_garbage)
   destination = tmp_path / "models" / "model-fp32"
 
   with pytest.raises(zipfile.BadZipFile):

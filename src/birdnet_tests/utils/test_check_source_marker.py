@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from birdnet.utils.helper import (
+from birdnet.utils.downloads import (
   SOURCE_MARKER_NAME,
   check_source_marker,
   write_source_marker,

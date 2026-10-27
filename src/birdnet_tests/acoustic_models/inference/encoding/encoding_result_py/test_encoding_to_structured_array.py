@@ -10,11 +10,8 @@ from birdnet.acoustic.inference.core.encoding.encoding_result import (
 from birdnet.acoustic.inference.core.encoding.encoding_tensor import (
   AcousticEncodingTensor,
 )
-from birdnet.utils.helper import (
-  get_float_dtype,
-  get_hop_duration_s,
-  get_n_segments_speed,
-)
+from birdnet.utils.dtypes import get_float_dtype
+from birdnet.utils.segments import get_hop_duration_s, get_n_segments_speed
 
 DEFAULT_EMBEDDING_DIM = 6
 

@@ -13,7 +13,7 @@ import pytest
 import birdnet
 from birdnet.acoustic.models.custom_tflite import CustomTFLiteInfo
 from birdnet.acoustic.models.v2_4.tf import AcousticTFBackendCustomV2_4
-from birdnet.utils.helper import get_species_from_file
+from birdnet.utils.species_lists import get_species_from_file
 from birdnet_tests.custom_classifier_exports import (
   ANALYZER_FIXTURE_LABELS,
   ensure_analyzer_fixture,

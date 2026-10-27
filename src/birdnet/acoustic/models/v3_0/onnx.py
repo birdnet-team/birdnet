@@ -8,7 +8,7 @@ from birdnet.globals import (
   MODEL_PRECISION_FP32,
   MODEL_PRECISIONS,
 )
-from birdnet.utils.helper import ModelInfo
+from birdnet.utils.downloads import ModelInfo
 
 models: dict[MODEL_PRECISIONS, ModelInfo] = {
   MODEL_PRECISION_FP32: ModelInfo(

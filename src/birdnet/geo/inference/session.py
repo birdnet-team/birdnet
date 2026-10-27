@@ -25,7 +25,7 @@ from birdnet.globals import (
   GEO_YEAR_ROUND_AGGREGATION_MAX,
   GEO_YEAR_ROUND_AGGREGATIONS,
 )
-from birdnet.utils.helper import get_uint_dtype
+from birdnet.utils.dtypes import get_uint_dtype
 
 
 class GeoSessionBase(SessionBase, ABC):

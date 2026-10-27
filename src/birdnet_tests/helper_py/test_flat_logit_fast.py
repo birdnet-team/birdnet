@@ -12,7 +12,7 @@ import warnings
 import numpy as np
 import pytest
 
-from birdnet.utils.helper import flat_logit_fast, flat_sigmoid_logaddexp_fast
+from birdnet.utils.dsp import flat_logit_fast, flat_sigmoid_logaddexp_fast
 
 pytestmark = pytest.mark.no_tf
 

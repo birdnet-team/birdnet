@@ -7,7 +7,7 @@ from birdnet.acoustic.inference.core.tensor import (
   AcousticArrayTensorBase,
   AcousticTensorBase,
 )
-from birdnet.utils.helper import UIntCType
+from birdnet.utils.dtypes import UIntCType
 
 
 class AcousticEncodingTensor(AcousticArrayTensorBase):

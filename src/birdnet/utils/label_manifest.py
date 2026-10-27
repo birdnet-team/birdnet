@@ -25,8 +25,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-from birdnet.utils.downloads import ensure_verified_file
-from birdnet.utils.helper import sha256_file, write_text_atomic
+from birdnet.utils.downloads import ensure_verified_file, sha256_file
+from birdnet.utils.filesystem import write_text_atomic
 from birdnet.utils.logging_utils import get_logger_for_package
 
 MANIFEST_NAME = ".birdnet_labels.json"

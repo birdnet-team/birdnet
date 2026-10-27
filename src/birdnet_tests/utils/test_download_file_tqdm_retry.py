@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 import requests
 
-from birdnet.utils import helper
+from birdnet.utils import downloads
 
 
 def _http_error(status_code: int) -> requests.HTTPError:
@@ -22,7 +22,7 @@ def _http_error(status_code: int) -> requests.HTTPError:
 
 @pytest.fixture(autouse=True)
 def _no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
-  monkeypatch.setattr(helper.time, "sleep", lambda _s: None)
+  monkeypatch.setattr(downloads.time, "sleep", lambda _s: None)
 
 
 def test_transient_connection_errors_are_retried_until_success(
@@ -36,9 +36,9 @@ def test_transient_connection_errors_are_retried_until_success(
       raise requests.ConnectionError("reset by peer")
     return 123
 
-  monkeypatch.setattr(helper, "_download_file_once", fake_download)
+  monkeypatch.setattr(downloads, "_download_file_once", fake_download)
 
-  result = helper.download_file_tqdm("https://example.org/f", tmp_path / "f")
+  result = downloads.download_file_tqdm("https://example.org/f", tmp_path / "f")
 
   assert result == 123
   assert len(calls) == 3
@@ -55,9 +55,9 @@ def test_truncated_download_is_retried(
       raise ValueError("Expected size: 10 bytes, downloaded size: 3 bytes.")
     return 10
 
-  monkeypatch.setattr(helper, "_download_file_once", fake_download)
+  monkeypatch.setattr(downloads, "_download_file_once", fake_download)
 
-  assert helper.download_file_tqdm("https://example.org/f", tmp_path / "f") == 10
+  assert downloads.download_file_tqdm("https://example.org/f", tmp_path / "f") == 10
   assert len(calls) == 2
 
 
@@ -70,10 +70,10 @@ def test_client_error_is_not_retried(
     calls.append(1)
     raise _http_error(404)
 
-  monkeypatch.setattr(helper, "_download_file_once", fake_download)
+  monkeypatch.setattr(downloads, "_download_file_once", fake_download)
 
   with pytest.raises(requests.HTTPError):
-    helper.download_file_tqdm("https://example.org/f", tmp_path / "f")
+    downloads.download_file_tqdm("https://example.org/f", tmp_path / "f")
 
   assert len(calls) == 1
 
@@ -87,12 +87,12 @@ def test_server_error_is_retried_and_raised_when_attempts_are_exhausted(
     calls.append(1)
     raise _http_error(503)
 
-  monkeypatch.setattr(helper, "_download_file_once", fake_download)
+  monkeypatch.setattr(downloads, "_download_file_once", fake_download)
 
   with pytest.raises(requests.HTTPError):
-    helper.download_file_tqdm("https://example.org/f", tmp_path / "f")
+    downloads.download_file_tqdm("https://example.org/f", tmp_path / "f")
 
-  assert len(calls) == helper._DOWNLOAD_ATTEMPTS
+  assert len(calls) == downloads._DOWNLOAD_ATTEMPTS
 
 
 def test_download_error_stays_a_value_error_and_keeps_the_status_message(
@@ -105,16 +105,16 @@ def test_download_error_stays_a_value_error_and_keeps_the_status_message(
   """
 
   def fake_download(*args: object, **kwargs: object) -> int:
-    raise helper.DownloadError(
+    raise downloads.DownloadError(
       "Failed to download the file. Status code: 503\n"
       "Expected size: 142 bytes, downloaded size: 0 bytes.",
       status_code=503,
     )
 
-  monkeypatch.setattr(helper, "_download_file_once", fake_download)
+  monkeypatch.setattr(downloads, "_download_file_once", fake_download)
 
   with pytest.raises(ValueError, match=r"Status code: 5\d\d"):
-    helper.download_file_tqdm("https://example.org/f", tmp_path / "f")
+    downloads.download_file_tqdm("https://example.org/f", tmp_path / "f")
 
 
 def test_download_error_with_client_status_is_not_retried(
@@ -124,15 +124,15 @@ def test_download_error_with_client_status_is_not_retried(
 
   def fake_download(*args: object, **kwargs: object) -> int:
     calls.append(1)
-    raise helper.DownloadError(
+    raise downloads.DownloadError(
       "Failed to download the file. Status code: 404\n"
       "Expected size: 142 bytes, downloaded size: 9 bytes.",
       status_code=404,
     )
 
-  monkeypatch.setattr(helper, "_download_file_once", fake_download)
+  monkeypatch.setattr(downloads, "_download_file_once", fake_download)
 
   with pytest.raises(ValueError):
-    helper.download_file_tqdm("https://example.org/f", tmp_path / "f")
+    downloads.download_file_tqdm("https://example.org/f", tmp_path / "f")
 
   assert len(calls) == 1

@@ -8,7 +8,7 @@ import pytest
 
 from birdnet.geo.models.v2_4.pb import _PB_DL_URL, GeoPBDownloaderV2_4
 from birdnet.globals import ENV_VAR_APP_DATA
-from birdnet.utils.helper import check_source_marker
+from birdnet.utils.downloads import check_source_marker
 from birdnet_tests.helper import fake_zip_downloads, label_members, saved_model_members
 
 pytestmark = pytest.mark.no_tf

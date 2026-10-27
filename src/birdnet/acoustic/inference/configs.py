@@ -21,13 +21,13 @@ from birdnet.core.backends import (
 from birdnet.core.base import ResultBase
 from birdnet.core.start_method import resolve_start_method
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
-from birdnet.utils.helper import (
+from birdnet.utils.audio_files import (
   SF_FORMATS,
-  duration_as_samples,
   get_supported_audio_files_recursive,
   is_supported_audio_file,
-  validate_species_list,
 )
+from birdnet.utils.segments import duration_as_samples
+from birdnet.utils.species_lists import validate_species_list
 
 ResultType = TypeVar("ResultType", bound="ResultBase")
 ConfigType = TypeVar("ConfigType", bound="SpecificConfigBase")

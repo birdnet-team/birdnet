@@ -1335,3 +1335,12 @@ def litert_installed() -> bool:
   import importlib.util
 
   return importlib.util.find_spec("ai_edge_litert") is not None
+
+
+def check_is_intel_macos() -> bool:
+  import platform
+
+  if platform.system() == "Darwin":
+    is_intel = platform.machine() == "x86_64"
+    return is_intel
+  return False

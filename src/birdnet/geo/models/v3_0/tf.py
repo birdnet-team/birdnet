@@ -18,7 +18,7 @@ from birdnet.globals import (
   MODEL_PRECISION_INT8,
   MODEL_PRECISIONS,
 )
-from birdnet.utils.helper import ModelInfo
+from birdnet.utils.downloads import ModelInfo
 from birdnet.utils.logging_utils import suppress_native_stderr
 
 _SUPPORTED_TF_VERSIONS = ((2, 18), (2, 19))

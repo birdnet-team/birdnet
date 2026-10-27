@@ -7,7 +7,7 @@ import birdnet.acoustic.models.v3_0.model as acoustic_model
 import birdnet.geo.models.v3_0.model as geo_model
 import birdnet.utils.taxonomy_v3 as taxonomy_v3
 from birdnet.globals import ENV_VAR_APP_DATA
-from birdnet.utils import helper
+from birdnet.utils import downloads
 from birdnet.utils.label_manifest import sha256_bytes
 
 
@@ -61,7 +61,7 @@ def test_ensure_taxonomy_v3_available_downloads_missing_file(
     file_path.write_bytes(b"data")
     return 4
 
-  monkeypatch.setattr(helper, "download_file_tqdm", fake_download)
+  monkeypatch.setattr(downloads, "download_file_tqdm", fake_download)
   assert not app_data.exists()
 
   result = taxonomy_v3.ensure_taxonomy_v3_available()

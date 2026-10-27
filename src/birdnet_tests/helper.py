@@ -15,7 +15,6 @@ import numpy as np
 import psutil
 import pytest
 
-import birdnet.utils.helper as birdnet_helper
 from birdnet.acoustic.inference.core.encoding.encoding_result import (
   AcousticEncodingResultBase,
 )
@@ -24,6 +23,7 @@ from birdnet.acoustic.inference.core.prediction.prediction_result import (
 )
 from birdnet.core.backends import (
   _get_major_minor_version,
+  check_is_intel_macos,
   litert_installed,
   onnxruntime_installed,
   tf_installed,
@@ -35,7 +35,7 @@ from birdnet.core.base import (
   NP_MODEL_VERSION_KEY,
   ResultBase,
 )
-from birdnet.utils.helper import check_is_intel_macos
+from birdnet.utils import downloads
 
 
 def check_is_python_312() -> bool:
@@ -562,7 +562,7 @@ def fake_zip_downloads(
         archive.writestr(member, content)
     return file_path.stat().st_size
 
-  monkeypatch.setattr(birdnet_helper, "download_file_tqdm", fake)
+  monkeypatch.setattr(downloads, "download_file_tqdm", fake)
   return calls
 
 

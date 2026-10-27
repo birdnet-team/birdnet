@@ -3,24 +3,20 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from birdnet.utils.helper import (
+from birdnet.acoustic.inference.core.producer import itertools_batched
+from birdnet.core.base import get_hash
+from birdnet.utils.audio_files import get_file_formats, is_supported_audio_file
+from birdnet.utils.csv_format import format_input_for_csv, hms_centis_fast
+from birdnet.utils.downloads import check_protobuf_model_files_exist
+from birdnet.utils.dsp import fillup_with_silence, flat_sigmoid_logaddexp_fast
+from birdnet.utils.segments import (
   apply_speed_to_duration,
   apply_speed_to_samples,
-  check_protobuf_model_files_exist,
   duration_as_samples,
-  fillup_with_silence,
-  flat_sigmoid_logaddexp_fast,
-  format_input_for_csv,
-  get_file_formats,
-  get_hash,
   get_hop_duration_s,
   get_n_segments_speed,
-  get_species_from_file,
-  hms_centis_fast,
-  is_supported_audio_file,
-  itertools_batched,
-  validate_species_list,
 )
+from birdnet.utils.species_lists import get_species_from_file, validate_species_list
 
 
 def test_hms_centis_fast() -> None:

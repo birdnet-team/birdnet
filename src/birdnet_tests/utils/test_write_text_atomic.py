@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from birdnet.utils.helper import write_text_atomic
+from birdnet.utils.filesystem import write_text_atomic
 
 
 @pytest.mark.no_tf
