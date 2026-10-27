@@ -12,7 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import ClassVar
 
-from birdnet.utils.helper import directory_lock, write_text_atomic
+from birdnet.utils.filesystem import directory_lock, write_text_atomic
 from birdnet.utils.label_manifest import (
   LabelInput,
   ensure_artifact,

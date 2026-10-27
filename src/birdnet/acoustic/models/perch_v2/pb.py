@@ -19,10 +19,11 @@ from birdnet.utils.downloads import (
   download_zip_members,
   ensure_download,
   saved_model_is_current,
+  write_source_marker,
 )
-from birdnet.utils.helper import get_species_from_file, write_source_marker
 from birdnet.utils.local_data import get_birdnet_app_data_folder
 from birdnet.utils.logging_utils import suppress_native_stderr
+from birdnet.utils.species_lists import get_species_from_file
 
 _MIN_TF_VERSION_PERCH_V2 = (2, 20)
 

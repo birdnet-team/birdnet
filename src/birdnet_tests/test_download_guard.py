@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from birdnet.utils.helper import download_file_tqdm
+from birdnet.utils.downloads import download_file_tqdm
 
 pytestmark = pytest.mark.no_tf
 

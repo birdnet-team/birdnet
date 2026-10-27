@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from birdnet.utils.helper import SOURCE_MARKER_NAME, write_source_marker
+from birdnet.utils.downloads import SOURCE_MARKER_NAME, write_source_marker
 
 _URL = "https://example.org/records/1/files/model.zip"
 

@@ -8,7 +8,7 @@ import pytest
 
 from birdnet.acoustic.models.perch_v2.pb import AcousticPBDownloaderPerchV2
 from birdnet.globals import ENV_VAR_APP_DATA
-from birdnet.utils.helper import check_source_marker
+from birdnet.utils.downloads import check_source_marker
 from birdnet_tests.helper import fake_zip_downloads, saved_model_members
 
 pytestmark = pytest.mark.no_tf

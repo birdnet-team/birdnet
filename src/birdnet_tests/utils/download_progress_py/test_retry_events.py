@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from birdnet.utils.download_progress import DownloadProgress
-from birdnet.utils.helper import _DOWNLOAD_RETRY_WAITS_S, download_file_tqdm
+from birdnet.utils.downloads import _DOWNLOAD_RETRY_WAITS_S, download_file_tqdm
 
 from .conftest import LocalServer
 

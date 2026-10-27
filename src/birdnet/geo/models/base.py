@@ -13,7 +13,7 @@ from birdnet.globals import (
   GEO_YEAR_ROUND_AGGREGATION_MAX,
   GEO_YEAR_ROUND_AGGREGATIONS,
 )
-from birdnet.utils.helper import validate_species_list
+from birdnet.utils.species_lists import validate_species_list
 
 
 class GeoModelBase(ModelBase):

@@ -14,9 +14,9 @@ from birdnet.globals import (
   MODEL_PRECISION_FP32,
   MODEL_PRECISIONS,
 )
-from birdnet.utils.downloads import download_zip_members, ensure_download
-from birdnet.utils.helper import ModelInfo, get_species_from_file
+from birdnet.utils.downloads import ModelInfo, download_zip_members, ensure_download
 from birdnet.utils.local_data import get_lang_dir, get_model_path, get_model_root_dir
+from birdnet.utils.species_lists import get_species_from_file
 
 
 class GeoTFDownloaderV2_4(GeoDownloaderBaseV2_4):

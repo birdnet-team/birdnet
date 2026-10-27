@@ -8,7 +8,7 @@ import pytest
 
 from birdnet.geo.models.v3_0.pb import _PB_DL_URL, GeoPBDownloaderV3_0
 from birdnet.globals import ENV_VAR_APP_DATA
-from birdnet.utils.helper import check_source_marker
+from birdnet.utils.downloads import check_source_marker
 from birdnet_tests.helper import (
   create_fake_lang_dir,
   fake_zip_downloads,

@@ -11,13 +11,13 @@ from pathlib import Path
 
 import pytest
 
-from birdnet.utils import helper
+from birdnet.utils import downloads
 from birdnet.utils.download_progress import (
   DownloadProgress,
   DownloadStatus,
   set_download_progress_callback,
 )
-from birdnet.utils.helper import download_file_tqdm
+from birdnet.utils.downloads import download_file_tqdm
 
 from .conftest import LocalServer
 
@@ -82,7 +82,7 @@ def test_raise_on_retrying_cancels_before_the_back_off_sleep(
   server: LocalServer, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
   slept: list[float] = []
-  monkeypatch.setattr(helper.time, "sleep", slept.append)
+  monkeypatch.setattr(downloads.time, "sleep", slept.append)
   seen: list[DownloadProgress] = []
   _raise_on("retrying", Cancelled(), seen)
 

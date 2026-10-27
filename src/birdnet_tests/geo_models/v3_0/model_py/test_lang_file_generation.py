@@ -12,7 +12,7 @@ import pytest
 import birdnet.geo.models.v3_0.model as geo_model
 from birdnet.geo.models.v3_0.model import GeoDownloaderBaseV3_0
 from birdnet.globals import ENV_VAR_APP_DATA, VALID_MODEL_LANGUAGES_V3_0
-from birdnet.utils import helper, v3_labels
+from birdnet.utils import downloads, v3_labels
 from birdnet.utils.label_manifest import LabelInput, sha256_bytes
 
 RAW_LABELS = (
@@ -287,7 +287,7 @@ def test_ensure_labels_available_returns_early_when_present(
   def _fail_download(*args: object, **kwargs: object) -> int:
     raise AssertionError("download must not be called when labels are present")
 
-  monkeypatch.setattr(helper, "download_file_tqdm", _fail_download)
+  monkeypatch.setattr(downloads, "download_file_tqdm", _fail_download)
 
   downloader.ensure_labels_available()  # must not raise / must not download
 
@@ -332,7 +332,7 @@ def test_ensure_labels_available_downloads_and_generates_when_missing(
     taxonomy_path.write_bytes(TAXONOMY_CSV.encode("utf-8"))
     return taxonomy_path
 
-  monkeypatch.setattr(helper, "download_file_tqdm", fake_download)
+  monkeypatch.setattr(downloads, "download_file_tqdm", fake_download)
   monkeypatch.setattr(geo_model, "ensure_taxonomy_v3_available", fake_ensure_taxonomy)
 
   class _Downloader(GeoDownloaderBaseV3_0):

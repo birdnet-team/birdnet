@@ -242,9 +242,9 @@ def _no_internet_downloads_outside_load_model(
     return
   from urllib.parse import urlparse
 
-  from birdnet.utils import helper
+  from birdnet.utils import downloads
 
-  original = helper._download_file_once
+  original = downloads._download_file_once
 
   def guarded(url: str, *args: object, **kwargs: object) -> int:
     if urlparse(url).hostname not in _DOWNLOAD_HOSTS:
@@ -254,4 +254,4 @@ def _no_internet_downloads_outside_load_model(
       "marked load_model"
     )
 
-  monkeypatch.setattr(helper, "_download_file_once", guarded)
+  monkeypatch.setattr(downloads, "_download_file_once", guarded)

@@ -10,7 +10,7 @@ from birdnet.utils.download_progress import (
   DownloadProgress,
   set_download_progress_callback,
 )
-from birdnet.utils.helper import _DOWNLOAD_ATTEMPTS, download_file_tqdm
+from birdnet.utils.downloads import _DOWNLOAD_ATTEMPTS, download_file_tqdm
 
 from .conftest import LocalServer
 

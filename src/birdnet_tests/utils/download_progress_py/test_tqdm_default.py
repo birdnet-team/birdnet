@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from birdnet.utils import helper
+from birdnet.utils import downloads
 from birdnet.utils.download_progress import set_download_progress_callback
-from birdnet.utils.helper import download_file_tqdm
+from birdnet.utils.downloads import download_file_tqdm
 
 from .conftest import LocalServer
 
@@ -20,12 +20,12 @@ def test_tqdm_is_disabled_only_while_a_callback_is_registered(
 ) -> None:
   captured_disable: list[bool] = []
 
-  class SpyTqdm(helper.tqdm):
+  class SpyTqdm(downloads.tqdm):
     def __init__(self, *args: object, **kwargs: object) -> None:
       captured_disable.append(bool(kwargs.get("disable")))
       super().__init__(*args, **kwargs)  # type: ignore[arg-type]
 
-  monkeypatch.setattr(helper, "tqdm", SpyTqdm)
+  monkeypatch.setattr(downloads, "tqdm", SpyTqdm)
 
   download_file_tqdm(server.url("/file"), tmp_path / "no_cb.bin")
   set_download_progress_callback(lambda _p: None)

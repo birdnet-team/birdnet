@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from birdnet.utils.helper import download_file_tqdm
+from birdnet.utils.downloads import download_file_tqdm
 
 # Reaches zenodo: belongs to the download phase, like every model download.
 pytestmark = pytest.mark.load_model

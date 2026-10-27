@@ -13,7 +13,7 @@ from birdnet.acoustic.inference.core.prediction.prediction_tensor import (
   PrebuiltPredictionTensor,
 )
 from birdnet.acoustic.inference.core.tensor import AcousticTensorBase
-from birdnet.utils.helper import UIntCType
+from birdnet.utils.dtypes import UIntCType
 
 pytestmark = pytest.mark.no_tf
 

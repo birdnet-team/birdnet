@@ -1,6 +1,6 @@
 import numpy as np
 
-from birdnet.utils.helper import flat_softmax_fast
+from birdnet.utils.dsp import flat_softmax_fast
 
 
 def test_rows_sum_to_one() -> None:

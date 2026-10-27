@@ -40,13 +40,14 @@ from birdnet.acoustic.models.v2_4.pb import AcousticPBDownloaderV2_4
 from birdnet.acoustic.models.v3_0.model import AcousticModelV3_0
 from birdnet.acoustic.models.v3_0.pb import AcousticPBDownloaderV3_0
 from birdnet.core.backends import tf_installed
-from birdnet.utils.helper import directory_lock, get_species_from_file
+from birdnet.utils.filesystem import directory_lock
 from birdnet.utils.label_manifest import LabelInput, ensure_artifact
 from birdnet.utils.local_data import (
   get_birdnet_app_data_folder,
   get_lang_dir,
   get_model_path,
 )
+from birdnet.utils.species_lists import get_species_from_file
 
 LABELS = ["Sci a_Common a", "Sci b_Common b", "Sci c_Common c"]
 

@@ -18,7 +18,7 @@ import pytest
 
 from birdnet.acoustic.models.v2_4.tf import AcousticTFDownloaderV2_4, models
 from birdnet.globals import ENV_VAR_APP_DATA, MODEL_PRECISIONS
-from birdnet.utils import helper
+from birdnet.utils import downloads
 from birdnet.utils.local_data import get_model_root_dir
 
 pytestmark = pytest.mark.no_tf
@@ -72,7 +72,7 @@ class _Load(threading.Thread):
 def transport(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _FakeTransport:
   monkeypatch.setenv(ENV_VAR_APP_DATA, str(tmp_path))
   fake = _FakeTransport()
-  monkeypatch.setattr(helper, "download_file_tqdm", fake)
+  monkeypatch.setattr(downloads, "download_file_tqdm", fake)
   return fake
 
 

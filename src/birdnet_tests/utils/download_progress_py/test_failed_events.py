@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 import requests
 
-from birdnet.utils import helper
+from birdnet.utils import downloads
 from birdnet.utils.download_progress import DownloadProgress
-from birdnet.utils.helper import (
+from birdnet.utils.downloads import (
   _DOWNLOAD_ATTEMPTS,
   _DOWNLOAD_RETRY_WAITS_S,
   DownloadError,
@@ -101,7 +101,7 @@ def test_os_error_outside_the_retry_loop_fails_terminally(
   def no_space(*_args: object, **_kwargs: object) -> tuple[int, str]:
     raise OSError("No space left on device")
 
-  monkeypatch.setattr(helper.tempfile, "mkstemp", no_space)
+  monkeypatch.setattr(downloads.tempfile, "mkstemp", no_space)
 
   with pytest.raises(OSError, match="No space left"):
     download_file_tqdm(server.url("/file"), tmp_path / "f.bin")
@@ -123,7 +123,7 @@ def test_keyboard_interrupt_in_the_backoff_sleep_fails_terminally(
   def interrupt(_s: float) -> None:
     raise KeyboardInterrupt
 
-  monkeypatch.setattr(helper.time, "sleep", interrupt)
+  monkeypatch.setattr(downloads.time, "sleep", interrupt)
 
   with pytest.raises(KeyboardInterrupt):
     download_file_tqdm(server.url("/status/503"), tmp_path / "f.bin")
@@ -159,4 +159,4 @@ def test_response_is_closed_even_if_content_length_header_is_malformed(
   with pytest.raises(ValueError):
     download_file_tqdm("http://example.invalid/f", tmp_path / "f.bin")
 
-  assert len(closes) == helper._DOWNLOAD_ATTEMPTS
+  assert len(closes) == downloads._DOWNLOAD_ATTEMPTS

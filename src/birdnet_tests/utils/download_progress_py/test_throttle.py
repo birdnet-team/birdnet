@@ -13,7 +13,7 @@ import pytest
 
 from birdnet.utils import download_progress
 from birdnet.utils.download_progress import DownloadProgress, _ProgressThrottle
-from birdnet.utils.helper import download_file_tqdm
+from birdnet.utils.downloads import download_file_tqdm
 
 from .conftest import LocalServer
 

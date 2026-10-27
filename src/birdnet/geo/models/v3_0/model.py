@@ -16,17 +16,14 @@ from birdnet.globals import (
   MODEL_TYPE_GEO,
   MODEL_TYPES,
 )
-from birdnet.utils.helper import (
-  ModelInfo,
-  ensure_single_file_model,
-  get_species_from_file,
-)
+from birdnet.utils.downloads import ModelInfo, ensure_single_file_model
 from birdnet.utils.label_manifest import LabelInput
 from birdnet.utils.local_data import (
   get_birdnet_app_data_folder,
   get_lang_dir,
   get_model_path,
 )
+from birdnet.utils.species_lists import get_species_from_file
 from birdnet.utils.taxonomy_v3 import (
   ensure_taxonomy_v3_available,
   get_taxonomy_v3_input,

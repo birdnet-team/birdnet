@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from birdnet.utils import downloads, helper
+from birdnet.utils import downloads
 from birdnet.utils.downloads import ensure_verified_file
 
 pytestmark = pytest.mark.no_tf
@@ -39,7 +39,7 @@ def _serve(monkeypatch: pytest.MonkeyPatch, content: bytes) -> list[Path]:
     file_path.write_bytes(content)
     return len(content)
 
-  monkeypatch.setattr(helper, "download_file_tqdm", fake)
+  monkeypatch.setattr(downloads, "download_file_tqdm", fake)
   return written
 
 

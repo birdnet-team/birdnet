@@ -5,7 +5,7 @@ from pathlib import Path
 from birdnet.acoustic.models.v3_0.model import _AcousticSingleFileDownloaderV3_0
 from birdnet.core.backends import TorchBackend, VersionedAcousticBackendProtocol
 from birdnet.globals import MODEL_BACKEND_PT, MODEL_PRECISION_FP32, MODEL_PRECISIONS
-from birdnet.utils.helper import ModelInfo
+from birdnet.utils.downloads import ModelInfo
 
 models: dict[MODEL_PRECISIONS, ModelInfo] = {
   MODEL_PRECISION_FP32: ModelInfo(

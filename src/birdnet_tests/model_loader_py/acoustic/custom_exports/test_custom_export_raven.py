@@ -6,7 +6,7 @@ from birdnet.acoustic.models.base import AcousticModelBase
 from birdnet.acoustic.models.v2_4.pb import AcousticRavenBackendFP32V2_4
 from birdnet.acoustic.models.v3_0.model import AcousticModelV3_0
 from birdnet.acoustic.models.v3_0.pb import AcousticRavenBackendFP32V3_0
-from birdnet.utils.helper import get_species_from_file
+from birdnet.utils.species_lists import get_species_from_file
 from birdnet_tests.helper import scores_at_sigmoid_sensitivity
 from birdnet_tests.model_loader_py.acoustic.custom_exports.conftest import (
   EXPORT_TEST_TIMEOUT_S,

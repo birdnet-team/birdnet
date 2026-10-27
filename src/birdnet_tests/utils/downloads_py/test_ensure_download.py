@@ -10,7 +10,7 @@ import pytest
 
 from birdnet.utils import downloads
 from birdnet.utils.downloads import ensure_download
-from birdnet.utils.helper import directory_lock
+from birdnet.utils.filesystem import directory_lock
 
 pytestmark = pytest.mark.no_tf
 

@@ -12,7 +12,7 @@ from birdnet.globals import (
   MODEL_PRECISION_FP32,
   MODEL_PRECISIONS,
 )
-from birdnet.utils.helper import ModelInfo
+from birdnet.utils.downloads import ModelInfo
 
 # The geo model input is [latitude, longitude, week] (see GeoSessionBase._run).
 _GEO_INPUT_FEATURES = 3

@@ -4,12 +4,10 @@ from multiprocessing import Queue
 import numpy as np
 import pytest
 
-from birdnet.utils.helper import (
-  assert_queue_is_empty,
-  bandpass_signal,
-  check_is_intel_macos,
-  uint_ctype_from_dtype,
-)
+from birdnet.acoustic.inference.core.producer import assert_queue_is_empty
+from birdnet.core.backends import check_is_intel_macos
+from birdnet.utils.dsp import bandpass_signal
+from birdnet.utils.dtypes import uint_ctype_from_dtype
 
 
 @pytest.mark.parametrize(

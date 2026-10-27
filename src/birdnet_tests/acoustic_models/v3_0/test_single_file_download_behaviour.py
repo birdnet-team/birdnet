@@ -20,8 +20,8 @@ from birdnet.acoustic.models.v3_0.pt import models as pt_models
 from birdnet.acoustic.models.v3_0.tf import AcousticTFDownloaderV3_0
 from birdnet.acoustic.models.v3_0.tf import models as tf_models
 from birdnet.globals import MODEL_PRECISIONS
-from birdnet.utils import helper
-from birdnet.utils.helper import ModelInfo
+from birdnet.utils import downloads
+from birdnet.utils.downloads import ModelInfo
 
 _Downloader = (
   type[AcousticTFDownloaderV3_0]
@@ -31,7 +31,7 @@ _Downloader = (
 
 _SMALL_FILE_SIZE = 64
 _EN_US_LABELS = ["Turdus merula_Eurasian Blackbird", "Parus major_Great Tit"]
-_REAL_SIGNATURE = inspect.signature(helper.ensure_single_file_model)
+_REAL_SIGNATURE = inspect.signature(downloads.ensure_single_file_model)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -122,7 +122,7 @@ def _install_fake_download(
     module = sys.modules[klass.__module__]
     if hasattr(module, "ensure_single_file_model"):
       monkeypatch.setattr(module, "ensure_single_file_model", fake)
-  monkeypatch.setattr(helper, "ensure_single_file_model", fake)
+  monkeypatch.setattr(downloads, "ensure_single_file_model", fake)
   return fake
 
 

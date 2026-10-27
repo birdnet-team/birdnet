@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from birdnet.utils.helper import (
+from birdnet.utils.dtypes import (
   get_float_dtype,
   get_lossless_float_dtype,
   get_uint_dtype,
