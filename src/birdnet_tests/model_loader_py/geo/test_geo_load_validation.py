@@ -37,28 +37,36 @@ def test_unknown_geo_version_raises_error() -> None:
 
 def test_v2_4_tf_non_fp32_precision_raises_error() -> None:
   with pytest.raises(
-    ValueError, match=r"Unsupported model precision for geo model: fp16\."
+    ValueError,
+    match=r"Unsupported model precision for geo model: fp16\. "
+    r"Currently supported precision is: fp32\.$",
   ):
     load("geo", "2.4", "tf", precision="fp16")
 
 
 def test_v2_4_pb_non_fp32_precision_raises_error() -> None:
   with pytest.raises(
-    ValueError, match=r"Unsupported model precision for geo model: fp16\."
+    ValueError,
+    match=r"Unsupported model precision for geo model: fp16\. "
+    r"Currently supported precision is: fp32\.$",
   ):
     load("geo", "2.4", "pb", precision="fp16")
 
 
 def test_v3_0_pb_non_fp32_precision_raises_error() -> None:
   with pytest.raises(
-    ValueError, match=r"Unsupported model precision for geo model: fp16\."
+    ValueError,
+    match=r"Unsupported model precision for geo model: fp16\. "
+    r"Currently supported precision is: fp32\.$",
   ):
     load("geo", "3.0", "pb", precision="fp16")
 
 
 def test_v3_0_onnx_int8_precision_raises_error() -> None:
   with pytest.raises(
-    ValueError, match=r"Unsupported model precision for geo onnx model: int8\."
+    ValueError,
+    match=r"Unsupported model precision for geo onnx model: int8\. "
+    r"Currently supported precisions are: fp32, fp16\.$",
   ):
     load("geo", "3.0", "onnx", precision="int8")
 
@@ -68,21 +76,27 @@ def test_v3_0_onnx_int8_precision_raises_error() -> None:
 
 def test_v2_4_pt_backend_unsupported_raises_error() -> None:
   with pytest.raises(
-    ValueError, match=r"Unsupported backend 'pt' for geo model v2\.4\."
+    ValueError,
+    match=r"Unsupported backend 'pt' for geo model v2\.4\. "
+    r"Supported backends are: tf, pb\.$",
   ):
     load("geo", "2.4", "pt")
 
 
 def test_v2_4_onnx_backend_unsupported_raises_error() -> None:
   with pytest.raises(
-    ValueError, match=r"Unsupported backend 'onnx' for geo model v2\.4\."
+    ValueError,
+    match=r"Unsupported backend 'onnx' for geo model v2\.4\. "
+    r"Supported backends are: tf, pb\.$",
   ):
     load("geo", "2.4", "onnx")
 
 
 def test_v3_0_pt_non_fp32_precision_raises_error() -> None:
   with pytest.raises(
-    ValueError, match=r"Unsupported model precision for geo pt model: fp16\."
+    ValueError,
+    match=r"Unsupported model precision for geo pt model: fp16\. "
+    r"Currently supported precision is: fp32\.$",
   ):
     load("geo", "3.0", "pt", precision="fp16")
 
@@ -92,28 +106,36 @@ def test_v3_0_pt_non_fp32_precision_raises_error() -> None:
 
 def test_custom_v2_4_tf_non_fp32_precision_raises_error(tmp_path: Path) -> None:
   with pytest.raises(
-    ValueError, match=r"Unsupported model precision for geo model: fp16\."
+    ValueError,
+    match=r"Unsupported model precision for geo model: fp16\. "
+    r"Currently supported precision is: fp32\.$",
   ):
     load_custom("geo", "2.4", "tf", tmp_path, _species_file(tmp_path), precision="fp16")
 
 
 def test_custom_v2_4_pb_non_fp32_precision_raises_error(tmp_path: Path) -> None:
   with pytest.raises(
-    ValueError, match=r"Unsupported model precision for geo model: fp16\."
+    ValueError,
+    match=r"Unsupported model precision for geo model: fp16\. "
+    r"Currently supported precision is: fp32\.$",
   ):
     load_custom("geo", "2.4", "pb", tmp_path, _species_file(tmp_path), precision="fp16")
 
 
 def test_custom_v3_0_pb_non_fp32_precision_raises_error(tmp_path: Path) -> None:
   with pytest.raises(
-    ValueError, match=r"Unsupported model precision for geo model: fp16\."
+    ValueError,
+    match=r"Unsupported model precision for geo model: fp16\. "
+    r"Currently supported precision is: fp32\.$",
   ):
     load_custom("geo", "3.0", "pb", tmp_path, _species_file(tmp_path), precision="fp16")
 
 
 def test_custom_v3_0_onnx_int8_precision_raises_error(tmp_path: Path) -> None:
   with pytest.raises(
-    ValueError, match=r"Unsupported model precision for geo onnx model: int8\."
+    ValueError,
+    match=r"Unsupported model precision for geo onnx model: int8\. "
+    r"Currently supported precisions are: fp32, fp16\.$",
   ):
     load_custom(
       "geo", "3.0", "onnx", tmp_path, _species_file(tmp_path), precision="int8"
@@ -127,7 +149,9 @@ def test_custom_v2_4_pt_backend_unsupported_raises_error(tmp_path: Path) -> None
   model = tmp_path / "m.pt"
   model.write_bytes(b"x")
   with pytest.raises(
-    ValueError, match=r"Unsupported backend 'pt' for geo model v2\.4\."
+    ValueError,
+    match=r"Unsupported backend 'pt' for geo model v2\.4\. "
+    r"Supported backends are: tf, pb\.$",
   ):
     load_custom("geo", "2.4", "pt", model, _species_file(tmp_path))
 
@@ -136,6 +160,8 @@ def test_custom_v3_0_pt_non_fp32_precision_raises_error(tmp_path: Path) -> None:
   model = tmp_path / "m.pt"
   model.write_bytes(b"x")
   with pytest.raises(
-    ValueError, match=r"Unsupported model precision for geo pt model: fp16\."
+    ValueError,
+    match=r"Unsupported model precision for geo pt model: fp16\. "
+    r"Currently supported precision is: fp32\.$",
   ):
     load_custom("geo", "3.0", "pt", model, _species_file(tmp_path), precision="fp16")

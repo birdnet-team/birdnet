@@ -13,6 +13,8 @@ from birdnet.acoustic.models.v2_4.model import AcousticModelV2_4
 from birdnet.acoustic.models.v2_4.tf import (
   AcousticTFBackendCustomNoEmbeddingsV2_4,
   AcousticTFBackendCustomV2_4,
+  AcousticTFBackendFP16V2_4,
+  AcousticTFBackendInt8V2_4,
 )
 from birdnet.acoustic.models.v3_0.model import AcousticModelV3_0
 from birdnet.acoustic.models.v3_0.tf import (
@@ -242,14 +244,33 @@ def test_without_validity_check_nothing_is_inspected(
   assert model.backend_type is AcousticTFBackendCustomV2_4
 
 
+@pytest.mark.parametrize(
+  ("info", "backend_type"),
+  [
+    (CustomTFLiteInfo("3.0", "replace", 3, True, True), AcousticTFBackendCustomV3_0),
+    (
+      CustomTFLiteInfo("3.0", "append", 3, True, False),
+      AcousticTFBackendCustomNoEmbeddingsV3_0,
+    ),
+    (
+      CustomTFLiteInfo("3.0", "replace", 3, True, True, 96_000),
+      AcousticTFBackendCustomFixedInputV3_0,
+    ),
+  ],
+)
 def test_auto_version_inspects_even_without_validity_check(
-  model_file: Path, species_list: Path, monkeypatch: pytest.MonkeyPatch
+  model_file: Path,
+  species_list: Path,
+  monkeypatch: pytest.MonkeyPatch,
+  info: CustomTFLiteInfo,
+  backend_type: type,
 ) -> None:
-  _inspection_returns(monkeypatch, CustomTFLiteInfo("3.0", "replace", 3, True, True))
+  _inspection_returns(monkeypatch, info)
   model = load_custom(
     "acoustic", "auto", "tf", model_file, species_list, check_validity=False
   )
   assert type(model) is AcousticModelV3_0
+  assert model.backend_type is backend_type
 
 
 def test_classifier_type_is_still_validated(
@@ -267,3 +288,46 @@ def test_auto_version_is_tflite_only(tmp_path: Path, species_list: Path) -> None
   model_dir.mkdir()
   with pytest.raises(ValueError, match=r"version='auto' is only supported"):
     load_custom("acoustic", "auto", "onnx", model_dir, species_list)
+
+
+@pytest.mark.parametrize("check_validity", [True, False])
+@pytest.mark.parametrize(
+  ("precision", "backend_type"),
+  [("fp16", AcousticTFBackendFP16V2_4), ("int8", AcousticTFBackendInt8V2_4)],
+)
+def test_quantized_2_4_precisions_take_the_official_backend(
+  model_file: Path,
+  species_list: Path,
+  monkeypatch: pytest.MonkeyPatch,
+  precision: str,
+  backend_type: type,
+  check_validity: bool,
+) -> None:
+  """Not inspected; `check_validity` still decides whether the file is opened."""
+
+  def _not_called(*args: object, **kwargs: object) -> None:
+    raise AssertionError("inspected")
+
+  opened: list[object] = []
+
+  def _open(*args: object, **kwargs: object) -> int:
+    opened.append(args[1])
+    return 3
+
+  monkeypatch.setattr(
+    "birdnet.model_loader.BackendLoader.inspect_custom_tflite_model", _not_called
+  )
+  monkeypatch.setattr(
+    "birdnet.model_loader.BackendLoader.check_model_can_be_loaded", _open
+  )
+  model = load_custom(
+    "acoustic",
+    "2.4",
+    "tf",
+    model_file,
+    species_list,
+    precision=precision,
+    check_validity=check_validity,
+  )
+  assert model.backend_type is backend_type
+  assert opened == ([backend_type] if check_validity else [])
