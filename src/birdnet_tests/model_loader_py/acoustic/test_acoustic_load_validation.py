@@ -70,35 +70,45 @@ def test_litert_library_unavailable_raises_error(
 
 def test_v2_4_pb_non_fp32_precision_raises_error() -> None:
   with pytest.raises(
-    ValueError, match=r"Unsupported model precision for acoustic pb model: fp16\."
+    ValueError,
+    match=r"Unsupported model precision for acoustic pb model: fp16\. "
+    r"Currently supported precision is: fp32\.$",
   ):
     load("acoustic", "2.4", "pb", precision="fp16")
 
 
 def test_v3_0_tf_int8_precision_raises_error() -> None:
   with pytest.raises(
-    ValueError, match=r"Unsupported model precision for acoustic tf model: int8\."
+    ValueError,
+    match=r"Unsupported model precision for acoustic tf model: int8\. "
+    r"Currently supported precisions are: fp32, fp16\.$",
   ):
     load("acoustic", "3.0", "tf", precision="int8")
 
 
 def test_v3_0_pb_non_fp32_precision_raises_error() -> None:
   with pytest.raises(
-    ValueError, match=r"Unsupported model precision for acoustic pb model: fp16\."
+    ValueError,
+    match=r"Unsupported model precision for acoustic pb model: fp16\. "
+    r"Currently supported precision is: fp32\.$",
   ):
     load("acoustic", "3.0", "pb", precision="fp16")
 
 
 def test_v3_0_pt_non_fp32_precision_raises_error() -> None:
   with pytest.raises(
-    ValueError, match=r"Unsupported model precision for acoustic pt model: fp16\."
+    ValueError,
+    match=r"Unsupported model precision for acoustic pt model: fp16\. "
+    r"Currently supported precision is: fp32\.$",
   ):
     load("acoustic", "3.0", "pt", precision="fp16")
 
 
 def test_v3_0_onnx_int8_precision_raises_error() -> None:
   with pytest.raises(
-    ValueError, match=r"Unsupported model precision for acoustic onnx model: int8\."
+    ValueError,
+    match=r"Unsupported model precision for acoustic onnx model: int8\. "
+    r"Currently supported precisions are: fp32, fp16\.$",
   ):
     load("acoustic", "3.0", "onnx", precision="int8")
 
@@ -108,16 +118,29 @@ def test_v3_0_onnx_int8_precision_raises_error() -> None:
 
 def test_v2_4_pt_backend_unsupported_raises_error() -> None:
   with pytest.raises(
-    ValueError, match=r"Unsupported backend 'pt' for acoustic model v2\.4\."
+    ValueError,
+    match=r"Unsupported backend 'pt' for acoustic model v2\.4\. "
+    r"Supported backends are: tf, pb\.$",
   ):
     load("acoustic", "2.4", "pt")
 
 
 def test_v2_4_onnx_backend_unsupported_raises_error() -> None:
   with pytest.raises(
-    ValueError, match=r"Unsupported backend 'onnx' for acoustic model v2\.4\."
+    ValueError,
+    match=r"Unsupported backend 'onnx' for acoustic model v2\.4\. "
+    r"Supported backends are: tf, pb\.$",
   ):
     load("acoustic", "2.4", "onnx")
+
+
+def test_unexpected_keyword_arguments_are_listed_sorted() -> None:
+  names = ["zeta", "alpha", "omega", "beta", "kappa", "delta"]
+  with pytest.raises(
+    ValueError,
+    match=r"^Unexpected keyword arguments: alpha, beta, delta, kappa, omega, zeta\.",
+  ):
+    load("acoustic", "3.0", "onnx", **dict.fromkeys(names, 1))
 
 
 # ----------------------------- load_custom() path validators ---------------------
@@ -210,7 +233,9 @@ def test_custom_v2_4_pb_non_fp32_precision_raises_error(tmp_path: Path) -> None:
   species = tmp_path / "species.txt"
   species.write_text("a\n", encoding="utf-8")
   with pytest.raises(
-    ValueError, match=r"Unsupported model precision for acoustic pb model: fp16\."
+    ValueError,
+    match=r"Unsupported model precision for acoustic pb model: fp16\. "
+    r"Currently supported precision is: fp32\.$",
   ):
     load_custom("acoustic", "2.4", "pb", _pb_dir(tmp_path), species, precision="fp16")
 
@@ -221,7 +246,9 @@ def test_custom_v3_0_tf_int8_precision_raises_error(tmp_path: Path) -> None:
   model = tmp_path / "m.tflite"
   model.write_bytes(b"x")
   with pytest.raises(
-    ValueError, match=r"Unsupported model precision for acoustic tf model: int8\."
+    ValueError,
+    match=r"Unsupported model precision for acoustic tf model: int8\. "
+    r"Currently supported precisions are: fp32, fp16\.$",
   ):
     load_custom("acoustic", "3.0", "tf", model, species, precision="int8")
 
@@ -230,7 +257,9 @@ def test_custom_v3_0_pb_non_fp32_precision_raises_error(tmp_path: Path) -> None:
   species = tmp_path / "species.txt"
   species.write_text("a\n", encoding="utf-8")
   with pytest.raises(
-    ValueError, match=r"Unsupported model precision for acoustic pb model: fp16\."
+    ValueError,
+    match=r"Unsupported model precision for acoustic pb model: fp16\. "
+    r"Currently supported precision is: fp32\.$",
   ):
     load_custom("acoustic", "3.0", "pb", tmp_path, species, precision="fp16")
 
@@ -239,7 +268,9 @@ def test_custom_v3_0_pt_non_fp32_precision_raises_error(tmp_path: Path) -> None:
   species = tmp_path / "species.txt"
   species.write_text("a\n", encoding="utf-8")
   with pytest.raises(
-    ValueError, match=r"Unsupported model precision for acoustic pt model: fp16\."
+    ValueError,
+    match=r"Unsupported model precision for acoustic pt model: fp16\. "
+    r"Currently supported precision is: fp32\.$",
   ):
     load_custom("acoustic", "3.0", "pt", tmp_path, species, precision="fp16")
 
@@ -248,7 +279,9 @@ def test_custom_v3_0_onnx_int8_precision_raises_error(tmp_path: Path) -> None:
   species = tmp_path / "species.txt"
   species.write_text("a\n", encoding="utf-8")
   with pytest.raises(
-    ValueError, match=r"Unsupported model precision for acoustic onnx model: int8\."
+    ValueError,
+    match=r"Unsupported model precision for acoustic onnx model: int8\. "
+    r"Currently supported precisions are: fp32, fp16\.$",
   ):
     load_custom("acoustic", "3.0", "onnx", tmp_path, species, precision="int8")
 
@@ -262,7 +295,9 @@ def test_custom_v2_4_pt_backend_unsupported_raises_error(tmp_path: Path) -> None
   model = tmp_path / "m.pt"
   model.write_bytes(b"x")
   with pytest.raises(
-    ValueError, match=r"Unsupported backend 'pt' for acoustic model v2\.4\."
+    ValueError,
+    match=r"Unsupported backend 'pt' for acoustic model v2\.4\. "
+    r"Supported backends are: tf, pb\.$",
   ):
     load_custom("acoustic", "2.4", "pt", model, species)
 
