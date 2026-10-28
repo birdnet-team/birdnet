@@ -15,7 +15,7 @@ from birdnet.acoustic.models.v2_4.model import (
   AcousticDownloaderBaseV2_4,
 )
 from birdnet.core.backends import (
-  TFBackend,
+  PinnedTFBackend,
   VersionedAcousticBackendProtocol,
 )
 from birdnet.globals import (
@@ -136,23 +136,20 @@ class AcousticTFDownloaderV2_4(AcousticDownloaderBaseV2_4):
     return model_path, labels
 
 
-class AcousticTFBackendInt8V2_4(TFBackend, VersionedAcousticBackendProtocol):
-  def __init__(
-    self, model_path: Path, device_name: str, half_precision: bool, **kwargs: dict
-  ) -> None:
-    super().__init__(model_path, device_name, half_precision, **kwargs)
-
+class _AcousticTFBackendV2_4(PinnedTFBackend, VersionedAcousticBackendProtocol):
   @classmethod
   def in_idx(cls) -> int:
     return 0
 
   @classmethod
-  def prediction_out_idx(cls) -> int:
-    return 643
-
-  @classmethod
   def supports_encoding(cls) -> bool:
     return True
+
+
+class AcousticTFBackendInt8V2_4(_AcousticTFBackendV2_4):
+  @classmethod
+  def prediction_out_idx(cls) -> int:
+    return 643
 
   @classmethod
   def encoding_out_idx(cls) -> int | None:
@@ -163,23 +160,10 @@ class AcousticTFBackendInt8V2_4(TFBackend, VersionedAcousticBackendProtocol):
     return MODEL_PRECISION_INT8
 
 
-class AcousticTFBackendFP16V2_4(TFBackend, VersionedAcousticBackendProtocol):
-  def __init__(
-    self, model_path: Path, device_name: str, half_precision: bool, **kwargs: dict
-  ) -> None:
-    super().__init__(model_path, device_name, half_precision, **kwargs)
-
-  @classmethod
-  def in_idx(cls) -> int:
-    return 0
-
+class AcousticTFBackendFP16V2_4(_AcousticTFBackendV2_4):
   @classmethod
   def prediction_out_idx(cls) -> int:
     return 546
-
-  @classmethod
-  def supports_encoding(cls) -> bool:
-    return True
 
   @classmethod
   def encoding_out_idx(cls) -> int | None:
@@ -190,23 +174,10 @@ class AcousticTFBackendFP16V2_4(TFBackend, VersionedAcousticBackendProtocol):
     return MODEL_PRECISION_FP16
 
 
-class AcousticTFBackendFP32V2_4(TFBackend, VersionedAcousticBackendProtocol):
-  def __init__(
-    self, model_path: Path, device_name: str, half_precision: bool, **kwargs: dict
-  ) -> None:
-    super().__init__(model_path, device_name, half_precision, **kwargs)
-
-  @classmethod
-  def in_idx(cls) -> int:
-    return 0
-
+class AcousticTFBackendFP32V2_4(_AcousticTFBackendV2_4):
   @classmethod
   def prediction_out_idx(cls) -> int:
     return 546
-
-  @classmethod
-  def supports_encoding(cls) -> bool:
-    return True
 
   @classmethod
   def encoding_out_idx(cls) -> int | None:

@@ -6,10 +6,13 @@ from pathlib import Path
 from ordered_set import OrderedSet
 
 from birdnet.core.backends import (
-  TFBackend,
+  PinnedTFBackend,
   VersionedGeoBackendProtocol,
 )
-from birdnet.geo.models.v2_4.model import GeoDownloaderBaseV2_4
+from birdnet.geo.models.v2_4.model import (
+  _YEAR_ROUND_WEEK_INPUTS,
+  GeoDownloaderBaseV2_4,
+)
 from birdnet.globals import (
   MODEL_PRECISION_FP32,
   MODEL_PRECISIONS,
@@ -86,12 +89,7 @@ class GeoTFDownloaderV2_4(GeoDownloaderBaseV2_4):
     return model_path, labels
 
 
-class GeoTFBackendFP32V2_4(TFBackend, VersionedGeoBackendProtocol):
-  def __init__(
-    self, model_path: Path, device_name: str, half_precision: bool, **kwargs: dict
-  ) -> None:
-    super().__init__(model_path, device_name, half_precision, **kwargs)
-
+class GeoTFBackendFP32V2_4(PinnedTFBackend, VersionedGeoBackendProtocol):
   @classmethod
   def in_idx(cls) -> int:
     return 0
@@ -114,4 +112,4 @@ class GeoTFBackendFP32V2_4(TFBackend, VersionedGeoBackendProtocol):
 
   @classmethod
   def year_round_week_inputs(cls) -> tuple[float, ...]:
-    return (-1.0,)
+    return _YEAR_ROUND_WEEK_INPUTS

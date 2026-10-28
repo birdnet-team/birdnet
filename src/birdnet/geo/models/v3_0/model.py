@@ -34,6 +34,10 @@ _LABELS_DL_URL = "https://github.com/birdnet-team/geomodel/releases/download/v3.
 _LABELS_DL_SIZE = 671823
 _LABELS_DL_SHA256 = "8250b457e45d43fc3e77b5cbd06a1d311baf585ab9c51ed8d42e011d98534835"
 
+# The geo model input is [latitude, longitude, week] (see GeoSessionBase._run).
+_GEO_INPUT_FEATURES = 3
+_YEAR_ROUND_WEEK_INPUTS = tuple(float(week) for week in range(1, 49))
+
 _GENERATOR_NAME = "geo_v3_0"
 # Bump whenever a change would produce different <lang>.txt bytes from the same
 # inputs - the join key or tie-break here, or the fallback or line format in

@@ -3,7 +3,10 @@ from pathlib import Path
 
 from ordered_set import OrderedSet
 
-from birdnet.acoustic.models.v3_0.model import AcousticDownloaderBaseV3_0
+from birdnet.acoustic.models.v3_0.model import (
+  AcousticDownloaderBaseV3_0,
+  AcousticModelV3_0,
+)
 from birdnet.core.backends import (
   PBBackend,
   VersionedAcousticBackendProtocol,
@@ -99,11 +102,6 @@ class AcousticPBBackendFP32V3_0(PBBackend, VersionedAcousticBackendProtocol):
   # Unlike the v2.4 SavedModel (separate "basic" and "embeddings" signatures),
   # the v3.0 export exposes a single "serving_default" signature whose input is
   # "x" and which returns both "predictions" and "embeddings".
-  def __init__(
-    self, model_path: Path, device_name: str, half_precision: bool, **kwargs: dict
-  ) -> None:
-    super().__init__(model_path, device_name, half_precision, **kwargs)
-
   @classmethod
   def input_key(cls) -> str:
     return "x"
@@ -146,7 +144,7 @@ class AcousticPBBackendFP32V3_0(PBBackend, VersionedAcousticBackendProtocol):
   def fixed_input_samples(cls) -> int | None:
     # The compilation fixes the input to 3.0 s as well; another length fails the
     # same shape refinement.
-    return 96_000
+    return AcousticModelV3_0.get_segment_size_samples()
 
 
 class AcousticRavenBackendFP32V3_0(PBBackend, VersionedAcousticBackendProtocol):
@@ -156,11 +154,6 @@ class AcousticRavenBackendFP32V3_0(PBBackend, VersionedAcousticBackendProtocol):
   sigmoid applied; there is no embeddings signature. It wraps the official
   SavedModel, so it inherits its static batch of 1 and its fixed input length.
   """
-
-  def __init__(
-    self, model_path: Path, device_name: str, half_precision: bool, **kwargs: dict
-  ) -> None:
-    super().__init__(model_path, device_name, half_precision, **kwargs)
 
   @classmethod
   def name(cls) -> str:
@@ -204,4 +197,4 @@ class AcousticRavenBackendFP32V3_0(PBBackend, VersionedAcousticBackendProtocol):
 
   @classmethod
   def fixed_input_samples(cls) -> int | None:
-    return 96_000
+    return AcousticModelV3_0.get_segment_size_samples()

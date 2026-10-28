@@ -236,18 +236,7 @@ class TFBackend(Backend, ABC):
   def supports_cow(cls) -> bool:
     return True
 
-  @classmethod
   @abstractmethod
-  def in_idx(cls) -> int: ...
-
-  @classmethod
-  @abstractmethod
-  def prediction_out_idx(cls) -> int: ...
-
-  @classmethod
-  @abstractmethod
-  def encoding_out_idx(cls) -> int | None: ...
-
   def _resolve_tensor_indices(
     self, interp: LiteRTInterpreter | TFInterpreter
   ) -> tuple[int, int, int | None]:
@@ -256,7 +245,6 @@ class TFBackend(Backend, ABC):
     The official models pin them per file; a custom classifier resolves them
     from the file itself.
     """
-    return self.in_idx(), self.prediction_out_idx(), self.encoding_out_idx()
 
   def load(self) -> None:
     assert self._interp is None
@@ -344,6 +332,27 @@ class TFBackend(Backend, ABC):
     self._prepare_encoding()
     assert self._embeddings_idx is not None
     return self._infer(batch, self._embeddings_idx)
+
+
+class PinnedTFBackend(TFBackend, ABC):
+  """TFLite backend whose tensor indices are pinned per file at class level."""
+
+  @classmethod
+  @abstractmethod
+  def in_idx(cls) -> int: ...
+
+  @classmethod
+  @abstractmethod
+  def prediction_out_idx(cls) -> int: ...
+
+  @classmethod
+  @abstractmethod
+  def encoding_out_idx(cls) -> int | None: ...
+
+  def _resolve_tensor_indices(
+    self, interp: LiteRTInterpreter | TFInterpreter
+  ) -> tuple[int, int, int | None]:
+    return self.in_idx(), self.prediction_out_idx(), self.encoding_out_idx()
 
 
 class TorchBackend(Backend, ABC):

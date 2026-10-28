@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import importlib.metadata
-from pathlib import Path
 
 from birdnet.core.backends import (
-  TFBackend,
+  PinnedTFBackend,
   VersionedGeoBackendProtocol,
   _get_major_minor_version,
 )
-from birdnet.geo.models.v3_0.model import _GeoSingleFileDownloaderV3_0
+from birdnet.geo.models.v3_0.model import (
+  _YEAR_ROUND_WEEK_INPUTS,
+  _GeoSingleFileDownloaderV3_0,
+)
 from birdnet.globals import (
   LIBRARY_LITERT,
   LIBRARY_TYPES,
@@ -22,7 +24,6 @@ from birdnet.utils.downloads import ModelInfo
 from birdnet.utils.logging_utils import suppress_native_stderr
 
 _SUPPORTED_TF_VERSIONS = ((2, 18), (2, 19))
-_YEAR_ROUND_WEEK_INPUTS = tuple(float(week) for week in range(1, 49))
 
 
 def check_tf_library_for_v3_0(library: LIBRARY_TYPES) -> None:
@@ -96,12 +97,7 @@ class GeoTFDownloaderV3_0(_GeoSingleFileDownloaderV3_0):
   _models = models
 
 
-class GeoTFBackendFP32V3_0(TFBackend, VersionedGeoBackendProtocol):
-  def __init__(
-    self, model_path: Path, device_name: str, half_precision: bool, **kwargs: dict
-  ) -> None:
-    super().__init__(model_path, device_name, half_precision, **kwargs)
-
+class _GeoTFBackendV3_0(PinnedTFBackend, VersionedGeoBackendProtocol):
   def load(self) -> None:
     check_tf_runtime_compatibility_for_v3_0(self._inference_library)
     super().load()
@@ -111,91 +107,43 @@ class GeoTFBackendFP32V3_0(TFBackend, VersionedGeoBackendProtocol):
     return 0
 
   @classmethod
-  def prediction_out_idx(cls) -> int:
-    return 515
-
-  @classmethod
   def supports_encoding(cls) -> bool:
     return False
 
   @classmethod
   def encoding_out_idx(cls) -> int | None:
     return None
+
+  @classmethod
+  def year_round_week_inputs(cls) -> tuple[float, ...]:
+    return _YEAR_ROUND_WEEK_INPUTS
+
+
+class GeoTFBackendFP32V3_0(_GeoTFBackendV3_0):
+  @classmethod
+  def prediction_out_idx(cls) -> int:
+    return 515
 
   @classmethod
   def precision(cls) -> MODEL_PRECISIONS:
     return MODEL_PRECISION_FP32
 
-  @classmethod
-  def year_round_week_inputs(cls) -> tuple[float, ...]:
-    return _YEAR_ROUND_WEEK_INPUTS
 
-
-class GeoTFBackendFP16V3_0(TFBackend, VersionedGeoBackendProtocol):
-  def __init__(
-    self, model_path: Path, device_name: str, half_precision: bool, **kwargs: dict
-  ) -> None:
-    super().__init__(model_path, device_name, half_precision, **kwargs)
-
-  def load(self) -> None:
-    check_tf_runtime_compatibility_for_v3_0(self._inference_library)
-    super().load()
-
-  @classmethod
-  def in_idx(cls) -> int:
-    return 0
-
+class GeoTFBackendFP16V3_0(_GeoTFBackendV3_0):
   @classmethod
   def prediction_out_idx(cls) -> int:
     return 586
 
   @classmethod
-  def supports_encoding(cls) -> bool:
-    return False
-
-  @classmethod
-  def encoding_out_idx(cls) -> int | None:
-    return None
-
-  @classmethod
   def precision(cls) -> MODEL_PRECISIONS:
     return MODEL_PRECISION_FP16
 
-  @classmethod
-  def year_round_week_inputs(cls) -> tuple[float, ...]:
-    return _YEAR_ROUND_WEEK_INPUTS
 
-
-class GeoTFBackendInt8V3_0(TFBackend, VersionedGeoBackendProtocol):
-  def __init__(
-    self, model_path: Path, device_name: str, half_precision: bool, **kwargs: dict
-  ) -> None:
-    super().__init__(model_path, device_name, half_precision, **kwargs)
-
-  def load(self) -> None:
-    check_tf_runtime_compatibility_for_v3_0(self._inference_library)
-    super().load()
-
-  @classmethod
-  def in_idx(cls) -> int:
-    return 0
-
+class GeoTFBackendInt8V3_0(_GeoTFBackendV3_0):
   @classmethod
   def prediction_out_idx(cls) -> int:
     return 515
 
   @classmethod
-  def supports_encoding(cls) -> bool:
-    return False
-
-  @classmethod
-  def encoding_out_idx(cls) -> int | None:
-    return None
-
-  @classmethod
   def precision(cls) -> MODEL_PRECISIONS:
     return MODEL_PRECISION_INT8
-
-  @classmethod
-  def year_round_week_inputs(cls) -> tuple[float, ...]:
-    return _YEAR_ROUND_WEEK_INPUTS

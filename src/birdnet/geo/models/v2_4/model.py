@@ -12,6 +12,8 @@ from birdnet.globals import (
   MODEL_TYPES,
 )
 
+_YEAR_ROUND_WEEK_INPUTS = (-1.0,)
+
 
 class GeoDownloaderBaseV2_4:
   AVAILABLE_LANGUAGES: OrderedSet[str] = OrderedSet(
