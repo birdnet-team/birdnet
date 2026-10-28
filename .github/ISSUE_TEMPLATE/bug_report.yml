@@ -18,7 +18,8 @@ body:
           (`apt-get install libsndfile1` / `brew install libsndfile` / `choco install libsndfile`).
         - **Using a TensorFlow-only path without TensorFlow.** TensorFlow is an optional extra. On
           Python 3.14 only the TF-free surface exists (`onnx`/`pt` backends, and `tf` via
-          `library="litert"`); the other `tf`/`pb` paths raise a friendly error there by design.
+          `library="litert"`), and on Python 3.15 only the `pt` backend; the other paths raise a
+          friendly error there by design.
   - type: checkboxes
     id: preflight
     attributes:
@@ -60,12 +61,13 @@ body:
     id: python
     attributes:
       label: Python version
-      description: 3.14 is the TensorFlow-free surface only.
+      description: 3.14 is the TensorFlow-free surface only; 3.15 runs the pt backend only.
       options:
         - "3.11"
         - "3.12"
         - "3.13"
         - "3.14"
+        - "3.15"
     validations:
       required: true
   - type: input

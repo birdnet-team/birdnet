@@ -15,9 +15,11 @@ To install BirdNET, you can use ``pip``:
   pip install birdnet --user
 
 This installs the latest version of the BirdNET package with ONNX Runtime and LiteRT
-wherever they have wheels (everywhere but macOS x86_64 on Python 3.14 for ONNX
-Runtime; see the table for LiteRT), which runs the V3.0 acoustic and geo models via
-the ``onnx`` backend and the 2.4 models via ``birdnet.load(.., "tf", library="litert")``.
+wherever they have wheels (everywhere but Python 3.15 and macOS x86_64 on Python 3.14
+for ONNX Runtime; see the table for LiteRT), which runs the V3.0 acoustic and geo models
+via the ``onnx`` backend and the 2.4 models via
+``birdnet.load(.., "tf", library="litert")``. On Python 3.15 neither has wheels: install
+``birdnet[pt]`` there to run the V3.0 models; the 2.4 models need Python 3.11-3.14.
 TensorFlow is optional; the extras select the runtimes:
 
 .. list-table::
@@ -27,7 +29,7 @@ TensorFlow is optional; the extras select the runtimes:
      - Runtimes
      - Enables
    * - ``birdnet``
-     - ONNX Runtime, LiteRT (Linux, macOS ARM64, Windows x86_64; Python 3.11-3.13)
+     - ONNX Runtime (Python 3.11-3.14), LiteRT (Linux, macOS ARM64, Windows x86_64; Python 3.11-3.13)
      - acoustic 3.0 and geo 3.0 (``onnx``); acoustic 2.4, custom 2.4 classifiers and geo 2.4 (``tf`` with ``library="litert"``)
    * - ``birdnet[tf]``
      - + TensorFlow
@@ -59,8 +61,8 @@ TensorFlow backends
 
   pip install birdnet[tf] --user
 
-TensorFlow ships no wheels for Python 3.14, so on that interpreter the extra installs
-nothing and only the base surface is available.
+TensorFlow ships no wheels for Python 3.14 and 3.15, so on those interpreters the extra
+installs nothing and only the base surface is available.
 
 CUDA Support
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -215,9 +217,9 @@ To run the test suite, use the following command:
 
 .. code-block:: bash
   
-  # requirement: ensure all Python versions (3.11-3.14) are installed
-  
-  # run all tests for Python 3.11, 3.12, 3.13, and 3.14
+  # requirement: ensure all Python versions (3.11-3.15) are installed
+
+  # run all tests for Python 3.11, 3.12, 3.13, 3.14 and 3.15
   tox
 
 You can also run only specific tests using the following commands (examples):

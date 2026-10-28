@@ -6,7 +6,7 @@ import sys
 import threading
 import time
 import zipfile
-from collections.abc import Callable, Generator, Iterable
+from collections.abc import Callable, Generator, Iterable, Mapping
 from multiprocessing import get_all_start_methods, set_start_method
 from pathlib import Path
 from typing import IO
@@ -40,6 +40,39 @@ from birdnet.utils import downloads
 
 def check_is_python_312() -> bool:
   return sys.version_info.major == 3 and sys.version_info.minor == 12
+
+
+def fake_version_info(major: int, minor: int) -> tuple:
+  # sys.version_info compares like a tuple *and* exposes .major/.minor; a
+  # namedtuple gives both.
+  from collections import namedtuple
+
+  vi = namedtuple("version_info", "major minor micro releaselevel serial")
+  return vi(major, minor, 0, "final", 0)
+
+
+def fake_wheels(
+  monkeypatch: pytest.MonkeyPatch,
+  minor: int,
+  wheels: Mapping[str, range | Mapping[str, range]] | None = None,
+  wheel_platform: str = "linux",
+) -> None:
+  # Independent of the CI cell and of the real table, which changes as runtimes
+  # publish wheels. Unlisted runtimes get 3.11-3.29; a bare range covers every
+  # platform.
+  import birdnet.model_loader as ml
+
+  table = {
+    package: {platform_key: range(11, 30) for platform_key in rows}
+    for package, rows in ml._WHEEL_MINORS.items()
+  }
+  for package, rows in (wheels or {}).items():
+    if isinstance(rows, range):
+      rows = dict.fromkeys(table[package], rows)
+    table[package].update(rows)
+  monkeypatch.setattr(sys, "version_info", fake_version_info(3, minor))
+  monkeypatch.setattr(ml, "_wheel_platform", lambda: wheel_platform)
+  monkeypatch.setattr(ml, "_WHEEL_MINORS", table)
 
 
 def create_zero_len_wav(f: IO[bytes]) -> None:
