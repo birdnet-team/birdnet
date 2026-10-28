@@ -91,3 +91,9 @@ def test_7_3_1_05() -> None:
   assert_equal_to_get_segments_fn(
     max_duration_s, segment_size_s, overlap_duration_s, speed
   )
+
+
+def test_get_n_segments_speed() -> None:
+  assert get_n_segments_speed(10.0, 3.0, 0.0, 1.0) == 4
+  # a segment exactly filling the duration -> a single segment
+  assert get_n_segments_speed(3.0, 3.0, 0.0, 1.0) == 1
