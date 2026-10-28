@@ -70,3 +70,22 @@ def test_the_analyzer_raven_fixture() -> None:
     "Cyanocitta cristata_Blue Jay",
   ]
   assert not any("," in name for name in species)
+
+
+def test_validate_species_list(tmp_path: Path) -> None:
+  species_file = tmp_path / "species.txt"
+  species_file.write_text("species_a\nspecies_b\n", encoding="utf-8")
+  species = validate_species_list(species_file)
+  assert list(species) == ["species_a", "species_b"]
+
+
+def test_validate_species_list_empty_raises_error(tmp_path: Path) -> None:
+  species_file = tmp_path / "species.txt"
+  species_file.write_text("", encoding="utf-8")
+  with pytest.raises(ValueError, match=r"is empty!"):
+    validate_species_list(species_file)
+
+
+def test_validate_species_list_missing_file_raises_error(tmp_path: Path) -> None:
+  with pytest.raises(ValueError, match=r"Failed to read species list"):
+    validate_species_list(tmp_path / "does_not_exist.txt")
