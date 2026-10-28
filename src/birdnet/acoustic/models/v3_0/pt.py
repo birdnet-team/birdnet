@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from birdnet.acoustic.models.v3_0.model import _AcousticSingleFileDownloaderV3_0
+from birdnet.acoustic.models.v3_0.model import (
+  AcousticModelV3_0,
+  _AcousticSingleFileDownloaderV3_0,
+)
 from birdnet.core.backends import TorchBackend, VersionedAcousticBackendProtocol
 from birdnet.globals import MODEL_BACKEND_PT, MODEL_PRECISION_FP32, MODEL_PRECISIONS
 from birdnet.utils.downloads import ModelInfo
@@ -57,7 +60,7 @@ class AcousticPTBackendFP32V3_0(TorchBackend, VersionedAcousticBackendProtocol):
 
   @classmethod
   def probe_input_size_samples(cls) -> int:
-    return 96_000
+    return AcousticModelV3_0.get_segment_size_samples()
 
   @classmethod
   def precision(cls) -> MODEL_PRECISIONS:

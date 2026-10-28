@@ -6,17 +6,17 @@ from birdnet.core.backends import (
   TorchBackend,
   VersionedGeoBackendProtocol,
 )
-from birdnet.geo.models.v3_0.model import _GeoSingleFileDownloaderV3_0
+from birdnet.geo.models.v3_0.model import (
+  _GEO_INPUT_FEATURES,
+  _YEAR_ROUND_WEEK_INPUTS,
+  _GeoSingleFileDownloaderV3_0,
+)
 from birdnet.globals import (
   MODEL_BACKEND_PT,
   MODEL_PRECISION_FP32,
   MODEL_PRECISIONS,
 )
 from birdnet.utils.downloads import ModelInfo
-
-# The geo model input is [latitude, longitude, week] (see GeoSessionBase._run).
-_GEO_INPUT_FEATURES = 3
-_YEAR_ROUND_WEEK_INPUTS = tuple(float(week) for week in range(1, 49))
 
 # The release also contains BirdNET+_Geomodel_V3.0.4_Global_14K_FP32.pt, which is a
 # training checkpoint (a state dict), not a loadable module. The TorchScript export

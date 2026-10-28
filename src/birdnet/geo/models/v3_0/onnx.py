@@ -4,7 +4,11 @@ from birdnet.core.backends import (
   OnnxBackend,
   VersionedGeoBackendProtocol,
 )
-from birdnet.geo.models.v3_0.model import _GeoSingleFileDownloaderV3_0
+from birdnet.geo.models.v3_0.model import (
+  _GEO_INPUT_FEATURES,
+  _YEAR_ROUND_WEEK_INPUTS,
+  _GeoSingleFileDownloaderV3_0,
+)
 from birdnet.globals import (
   MODEL_BACKEND_ONNX,
   MODEL_PRECISION_FP16,
@@ -12,10 +16,6 @@ from birdnet.globals import (
   MODEL_PRECISIONS,
 )
 from birdnet.utils.downloads import ModelInfo
-
-# The geo model input is [latitude, longitude, week] (see GeoSessionBase._run).
-_GEO_INPUT_FEATURES = 3
-_YEAR_ROUND_WEEK_INPUTS = tuple(float(week) for week in range(1, 49))
 
 models: dict[MODEL_PRECISIONS, ModelInfo] = {
   MODEL_PRECISION_FP32: ModelInfo(
@@ -40,7 +40,7 @@ class GeoOnnxDownloaderV3_0(_GeoSingleFileDownloaderV3_0):
   _models = models
 
 
-class GeoOnnxBackendFP32V3_0(OnnxBackend, VersionedGeoBackendProtocol):
+class _GeoOnnxBackendV3_0(OnnxBackend, VersionedGeoBackendProtocol):
   @classmethod
   def prediction_out_idx(cls) -> int:
     return 0
@@ -57,36 +57,18 @@ class GeoOnnxBackendFP32V3_0(OnnxBackend, VersionedGeoBackendProtocol):
   def probe_input_size_samples(cls) -> int:
     return _GEO_INPUT_FEATURES
 
+  @classmethod
+  def year_round_week_inputs(cls) -> tuple[float, ...]:
+    return _YEAR_ROUND_WEEK_INPUTS
+
+
+class GeoOnnxBackendFP32V3_0(_GeoOnnxBackendV3_0):
   @classmethod
   def precision(cls) -> MODEL_PRECISIONS:
     return MODEL_PRECISION_FP32
 
-  @classmethod
-  def year_round_week_inputs(cls) -> tuple[float, ...]:
-    return _YEAR_ROUND_WEEK_INPUTS
 
-
-class GeoOnnxBackendFP16V3_0(OnnxBackend, VersionedGeoBackendProtocol):
-  @classmethod
-  def prediction_out_idx(cls) -> int:
-    return 0
-
-  @classmethod
-  def supports_encoding(cls) -> bool:
-    return False
-
-  @classmethod
-  def encoding_out_idx(cls) -> int | None:
-    return None
-
-  @classmethod
-  def probe_input_size_samples(cls) -> int:
-    return _GEO_INPUT_FEATURES
-
+class GeoOnnxBackendFP16V3_0(_GeoOnnxBackendV3_0):
   @classmethod
   def precision(cls) -> MODEL_PRECISIONS:
     return MODEL_PRECISION_FP16
-
-  @classmethod
-  def year_round_week_inputs(cls) -> tuple[float, ...]:
-    return _YEAR_ROUND_WEEK_INPUTS

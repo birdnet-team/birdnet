@@ -1,6 +1,9 @@
 from birdnet.acoustic.models.custom_tflite import CustomTFLiteBackend
-from birdnet.acoustic.models.v3_0.model import _AcousticSingleFileDownloaderV3_0
-from birdnet.core.backends import TFBackend, VersionedAcousticBackendProtocol
+from birdnet.acoustic.models.v3_0.model import (
+  AcousticModelV3_0,
+  _AcousticSingleFileDownloaderV3_0,
+)
+from birdnet.core.backends import PinnedTFBackend, VersionedAcousticBackendProtocol
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSIONS,
   MODEL_BACKEND_TF,
@@ -33,7 +36,7 @@ class AcousticTFDownloaderV3_0(_AcousticSingleFileDownloaderV3_0):
   _models = models
 
 
-class _AcousticTFBackendV3_0(TFBackend, VersionedAcousticBackendProtocol):
+class _AcousticTFBackendV3_0(PinnedTFBackend, VersionedAcousticBackendProtocol):
   @classmethod
   def in_idx(cls) -> int:
     return 0
@@ -44,7 +47,7 @@ class _AcousticTFBackendV3_0(TFBackend, VersionedAcousticBackendProtocol):
 
   @classmethod
   def probe_input_size_samples(cls) -> int:
-    return 96_000
+    return AcousticModelV3_0.get_segment_size_samples()
 
   @classmethod
   def applies_sigmoid(cls) -> bool:
@@ -125,7 +128,7 @@ class _FixedInputV3_0:
 
   @classmethod
   def fixed_input_samples(cls) -> int | None:
-    return 96_000
+    return AcousticModelV3_0.get_segment_size_samples()
 
 
 class AcousticTFBackendCustomFixedInputV3_0(

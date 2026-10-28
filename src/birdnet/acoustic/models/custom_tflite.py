@@ -323,7 +323,7 @@ class CustomTFLiteBackend(TFBackend, ABC):
   """TFLite backend whose tensors are resolved from the file at load time."""
 
   def __init__(
-    self, model_path: Path, device_name: str, half_precision: bool, **kwargs: dict
+    self, model_path: Path, device_name: str, half_precision: bool, **kwargs: object
   ) -> None:
     super().__init__(model_path, device_name, half_precision, **kwargs)
     self._layout: CustomTFLiteLayout | None = None
@@ -336,18 +336,6 @@ class CustomTFLiteBackend(TFBackend, ABC):
   @classmethod
   def legacy_prediction_indices(cls) -> Collection[int]:
     return ()
-
-  @classmethod
-  def in_idx(cls) -> int:
-    raise NotImplementedError("resolved from the file at load time")
-
-  @classmethod
-  def prediction_out_idx(cls) -> int:
-    raise NotImplementedError("resolved from the file at load time")
-
-  @classmethod
-  def encoding_out_idx(cls) -> int | None:
-    raise NotImplementedError("resolved from the file at load time")
 
   @classmethod
   def precision(cls) -> MODEL_PRECISIONS:

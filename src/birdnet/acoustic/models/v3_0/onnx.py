@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from birdnet.acoustic.models.v3_0.model import _AcousticSingleFileDownloaderV3_0
+from birdnet.acoustic.models.v3_0.model import (
+  AcousticModelV3_0,
+  _AcousticSingleFileDownloaderV3_0,
+)
 from birdnet.core.backends import OnnxBackend, VersionedAcousticBackendProtocol
 from birdnet.globals import (
   MODEL_BACKEND_ONNX,
@@ -37,7 +40,7 @@ class AcousticOnnxDownloaderV3_0(_AcousticSingleFileDownloaderV3_0):
   _models = models
 
 
-class AcousticOnnxBackendFP32V3_0(OnnxBackend, VersionedAcousticBackendProtocol):
+class _AcousticOnnxBackendV3_0(OnnxBackend, VersionedAcousticBackendProtocol):
   @classmethod
   def prediction_out_idx(cls) -> int:
     return 0
@@ -52,38 +55,20 @@ class AcousticOnnxBackendFP32V3_0(OnnxBackend, VersionedAcousticBackendProtocol)
 
   @classmethod
   def probe_input_size_samples(cls) -> int:
-    return 96_000
+    return AcousticModelV3_0.get_segment_size_samples()
 
+  @classmethod
+  def applies_sigmoid(cls) -> bool:
+    return True
+
+
+class AcousticOnnxBackendFP32V3_0(_AcousticOnnxBackendV3_0):
   @classmethod
   def precision(cls) -> MODEL_PRECISIONS:
     return MODEL_PRECISION_FP32
 
-  @classmethod
-  def applies_sigmoid(cls) -> bool:
-    return True
 
-
-class AcousticOnnxBackendFP16V3_0(OnnxBackend, VersionedAcousticBackendProtocol):
-  @classmethod
-  def prediction_out_idx(cls) -> int:
-    return 0
-
-  @classmethod
-  def supports_encoding(cls) -> bool:
-    return True
-
-  @classmethod
-  def encoding_out_idx(cls) -> int | None:
-    return 1
-
-  @classmethod
-  def probe_input_size_samples(cls) -> int:
-    return 96_000
-
+class AcousticOnnxBackendFP16V3_0(_AcousticOnnxBackendV3_0):
   @classmethod
   def precision(cls) -> MODEL_PRECISIONS:
     return MODEL_PRECISION_FP16
-
-  @classmethod
-  def applies_sigmoid(cls) -> bool:
-    return True
