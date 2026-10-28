@@ -206,6 +206,10 @@ class AcousticModelBase(ModelBase, ABC):
   @abstractmethod
   def get_segment_size_samples(cls) -> int: ...
 
+  @classmethod
+  @abstractmethod
+  def get_embeddings_dim(cls) -> int: ...
+
   @abstractmethod
   def predict(self, *args, **kwargs) -> AcousticPredictionResultBase:  # noqa: ANN002, ANN003
     ...

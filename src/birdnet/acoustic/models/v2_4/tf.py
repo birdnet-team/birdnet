@@ -13,6 +13,7 @@ from birdnet.acoustic.models.custom_tflite import (
 )
 from birdnet.acoustic.models.v2_4.model import (
   AcousticDownloaderBaseV2_4,
+  AcousticModelV2_4,
 )
 from birdnet.core.backends import (
   PinnedTFBackend,
@@ -28,7 +29,7 @@ from birdnet.globals import (
 )
 from birdnet.utils.downloads import ModelInfo, download_zip_members, ensure_download
 from birdnet.utils.local_data import get_lang_dir, get_model_path, get_model_root_dir
-from birdnet.utils.species_lists import get_species_from_file
+from birdnet.utils.species_lists import read_official_labels
 
 models: dict[MODEL_PRECISIONS, ModelInfo] = {
   MODEL_PRECISION_INT8: ModelInfo(
@@ -132,7 +133,9 @@ class AcousticTFDownloaderV2_4(AcousticDownloaderBaseV2_4):
     if not lang_file.is_file():
       raise ValueError(f"Language does not exist: {lang}")
 
-    labels = get_species_from_file(lang_file, encoding="utf8")
+    labels = read_official_labels(
+      lang_file, AcousticModelV2_4.get_n_classes(), "acoustic model v2.4"
+    )
     return model_path, labels
 
 

@@ -59,3 +59,13 @@ class GeoModelV2_4(GeoModelBase):
   @final
   def get_model_type(cls) -> MODEL_TYPES:
     return MODEL_TYPE_GEO
+
+  @classmethod
+  @final
+  def get_n_classes(cls) -> int:
+    """Return the 6,522 classes of the official 2.4 output.
+
+    The label list of the acoustic 2.4 model, so it includes that model's 11
+    classes that are not species, such as Dog, Engine and Noise.
+    """
+    return 6522

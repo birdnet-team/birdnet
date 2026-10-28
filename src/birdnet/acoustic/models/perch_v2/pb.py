@@ -6,6 +6,7 @@ from typing import Literal
 
 from ordered_set import OrderedSet
 
+from birdnet.acoustic.models.perch_v2.model import AcousticModelPerchV2
 from birdnet.core.backends import (
   PBBackend,
   VersionedAcousticBackendProtocol,
@@ -23,7 +24,7 @@ from birdnet.utils.downloads import (
 )
 from birdnet.utils.local_data import get_birdnet_app_data_folder
 from birdnet.utils.logging_utils import suppress_native_stderr
-from birdnet.utils.species_lists import get_species_from_file
+from birdnet.utils.species_lists import read_official_labels
 
 _MIN_TF_VERSION_PERCH_V2 = (2, 20)
 
@@ -108,9 +109,12 @@ class AcousticPBDownloaderPerchV2:
     assert cls._check_acoustic_model_available(device)
 
     model_dir, labels_path = cls._get_paths(device)
-    labels = get_species_from_file(labels_path, encoding="utf8")
-    labels.remove(cls.LABELS_HEADER)
-    assert len(labels) == 14795
+    labels = read_official_labels(
+      labels_path,
+      AcousticModelPerchV2.get_n_classes(),
+      "Perch v2 model",
+      header=cls.LABELS_HEADER,
+    )
     return model_dir, labels
 
 

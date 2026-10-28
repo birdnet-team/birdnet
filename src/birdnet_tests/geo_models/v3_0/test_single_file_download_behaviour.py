@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+from birdnet.geo.models.v3_0.model import GeoModelV3_0
 from birdnet.geo.models.v3_0.onnx import GeoOnnxDownloaderV3_0
 from birdnet.geo.models.v3_0.onnx import models as onnx_models
 from birdnet.geo.models.v3_0.pt import GeoPTDownloaderV3_0
@@ -22,13 +23,14 @@ from birdnet.geo.models.v3_0.tf import models as tf_models
 from birdnet.globals import MODEL_PRECISIONS
 from birdnet.utils import downloads
 from birdnet.utils.downloads import ModelInfo
+from birdnet_tests.helper import fake_labels
 
 _Downloader = (
   type[GeoTFDownloaderV3_0] | type[GeoOnnxDownloaderV3_0] | type[GeoPTDownloaderV3_0]
 )
 
 _SMALL_FILE_SIZE = 64
-_EN_US_LABELS = ["Turdus merula_Eurasian Blackbird", "Parus major_Great Tit"]
+_EN_US_LABELS = fake_labels(GeoModelV3_0.get_n_classes())
 _REAL_SIGNATURE = inspect.signature(downloads.ensure_single_file_model)
 
 

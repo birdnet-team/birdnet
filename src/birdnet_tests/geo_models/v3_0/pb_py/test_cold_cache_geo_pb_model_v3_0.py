@@ -6,16 +6,20 @@ from pathlib import Path
 
 import pytest
 
+from birdnet.geo.models.v3_0.model import GeoModelV3_0
 from birdnet.geo.models.v3_0.pb import _PB_DL_URL, GeoPBDownloaderV3_0
 from birdnet.globals import ENV_VAR_APP_DATA
 from birdnet.utils.downloads import check_source_marker
 from birdnet_tests.helper import (
   create_fake_lang_dir,
+  fake_labels,
   fake_zip_downloads,
   saved_model_members,
 )
 
 pytestmark = pytest.mark.no_tf
+
+_N_CLASSES = GeoModelV3_0.get_n_classes()
 
 
 def test_cold_cache_downloads_once_and_marks_the_model(
@@ -27,7 +31,9 @@ def test_cold_cache_downloads_once_and_marks_the_model(
     GeoPBDownloaderV3_0,
     "ensure_labels_available",
     classmethod(
-      lambda cls: create_fake_lang_dir(cls._get_lang_dir(), cls.AVAILABLE_LANGUAGES)
+      lambda cls: create_fake_lang_dir(
+        cls._get_lang_dir(), cls.AVAILABLE_LANGUAGES, _N_CLASSES
+      )
     ),
   )
   monkeypatch.setattr(
@@ -44,5 +50,5 @@ def test_cold_cache_downloads_once_and_marks_the_model(
   assert calls == [_PB_DL_URL]
   assert model_dir == GeoPBDownloaderV3_0._get_model_path()
   assert check_source_marker(model_dir, _PB_DL_URL)
-  assert list(labels) == ["Species_species_Species"]
+  assert list(labels) == fake_labels(_N_CLASSES)
   assert not GeoPBDownloaderV3_0._lock_dir().exists()

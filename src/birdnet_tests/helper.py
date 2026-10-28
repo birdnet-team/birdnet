@@ -515,10 +515,18 @@ def create_fake_saved_model(model_dir: Path) -> None:
   (model_dir / "variables" / "variables.index").write_bytes(b"")
 
 
-def create_fake_lang_dir(lang_dir: Path, languages: Iterable[str]) -> None:
+def fake_labels(n_classes: int) -> list[str]:
+  """A label list of the length a model's downloader accepts."""
+  return [f"Genus species{index}_Species {index}" for index in range(n_classes)]
+
+
+def create_fake_lang_dir(
+  lang_dir: Path, languages: Iterable[str], n_classes: int
+) -> None:
   lang_dir.mkdir(parents=True, exist_ok=True)
+  content = "\n".join(fake_labels(n_classes)) + "\n"
   for lang in languages:
-    (lang_dir / f"{lang}.txt").write_text("Species_species_Species\n", encoding="utf-8")
+    (lang_dir / f"{lang}.txt").write_text(content, encoding="utf-8")
 
 
 def saved_model_members(prefix: str) -> dict[str, bytes]:
@@ -530,8 +538,11 @@ def saved_model_members(prefix: str) -> dict[str, bytes]:
   }
 
 
-def label_members(prefix: str, languages: Iterable[str]) -> dict[str, bytes]:
-  return {f"{prefix}{lang}.txt": b"Species_species_Species\n" for lang in languages}
+def label_members(
+  prefix: str, languages: Iterable[str], n_classes: int
+) -> dict[str, bytes]:
+  content = ("\n".join(fake_labels(n_classes)) + "\n").encode()
+  return {f"{prefix}{lang}.txt": content for lang in languages}
 
 
 def fake_zip_downloads(

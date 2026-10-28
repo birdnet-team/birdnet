@@ -12,7 +12,7 @@ Acoustic model V2.4 - June 2023
 * covers frequencies from 0 Hz to 15 kHz with two-channel spectrogram (one for low and one for high frequencies)
 * 0.826 GFLOPs, 50.5 MB as FP32
 * enhanced and optimized metadata model
-* global selection of species (birds and non-birds) with 6,522 classes (incl. 11 non-event classes)
+* 6,522 classes: species of birds and other animals, plus 11 classes that are not species (Dog, Engine, Human vocal, Noise, ...)
 
 Technical details
 ^^^^^^^^^^^^^^^^^
@@ -44,7 +44,7 @@ Acoustic model V3.0 (preview)
 
    The V3.0 acoustic model is currently a `*preview* <https://zenodo.org/records/20703646>`__ release (``preview3.1``) and may change before the final release.
 
-* global selection of more than 11,000 classes (birds and non-birds)
+* 11,560 classes: species of birds and other animals, plus classes above species level such as families and genera
 * available in four backends, selectable via the ``backend`` argument of ``birdnet.load``:
 
     * ``tf`` - TFLite (CPU only), ``fp32`` and ``fp16``; requires ``pip install birdnet[tf]``
@@ -108,8 +108,8 @@ SavedModel and as a detached head.
 * ``birdnet.inspect_custom_tflite(path)`` describes a TFLite export without
   importing TensorFlow into the calling process: the base version (``"2.4"`` or
   ``"3.0"``, derived from the input length and the embeddings width), whether the
-  classifier replaces the official species or appends to them (the labels file
-  then lists the official species first), its number of species, whether it
+  classifier replaces the official classes or appends to them (the labels file
+  then lists the official classes first), its number of classes, whether it
   applies the sigmoid itself and whether it exposes embeddings.
 * The tensors of a TFLite export are resolved from its ``serving_default``
   signature, so exports of every analyzer release load; the ``classifier_type``
@@ -152,6 +152,26 @@ On other TensorFlow versions use ``pb``, ``onnx`` or ``pt``.
 
   model = birdnet.load("geo", "3.0", "onnx")
   predictions = model.predict(42.5, -76.45, week=4)
+
+Describing a model before loading it
+------------------------------------
+
+The model classes answer the fixed facts about their official models without
+downloading or loading anything, so an application can describe its choices up
+front: ``get_n_classes()`` on every model (the number of output classes, which
+includes the classes that are not species) and ``get_segment_size_s()``,
+``get_sample_rate()`` and ``get_embeddings_dim()`` on the acoustic models. The
+label languages are ``VALID_MODEL_LANGUAGES_V2_4`` and
+``VALID_MODEL_LANGUAGES_V3_0``, and ``inspect_custom_tflite(..)`` describes a
+custom classifier file.
+
+.. code-block:: python
+
+  import birdnet
+
+  birdnet.AcousticModelV3_0.get_n_classes()  # 11560
+  birdnet.AcousticModelPerchV2.get_segment_size_s()  # 5.0
+  birdnet.GeoModelV3_0.get_n_classes()  # 14082
 
 Using older models
 ------------------

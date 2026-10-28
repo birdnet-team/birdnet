@@ -23,7 +23,7 @@ from birdnet.utils.local_data import (
   get_lang_dir,
   get_model_path,
 )
-from birdnet.utils.species_lists import get_species_from_file
+from birdnet.utils.species_lists import read_official_labels
 from birdnet.utils.taxonomy_v3 import (
   ensure_taxonomy_v3_available,
   get_taxonomy_v3_input,
@@ -241,7 +241,9 @@ class _GeoSingleFileDownloaderV3_0(GeoDownloaderBaseV3_0):
     if not lang_file.is_file():
       raise ValueError(f"Language does not exist: {lang}")
 
-    labels = get_species_from_file(lang_file, encoding="utf8")
+    labels = read_official_labels(
+      lang_file, GeoModelV3_0.get_n_classes(), "geo model v3.0"
+    )
     return cls._get_model_path(precision), labels
 
 
@@ -255,3 +257,12 @@ class GeoModelV3_0(GeoModelBase):
   @final
   def get_model_type(cls) -> MODEL_TYPES:
     return MODEL_TYPE_GEO
+
+  @classmethod
+  @final
+  def get_n_classes(cls) -> int:
+    """Return the 14,082 classes of the official 3.0 output.
+
+    All of them species: birds, insects, amphibians and mammals.
+    """
+    return 14_082

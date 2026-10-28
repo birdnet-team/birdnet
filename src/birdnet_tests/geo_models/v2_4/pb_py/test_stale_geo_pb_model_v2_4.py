@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from birdnet.geo.models.v2_4.model import GeoModelV2_4
 from birdnet.geo.models.v2_4.pb import _PB_DL_URL, GeoPBDownloaderV2_4
 from birdnet.utils.downloads import write_source_marker
 from birdnet_tests.helper import create_fake_lang_dir, create_fake_saved_model
@@ -11,7 +12,9 @@ def _prepare(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
   model_dir = tmp_path / "model"
   lang_dir = tmp_path / "lang"
   create_fake_saved_model(model_dir)
-  create_fake_lang_dir(lang_dir, GeoPBDownloaderV2_4.AVAILABLE_LANGUAGES)
+  create_fake_lang_dir(
+    lang_dir, GeoPBDownloaderV2_4.AVAILABLE_LANGUAGES, GeoModelV2_4.get_n_classes()
+  )
   monkeypatch.setattr(
     GeoPBDownloaderV2_4,
     "_get_paths",

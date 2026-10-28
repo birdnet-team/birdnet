@@ -11,6 +11,7 @@ from birdnet.core.backends import (
 from birdnet.geo.models.v3_0.model import (
   _YEAR_ROUND_WEEK_INPUTS,
   GeoDownloaderBaseV3_0,
+  GeoModelV3_0,
 )
 from birdnet.globals import (
   MODEL_PRECISION_FP32,
@@ -23,7 +24,7 @@ from birdnet.utils.downloads import (
   write_source_marker,
 )
 from birdnet.utils.local_data import get_lang_dir, get_model_path, get_model_root_dir
-from birdnet.utils.species_lists import get_species_from_file
+from birdnet.utils.species_lists import read_official_labels
 
 _PB_DL_URL = "https://github.com/birdnet-team/geomodel/releases/download/v3.0.4/BirdNET+_Geomodel_V3.0.4_Global_14K_FP32_TF.zip"
 _PB_DL_SIZE = 14196836
@@ -80,7 +81,9 @@ class GeoPBDownloaderV3_0(GeoDownloaderBaseV3_0):
     if not lang_file.is_file():
       raise ValueError(f"Language does not exist: {lang}")
 
-    labels = get_species_from_file(lang_file, encoding="utf8")
+    labels = read_official_labels(
+      lang_file, GeoModelV3_0.get_n_classes(), "geo model v3.0"
+    )
     return cls._get_model_path(), labels
 
 

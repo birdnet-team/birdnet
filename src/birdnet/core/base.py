@@ -186,6 +186,19 @@ class ModelBase(ABC):
   def load_custom(cls, *args, **kwargs) -> Self:  # noqa: ANN002, ANN003
     ...
 
+  @classmethod
+  @abstractmethod
+  def get_n_classes(cls) -> int:
+    """Return the number of classes the official model outputs.
+
+    The length of the official label list and the width of each prediction,
+    known without downloading or loading the model. A class count rather than
+    a species count: the 2.4 models and Perch also output classes that are not
+    species, which each model's docstring names. A custom classifier loaded
+    into one of these classes keeps its own count in ``n_species``.
+    """
+    ...
+
   @abstractmethod
   def predict(self, *args, **kwargs) -> ResultBase:  # noqa: ANN002, ANN003
     ...

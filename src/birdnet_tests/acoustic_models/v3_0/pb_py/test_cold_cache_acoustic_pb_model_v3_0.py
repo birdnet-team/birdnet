@@ -7,16 +7,20 @@ from pathlib import Path
 import pytest
 
 import birdnet.acoustic.models.v3_0.pb as pb_module
+from birdnet.acoustic.models.v3_0.model import AcousticModelV3_0
 from birdnet.acoustic.models.v3_0.pb import _PB_DL_URL, AcousticPBDownloaderV3_0
 from birdnet.globals import ENV_VAR_APP_DATA
 from birdnet.utils.downloads import check_source_marker, write_source_marker
 from birdnet_tests.helper import (
   create_fake_lang_dir,
+  fake_labels,
   fake_zip_downloads,
   saved_model_members,
 )
 
 pytestmark = pytest.mark.no_tf
+
+_N_CLASSES = AcousticModelV3_0.get_n_classes()
 
 
 @pytest.fixture
@@ -26,7 +30,9 @@ def generated_labels(monkeypatch: pytest.MonkeyPatch) -> None:
     AcousticPBDownloaderV3_0,
     "ensure_labels_available",
     classmethod(
-      lambda cls: create_fake_lang_dir(cls._get_paths()[1], cls.AVAILABLE_LANGUAGES)
+      lambda cls: create_fake_lang_dir(
+        cls._get_paths()[1], cls.AVAILABLE_LANGUAGES, _N_CLASSES
+      )
     ),
   )
 
@@ -47,7 +53,7 @@ def test_cold_cache_downloads_once_and_marks_the_model(
   assert calls == [_PB_DL_URL]
   assert model_dir == AcousticPBDownloaderV3_0._get_paths()[0]
   assert check_source_marker(model_dir, _PB_DL_URL)
-  assert list(labels) == ["Species_species_Species"]
+  assert list(labels) == fake_labels(_N_CLASSES)
   assert not AcousticPBDownloaderV3_0._lock_dir().exists()
 
 
@@ -59,7 +65,9 @@ def test_stale_labels_are_gone_before_the_model_reads_as_current(
   monkeypatch.setenv(ENV_VAR_APP_DATA, str(tmp_path))
   fake_zip_downloads(monkeypatch, {_PB_DL_URL: saved_model_members("")})
   _, lang_dir = AcousticPBDownloaderV3_0._get_paths()
-  create_fake_lang_dir(lang_dir, AcousticPBDownloaderV3_0.AVAILABLE_LANGUAGES)
+  create_fake_lang_dir(
+    lang_dir, AcousticPBDownloaderV3_0.AVAILABLE_LANGUAGES, _N_CLASSES
+  )
   labels_present_at_marker: list[bool] = []
 
   def marker_then_record(model_dir: Path, dl_url: str) -> None:

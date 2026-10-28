@@ -111,8 +111,8 @@ class _BaseModel:
   segment_samples: int
   embeddings_dim: int
   # Official class count: a classifier with more outputs than this appends to
-  # the official species, one with at most this many replaces them.
-  n_official_species: int
+  # the official classes, one with at most this many replaces them.
+  n_official_classes: int
   applies_sigmoid: bool
 
 
@@ -121,14 +121,14 @@ _BASE_MODELS = (
     "2.4",
     AcousticModelV2_4.get_segment_size_samples(),
     AcousticModelV2_4.get_embeddings_dim(),
-    n_official_species=6522,
+    n_official_classes=AcousticModelV2_4.get_n_classes(),
     applies_sigmoid=False,
   ),
   _BaseModel(
     "3.0",
     AcousticModelV3_0.get_segment_size_samples(),
     AcousticModelV3_0.get_embeddings_dim(),
-    n_official_species=11560,
+    n_official_classes=AcousticModelV3_0.get_n_classes(),
     applies_sigmoid=True,
   ),
 )
@@ -292,7 +292,7 @@ def describe_custom_tflite_layout(layout: CustomTFLiteLayout) -> CustomTFLiteInf
     )
 
   mode: CUSTOM_CLASSIFIER_MODES = (
-    "append" if layout.n_species > base.n_official_species else "replace"
+    "append" if layout.n_species > base.n_official_classes else "replace"
   )
   return CustomTFLiteInfo(
     version=base.version,
