@@ -6,6 +6,7 @@ from ordered_set import OrderedSet
 
 from birdnet.acoustic.models.v2_4.model import (
   AcousticDownloaderBaseV2_4,
+  AcousticModelV2_4,
 )
 from birdnet.core.backends import (
   PBBackend,
@@ -23,7 +24,7 @@ from birdnet.utils.downloads import (
   write_source_marker,
 )
 from birdnet.utils.local_data import get_lang_dir, get_model_path, get_model_root_dir
-from birdnet.utils.species_lists import get_species_from_file
+from birdnet.utils.species_lists import read_official_labels
 
 _PB_DL_URL = "https://zenodo.org/records/15050749/files/BirdNET_v2.4_protobuf.zip"
 _PB_DL_SIZE = 124522908
@@ -79,7 +80,9 @@ class AcousticPBDownloaderV2_4(AcousticDownloaderBaseV2_4):
     if not lang_file.is_file():
       raise ValueError(f"Language does not exist: {lang}")
 
-    labels = get_species_from_file(lang_file, encoding="utf8")
+    labels = read_official_labels(
+      lang_file, AcousticModelV2_4.get_n_classes(), "acoustic model v2.4"
+    )
     return model_dir, labels
 
 

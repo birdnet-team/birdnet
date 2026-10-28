@@ -60,6 +60,16 @@ class AcousticModelPerchV2(AcousticModelBase):
   def get_embeddings_dim(cls) -> int:
     return 1536
 
+  @classmethod
+  @final
+  def get_n_classes(cls) -> int:
+    """Return the 14,795 classes of the official Perch v2 output.
+
+    14,597 species from iNaturalist 2024 plus 198 FSD50K sound-event classes
+    such as Accordion, Aircraft and Dog.
+    """
+    return 14_795
+
   def encode_session(
     self,
     /,

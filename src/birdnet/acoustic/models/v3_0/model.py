@@ -42,7 +42,7 @@ from birdnet.utils.local_data import (
   get_lang_dir,
   get_model_path,
 )
-from birdnet.utils.species_lists import get_species_from_file
+from birdnet.utils.species_lists import read_official_labels
 from birdnet.utils.taxonomy_v3 import (
   ensure_taxonomy_v3_available,
   get_taxonomy_v3_input,
@@ -254,7 +254,9 @@ class _AcousticSingleFileDownloaderV3_0(AcousticDownloaderBaseV3_0):
     if not lang_file.is_file():
       raise ValueError(f"Language does not exist: {lang}")
 
-    labels = get_species_from_file(lang_file, encoding="utf8")
+    labels = read_official_labels(
+      lang_file, AcousticModelV3_0.get_n_classes(), "acoustic model v3.0"
+    )
     return model_path, labels
 
 
@@ -293,6 +295,16 @@ class AcousticModelV3_0(AcousticModelBase):
   @final
   def get_embeddings_dim(cls) -> int:
     return 1280
+
+  @classmethod
+  @final
+  def get_n_classes(cls) -> int:
+    """Return the 11,560 classes of the official 3.0 output.
+
+    Species of birds and other animals, plus classes above species level such
+    as Acrididae (grasshoppers), Bufo (toads) and Cetacea (whales and dolphins).
+    """
+    return 11_560
 
   def encode_session(
     self,

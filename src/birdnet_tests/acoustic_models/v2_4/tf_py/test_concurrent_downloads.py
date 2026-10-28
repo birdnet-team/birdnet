@@ -16,14 +16,17 @@ from pathlib import Path
 
 import pytest
 
+from birdnet.acoustic.models.v2_4.model import AcousticModelV2_4
 from birdnet.acoustic.models.v2_4.tf import AcousticTFDownloaderV2_4, models
 from birdnet.globals import ENV_VAR_APP_DATA, MODEL_PRECISIONS
 from birdnet.utils import downloads
 from birdnet.utils.local_data import get_model_root_dir
+from birdnet_tests.helper import fake_labels
 
 pytestmark = pytest.mark.no_tf
 
 _DOWNLOAD_DURATION_S = 0.3
+_LABELS = "\n".join(fake_labels(AcousticModelV2_4.get_n_classes())) + "\n"
 
 
 class _FakeTransport:
@@ -48,7 +51,7 @@ class _FakeTransport:
     with zipfile.ZipFile(file_path, "w", zipfile.ZIP_DEFLATED) as archive:
       archive.writestr(info.dl_file_name, b"\0" * info.file_size)
       for lang in AcousticTFDownloaderV2_4.AVAILABLE_LANGUAGES:
-        archive.writestr(f"labels/{lang}.txt", "Genus_species_Species\n")
+        archive.writestr(f"labels/{lang}.txt", _LABELS)
     time.sleep(_DOWNLOAD_DURATION_S)
     with self._lock:
       self.intervals.append((start, time.perf_counter()))

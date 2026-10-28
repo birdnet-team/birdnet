@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+from birdnet.acoustic.models.v3_0.model import AcousticModelV3_0
 from birdnet.acoustic.models.v3_0.onnx import AcousticOnnxDownloaderV3_0
 from birdnet.acoustic.models.v3_0.onnx import models as onnx_models
 from birdnet.acoustic.models.v3_0.pt import AcousticPTDownloaderV3_0
@@ -22,6 +23,7 @@ from birdnet.acoustic.models.v3_0.tf import models as tf_models
 from birdnet.globals import MODEL_PRECISIONS
 from birdnet.utils import downloads
 from birdnet.utils.downloads import ModelInfo
+from birdnet_tests.helper import fake_labels
 
 _Downloader = (
   type[AcousticTFDownloaderV3_0]
@@ -30,7 +32,7 @@ _Downloader = (
 )
 
 _SMALL_FILE_SIZE = 64
-_EN_US_LABELS = ["Turdus merula_Eurasian Blackbird", "Parus major_Great Tit"]
+_EN_US_LABELS = fake_labels(AcousticModelV3_0.get_n_classes())
 _REAL_SIGNATURE = inspect.signature(downloads.ensure_single_file_model)
 
 

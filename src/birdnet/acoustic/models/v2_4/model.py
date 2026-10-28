@@ -99,6 +99,17 @@ class AcousticModelV2_4(AcousticModelBase):
   def get_embeddings_dim(cls) -> int:
     return 1024
 
+  @classmethod
+  @final
+  def get_n_classes(cls) -> int:
+    """Return the 6,522 classes of the official 2.4 output.
+
+    Species, plus 11 classes that are not: Dog, Engine, Environmental,
+    Fireworks, Gun, Human non-vocal, Human vocal, Human whistle, Noise, Power
+    tools and Siren.
+    """
+    return 6522
+
   def encode_session(
     self,
     /,
