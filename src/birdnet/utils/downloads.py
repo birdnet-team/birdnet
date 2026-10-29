@@ -31,9 +31,11 @@ from birdnet.utils.filesystem import directory_lock, lock_heartbeat
 
 logger = logging.getLogger(__name__)
 
-# The per-block Python work (tqdm update, write, progress call) capped a
-# download at ~160 MB/s with 1 KiB blocks against a local server; 64 KiB
-# blocks reach ~1 GB/s; larger blocks save a fraction of a second per model.
+# Each block costs fixed Python work, about half of it inside requests' chunk
+# delivery and the rest in this loop (tqdm update, write, progress call): 1 KiB
+# blocks capped a download from a local server below 200 MB/s, 64 KiB blocks
+# run several times faster, and larger blocks save only a fraction of a second
+# per model.
 _DOWNLOAD_BLOCK_SIZE = 64 * 1024
 
 

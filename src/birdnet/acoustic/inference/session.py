@@ -293,10 +293,8 @@ class AcousticSessionBase(
 
     self._resources.stats_resources.save_end_time()
 
-    # Finish processing and wait for processes to finish their main loops
-    # Event is necessary for logging, perf_tracking and progress dispatcher,
-    # which have no defined ending otherwise
-    self._resources.processing_resources.processing_finished_event.set()
+    # The performance tracker has no other defined end to its run.
+    self._resources.processing_resources.processing_finished_signal.release()
     self._process_manager.wait_until_all_finished()
 
     # A child dying or a dispatcher callback raising during the waits above
@@ -406,7 +404,7 @@ class AcousticSessionBase(
     assert self._resources is not None
     self._resources.processing_resources.end_event.set()
     # Clean path only: a cancelled child lingers in its poll, and that linger
-    # is what lets its last log records drain (crash-safe concept, teardown).
+    # is what lets its last log records drain.
     if not self._resources.processing_resources.cancel_event.is_set():
       assert self._process_manager is not None
       self._process_manager.wake_idle_children()

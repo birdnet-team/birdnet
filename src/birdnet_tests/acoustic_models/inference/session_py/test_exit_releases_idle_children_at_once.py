@@ -5,9 +5,11 @@ at the end event only when it expires; the children re-enter that wait right
 before `run()` returns, so without a wake every exit paid close to the full
 second. `end()` now releases every idle wait. Asserts on the fastest of a few
 exits, like `test_session_call_overhead`: a loaded machine can only make an
-exit slower, and the poll is a full second on any machine. The package
-logger runs at INFO, the library default: the suite raises it to DEBUG, where
-the children's log traffic adds its own half second to every exit.
+exit slower, and the poll is a full second on any machine. Every exit must
+also be clean: a child that mistakes the wake for a run start fails and
+cancels the session, and that exit is prompt too. The package logger runs at
+INFO, the library default: the suite raises it to DEBUG, where the children's
+log traffic adds its own half second to every exit.
 """
 
 from __future__ import annotations
@@ -65,10 +67,17 @@ def test_fastest_exit_is_well_below_the_idle_poll(
     session_dir.mkdir()
     session = fake_predict_session(session_dir, n_workers=2, **options)  # type: ignore[arg-type]
     session.__enter__()
+    manager = session._process_manager  # noqa: SLF001
+    resources = session._resources  # noqa: SLF001
+    assert manager is not None and resources is not None
     session.run([str(audio)])
     start = time.perf_counter()
     session.__exit__(None, None, None)
     durations.append(time.perf_counter() - start)
+    # A child that mistakes the wake for a run start fails and cancels the
+    # session; that exit is prompt as well, but not clean.
+    assert manager.run_error is None
+    assert not resources.processing_resources.cancel_event.is_set()
 
   fastest = min(durations)
   assert fastest < MAX_FASTEST_EXIT_S, (

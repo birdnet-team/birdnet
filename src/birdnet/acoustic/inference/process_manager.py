@@ -190,7 +190,6 @@ class ProcessManager:
       end_event=self._res.processing_resources.end_event,
       callback_queue=self._res.stats_resources.callback_queue,
       cancel_event=self._res.processing_resources.cancel_event,
-      processing_finished_event=self._res.processing_resources.processing_finished_event,
       report_error=self.record_run_error,
     )
 
@@ -263,7 +262,7 @@ class ProcessManager:
       target=PerformanceTracker(
         session_id=self._session_id,
         pred_dur_queue=self._res.stats_resources.wkr_stats_queue,
-        processing_finished_event=self._res.processing_resources.processing_finished_event,
+        processing_finished_signal=self._res.processing_resources.processing_finished_signal,
         update_interval=self._res.processing_resources.update_interval,
         prod_stats_queue=self._res.stats_resources.prd_stats_queue,
         n_workers=self._cfg.processing_conf.workers,
@@ -460,6 +459,8 @@ class ProcessManager:
     start.
     """
     res = self._res
+    # A released start signal is a run start unless the end event is already set.
+    assert res.processing_resources.end_event.is_set()
     res.analyzer_resources.start_signal.set()
     for start_signal in res.producer_resources.start_signals:
       start_signal.release()

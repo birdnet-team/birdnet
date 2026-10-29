@@ -101,7 +101,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     pred_dur_queue: Queue,
     prod_stats_queue: Queue,
     callback_queue: Queue | None,
-    processing_finished_event: Event,
+    processing_finished_signal: Semaphore,
     update_interval: float,
     n_workers: int,
     logging_queue: Queue,
@@ -127,7 +127,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     n_last_live_stats = math.ceil(n_last_seconds_live_stats / update_interval)
 
     self._sem_filled_slots = sem_filled_slots
-    self._processing_finished_event = processing_finished_event
+    self._processing_finished_signal = processing_finished_signal
     self._n_workers = n_workers
     self._prd_stats_queue = prod_stats_queue
     self._perf_res = perf_res
@@ -339,13 +339,19 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
   def run_main(self) -> None:
     self.reset()
 
+    finished = False
     while True:
       if self._check_cancel_event():
         return
 
       was_empty = self._track_stats()
 
-      if self._processing_finished_event.wait(self._update_every) and was_empty:
+      # The acquire consumes the signal, so remember it: once the run is over
+      # the loop only drains what the workers still report, without sleeping
+      # another interval per pass.
+      if not finished:
+        finished = self._processing_finished_signal.acquire(timeout=self._update_every)
+      if finished and was_empty:
         self._log("Processing finished and queues empty.")
         # `was_empty` was measured *before* the wait above, so everything the
         # workers reported during it is still unread -- on a short run, every
@@ -509,9 +515,9 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       self._wkr_5_inference_dur_tracker.add_value(dur_inference)
       self._wkr_6_add_to_queue_dur_tracker.add_value(dur_add_to_queue)
     self._log(
-      "Received %s worker stats entries in %s ms.",
+      "Received %s worker stats entries in %.3f ms.",
       n_received,
-      time.perf_counter() - receive_duration_start,
+      1000 * (time.perf_counter() - receive_duration_start),
     )
     return is_empty
 
@@ -546,9 +552,9 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       self._prd_3_free_slot_search_dur_tracker.add_value(free_slot_search_time)
       self._prd_4_flush_dur_tracker.add_value(flush_duration)
     self._log(
-      "Received %s producer stats entries in %s ms.",
+      "Received %s producer stats entries in %.3f ms.",
       n_received,
-      time.perf_counter() - receive_duration_start,
+      1000 * (time.perf_counter() - receive_duration_start),
     )
     return is_empty
 
@@ -765,7 +771,6 @@ class ProgressDispatcher:
     end_event: Event,
     start_signal: threading.Event,
     finish_signal: threading.Event,
-    processing_finished_event: Event,
     check_interval: float,
     report_error: Callable[[BaseException], None] | None = None,
   ) -> None:
@@ -777,7 +782,6 @@ class ProgressDispatcher:
     self._start_signal = start_signal
     self._finish_signal = finish_signal
     self._callback_fn = callback_fn
-    self._processing_finished_event = processing_finished_event
     self._check_interval = check_interval
     self._logger = bn_logging.get_logger_from_session(session_id, __name__)
 
@@ -855,7 +859,6 @@ class ProgressDispatcher:
         self._log("Received stats. Call callback function.")
         self._callback_fn(latest)
 
-        finished = self._processing_finished_event.is_set()
-        if finished and latest.finished:
-          self._log("Processing finished event is set. Exiting loop.")
+        if latest.finished:
+          self._log("Received the final stats. Exiting loop.")
           return

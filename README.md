@@ -251,7 +251,7 @@ The resulting predictions look like this (excerpt, scores may vary; sorted alpha
 
 The full result is at [example/location.csv](example/location.csv).
 
-``predict`` loads the model's backend for every call, runs the query and unloads
+`predict` loads the model's backend for every call, runs the query and unloads
 it again; that load dominates the call. To query several locations or weeks,
 open one session and reuse it:
 

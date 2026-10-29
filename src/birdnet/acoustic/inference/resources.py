@@ -48,8 +48,8 @@ from birdnet.utils.logging_utils import get_package_logging_level
 from birdnet.utils.segments import get_n_segments_speed
 
 
-def drain_start_signal(start_signal: multiprocessing.synchronize.Semaphore) -> None:
-  while start_signal.acquire(block=False):
+def drain_signal(signal: multiprocessing.synchronize.Semaphore) -> None:
+  while signal.acquire(block=False):
     pass
 
 
@@ -261,7 +261,7 @@ class ProducerResources:
     self.n_finished_pointer.value = 0
     self.all_finished.clear()
     for start_signal in self.start_signals:
-      drain_start_signal(start_signal)
+      drain_signal(start_signal)
     for finish_signal in self.finish_signals:
       finish_signal.clear()
 
@@ -353,7 +353,7 @@ class WorkerResources:
 
   def reset(self) -> None:
     for start_signal in self.start_signals:
-      drain_start_signal(start_signal)
+      drain_signal(start_signal)
     for finish_signal in self.finish_signals:
       finish_signal.clear()
 
@@ -436,7 +436,10 @@ class ProcessingResources:
   def update_interval(self) -> float:
     return 1.0
 
-  processing_finished_event: multiprocessing.synchronize.Event
+  # Released once per run to end the performance tracker's wait. A semaphore,
+  # not an Event: ``Event.set()`` blocks for good on a waiter killed inside
+  # ``wait()``, and the tracker sleeps on this for the whole run.
+  processing_finished_signal: multiprocessing.synchronize.Semaphore
   cancel_event: multiprocessing.synchronize.Event
 
   # end listening for new files
@@ -449,7 +452,7 @@ class ProcessingResources:
     return self.current_run_nr == 1
 
   def reset(self) -> None:
-    self.processing_finished_event.clear()
+    drain_signal(self.processing_finished_signal)
     self.cancel_event.clear()
     self.end_event.clear()
 
@@ -461,7 +464,7 @@ class ProcessingResources:
     ctx = mp.get_context(conf.start_method)
     return ProcessingResources(
       cancel_event=ctx.Event(),
-      processing_finished_event=ctx.Event(),
+      processing_finished_signal=ctx.Semaphore(0),
       end_event=ctx.Event(),
       current_run_nr=1,
     )
