@@ -10,7 +10,7 @@ from collections import Counter, deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from multiprocessing import Queue, shared_memory
-from multiprocessing.synchronize import Event
+from multiprocessing.synchronize import Event, Semaphore
 from queue import Empty
 
 import numpy as np
@@ -105,7 +105,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     pred_dur_queue: Queue,
     prod_stats_queue: Queue,
     callback_queue: Queue | None,
-    processing_finished_event: Event,
+    processing_finished: Semaphore,
     update_interval: float,
     n_workers: int,
     logging_queue: Queue,
@@ -134,7 +134,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     n_last_live_stats = math.ceil(n_last_seconds_live_stats / update_interval)
 
     self._sem_filled_slots = sem_filled_slots
-    self._processing_finished_event = processing_finished_event
+    self._processing_finished = processing_finished
     self._n_workers = n_workers
     self._prd_stats_queue = prod_stats_queue
     self._perf_res = perf_res
@@ -343,13 +343,18 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
   def run_main(self) -> None:
     self.reset()
 
+    finished = False
     while True:
       if self._check_cancel_event():
         return
 
       was_empty = self._track_stats()
 
-      if self._processing_finished_event.wait(self._update_every) and was_empty:
+      # One token per run: once taken, the remaining passes only drain the
+      # queues, without waiting.
+      if not finished:
+        finished = self._processing_finished.acquire(timeout=self._update_every)
+      if finished and was_empty:
         self._log("Processing finished and queues empty.")
         # `was_empty` was measured *before* the wait above, so everything the
         # workers reported during it is still unread -- on a short run, every
@@ -767,7 +772,7 @@ class ProgressDispatcher:
     end_event: Event,
     start_signal: threading.Event,
     finish_signal: threading.Event,
-    processing_finished_event: Event,
+    processing_finished_event: threading.Event,
     check_interval: float,
     report_error: Callable[[BaseException], None] | None = None,
   ) -> None:

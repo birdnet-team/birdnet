@@ -270,7 +270,7 @@ class ProcessManager:
       target=PerformanceTracker(
         session_id=self._session_id,
         pred_dur_queue=self._res.stats_resources.wkr_stats_queue,
-        processing_finished_event=self._res.processing_resources.processing_finished_event,
+        processing_finished=self._res.processing_resources.processing_finished_sem,
         update_interval=self._res.processing_resources.update_interval,
         prod_stats_queue=self._res.stats_resources.prd_stats_queue,
         n_workers=self._cfg.processing_conf.workers,

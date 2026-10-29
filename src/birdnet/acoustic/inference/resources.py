@@ -444,7 +444,14 @@ class ProcessingResources:
   def update_interval(self) -> float:
     return 1.0
 
-  processing_finished_event: multiprocessing.synchronize.Event
+  # Read by the progress dispatcher, a thread of this process; no child may
+  # wait on it, and a threading.Event cannot even be handed to one.
+  processing_finished_event: threading.Event
+  # The same signal for the performance tracker, which waits on it from a
+  # child process: a release never blocks, while a cross-process Event.set()
+  # blocks until every waiter confirms it woke, forever if that waiter was
+  # killed inside its wait. One token per run with a tracker.
+  processing_finished_sem: multiprocessing.synchronize.Semaphore
   cancel_event: multiprocessing.synchronize.Event
 
   # end listening for new files
@@ -469,7 +476,8 @@ class ProcessingResources:
     ctx = mp.get_context(conf.start_method)
     return ProcessingResources(
       cancel_event=ctx.Event(),
-      processing_finished_event=ctx.Event(),
+      processing_finished_event=threading.Event(),
+      processing_finished_sem=ctx.Semaphore(0),
       end_event=ctx.Event(),
       current_run_nr=1,
     )

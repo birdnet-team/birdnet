@@ -307,10 +307,12 @@ class AcousticSessionBase(
 
     self._resources.stats_resources.save_end_time()
 
-    # Finish processing and wait for processes to finish their main loops
-    # Event is necessary for logging, perf_tracking and progress dispatcher,
-    # which have no defined ending otherwise
-    self._resources.processing_resources.processing_finished_event.set()
+    # The end of the run, for the two that have no other way to see it: the
+    # progress dispatcher (a thread) and the performance tracker (a process).
+    processing = self._resources.processing_resources
+    processing.processing_finished_event.set()
+    if self._resources.stats_resources.track_performance:
+      processing.processing_finished_sem.release()
     self._process_manager.wait_until_all_finished()
 
     # A child dying or a dispatcher callback raising during the waits above
