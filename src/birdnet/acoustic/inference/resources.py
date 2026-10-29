@@ -27,10 +27,12 @@ from birdnet.acoustic.inference.core.perf_tracker import (
 )
 from birdnet.acoustic.inference.core.shm import RingField, create_shm_ring
 from birdnet.acoustic.inference.core.sync import (
+  ChildToParentQueue,
   CountedSemaphore,
   FailureSlot,
   clear_failure,
   create_failure_slot,
+  readable,
 )
 from birdnet.core.backends import (
   CPU_THREADS_ARG,
@@ -245,7 +247,7 @@ class ProducerResources:
   all_finished: multiprocessing.synchronize.Event
   ring_access_lock: multiprocessing.synchronize.Lock
   input_queue: Queue
-  unprocessed_inputs_queue: Queue
+  unprocessed_inputs_queue: ChildToParentQueue
   start_signals: list[multiprocessing.synchronize.Event]
   finish_signals: list[multiprocessing.synchronize.Event]
   failure_slots: list[FailureSlot]
@@ -313,7 +315,7 @@ class ProducerResources:
 
 @dataclass(frozen=True)
 class WorkerResources:
-  results_queue: Queue
+  results_queue: ChildToParentQueue
   ring_access_lock: multiprocessing.synchronize.Lock
   devices: list[str]
   backend_loader: BackendLoader
@@ -509,14 +511,14 @@ class StatisticsResources:
   wkr_stats_queue: Queue | None
   prd_stats_queue: Queue | None
   sem_active_workers: CountedSemaphore | None
-  perf_res_queue: Queue | None
+  perf_res_queue: ChildToParentQueue | None
   perf_res_start_signal: multiprocessing.synchronize.Event | None
   perf_res_finish_signal: multiprocessing.synchronize.Event | None
   perf_failure_slot: FailureSlot | None
 
   use_callback: bool
   callback_fn: Callable[[AcousticProgressStats], None] | None
-  callback_queue: Queue | None
+  callback_queue: ChildToParentQueue | None
   callback_start_signal: threading.Event | None
   callback_finish_signal: threading.Event | None
 
@@ -663,7 +665,7 @@ class FileCompletionResources:
 
   enabled: bool
   callback_fn: Callable[[object], None] | None
-  marker_queue: Queue | None
+  marker_queue: ChildToParentQueue | None
   dispatch_queue: queue.Queue | None
   start_signal: threading.Event | None
   finish_signal: threading.Event | None
@@ -697,13 +699,21 @@ class FileCompletionResources:
     assert self.start_signal is not None
     assert self.finish_signal is not None
     # Drain any stragglers (e.g. after a cancelled run) so a reused session
-    # starts clean and never mixes markers/items across runs.
-    for q in (self.dispatch_queue, self.marker_queue):
-      while True:
-        try:
-          q.get_nowait()
-        except queue.Empty:
-          break
+    # starts clean and never mixes markers/items across runs. The marker queue
+    # is read on the calling thread: a marker is a four-field tuple of under
+    # 200 bytes, below PIPE_BUF on every platform, so its write is atomic and
+    # a killed producer cannot leave a torn frame here.
+    while True:
+      try:
+        self.dispatch_queue.get_nowait()
+      except queue.Empty:
+        break
+    markers = readable(self.marker_queue)
+    while True:
+      try:
+        markers.get_nowait()
+      except queue.Empty:
+        break
     self.start_signal.clear()
     self.finish_signal.clear()
 

@@ -19,9 +19,12 @@ import psutil
 import birdnet.acoustic.inference.core.logs as bn_logging
 from birdnet.acoustic.inference.core.shm import RingField
 from birdnet.acoustic.inference.core.sync import (
+  ChildSideEvent,
+  ChildToParentQueue,
   CountedSemaphore,
   FailureSlot,
   abandon_queue_feeders,
+  readable,
 )
 from birdnet.globals import READABLE_FLAG, READING_FLAG, WRITABLE_FLAG
 
@@ -104,23 +107,23 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     session_id: str,
     pred_dur_queue: Queue,
     prod_stats_queue: Queue,
-    callback_queue: Queue | None,
+    callback_queue: ChildToParentQueue | None,
     processing_finished: Semaphore,
     update_interval: float,
     n_workers: int,
     logging_queue: Queue,
     logging_level: int,
-    perf_res: Queue,
+    perf_res: ChildToParentQueue,
     sem_active_workers: CountedSemaphore,
     sem_filled_slots: CountedSemaphore,
     segment_size_s: float,
     parent_process_id: int,
     rf_flags: RingField,
     tot_n_segments_ptr: ctypes.c_uint64,
-    cancel_event: Event,
-    end_event: Event,
+    cancel_event: ChildSideEvent,
+    end_event: ChildSideEvent,
     start_signal: Event,
-    finish_signal: Event,
+    finish_signal: ChildSideEvent,
     start: float,
     start_method: str,
     failure_slot: FailureSlot | None = None,
@@ -766,7 +769,7 @@ class ProgressDispatcher:
   def __init__(
     self,
     session_id: str,
-    callback_queue: Queue,
+    callback_queue: ChildToParentQueue,
     callback_fn: Callable[[AcousticProgressStats], None],
     cancel_event: Event,
     end_event: Event,
@@ -778,7 +781,10 @@ class ProgressDispatcher:
   ) -> None:
     self._report_error = report_error
     self._session_id = session_id
-    self._callback_queue = callback_queue
+    # Read on this dispatcher thread: a torn frame parks the thread, and
+    # teardown's join of it is bounded. A final update the tracker promised
+    # but never flushed still holds the run (the same class as read_promised).
+    self._callback_queue = readable(callback_queue)
     self._cancel_event = cancel_event
     self._end_event = end_event
     self._start_signal = start_signal

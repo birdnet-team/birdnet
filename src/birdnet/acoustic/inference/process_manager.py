@@ -13,7 +13,6 @@ from multiprocessing.process import BaseProcess
 from multiprocessing.synchronize import Event as EventType
 from pathlib import Path
 from queue import Empty
-from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -39,19 +38,18 @@ from birdnet.acoustic.inference.core.sync import (
 )
 from birdnet.acoustic.inference.core.sync import (
   READER_CLOSE_TIMEOUT_S,
+  ChildToParentQueue,
   Deadline,
   FailureSlot,
   ThreadedQueueReader,
   read_failure,
+  readable,
 )
 from birdnet.acoustic.inference.core.tensor import AcousticTensorBase
 from birdnet.acoustic.inference.file_writer import QueueFileWriter
 from birdnet.acoustic.inference.resources import PipelineResources
 from birdnet.acoustic.inference.strategy import InferenceStrategyBase
 from birdnet.core.base import get_session_id_hash
-
-if TYPE_CHECKING:
-  from multiprocessing import Queue
 
 # One budget for the whole teardown: every wait in it draws what is left, so a
 # child that cannot exit costs the caller at most this much. A healthy teardown
@@ -74,7 +72,7 @@ _LIVENESS_POLL_INTERVAL_S = 1.0
 _DRAIN_STOP_TIMEOUT_S = 1.0
 
 
-def _drain_queue(q: Queue, stop: threading.Event) -> None:
+def _drain_queue(q: ChildToParentQueue, stop: threading.Event) -> None:
   """Discard everything a queue holds until told to stop.
 
   Runs on its own thread, one per queue, and never on the teardown path itself.
@@ -86,6 +84,7 @@ def _drain_queue(q: Queue, stop: threading.Event) -> None:
   it off the teardown path can (issue #77). One thread per queue so a queue that
   does wedge cannot stop the others from being drained.
   """
+  reads = readable(q)
   while True:
     # Best-effort by design: this drain only exists to unblock the children so
     # they can exit, and the run has already failed. A payload that arrived
@@ -94,7 +93,7 @@ def _drain_queue(q: Queue, stop: threading.Event) -> None:
     # expects it -- so none of them are enumerated.
     with suppress(Exception):
       while True:
-        q.get_nowait()
+        reads.get_nowait()
         # A child that keeps writing would otherwise hold this loop past the
         # stop, and teardown would then record a perfectly healthy drainer as
         # wedged and never close its queue.
@@ -138,13 +137,13 @@ class ProcessManager:
     self._child_death_error: ChildProcessError | None = None
     self._run_error: BaseException | None = None
     self._run_error_lock = threading.Lock()
-    self._undrainable_queues: list[Queue] = []
+    self._undrainable_queues: list[ChildToParentQueue] = []
     # Readers whose pumps were asked to stop but not yet confirmed gone.
     # Confirming joins a thread that is usually just asleep in its poll, which
     # costs tens of milliseconds -- so it is deferred to the moments that need
     # the answer: before the same queues are read again (start of the next
     # run) and before they are closed (session teardown).
-    self._stopped_readers: list[tuple[ThreadedQueueReader, Queue]] = []
+    self._stopped_readers: list[tuple[ThreadedQueueReader, ChildToParentQueue]] = []
     # Set when teardown starts; every wait after that draws from it.
     self._teardown: Deadline | None = None
 
@@ -672,7 +671,7 @@ class ProcessManager:
         assert marker_queue is not None
         self._stop_reader(marker_reader, marker_queue)
 
-  def _stop_reader(self, reader: ThreadedQueueReader, q: Queue) -> None:
+  def _stop_reader(self, reader: ThreadedQueueReader, q: ChildToParentQueue) -> None:
     """Ask a queue reader to stop, without waiting for it.
 
     Waiting here would put a fixed per-call cost on every ``session.run``;
@@ -723,7 +722,7 @@ class ProcessManager:
     self._child_death_error = ChildProcessError(message)
     self._res.processing_resources.cancel_event.set()
 
-  def read_promised(self, q: Queue, n: int, what: str) -> list[object]:
+  def read_promised(self, q: ChildToParentQueue, n: int, what: str) -> list[object]:
     """Read ``n`` messages that finished children have already promised.
 
     Called only after every sender set its finish signal, so each message is
@@ -877,7 +876,7 @@ class ProcessManager:
     self,
     logger: Logger,
     thread: threading.Thread,
-    q: Queue | None,
+    q: ChildToParentQueue | None,
     deadline: Deadline,
   ) -> None:
     """Join a thread that reads a child-to-parent queue, without waiting forever.
@@ -926,7 +925,7 @@ class ProcessManager:
     processes = self._children()
 
     stats_res = self._res.stats_resources
-    optional_queues: list[Queue | None] = [
+    optional_queues: list[ChildToParentQueue | None] = [
       self._res.producer_resources.unprocessed_inputs_queue,
       self._res.worker_resources.results_queue,
       self._res.file_completion_resources.marker_queue,
@@ -935,7 +934,7 @@ class ProcessManager:
       stats_res.perf_res_queue,
       stats_res.callback_queue,
     ]
-    queues: list[Queue] = [q for q in optional_queues if q is not None]
+    queues: list[ChildToParentQueue] = [q for q in optional_queues if q is not None]
 
     stop_draining = threading.Event()
     drainers = [
@@ -965,7 +964,7 @@ class ProcessManager:
   def _collect_wedged_drainers(
     self,
     logger: Logger,
-    queues: list[Queue],
+    queues: list[ChildToParentQueue],
     drainers: list[threading.Thread],
     deadline: Deadline,
   ) -> None:
@@ -1031,7 +1030,9 @@ class ProcessManager:
     self.reap_stopped_readers()
     res = self._res
     stats = res.stats_resources
-    queues: list[Queue | None] = [
+    # Closing needs the write side only, so the parent-to-child input queue
+    # and the logging queue fit the same type here.
+    queues: list[ChildToParentQueue | None] = [
       res.producer_resources.input_queue,
       res.producer_resources.unprocessed_inputs_queue,
       res.worker_resources.results_queue,
