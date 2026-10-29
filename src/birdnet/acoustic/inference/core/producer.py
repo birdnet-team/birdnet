@@ -21,6 +21,7 @@ import birdnet.acoustic.inference.core.logs as bn_logging
 from birdnet.acoustic.inference.core.shm import RingField
 from birdnet.acoustic.inference.core.sync import (
   CountedSemaphore,
+  FailureSlot,
   abandon_queue_feeders,
   acquire_or_give_up_when_cancelled,
 )
@@ -81,8 +82,11 @@ class Producer(bn_logging.LogableProcessBase):
     unprocessed_inputs_queue: Queue,
     start_method: str,
     completion_queue: Queue | None = None,
+    failure_slot: FailureSlot | None = None,
   ) -> None:
-    super().__init__(session_id, __name__, logging_queue, logging_level, start_method)
+    super().__init__(
+      session_id, __name__, logging_queue, logging_level, start_method, failure_slot
+    )
     self._completion_queue = completion_queue
     # Duration (s) of the file currently being segmented; reported alongside the
     # per-file completion marker so a single-file result can clamp end times.
@@ -580,6 +584,7 @@ class Producer(bn_logging.LogableProcessBase):
       self._logger.exception(
         "Producer encountered an exception.", exc_info=e, stack_info=True
       )
+      self._report_failure(e)
       self._cancel_event.set()
 
     # On cancellation the parent stops reading these queues; drop any buffered

@@ -26,7 +26,12 @@ from birdnet.acoustic.inference.core.perf_tracker import (
   PerformanceTrackingResult,
 )
 from birdnet.acoustic.inference.core.shm import RingField, create_shm_ring
-from birdnet.acoustic.inference.core.sync import CountedSemaphore
+from birdnet.acoustic.inference.core.sync import (
+  CountedSemaphore,
+  FailureSlot,
+  clear_failure,
+  create_failure_slot,
+)
 from birdnet.core.backends import (
   CPU_THREADS_ARG,
   BackendLoader,
@@ -243,6 +248,7 @@ class ProducerResources:
   unprocessed_inputs_queue: Queue
   start_signals: list[multiprocessing.synchronize.Event]
   finish_signals: list[multiprocessing.synchronize.Event]
+  failure_slots: list[FailureSlot]
 
   _unprocessed_inputs: set[int] | None = None
 
@@ -259,6 +265,8 @@ class ProducerResources:
       start_signal.clear()
     for finish_signal in self.finish_signals:
       finish_signal.clear()
+    for slot in self.failure_slots:
+      clear_failure(slot)
 
   @classmethod
   def create(cls, conf: InferenceConfig) -> ProducerResources:
@@ -278,6 +286,7 @@ class ProducerResources:
       all_finished=ctx.Event(),
       start_signals=[ctx.Event() for _ in range(n_producers)],
       finish_signals=[ctx.Event() for _ in range(n_producers)],
+      failure_slots=[create_failure_slot(ctx) for _ in range(n_producers)],
       unprocessed_inputs_queue=ctx.Queue(),
     )
 
@@ -310,6 +319,7 @@ class WorkerResources:
   backend_loader: BackendLoader
   start_signals: list[multiprocessing.synchronize.Event]
   finish_signals: list[multiprocessing.synchronize.Event]
+  failure_slots: list[FailureSlot]
 
   @classmethod
   def create(cls, config: InferenceConfig) -> WorkerResources:
@@ -344,6 +354,7 @@ class WorkerResources:
       backend_loader=backend_loader,
       start_signals=[ctx.Event() for _ in range(n_workers)],
       finish_signals=[ctx.Event() for _ in range(n_workers)],
+      failure_slots=[create_failure_slot(ctx) for _ in range(n_workers)],
     )
 
   def reset(self) -> None:
@@ -351,6 +362,8 @@ class WorkerResources:
       start_signal.clear()
     for finish_signal in self.finish_signals:
       finish_signal.clear()
+    for slot in self.failure_slots:
+      clear_failure(slot)
 
 
 @dataclass(frozen=True)
@@ -491,6 +504,7 @@ class StatisticsResources:
   perf_res_queue: Queue | None
   perf_res_start_signal: multiprocessing.synchronize.Event | None
   perf_res_finish_signal: multiprocessing.synchronize.Event | None
+  perf_failure_slot: FailureSlot | None
 
   use_callback: bool
   callback_fn: Callable[[AcousticProgressStats], None] | None
@@ -540,6 +554,7 @@ class StatisticsResources:
     perf_res_queue = None
     perf_res_start_signal = None
     perf_res_finish_signal = None
+    perf_failure_slot = None
     wkr_stats_queue = None
     prd_stats_queue = None
     sem_active_workers = None
@@ -548,6 +563,7 @@ class StatisticsResources:
       perf_res_queue = ctx.Queue()
       perf_res_start_signal = ctx.Event()
       perf_res_finish_signal = ctx.Event()
+      perf_failure_slot = create_failure_slot(ctx)
       wkr_stats_queue = ctx.Queue()
       prd_stats_queue = ctx.Queue()
       sem_active_workers = CountedSemaphore(0, ctx=ctx)
@@ -590,6 +606,7 @@ class StatisticsResources:
       benchmark_session_dir=benchmark_session_dir,
       perf_res_start_signal=perf_res_start_signal,
       perf_res_finish_signal=perf_res_finish_signal,
+      perf_failure_slot=perf_failure_slot,
       use_callback=use_callback,
       callback_queue=callback_queue,
       callback_start_signal=callback_start_signal,
@@ -615,6 +632,8 @@ class StatisticsResources:
     # liveness check on that wait would never execute.
     if self.perf_res_finish_signal is not None:
       self.perf_res_finish_signal.clear()
+    if self.perf_failure_slot is not None:
+      clear_failure(self.perf_failure_slot)
 
     # Cleared for the same reason: left set, the parent would never actually
     # wait for the dispatcher on runs 2+, so those runs would get no closing

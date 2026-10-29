@@ -13,6 +13,7 @@ import birdnet.acoustic.inference.core.logs as bn_logging
 from birdnet.acoustic.inference.core.shm import RingField
 from birdnet.acoustic.inference.core.sync import (
   CountedSemaphore,
+  FailureSlot,
   abandon_queue_feeders,
   acquire_or_give_up_when_cancelled,
 )
@@ -55,8 +56,11 @@ class WorkerBase(bn_logging.LogableProcessBase):
     finish_signal: Event,
     end_event: Event,
     start_method: str,
+    failure_slot: FailureSlot | None = None,
   ) -> None:
-    super().__init__(session_id, name, logging_queue, logging_level, start_method)
+    super().__init__(
+      session_id, name, logging_queue, logging_level, start_method, failure_slot
+    )
 
     self._half_precision = half_precision
     self._end_event = end_event
@@ -196,6 +200,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
       self._logger.exception(
         "Worker encountered an exception.", exc_info=e, stack_info=True
       )
+      self._report_failure(e)
       self._cancel_event.set()
 
     # On cancellation the consumer has stopped reading these queues; drop any
@@ -332,14 +337,9 @@ class WorkerBase(bn_logging.LogableProcessBase):
       dur4_copy_to_device = time.perf_counter() - perf_c
       perf_c = time.perf_counter()
 
-      try:
-        infer_result_tensor = self._infer(tensor)
-      except Exception as e:
-        print(e)
-        self._log(f"Error during inference: {e}")
-        self._cancel_event.set()
-        self._log("Exiting due to error during inference. Set cancel event.")
-        return
+      # A model that raises fails the run through the handler in __call__,
+      # which logs the traceback and leaves the message for the caller.
+      infer_result_tensor = self._infer(tensor)
       dur5_inference = time.perf_counter() - perf_c
 
       self._ring_flags[claimed_slot] = WRITABLE_FLAG

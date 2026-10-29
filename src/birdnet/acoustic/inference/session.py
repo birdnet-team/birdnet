@@ -401,6 +401,10 @@ class AcousticSessionBase(
     if pm is not None and pm.child_death_error is not None:
       cause = pm.child_death_error
       raise RuntimeError(f"{cause}\n\n{message}") from cause
+    failure = pm.child_failure() if pm is not None else None
+    if failure is not None:
+      name, text = failure
+      raise RuntimeError(f"Pipeline process '{name}' failed: {text}\n\n{message}")
     if pm is not None and pm.run_error is not None:
       error = pm.run_error
       raise RuntimeError(f"{type(error).__name__}: {error}\n\n{message}") from error

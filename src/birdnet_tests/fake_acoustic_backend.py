@@ -150,10 +150,28 @@ class FakeAcousticBackend:
     return inference_result
 
 
+def loading_marker(model_path: Path) -> Path:
+  """Written by the stuck backends right before they hang, for a test to wait on."""
+  return model_path.with_name(model_path.name + ".loading")
+
+
 class NeverLoadingBackend(FakeAcousticBackend):
   """Hangs in `load`, as a model whose interpreter never returns would."""
 
   def load(self) -> None:
+    loading_marker(self._model_path).touch()
+    time.sleep(60)
+
+
+class IgnoringTerminationBackend(FakeAcousticBackend):
+  """Hangs in `load` and ignores SIGTERM, as native code with its own handler can."""
+
+  def load(self) -> None:
+    import signal
+
+    if hasattr(signal, "SIGTERM"):
+      signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    loading_marker(self._model_path).touch()
     time.sleep(60)
 
 
@@ -190,6 +208,28 @@ class ForeignErrorBackend(FakeAcousticBackend):
 
   def load(self) -> None:
     raise_foreign_load_error()
+
+
+class RaisingBackend(FakeAcousticBackend):
+  """Raises inside inference on its ``raise_at_batch``-th batch, as a model would."""
+
+  def __init__(
+    self,
+    model_path: Path,
+    device_name: str,
+    half_precision: bool = False,
+    seconds_per_batch: float = 0.0,
+    raise_at_batch: int = 2,
+  ) -> None:
+    super().__init__(model_path, device_name, half_precision, seconds_per_batch)
+    self._raise_at_batch = raise_at_batch
+    self._n_batches = 0
+
+  def predict(self, batch: np.ndarray) -> np.ndarray:
+    self._n_batches += 1
+    if self._n_batches == self._raise_at_batch:
+      raise RuntimeError(f"synthetic model failure in batch {self._n_batches}")
+    return super().predict(batch)
 
 
 class WideFakeAcousticBackend(FakeAcousticBackend):

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import ctypes
 import logging
 import multiprocessing as mp
 import multiprocessing.synchronize
 import queue as pyqueue
 import threading
+import time
 from contextlib import suppress
 from dataclasses import dataclass
 from multiprocessing import Queue
@@ -35,6 +37,53 @@ _READER_STOP_TOKEN = "__threaded_queue_reader_stop__"
 # on its way out, which the liveness check can no longer flag because the
 # signal is already set.
 PROMISED_MESSAGE_DEADLINE_S = 30.0
+# Room for a child's exception type and message, as the parent reports them.
+FAILURE_SLOT_BYTES = 2048
+
+FailureSlot = ctypes.Array[ctypes.c_char]
+
+
+class Deadline:
+  """One point in time that every step of a bounded procedure draws from."""
+
+  def __init__(self, budget_s: float) -> None:
+    self.budget_s = budget_s
+    self._end = time.monotonic() + budget_s
+
+  def remaining(self) -> float:
+    return max(0.0, self._end - time.monotonic())
+
+
+def create_failure_slot(ctx: BaseContext) -> FailureSlot:
+  """Shared bytes a child writes its own exception into for the parent to read.
+
+  No lock and no queue: each child has its own slot, a write is a bounded
+  ``memcpy``, and the parent reads it after the cancel event, so a child killed
+  halfway through writing costs a truncated message, not a hang.
+  """
+  return ctx.RawArray(ctypes.c_char, FAILURE_SLOT_BYTES)
+
+
+def write_failure(slot: FailureSlot, exc: BaseException) -> None:
+  """``module.Type: message``, cut to the slot; the type alone if ``str`` fails."""
+  kind = type(exc)
+  name = kind.__qualname__
+  if kind.__module__ not in ("builtins", "__main__"):
+    name = f"{kind.__module__}.{name}"
+  try:
+    text = f"{name}: {exc}"
+  except Exception:  # noqa: BLE001 - an exception's __str__ can raise too
+    text = name
+  slot.value = text.encode("utf-8", "replace")[: len(slot) - 1]
+
+
+def read_failure(slot: FailureSlot) -> str | None:
+  text = slot.value
+  return text.decode("utf-8", "replace") if text else None
+
+
+def clear_failure(slot: FailureSlot) -> None:
+  slot.value = b""
 
 
 def abandon_queue_feeders(*queues: Queue | None) -> None:

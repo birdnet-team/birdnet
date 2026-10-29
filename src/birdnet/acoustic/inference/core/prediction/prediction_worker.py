@@ -8,6 +8,7 @@ import numpy as np
 from numpy.typing import DTypeLike
 
 from birdnet.acoustic.inference.core.shm import RingField
+from birdnet.acoustic.inference.core.sync import FailureSlot
 from birdnet.acoustic.inference.core.worker import WorkerBase
 from birdnet.core.backends import BackendLoader, BatchT
 from birdnet.utils.dsp import (
@@ -54,6 +55,7 @@ class PredictionWorker(WorkerBase):
     finish_signal: Event,
     end_event: Event,
     start_method: str,
+    failure_slot: FailureSlot | None = None,
   ) -> None:
     assert species_thresholds.shape[0] == 1
     assert species_blacklist.shape[0] == 1
@@ -108,6 +110,7 @@ class PredictionWorker(WorkerBase):
       finish_signal=finish_signal,
       end_event=end_event,
       start_method=start_method,
+      failure_slot=failure_slot,
     )
 
   def _infer(self, batch: BatchT) -> BatchT:

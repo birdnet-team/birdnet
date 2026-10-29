@@ -18,7 +18,11 @@ import psutil
 
 import birdnet.acoustic.inference.core.logs as bn_logging
 from birdnet.acoustic.inference.core.shm import RingField
-from birdnet.acoustic.inference.core.sync import CountedSemaphore, abandon_queue_feeders
+from birdnet.acoustic.inference.core.sync import (
+  CountedSemaphore,
+  FailureSlot,
+  abandon_queue_feeders,
+)
 from birdnet.globals import READABLE_FLAG, READING_FLAG, WRITABLE_FLAG
 
 
@@ -119,8 +123,11 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     finish_signal: Event,
     start: float,
     start_method: str,
+    failure_slot: FailureSlot | None = None,
   ) -> None:
-    super().__init__(session_id, __name__, logging_queue, logging_level, start_method)
+    super().__init__(
+      session_id, __name__, logging_queue, logging_level, start_method, failure_slot
+    )
 
     n_last_batch_stats = 10
     n_last_seconds_live_stats = 5.0
@@ -222,6 +229,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       self._logger.exception(
         "PerformanceTracker encountered an exception.", exc_info=e, stack_info=True
       )
+      self._report_failure(e)
       self._cancel_event.set()
 
     # On cancellation the parent stops reading these queues; drop any buffered
