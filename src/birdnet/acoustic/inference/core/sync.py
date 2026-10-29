@@ -109,10 +109,13 @@ class Deadline:
 
   def __init__(self, budget_s: float) -> None:
     self.budget_s = budget_s
-    self._end = time.monotonic() + budget_s
+    self._start = time.monotonic()
 
   def remaining(self) -> float:
-    return max(0.0, self._end - time.monotonic())
+    # Budget minus elapsed cannot exceed the budget; end minus now can, by a
+    # rounding error, when both clock reads fall in one tick (15.6 ms on
+    # Windows before 3.13).
+    return max(0.0, self.budget_s - (time.monotonic() - self._start))
 
 
 def create_failure_slot(ctx: BaseContext) -> FailureSlot:
