@@ -35,7 +35,7 @@ class EncodingWorker(WorkerBase):
     device: str,
     cancel_event: Event,
     all_producers_finished: Event,
-    start_signal: Event,
+    start_signal: Semaphore,
     finish_signal: Event,
     end_event: Event,
     start_method: str,

@@ -60,8 +60,9 @@ DownloadProgressCallback = Callable[[DownloadProgress], None]
 _lock = threading.Lock()
 _callback: DownloadProgressCallback | None = None
 
-# Downloads stream in 1 KiB chunks, so a 520 MB model is ~530 000 chunks; the
-# callback must not be invoked per chunk. 0.1 s is fast enough for any UI.
+# Downloads stream in 64 KiB chunks, so a 520 MB model is thousands of
+# chunks; the callback must not be invoked per chunk. 0.1 s is fast enough
+# for any UI.
 _PROGRESS_MIN_INTERVAL_S = 0.1
 # Indirection so tests can drive the throttle with a fake clock without
 # patching `time.monotonic` for the whole process (requests/urllib3 use it).

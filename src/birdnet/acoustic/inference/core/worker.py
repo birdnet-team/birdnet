@@ -51,7 +51,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
     device: str,
     cancel_event: Event,
     all_producers_finished: Event,
-    start_signal: Event,
+    start_signal: Semaphore,
     finish_signal: Event,
     end_event: Event,
     start_method: str,
@@ -114,7 +114,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
         self._device_name, half_precision=self._half_precision
       )
     except ValueError as e:
-      self._log(f"Failed to load model: {e}")
+      self._log("Failed to load model: %s", e)
       raise e
     self._log("Model loaded.")
 
@@ -153,8 +153,8 @@ class WorkerBase(bn_logging.LogableProcessBase):
   def _pid(self) -> int:
     return os.getpid()
 
-  def _log(self, msg: str) -> None:
-    self._logger.debug(f"W_{self._pid}: {msg}")
+  def _log(self, msg: str, *args: object) -> None:
+    self._logger.debug(f"W_{self._pid}: {msg}", *args)
 
   def _check_cancel_event(self) -> bool:
     if self._cancel_event.is_set():
@@ -189,7 +189,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
       self._load_model()
 
       duration_init = time.perf_counter() - start
-      self._log(f"Initialized in {duration_init:.4f} seconds.")
+      self._log("Initialized in %.4f seconds.", duration_init)
 
       self.run_main_loop()
     except Exception as e:
@@ -213,13 +213,17 @@ class WorkerBase(bn_logging.LogableProcessBase):
   def run_main_loop(self) -> None:
     while True:
       self._log("Waiting for start signal...")
-      while not self._start_signal.wait(timeout=1.0):
+      while True:
+        # A wake is not a run start: end() releases every idle wait so the
+        # end event is seen at once, and a cancel can land on the same wake.
+        started = self._start_signal.acquire(timeout=1.0)
         if self._check_cancel_event():
           return
         if self._check_end_event():
           return
+        if started:
+          break
 
-      self._start_signal.clear()
       self._log("Received start signal. Starting processing.")
 
       self.run_main()
@@ -250,8 +254,9 @@ class WorkerBase(bn_logging.LogableProcessBase):
       dur1_wait_for_filled_slot = time.perf_counter() - perf_c
 
       self._log(
-        f"Acquired FILL; Free slots remaining: {self._sem_free}; "
-        f"Filled slots: {self._sem_filled}"
+        "Acquired FILL; Free slots remaining: %s; Filled slots: %s",
+        self._sem_free,
+        self._sem_filled,
       )
 
       if self._check_cancel_event():
@@ -308,8 +313,9 @@ class WorkerBase(bn_logging.LogableProcessBase):
       assert claimed_flag == READABLE_FLAG
 
       self._log(
-        f"Acquired READ_FLAG for slot {claimed_slot}. "
-        f"Searched {dur2_search_for_filled_slot:.4f} seconds for batch."
+        "Acquired READ_FLAG for slot %s. Searched %.4f seconds for batch.",
+        claimed_slot,
+        dur2_search_for_filled_slot,
       )
 
       if self._sem_active_workers is not None:
@@ -324,7 +330,10 @@ class WorkerBase(bn_logging.LogableProcessBase):
       ].copy()  # copy needed
       dur3_get_job = time.perf_counter() - perf_c
       self._log(
-        f"Received job for slot {claimed_slot} with {n} segments: {segment_indices}"
+        "Received job for slot %s with %s segments: %s",
+        claimed_slot,
+        n,
+        segment_indices,
       )
 
       perf_c = time.perf_counter()
@@ -336,7 +345,7 @@ class WorkerBase(bn_logging.LogableProcessBase):
         infer_result_tensor = self._infer(tensor)
       except Exception as e:
         print(e)
-        self._log(f"Error during inference: {e}")
+        self._log("Error during inference: %s", e)
         self._cancel_event.set()
         self._log("Exiting due to error during inference. Set cancel event.")
         return
@@ -346,8 +355,9 @@ class WorkerBase(bn_logging.LogableProcessBase):
       self._sem_free.release()
 
       self._log(
-        f"Released FREE. Free slots remaining: {self._sem_free}; "
-        f"Filled slots: {self._sem_filled}"
+        "Released FREE. Free slots remaining: %s; Filled slots: %s",
+        self._sem_free,
+        self._sem_filled,
       )
 
       perf_c = time.perf_counter()
@@ -363,9 +373,12 @@ class WorkerBase(bn_logging.LogableProcessBase):
 
       self._prediction_count += n
       self._log(
-        f"Prediction made ({dur5_inference:.4} s). "
-        f"Total predictions: {self._prediction_count}. Chunks: {segment_indices}"
-        f"Duration to numpy: {dur_to_numpy:.4f} s. "
+        "Prediction made (%.4g s). Total predictions: %s. Chunks: %s. "
+        "Duration to numpy: %.4f s.",
+        dur5_inference,
+        self._prediction_count,
+        segment_indices,
+        dur_to_numpy,
       )
 
       if self._wkr_stats_queue is not None:

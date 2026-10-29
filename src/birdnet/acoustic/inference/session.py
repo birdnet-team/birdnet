@@ -405,6 +405,11 @@ class AcousticSessionBase(
 
     assert self._resources is not None
     self._resources.processing_resources.end_event.set()
+    # Clean path only: a cancelled child lingers in its poll, and that linger
+    # is what lets its last log records drain (crash-safe concept, teardown).
+    if not self._resources.processing_resources.cancel_event.is_set():
+      assert self._process_manager is not None
+      self._process_manager.wake_idle_children()
 
   def __exit__(self, *args) -> None:  # noqa: ANN002
     assert self._is_initialized

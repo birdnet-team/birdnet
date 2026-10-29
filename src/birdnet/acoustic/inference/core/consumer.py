@@ -84,8 +84,8 @@ class Consumer:
       self._n_markers = 0
       self._pending: set[int] = set()
 
-  def _log(self, message: str) -> None:
-    self._logger.debug(f"C: {message}")
+  def _log(self, message: str, *args: object) -> None:
+    self._logger.debug(f"C: {message}", *args)
 
   def _fail_run(self, message: str) -> None:
     self._logger.error(message)
@@ -151,7 +151,8 @@ class Consumer:
       got_stop_signal_from_worker = received_block is None
       if got_stop_signal_from_worker:
         self._log(
-          f"Received stop signal from worker. Finished workers: {finished_workers + 1}."
+          "Received stop signal from worker. Finished workers: %s.",
+          finished_workers + 1,
         )
         finished_workers += 1
         continue
@@ -161,8 +162,9 @@ class Consumer:
       block = received_block
       n_received_predictions += 1
       self._log(
-        f"Received block with {len(block)} values from worker. "
-        f"Total received: {n_received_predictions}"
+        "Received block with %s values from worker. Total received: %s",
+        len(block),
+        n_received_predictions,
       )
       self._tensor.write_block(*block)
 

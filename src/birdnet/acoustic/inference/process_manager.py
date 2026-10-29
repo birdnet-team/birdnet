@@ -427,7 +427,7 @@ class ProcessManager:
 
     self._logger.debug("[START_SIG] Starting producers...")
     for i in range(res.producer_resources.n_producers):
-      res.producer_resources.start_signals[i].set()
+      res.producer_resources.start_signals[i].release()
 
     self._logger.debug("Feeding input data to producers...")
     for input_idx, inp_data in enumerate(input_data):
@@ -437,17 +437,43 @@ class ProcessManager:
 
     self._logger.debug("[START_SIG] Starting workers...")
     for i in range(self._cfg.processing_conf.workers):
-      res.worker_resources.start_signals[i].set()
+      res.worker_resources.start_signals[i].release()
 
     self._logger.debug("[START_SIG] Starting performance tracker...")
     if res.stats_resources.track_performance:
       assert res.stats_resources.perf_res_start_signal is not None
-      res.stats_resources.perf_res_start_signal.set()
+      res.stats_resources.perf_res_start_signal.release()
 
     self._logger.debug("[START_SIG] Starting progress dispatcher...")
     if res.stats_resources.use_callback:
       assert res.stats_resources.callback_start_signal is not None
       res.stats_resources.callback_start_signal.set()
+
+  def wake_idle_children(self) -> None:
+    """Release every idle wait on a start signal so the end event is seen now.
+
+    Idle children and threads poll their start signal with a 1 s timeout and
+    look at the end event only when it expires. The cross-process signals are
+    semaphores because a release never blocks: ``Event.set()`` waits for every
+    registered waiter to wake, forever if that waiter was killed inside its
+    wait. The loops check the end event on every wake, so a wake is not a run
+    start.
+    """
+    res = self._res
+    res.analyzer_resources.start_signal.set()
+    for start_signal in res.producer_resources.start_signals:
+      start_signal.release()
+    for start_signal in res.worker_resources.start_signals:
+      start_signal.release()
+    if res.stats_resources.track_performance:
+      assert res.stats_resources.perf_res_start_signal is not None
+      res.stats_resources.perf_res_start_signal.release()
+    if res.stats_resources.use_callback:
+      assert res.stats_resources.callback_start_signal is not None
+      res.stats_resources.callback_start_signal.set()
+    if res.file_completion_resources.enabled:
+      assert res.file_completion_resources.start_signal is not None
+      res.file_completion_resources.start_signal.set()
 
   def _iter_children_with_finish_signals(
     self,

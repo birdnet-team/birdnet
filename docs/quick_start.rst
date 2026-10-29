@@ -94,6 +94,16 @@ Predict species for a given location and time
 
   predictions.to_csv("example/location.csv")
 
+``predict`` loads the model's backend for every call, runs the query and
+unloads it again; that load dominates the call. To query several locations or
+weeks, open one session and reuse it:
+
+.. code-block:: python
+
+  with model.predict_session() as session:
+      spring = session.run(42.5, -76.45, week=16)
+      autumn = session.run(42.5, -76.45, week=40)
+
 Predict species with a custom species list
 ------------------------------------------
 

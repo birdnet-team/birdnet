@@ -17,8 +17,9 @@ import pytest
 
 from birdnet.utils import download_progress, downloads
 from birdnet.utils.download_progress import DownloadProgress
+from birdnet.utils.downloads import _DOWNLOAD_BLOCK_SIZE
 
-BODY = b"x" * 4096  # 4 chunks of the helper's 1 KiB block size
+BODY = b"x" * (4 * _DOWNLOAD_BLOCK_SIZE)  # 4 chunks of the download loop
 ERROR_BODY = b"error page"
 
 

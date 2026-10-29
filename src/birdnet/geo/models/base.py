@@ -99,6 +99,11 @@ class GeoModelBase(ModelBase):
     half_precision: bool = False,
     device: str = "CPU",
   ) -> GeoPredictionSession:
+    """Open a session that keeps the backend loaded between ``run(..)`` calls.
+
+    Entering the session loads the backend once; each ``run(latitude, longitude,
+    week=..)`` then costs one inference. Use it for several locations or weeks.
+    """
     return GeoPredictionSession(
       species_list=self.species_list,
       model_path=self.model_path,
@@ -123,6 +128,13 @@ class GeoModelBase(ModelBase):
     half_precision: bool = False,
     device: str = "CPU",
   ) -> GeoPredictionResult:
+    """Predict the species present at a location, loading the backend for the call.
+
+    Opens a ``predict_session(..)`` with the same options, runs it once and
+    unloads the backend again, so the backend load, not the inference,
+    dominates the call. For several locations or weeks, open one session and
+    call ``run(..)`` on it.
+    """
     with self.predict_session(
       min_confidence=min_confidence,
       half_precision=half_precision,

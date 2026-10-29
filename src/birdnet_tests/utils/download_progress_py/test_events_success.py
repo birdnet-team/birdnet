@@ -10,7 +10,11 @@ from birdnet.utils.download_progress import (
   DownloadProgress,
   set_download_progress_callback,
 )
-from birdnet.utils.downloads import _DOWNLOAD_ATTEMPTS, download_file_tqdm
+from birdnet.utils.downloads import (
+  _DOWNLOAD_ATTEMPTS,
+  _DOWNLOAD_BLOCK_SIZE,
+  download_file_tqdm,
+)
 
 from .conftest import LocalServer
 
@@ -43,7 +47,8 @@ def test_started_progress_finished_with_accurate_byte_accounting(
   assert events[0].retry_in_s is None
 
   progress = [e for e in events if e.status == "progress"]
-  assert len(progress) == len(server.body) // 1024  # one per 1 KiB chunk (no throttle)
+  # One per chunk (no throttle).
+  assert len(progress) == len(server.body) // _DOWNLOAD_BLOCK_SIZE
   byte_counts = [e.bytes_done for e in progress]
   assert byte_counts == sorted(byte_counts)
   assert byte_counts[-1] == len(server.body)

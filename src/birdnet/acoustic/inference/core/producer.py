@@ -60,7 +60,7 @@ class Producer(bn_logging.LogableProcessBase):
     max_segment_idx_ptr: UIntCType,
     prod_done_ptr: Synchronized[int],
     end_event: Event,
-    start_signal: Event,
+    start_signal: Semaphore,
     finish_signal: Event,
     n_producers: int,
     prd_ring_access_lock: multiprocessing.synchronize.Lock,
@@ -402,8 +402,9 @@ class Producer(bn_logging.LogableProcessBase):
       wait_time_for_free_slot = time.perf_counter() - perf_c
 
       self._log(
-        f"Producer acquired FREE. Free slots remaining: {self._sem_free_slots}; "
-        f"Filled slots: {self._sem_filled_slots}"
+        "Producer acquired FREE. Free slots remaining: %s; Filled slots: %s",
+        self._sem_free_slots,
+        self._sem_filled_slots,
       )
 
       if self._check_cancel_event():
@@ -468,7 +469,7 @@ class Producer(bn_logging.LogableProcessBase):
         )
       assert claimed_flag == WRITABLE_FLAG
 
-      self._log(f"Acquired WRITING_FLAG for slot {claimed_slot}.")
+      self._log("Acquired WRITING_FLAG for slot %s.", claimed_slot)
 
       if self._check_cancel_event():
         return
@@ -483,9 +484,9 @@ class Producer(bn_logging.LogableProcessBase):
       self._sem_filled_slots.release()
 
       self._log(
-        "Producer released FILL. "
-        f"Free slots remaining: {self._sem_free_slots}; "
-        f"Filled slots: {self._sem_filled_slots}"
+        "Producer released FILL. Free slots remaining: %s; Filled slots: %s",
+        self._sem_free_slots,
+        self._sem_filled_slots,
       )
 
       if self._prod_stats_queue is not None:
@@ -508,8 +509,8 @@ class Producer(bn_logging.LogableProcessBase):
     self._unprocessable_inputs = set()
 
     self._log(
-      "Finished processing files. "
-      f"Total time: {time.perf_counter() - start_time:.2f} seconds."
+      "Finished processing files. Total time: %.2f seconds.",
+      time.perf_counter() - start_time,
     )
 
   def _check_cancel_event(self) -> bool:
@@ -560,12 +561,14 @@ class Producer(bn_logging.LogableProcessBase):
     self._ring_batch_sizes[claimed_slot] = current_batch_size
 
     self._log(
-      f"Flushed batch to shared memory on slot {claimed_slot}, "
-      f"batch size {current_batch_size}. Chunk indices: {batch_segment_indices}"
+      "Flushed batch to shared memory on slot %s, batch size %s. Chunk indices: %s",
+      claimed_slot,
+      current_batch_size,
+      batch_segment_indices,
     )
 
-  def _log(self, message: str) -> None:
-    self._logger.debug(f"P_{os.getpid()}: {message}")
+  def _log(self, message: str, *args: object) -> None:
+    self._logger.debug(f"P_{os.getpid()}: {message}", *args)
 
   def __call__(self) -> None:
     if self._lazy_init:
@@ -601,13 +604,17 @@ class Producer(bn_logging.LogableProcessBase):
   def _run_main_loop(self) -> None:
     while True:
       self._log("Waiting for start signal...")
-      while not self._start_signal.wait(timeout=1.0):
+      while True:
+        # A wake is not a run start: end() releases every idle wait so the
+        # end event is seen at once, and a cancel can land on the same wake.
+        started = self._start_signal.acquire(timeout=1.0)
         if self._check_cancel_event():
           return
         if self._check_end_event():
           return
+        if started:
+          break
 
-      self._start_signal.clear()
       self._log("Received start signal. Starting processing.")
       self._run_main()
 
@@ -633,7 +640,7 @@ class Producer(bn_logging.LogableProcessBase):
       return
     try:
       self._prod_done_ptr.value = self._prod_done_ptr.value + 1
-      self._log(f"Set prod_done_ptr to {self._prod_done_ptr.value}.")
+      self._log("Set prod_done_ptr to %s.", self._prod_done_ptr.value)
       is_last_producer = self._prod_done_ptr.value == self._n_producers
     finally:
       self._prod_done_ptr.get_lock().release()

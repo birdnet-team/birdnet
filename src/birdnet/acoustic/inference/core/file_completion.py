@@ -50,8 +50,8 @@ class FileCompletionDispatcher:
     self._finish_signal = finish_signal
     self._logger = bn_logging.get_logger_from_session(session_id, __name__)
 
-  def _log(self, message: str) -> None:
-    self._logger.debug(f"FCD_{os.getpid()}: {message}")
+  def _log(self, message: str, *args: object) -> None:
+    self._logger.debug(f"FCD_{os.getpid()}: {message}", *args)
 
   def __call__(self) -> None:
     try:
@@ -71,11 +71,16 @@ class FileCompletionDispatcher:
 
   def run_main_loop(self) -> None:
     while True:
-      while not self._start_signal.wait(timeout=1.0):
+      while True:
+        # A wake is not a run start: end() sets every idle start signal so the
+        # end event is seen at once, and a cancel can land on the same wake.
+        started = self._start_signal.wait(timeout=1.0)
         if self._cancel_event.is_set():
           return
         if self._end_event.is_set():
           return
+        if started:
+          break
 
       self._start_signal.clear()
       self._log("Received start signal. Dispatching file completions.")

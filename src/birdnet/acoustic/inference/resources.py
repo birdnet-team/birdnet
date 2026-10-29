@@ -48,6 +48,11 @@ from birdnet.utils.logging_utils import get_package_logging_level
 from birdnet.utils.segments import get_n_segments_speed
 
 
+def drain_start_signal(start_signal: multiprocessing.synchronize.Semaphore) -> None:
+  while start_signal.acquire(block=False):
+    pass
+
+
 @dataclass(frozen=True)
 class PipelineResources:
   stats_resources: StatisticsResources
@@ -241,7 +246,7 @@ class ProducerResources:
   ring_access_lock: multiprocessing.synchronize.Lock
   input_queue: Queue
   unprocessed_inputs_queue: Queue
-  start_signals: list[multiprocessing.synchronize.Event]
+  start_signals: list[multiprocessing.synchronize.Semaphore]
   finish_signals: list[multiprocessing.synchronize.Event]
 
   _unprocessed_inputs: set[int] | None = None
@@ -256,7 +261,7 @@ class ProducerResources:
     self.n_finished_pointer.value = 0
     self.all_finished.clear()
     for start_signal in self.start_signals:
-      start_signal.clear()
+      drain_start_signal(start_signal)
     for finish_signal in self.finish_signals:
       finish_signal.clear()
 
@@ -276,7 +281,7 @@ class ProducerResources:
       input_queue=ctx.Queue(),
       ring_access_lock=ctx.Lock(),
       all_finished=ctx.Event(),
-      start_signals=[ctx.Event() for _ in range(n_producers)],
+      start_signals=[ctx.Semaphore(0) for _ in range(n_producers)],
       finish_signals=[ctx.Event() for _ in range(n_producers)],
       unprocessed_inputs_queue=ctx.Queue(),
     )
@@ -308,7 +313,7 @@ class WorkerResources:
   ring_access_lock: multiprocessing.synchronize.Lock
   devices: list[str]
   backend_loader: BackendLoader
-  start_signals: list[multiprocessing.synchronize.Event]
+  start_signals: list[multiprocessing.synchronize.Semaphore]
   finish_signals: list[multiprocessing.synchronize.Event]
 
   @classmethod
@@ -342,13 +347,13 @@ class WorkerResources:
       ring_access_lock=ctx.Lock(),
       devices=devices,
       backend_loader=backend_loader,
-      start_signals=[ctx.Event() for _ in range(n_workers)],
+      start_signals=[ctx.Semaphore(0) for _ in range(n_workers)],
       finish_signals=[ctx.Event() for _ in range(n_workers)],
     )
 
   def reset(self) -> None:
     for start_signal in self.start_signals:
-      start_signal.clear()
+      drain_start_signal(start_signal)
     for finish_signal in self.finish_signals:
       finish_signal.clear()
 
@@ -489,7 +494,7 @@ class StatisticsResources:
   prd_stats_queue: Queue | None
   sem_active_workers: CountedSemaphore | None
   perf_res_queue: Queue | None
-  perf_res_start_signal: multiprocessing.synchronize.Event | None
+  perf_res_start_signal: multiprocessing.synchronize.Semaphore | None
   perf_res_finish_signal: multiprocessing.synchronize.Event | None
 
   use_callback: bool
@@ -546,7 +551,7 @@ class StatisticsResources:
 
     if track_performance:
       perf_res_queue = ctx.Queue()
-      perf_res_start_signal = ctx.Event()
+      perf_res_start_signal = ctx.Semaphore(0)
       perf_res_finish_signal = ctx.Event()
       wkr_stats_queue = ctx.Queue()
       prd_stats_queue = ctx.Queue()
