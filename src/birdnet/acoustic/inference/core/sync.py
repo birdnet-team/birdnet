@@ -1,17 +1,18 @@
 from __future__ import annotations
 
+import ctypes
 import logging
 import multiprocessing as mp
 import multiprocessing.synchronize
 import queue as pyqueue
 import threading
+import time
 from contextlib import suppress
 from dataclasses import dataclass
-from multiprocessing import Queue
 from multiprocessing.context import BaseContext
 from multiprocessing.sharedctypes import Synchronized
 from types import TracebackType
-from typing import Generic, TypeVar, cast
+from typing import Any, Generic, Protocol, TypeVar, cast
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,9 +36,121 @@ _READER_STOP_TOKEN = "__threaded_queue_reader_stop__"
 # on its way out, which the liveness check can no longer flag because the
 # signal is already set.
 PROMISED_MESSAGE_DEADLINE_S = 30.0
+# Room for a child's exception type and message, as the parent reports them.
+FAILURE_SLOT_BYTES = 2048
+
+FailureSlot = ctypes.Array[ctypes.c_char]
 
 
-def abandon_queue_feeders(*queues: Queue | None) -> None:
+class ChildToParentQueue(Protocol):
+  """A cross-process queue as this package types it: the write side only.
+
+  A read of a cross-process queue can stop its thread for good on a frame a
+  killed writer left half-written, and no ``get`` timeout bounds that. So the
+  reads live on threads the run can lose (``ThreadedQueueReader``, the
+  cancel-path drainer, the progress dispatcher), which take the real queue
+  through ``readable``; a ``get`` on a queue typed like this anywhere else is
+  a type error. Typed as a plain ``Queue`` instead, on purpose: the logging
+  queue, read by the log writer thread; the two stats queues, read by the
+  performance tracker in its own process; and the parent-to-child input queue.
+  """
+
+  def put(
+    self,
+    obj: Any,  # noqa: ANN401 - whatever the writer sends
+    block: bool = ...,
+    timeout: float | None = ...,
+  ) -> None: ...
+
+  def put_nowait(self, obj: Any) -> None: ...  # noqa: ANN401 - as put
+
+  def close(self) -> None: ...
+
+  def cancel_join_thread(self) -> None: ...
+
+  def join_thread(self) -> None: ...
+
+
+class ReadableQueue(ChildToParentQueue, Protocol):
+  def get(
+    self,
+    block: bool = ...,
+    timeout: float | None = ...,
+  ) -> Any: ...  # noqa: ANN401 - whatever the writer sent
+
+  def get_nowait(self) -> Any: ...  # noqa: ANN401 - as get
+
+
+def readable(q: ChildToParentQueue) -> ReadableQueue:
+  """The read side of a queue, for a thread the run can afford to lose."""
+  return cast(ReadableQueue, q)
+
+
+class ChildSideEvent(Protocol):
+  """An event as a child process may use it: polled and set, never waited on.
+
+  ``Event.set()`` blocks until every waiter confirms it woke, forever when a
+  waiter was killed inside ``wait()``. A signal a child waits on is therefore
+  a semaphore, and the events handed to a child are typed without ``wait`` so
+  a new child-side wait is a type error. The start signals are the exception
+  this does not cover: they are still plain events the children wait on. A
+  ``threading.Event`` satisfies this protocol too (the stubs give the
+  cross-process one no member of its own), so the type cannot catch one
+  handed to a child; pickling does, under spawn and forkserver.
+  """
+
+  def is_set(self) -> bool: ...
+
+  def set(self) -> None: ...
+
+
+class Deadline:
+  """One point in time that every step of a bounded procedure draws from."""
+
+  def __init__(self, budget_s: float) -> None:
+    self.budget_s = budget_s
+    self._start = time.monotonic()
+
+  def remaining(self) -> float:
+    # Budget minus elapsed cannot exceed the budget; end minus now can, by a
+    # rounding error, when both clock reads fall in one tick (15.6 ms on
+    # Windows before 3.13).
+    return max(0.0, self.budget_s - (time.monotonic() - self._start))
+
+
+def create_failure_slot(ctx: BaseContext) -> FailureSlot:
+  """Shared bytes a child writes its own exception into for the parent to read.
+
+  No lock and no queue: each child has its own slot, a write is a bounded
+  ``memcpy``, and the parent reads it after the cancel event, so a child killed
+  halfway through writing costs a truncated message, not a hang.
+  """
+  return ctx.RawArray(ctypes.c_char, FAILURE_SLOT_BYTES)
+
+
+def write_failure(slot: FailureSlot, exc: BaseException) -> None:
+  """``module.Type: message``, cut to the slot; the type alone if ``str`` fails."""
+  kind = type(exc)
+  name = kind.__qualname__
+  if kind.__module__ not in ("builtins", "__main__"):
+    name = f"{kind.__module__}.{name}"
+  try:
+    text = f"{name}: {exc}"
+  except Exception:  # noqa: BLE001 - an exception's __str__ can raise too
+    text = name
+  slot.value = text.encode("utf-8", "replace")[: len(slot) - 1]
+
+
+def read_failure(slot: FailureSlot) -> str | None:
+  text = slot.value
+  return text.decode("utf-8", "replace") if text else None
+
+
+def clear_failure(slot: FailureSlot) -> None:
+  slot.value = b""
+
+
+def abandon_queue_feeders(*queues: ChildToParentQueue | None) -> None:
   """Let the current process exit without flushing these queues' feeders.
 
   On the cancellation path the parent stops reading the child->parent queues, so
@@ -61,7 +174,7 @@ def abandon_queue_feeders(*queues: Queue | None) -> None:
 
 def acquire_or_give_up_when_cancelled(
   lock: multiprocessing.synchronize.Lock,
-  cancel_event: multiprocessing.synchronize.Event,
+  cancel_event: ChildSideEvent,
   poll_interval_s: float = LOCK_POLL_INTERVAL_S,
 ) -> bool:
   """Take a cross-process lock, giving up if the run has been cancelled.
@@ -147,8 +260,8 @@ class ThreadedQueueReader(Generic[T]):
   # pipe, which parks the writer.
   _BUFFER_MAX_ITEMS = 256
 
-  def __init__(self, q: Queue, name: str) -> None:
-    self._q = q
+  def __init__(self, q: ChildToParentQueue, name: str) -> None:
+    self._q = readable(q)
     self._buffer: pyqueue.Queue = pyqueue.Queue(maxsize=self._BUFFER_MAX_ITEMS)
     self._stop = threading.Event()
     self._thread = threading.Thread(target=self._pump, name=name, daemon=True)

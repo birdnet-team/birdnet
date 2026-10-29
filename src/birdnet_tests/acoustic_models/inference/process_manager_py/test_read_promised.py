@@ -40,6 +40,7 @@ class _Stub:
     )
 
     self._stopped_readers: list = []
+    self._teardown = None
 
   read_promised = ProcessManager.read_promised
   _stop_reader = ProcessManager._stop_reader

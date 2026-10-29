@@ -2,7 +2,7 @@ import logging
 from logging.handlers import QueueHandler
 from multiprocessing import Queue
 
-from birdnet.acoustic.inference.core.sync import abandon_queue_feeders
+from birdnet.acoustic.inference.core.sync import FailureSlot, write_failure
 from birdnet.core.base import get_session_id_hash
 from birdnet.utils.logging_utils import get_package_logger, init_package_logger
 
@@ -50,6 +50,10 @@ _MAX_RECORD_BYTES = 12_000
 # wrong -- while the head carries the log message and the innermost frames.
 _TRUNCATED_HEAD_BYTES = 7_000
 _TRUNCATED_TAIL_BYTES = 4_000
+# How long a cancelled child waits for its logging feeder to empty before it
+# exits without it. The parent's writer polls every second, so a full pipe
+# needs up to that plus the drain itself; measured need 0.2 to 0.4 s.
+_LOG_DRAIN_TIMEOUT_S = 2.0
 
 
 class BoundedQueueHandler(QueueHandler):
@@ -98,9 +102,11 @@ class LogableProcessBase:
     logging_queue: Queue,
     logging_level: int,
     start_method: str,
+    failure_slot: FailureSlot | None = None,
   ) -> None:
     self.__logger: logging.Logger | None = None
     self.__logging_queue = logging_queue
+    self.__failure_slot = failure_slot
     self.__logging_level = logging_level
     self.__local_queue_handler: QueueHandler | None = None
     self.__name = name
@@ -127,8 +133,13 @@ class LogableProcessBase:
       f"Initialized logging for session {self._session_hash} -> {self.__name}."
     )
 
+  def _report_failure(self, exc: BaseException) -> None:
+    """Leave the exception's type and message where the parent can read them."""
+    if self.__failure_slot is not None:
+      write_failure(self.__failure_slot, exc)
+
   def _abandon_logging_feeder(self) -> None:
-    """Let this process exit without flushing the logging queue.
+    """Flush the logging feeder for a bounded time, then exit without it.
 
     Call last, on the cancellation path only. Every child writes to this one
     queue, and a `multiprocessing.Queue` holds a write lock around the actual
@@ -137,12 +148,22 @@ class LogableProcessBase:
     and `multiprocessing` joins that feeder when the process exits, so the
     survivors cannot leave and the parent has to terminate them.
 
-    Only what is still buffered here is dropped, not the records already sent.
-    The feeder drains continuously while the parent's log writer is reading, so
-    on an ordinary cancellation that tail is next to nothing; in the case this
-    exists for, the writer is wedged and could not have read it anyway.
+    What the feeder still holds is everything logged since the parent's writer
+    last woke from its one-second poll: at DEBUG with a full pipe that is the
+    child's whole tail, its own error record included. And a feeder cut off
+    inside a write leaves a half-written frame that blocks the parent's
+    writer for good, and leaves the queue's write lock held, which blocks
+    every other process's next log write. So the feeder gets a bounded chance
+    to finish; only when the writer is not reading at all is the tail
+    abandoned.
     """
-    abandon_queue_feeders(self.__logging_queue)
+    q = self.__logging_queue
+    # Hands the feeder its sentinel; nothing is logged after _uninit_logging.
+    q.close()
+    feeder = getattr(q, "_thread", None)
+    if feeder is not None:
+      feeder.join(timeout=_LOG_DRAIN_TIMEOUT_S)
+    q.cancel_join_thread()
 
   def _uninit_logging(self) -> None:
     assert self.__logger is not None

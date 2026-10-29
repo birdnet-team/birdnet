@@ -72,6 +72,7 @@ def _run_in_thread(
   def run() -> None:
     try:
       with session_factory() as session:
+        outcome["session"] = session
         kill(session)
         session.run(files)
     except BaseException as e:  # noqa: BLE001 - asserted on by the caller
@@ -125,6 +126,25 @@ def _producer(index: int) -> Callable[[AcousticSessionBase], BaseProcess]:
     return procs[index]
 
   return get
+
+
+def _tracker(session: AcousticSessionBase) -> BaseProcess:
+  proc = session._process_manager._perf_tracker_process
+  assert proc is not None
+  return proc
+
+
+def _kill_leftovers(outcome: dict) -> None:
+  """A run that never returned leaves its children behind; take them with us."""
+  session = outcome.get("session")
+  pm = session._process_manager if session is not None else None
+  if pm is None:
+    return
+  for p in [*(pm._producer_processes or []), *(pm._worker_processes or [])]:
+    if p.is_alive():
+      p.kill()
+  if pm._perf_tracker_process is not None and pm._perf_tracker_process.is_alive():
+    pm._perf_tracker_process.kill()
 
 
 def _assert_reported(outcome: dict, what: str) -> None:
@@ -240,3 +260,26 @@ def test_the_survivors_do_not_matter(tmp_path: Path, n_workers: int) -> None:
     _kill_after(_worker(0), delay_s=_STALL_S),
   )
   _assert_reported(outcome, f"a worker of {n_workers}")
+
+
+def test_tracker_killed_mid_run_does_not_hang_the_run(tmp_path: Path) -> None:
+  """Killed well after its start-up and well before the end of the run.
+
+  Between its once-a-second passes the tracker sleeps on the signal the
+  session gives at the end of the run; that signal must not block on a
+  sleeper that no longer exists. Sixteen segments at half a second over two
+  workers is a four-second run; the kill at 1.5 s lands while blocks are
+  still flowing, so the consumer's liveness check (which only runs when it
+  waits for a block) cannot be what saves the run.
+  """
+  outcome = _run_in_thread(
+    lambda: fake_predict_session(
+      tmp_path, n_workers=2, seconds_per_batch=_STALL_S, show_stats="progress"
+    ),
+    _corpus(tmp_path, n_files=2, n_segments=8),
+    _kill_after(_tracker, delay_s=3 * _STALL_S),
+  )
+  try:
+    _assert_reported(outcome, "the performance tracker")
+  finally:
+    _kill_leftovers(outcome)
