@@ -425,6 +425,10 @@ class AcousticSessionBase(
 
     assert self._resources is not None
     self._resources.processing_resources.end_event.set()
+    # Also after a cancel: a child's last log records get a bounded drain
+    # before it exits (_abandon_logging_feeder), not a wait on its poll.
+    assert self._process_manager is not None
+    self._process_manager.wake_idle_children()
 
   def __exit__(self, *args) -> None:  # noqa: ANN002
     assert self._is_initialized

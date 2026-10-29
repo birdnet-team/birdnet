@@ -68,8 +68,8 @@ class InputAnalyzer:
       return True
     return False
 
-  def _log(self, message: str) -> None:
-    self._logger.debug(f"IA_{os.getpid()}: {message}")
+  def _log(self, message: str, *args: object) -> None:
+    self._logger.debug(f"IA_{os.getpid()}: {message}", *args)
 
   def __call__(self) -> None:
     try:
@@ -88,11 +88,16 @@ class InputAnalyzer:
   def run_main_loop(self) -> None:
     while True:
       self._log("InputAnalyzer waiting for inputs...")
-      while not self._start_signal.wait(timeout=1.0):
+      while True:
+        # A wake is not a run start: end() sets every idle start signal so the
+        # end event is seen at once, and a cancel can land on the same wake.
+        started = self._start_signal.wait(timeout=1.0)
         if self._check_cancel_event():
           return
         if self._check_end_event():
           return
+        if started:
+          break
 
       self._start_signal.clear()
       self._log("Received start signal. Starting processing.")
@@ -118,7 +123,7 @@ class InputAnalyzer:
         if self._check_cancel_event():
           return
 
-    self._log(f"Received {len(input_data)} inputs to analyze.")
+    self._log("Received %s inputs to analyze.", len(input_data))
 
     for input_idx, inp_data in enumerate(input_data):
       if self._check_cancel_event():
@@ -189,4 +194,4 @@ class InputAnalyzer:
     self._log("Putting analyzing result into queue.")
     self._analyzing_result.put(durations, block=True)
     self._log("Done putting analyzing result into queue.")
-    self._log(f"Total duration of all inputs: {sum(durations) / 60**2:.2f} h.")
+    self._log("Total duration of all inputs: %.2f h.", sum(durations) / 60**2)

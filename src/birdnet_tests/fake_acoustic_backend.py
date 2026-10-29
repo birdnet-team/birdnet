@@ -20,6 +20,7 @@ survive being pickled into a `spawn` child.
 
 from __future__ import annotations
 
+import logging
 import os
 import time
 from collections.abc import Callable
@@ -229,6 +230,31 @@ class RaisingBackend(FakeAcousticBackend):
     self._n_batches += 1
     if self._n_batches == self._raise_at_batch:
       raise RuntimeError(f"synthetic model failure in batch {self._n_batches}")
+    return super().predict(batch)
+
+
+class LogBurstBackend(FakeAcousticBackend):
+  """Logs far more per batch than any pipe holds, as the worker's own records.
+
+  The records go through the session logger of the process this runs in, so
+  they cross the session's logging queue like the worker's. At INFO, so the
+  burst does not depend on the package logger's level.
+  """
+
+  records_per_batch: ClassVar[int] = 200
+  # Above PIPE_BUF (4096 bytes on Linux, 512 on macOS), so the pipe write of
+  # one record is not atomic: a full pipe takes part of it and the rest waits,
+  # and a kill in that wait leaves the reader a half-written record.
+  record_bytes: ClassVar[int] = 6_000
+
+  def predict(self, batch: np.ndarray) -> np.ndarray:
+    names = [
+      n for n in logging.Logger.manager.loggerDict if n.startswith("birdnet.session_")
+    ]
+    assert names, "no session logger in this process"
+    logger = logging.getLogger(min(names, key=len))
+    for i in range(self.records_per_batch):
+      logger.info("burst %d %s", i, "x" * self.record_bytes)
     return super().predict(batch)
 
 

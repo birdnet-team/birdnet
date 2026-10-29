@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import multiprocessing.synchronize
 from multiprocessing import Queue
-from multiprocessing.synchronize import Event, Semaphore
+from multiprocessing.synchronize import Semaphore
 
 import numpy as np
 from numpy.typing import DTypeLike
@@ -55,7 +55,7 @@ class PredictionWorker(WorkerBase):
     device: str,
     cancel_event: ChildSideEvent,
     all_producers_finished: ChildSideEvent,
-    start_signal: Event,
+    start_signal: Semaphore,
     finish_signal: ChildSideEvent,
     end_event: ChildSideEvent,
     start_method: str,

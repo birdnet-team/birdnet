@@ -122,7 +122,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     tot_n_segments_ptr: ctypes.c_uint64,
     cancel_event: ChildSideEvent,
     end_event: ChildSideEvent,
-    start_signal: Event,
+    start_signal: Semaphore,
     finish_signal: ChildSideEvent,
     start: float,
     start_method: str,
@@ -205,8 +205,8 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._shm_ring_flags, self._ring_flags = self._rf_flags.attach_and_get_array()
     self._log("Attached ring flags.")
 
-  def _log(self, message: str) -> None:
-    self._logger.debug(f"PT_{os.getpid()}: {message}")
+  def _log(self, message: str, *args: object) -> None:
+    self._logger.debug(f"PT_{os.getpid()}: {message}", *args)
 
   def _check_cancel_event(self) -> bool:
     if self._cancel_event.is_set():
@@ -249,19 +249,22 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._uninit_logging()
 
     # Last, and only now that the handler is gone: see _abandon_logging_feeder.
-    if self._cancel_event.is_set():
-      self._abandon_logging_feeder()
+    self._abandon_logging_feeder()
 
   def run_main_loop(self) -> None:
     while True:
       self._log("Waiting for start signal...")
-      while not self._start_signal.wait(timeout=1.0):
+      while True:
+        # A wake is not a run start: end() releases every idle wait so the
+        # end event is seen at once, and a cancel can land on the same wake.
+        started = self._start_signal.acquire(timeout=1.0)
         if self._check_cancel_event():
           return
         if self._check_end_event():
           return
+        if started:
+          break
 
-      self._start_signal.clear()
       self._log("Received start signal. Starting processing.")
 
       self.run_main()
@@ -521,8 +524,9 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       self._wkr_5_inference_dur_tracker.add_value(dur_inference)
       self._wkr_6_add_to_queue_dur_tracker.add_value(dur_add_to_queue)
     self._log(
-      f"Received {n_received} worker stats entries in "
-      f"{time.perf_counter() - receive_duration_start} ms."
+      "Received %s worker stats entries in %.3f ms.",
+      n_received,
+      1000 * (time.perf_counter() - receive_duration_start),
     )
     return is_empty
 
@@ -557,8 +561,9 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       self._prd_3_free_slot_search_dur_tracker.add_value(free_slot_search_time)
       self._prd_4_flush_dur_tracker.add_value(flush_duration)
     self._log(
-      f"Received {n_received} producer stats entries in "
-      f"{time.perf_counter() - receive_duration_start} ms."
+      "Received %s producer stats entries in %.3f ms.",
+      n_received,
+      1000 * (time.perf_counter() - receive_duration_start),
     )
     return is_empty
 
@@ -794,8 +799,8 @@ class ProgressDispatcher:
     self._check_interval = check_interval
     self._logger = bn_logging.get_logger_from_session(session_id, __name__)
 
-  def _log(self, message: str) -> None:
-    self._logger.debug(f"PD_{os.getpid()}: {message}")
+  def _log(self, message: str, *args: object) -> None:
+    self._logger.debug(f"PD_{os.getpid()}: {message}", *args)
 
   def _check_cancel_event(self) -> bool:
     if self._cancel_event.is_set():
@@ -822,11 +827,16 @@ class ProgressDispatcher:
 
   def run_main_loop(self) -> None:
     while True:
-      while not self._start_signal.wait(timeout=1.0):
+      while True:
+        # A wake is not a run start: end() sets every idle start signal so the
+        # end event is seen at once, and a cancel can land on the same wake.
+        started = self._start_signal.wait(timeout=1.0)
         if self._check_cancel_event():
           return
         if self._check_end_event():
           return
+        if started:
+          break
 
       self._start_signal.clear()
       self._log("Received start signal. Starting processing.")

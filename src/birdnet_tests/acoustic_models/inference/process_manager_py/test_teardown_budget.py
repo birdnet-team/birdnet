@@ -49,6 +49,7 @@ def test_exit_with_a_worker_stuck_in_load_ends_within_the_budget(
   assert session._process_manager is not None
   workers = session._process_manager._worker_processes
   assert workers is not None
+  writer_name = f"{session._process_manager._session_hash}-QueueFileWriter"
   marker = loading_marker(fake_model_path(tmp_path))
   deadline = time.monotonic() + 20.0
   while not marker.exists() and time.monotonic() < deadline:
@@ -76,8 +77,9 @@ def test_exit_with_a_worker_stuck_in_load_ends_within_the_budget(
     assert took["s"] >= GRACE_S - 0.2, f"__exit__ took only {took['s']:.1f} s"
     assert not workers[0].is_alive()
     # The thread joins behind the children kept their share: a healthy log
-    # writer is joined, not declared wedged because the budget was spent.
-    writers = [t for t in threading.enumerate() if t.name.endswith("-QueueFileWriter")]
+    # writer is joined, not declared wedged because the budget was spent. This
+    # session's writer only: other tests park wedged writers on purpose.
+    writers = [t for t in threading.enumerate() if t.name == writer_name]
     assert not [t for t in writers if t.is_alive()], "the log writer was abandoned"
   finally:
     for w in workers:

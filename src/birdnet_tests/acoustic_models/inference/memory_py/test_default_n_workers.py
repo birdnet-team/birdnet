@@ -15,6 +15,13 @@ pytestmark = pytest.mark.no_tf
 _MIB = 2**20
 
 
+@pytest.fixture(autouse=True)
+def _package_logger_propagates(monkeypatch: pytest.MonkeyPatch) -> None:
+  # The package logger does not propagate; before pytest 9.1 caplog only saw
+  # records that reached the root logger.
+  monkeypatch.setattr(logging.getLogger("birdnet"), "propagate", True)
+
+
 def _simulate(monkeypatch: pytest.MonkeyPatch, available_mib: int) -> None:
   monkeypatch.setattr(memory, "physical_cores", lambda: 32)
   monkeypatch.setattr(memory, "host_memory_available", lambda: available_mib * _MIB)

@@ -53,15 +53,19 @@ from birdnet.core.base import get_session_id_hash
 
 # One budget for the whole teardown: every wait in it draws what is left, so a
 # child that cannot exit costs the caller at most this much. A healthy teardown
-# uses a second or two of it.
+# uses a small fraction of a second of it.
 TEARDOWN_BUDGET_S = 30.0
 # Kept back from the children's grace, so that terminating what is still there
 # and then killing what ignores that still fit inside the budget.
 _KILL_RESERVE_S = 5.0
 # Kept back from the terminate wait for the thread joins after the children: a
-# healthy drainer, dispatcher or reader needs milliseconds, the log writer up
-# to its one-second poll.
+# healthy drainer, dispatcher, reader or log writer needs milliseconds.
 _TAIL_RESERVE_S = 2.0
+# How long teardown waits for the log writer after the stop event. Every child
+# is joined by then, so the writer has only what is left in the pipe to write;
+# one that has not stopped in this time is blocked on a half-written record
+# from a killed child and never will.
+_LOG_WRITER_STOP_TIMEOUT_S = 5.0
 # How often the parent looks up from an otherwise unbounded wait to check that
 # its children are still alive. Short enough that a dead child is reported
 # promptly, long enough to be free next to the work being waited on.
@@ -435,7 +439,7 @@ class ProcessManager:
 
     self._logger.debug("[START_SIG] Starting producers...")
     for i in range(res.producer_resources.n_producers):
-      res.producer_resources.start_signals[i].set()
+      res.producer_resources.start_signals[i].release()
 
     self._logger.debug("Feeding input data to producers...")
     for input_idx, inp_data in enumerate(input_data):
@@ -445,17 +449,45 @@ class ProcessManager:
 
     self._logger.debug("[START_SIG] Starting workers...")
     for i in range(self._cfg.processing_conf.workers):
-      res.worker_resources.start_signals[i].set()
+      res.worker_resources.start_signals[i].release()
 
     self._logger.debug("[START_SIG] Starting performance tracker...")
     if res.stats_resources.track_performance:
       assert res.stats_resources.perf_res_start_signal is not None
-      res.stats_resources.perf_res_start_signal.set()
+      res.stats_resources.perf_res_start_signal.release()
 
     self._logger.debug("[START_SIG] Starting progress dispatcher...")
     if res.stats_resources.use_callback:
       assert res.stats_resources.callback_start_signal is not None
       res.stats_resources.callback_start_signal.set()
+
+  def wake_idle_children(self) -> None:
+    """Release every idle wait on a start signal so the end event is seen now.
+
+    Idle children and threads poll their start signal with a 1 s timeout and
+    look at the end event only when it expires. The cross-process signals are
+    semaphores because a release never blocks: ``Event.set()`` waits for every
+    registered waiter to wake, forever if that waiter was killed inside its
+    wait. The loops check the end event on every wake, so a wake is not a run
+    start.
+    """
+    res = self._res
+    # A released start signal is a run start unless the end event is already set.
+    assert res.processing_resources.end_event.is_set()
+    res.analyzer_resources.start_signal.set()
+    for start_signal in res.producer_resources.start_signals:
+      start_signal.release()
+    for start_signal in res.worker_resources.start_signals:
+      start_signal.release()
+    if res.stats_resources.track_performance:
+      assert res.stats_resources.perf_res_start_signal is not None
+      res.stats_resources.perf_res_start_signal.release()
+    if res.stats_resources.use_callback:
+      assert res.stats_resources.callback_start_signal is not None
+      res.stats_resources.callback_start_signal.set()
+    if res.file_completion_resources.enabled:
+      assert res.file_completion_resources.start_signal is not None
+      res.file_completion_resources.start_signal.set()
 
   def _iter_children_with_finish_signals(
     self,
@@ -836,8 +868,9 @@ class ProcessManager:
   def _join_processes(self, logger: Logger, deadline: Deadline) -> None:
     """Join the children of a run that ended cleanly.
 
-    They exit on their next one-second poll of the end event; the budget
-    covers a child that never gets there, say one still inside a model load.
+    ``wake_idle_children`` has released their start-signal waits, so they see
+    the end event at once; the budget covers a child that never gets there,
+    say one still inside a model load.
     """
     logger.debug("Joining child processes...")
     self._reap_children(logger, self._children(), deadline)
@@ -993,17 +1026,20 @@ class ProcessManager:
   def join_logging(self) -> None:
     """Wait for the log writer, but never on something that cannot finish.
 
-    The writer reads the shared logging queue with a blocking ``get``, and a
-    child killed mid-``put`` leaves a message whose remainder never arrives:
-    the read then blocks for good, with no exception to catch, exactly as on
-    the cancel-path drain (issue #77). It is a daemon thread, so leaving it
-    parked costs the tail of the session log and nothing else -- whereas
-    waiting on it costs the whole teardown.
+    The writer reads the shared logging queue, and a child killed mid-``put``
+    leaves a message whose remainder never arrives: the read then blocks for
+    good, with no exception to catch, exactly as on the cancel-path drain
+    (issue #77). It is a daemon thread, so leaving it parked costs the tail of
+    the session log and nothing else -- whereas waiting on it costs the whole
+    teardown, so the wait is the shorter of the budget's remainder and
+    ``_LOG_WRITER_STOP_TIMEOUT_S``.
     """
     assert self._logging_thread is not None
     if self._teardown is None:
       self._teardown = Deadline(TEARDOWN_BUDGET_S)
-    self._logging_thread.join(timeout=self._teardown.remaining())
+    self._logging_thread.join(
+      timeout=min(self._teardown.remaining(), _LOG_WRITER_STOP_TIMEOUT_S)
+    )
     if self._logging_thread.is_alive():
       self._logger.warning(
         "The log writer is still blocked reading the logging queue; the "

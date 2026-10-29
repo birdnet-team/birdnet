@@ -92,11 +92,11 @@ class ChildSideEvent(Protocol):
   ``Event.set()`` blocks until every waiter confirms it woke, forever when a
   waiter was killed inside ``wait()``. A signal a child waits on is therefore
   a semaphore, and the events handed to a child are typed without ``wait`` so
-  a new child-side wait is a type error. The start signals are the exception
-  this does not cover: they are still plain events the children wait on. A
-  ``threading.Event`` satisfies this protocol too (the stubs give the
-  cross-process one no member of its own), so the type cannot catch one
-  handed to a child; pickling does, under spawn and forkserver.
+  a new child-side wait is a type error; the start signals, which a child does
+  wait on, are semaphores for the same reason. A ``threading.Event``
+  satisfies this protocol too (the stubs give the cross-process one no member
+  of its own), so the type cannot catch one handed to a child; pickling does,
+  under spawn and forkserver.
   """
 
   def is_set(self) -> bool: ...

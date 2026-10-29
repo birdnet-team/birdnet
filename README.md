@@ -253,6 +253,16 @@ The resulting predictions look like this (excerpt, scores may vary; sorted alpha
 
 The full result is at [example/location.csv](example/location.csv).
 
+`predict` loads the model's backend for every call, runs the query and unloads
+it again; that load dominates the call. To query several locations or weeks,
+open one session and reuse it:
+
+```py
+with model.predict_session() as session:
+    spring = session.run(42.5, -76.45, week=16)
+    autumn = session.run(42.5, -76.45, week=40)
+```
+
 ### Location of Log File
 
 Each prediction or encoding session writes its own log file to the system temp directory:

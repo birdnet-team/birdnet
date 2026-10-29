@@ -13,7 +13,7 @@ import pytest
 
 from birdnet.utils import download_progress
 from birdnet.utils.download_progress import DownloadProgress, _ProgressThrottle
-from birdnet.utils.downloads import download_file_tqdm
+from birdnet.utils.downloads import _DOWNLOAD_BLOCK_SIZE, download_file_tqdm
 
 from .conftest import LocalServer
 
@@ -65,7 +65,10 @@ def test_progress_events_are_throttled_but_started_and_finished_are_not(
     "progress",
     "finished",
   ]
-  assert [e.bytes_done for e in events if e.status == "progress"] == [1024, 3072]
+  assert [e.bytes_done for e in events if e.status == "progress"] == [
+    _DOWNLOAD_BLOCK_SIZE,
+    3 * _DOWNLOAD_BLOCK_SIZE,
+  ]
   assert events[-1].bytes_done == len(server.body)
 
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from multiprocessing import Queue
-from multiprocessing.synchronize import Event, Lock, Semaphore
+from multiprocessing.synchronize import Lock, Semaphore
 
 import numpy as np
 
@@ -40,7 +40,7 @@ class EncodingWorker(WorkerBase):
     device: str,
     cancel_event: ChildSideEvent,
     all_producers_finished: ChildSideEvent,
-    start_signal: Event,
+    start_signal: Semaphore,
     finish_signal: ChildSideEvent,
     end_event: ChildSideEvent,
     start_method: str,

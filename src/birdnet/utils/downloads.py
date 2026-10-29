@@ -31,6 +31,13 @@ from birdnet.utils.filesystem import directory_lock, lock_heartbeat
 
 logger = logging.getLogger(__name__)
 
+# Each block costs fixed Python work, about half of it inside requests' chunk
+# delivery and the rest in this loop (tqdm update, write, progress call): 1 KiB
+# blocks capped a download from a local server below 200 MB/s, 64 KiB blocks
+# run several times faster, and larger blocks save only a fraction of a second
+# per model.
+_DOWNLOAD_BLOCK_SIZE = 64 * 1024
+
 
 def check_protobuf_model_files_exist(folder: Path) -> bool:
   exists = True
@@ -212,7 +219,6 @@ def _download_file_once(
       bytes_total = None
     reporter.total_known(bytes_total)
 
-    block_size = 1024
     fd, temp_name = tempfile.mkstemp(
       dir=file_path.parent,
       prefix=f"{file_path.name}.",
@@ -233,7 +239,7 @@ def _download_file_once(
         ) as tqdm_bar,
         open(temp_path, "wb") as file,
       ):
-        for data in response.iter_content(block_size):
+        for data in response.iter_content(_DOWNLOAD_BLOCK_SIZE):
           # Bytes are counted here rather than read from `tqdm_bar.n`, which
           # does not advance while the bar is disabled.
           tqdm_bar.update(len(data))
