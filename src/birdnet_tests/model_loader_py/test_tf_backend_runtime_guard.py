@@ -19,7 +19,7 @@ from birdnet.acoustic.models.v2_4.model import AcousticModelV2_4
 from birdnet.acoustic.models.v2_4.tf import AcousticTFBackendFP32V2_4
 from birdnet.core.backends import TF_BACKEND_LIB_ARG
 from birdnet.model_loader import load, load_custom
-from birdnet_tests.helper import ensure_not_intel_macos_or_skip
+from birdnet_tests.helper import ensure_not_intel_macos_or_skip, fake_wheels
 
 pytestmark = pytest.mark.no_tf  # everything is mocked; runs with or without TensorFlow
 
@@ -40,6 +40,12 @@ def _no_litert(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture
+def _onnxruntime(monkeypatch: pytest.MonkeyPatch) -> None:
+  # Otherwise the 'onnx' advice depends on the interpreter.
+  monkeypatch.setattr(ml, "onnxruntime_installed", lambda: True)
+
+
+@pytest.fixture
 def _no_download(monkeypatch: pytest.MonkeyPatch) -> None:
   # Loading only resolves the model path; stub the downloader so the test needs
   # neither the model cache nor the network.
@@ -52,7 +58,7 @@ def _no_download(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.parametrize("backend", ["tf", "pb"])
 def test_load_tf_backend_without_tensorflow_raises_actionable_error(
-  backend: str, _no_tf: None
+  backend: str, _no_tf: None, _onnxruntime: None
 ) -> None:
   with pytest.raises(ValueError) as exc_info:
     load("acoustic", "3.0", backend)
@@ -181,7 +187,9 @@ def test_validate_library_runs_the_model_check_before_the_litert_check(
 # ----------------------------- advice in the message -----------------------------
 
 
-def test_tf_message_offers_litert_when_installed(_no_tf: None, _litert: None) -> None:
+def test_tf_message_offers_litert_when_installed(
+  _no_tf: None, _litert: None, _onnxruntime: None
+) -> None:
   with pytest.raises(ValueError) as exc_info:
     load("acoustic", "2.4", "tf")
 
@@ -198,8 +206,9 @@ def test_pb_message_offers_tf_backend_with_litert_when_installed(
 
 
 def test_message_suggests_installing_litert_when_not_installed(
-  _no_tf: None, _no_litert: None
+  monkeypatch: pytest.MonkeyPatch, _no_tf: None, _no_litert: None, _onnxruntime: None
 ) -> None:
+  fake_wheels(monkeypatch, 13)
   with pytest.raises(ValueError) as exc_info:
     load("acoustic", "2.4", "tf")
 
@@ -209,30 +218,162 @@ def test_message_suggests_installing_litert_when_not_installed(
   assert "onnx" in message
 
 
-def _fake_version_info(major: int, minor: int) -> tuple:
-  # sys.version_info compares like a tuple *and* exposes .major/.minor; a
-  # namedtuple gives both.
-  from collections import namedtuple
-
-  vi = namedtuple("version_info", "major minor micro releaselevel serial")
-  return vi(major, minor, 0, "final", 0)
-
-
-def test_message_recommends_the_tf_extra_below_py314(
+def test_message_recommends_the_tf_extra_where_tensorflow_has_wheels(
   monkeypatch: pytest.MonkeyPatch, _no_tf: None
 ) -> None:
-  import sys
-
-  monkeypatch.setattr(sys, "version_info", _fake_version_info(3, 12))
+  fake_wheels(monkeypatch, 20)
   with pytest.raises(ValueError, match=r"pip install birdnet\[tf\]"):
     load("acoustic", "3.0", "tf")
 
 
-def test_message_explains_missing_wheels_on_py314(
+def test_message_explains_missing_tensorflow_wheels(
   monkeypatch: pytest.MonkeyPatch, _no_tf: None
 ) -> None:
-  import sys
-
-  monkeypatch.setattr(sys, "version_info", _fake_version_info(3, 14))
-  with pytest.raises(ValueError, match=r"no wheels for Python 3\.14"):
+  fake_wheels(monkeypatch, 20, {"tensorflow": range(11, 20)})
+  with pytest.raises(ValueError, match=r"no wheels for Python 3\.20 when"):
     load("acoustic", "3.0", "tf")
+
+
+# --------------------- advice where runtimes have no wheels ----------------------
+# Python 3.20 stands for an interpreter without wheels; the table is faked.
+
+
+def _tf_error() -> str:
+  with pytest.raises(ValueError) as exc_info:
+    load("acoustic", "3.0", "tf")
+  return str(exc_info.value)
+
+
+def test_tf_message_offers_pt_where_onnxruntime_cannot_be_installed(
+  monkeypatch: pytest.MonkeyPatch, _no_tf: None
+) -> None:
+  fake_wheels(monkeypatch, 20, {"onnxruntime": range(11, 20)})
+  monkeypatch.setattr(ml, "onnxruntime_installed", lambda: False)
+  monkeypatch.setattr(ml, "torch_installed", lambda: False)
+  message = _tf_error()
+
+  assert (
+    "use the 'pt' backend ('pip install birdnet[pt]'), available for the acoustic "
+    "3.0 and geo 3.0 models"
+  ) in message
+  assert "'onnx' backend" not in message
+
+
+@pytest.mark.parametrize(
+  ("onnx_wheels", "onnxruntime_installed"),
+  [(range(11, 30), False), (range(11, 20), True)],
+)
+def test_tf_message_offers_onnx_where_onnxruntime_is_available(
+  monkeypatch: pytest.MonkeyPatch,
+  _no_tf: None,
+  onnx_wheels: range,
+  onnxruntime_installed: bool,
+) -> None:
+  fake_wheels(monkeypatch, 20, {"onnxruntime": onnx_wheels})
+  monkeypatch.setattr(ml, "onnxruntime_installed", lambda: onnxruntime_installed)
+
+  assert "use the 'onnx' backend" in _tf_error()
+
+
+@pytest.mark.parametrize(
+  ("torch_wheels", "mentions_pt"), [(range(11, 30), True), (range(11, 20), False)]
+)
+def test_tf_message_mentions_pt_beside_onnx_only_where_it_can_run(
+  monkeypatch: pytest.MonkeyPatch,
+  _no_tf: None,
+  _onnxruntime: None,
+  torch_wheels: range,
+  mentions_pt: bool,
+) -> None:
+  fake_wheels(monkeypatch, 20, {"torch": torch_wheels})
+  monkeypatch.setattr(ml, "torch_installed", lambda: False)
+
+  assert ("(both also offer 'pt')" in _tf_error()) is mentions_pt
+
+
+def test_tf_message_does_not_suggest_litert_where_it_has_no_wheels(
+  monkeypatch: pytest.MonkeyPatch, _no_tf: None, _no_litert: None
+) -> None:
+  fake_wheels(monkeypatch, 20, {"ai-edge-litert": range(11, 20)})
+  message = _tf_error()
+
+  assert "ai-edge-litert" not in message
+  assert "library='litert'" not in message
+
+
+def test_tf_message_offers_no_alternative_where_none_installs(
+  monkeypatch: pytest.MonkeyPatch, _no_tf: None, _no_litert: None
+) -> None:
+  fake_wheels(
+    monkeypatch,
+    20,
+    {
+      "tensorflow": {"macos-x86_64": range(11, 13)},
+      "onnxruntime": {"macos-x86_64": range(11, 14)},
+      "ai-edge-litert": {"macos-x86_64": range(0)},
+      "torch": {"macos-x86_64": range(11, 13)},
+    },
+    "macos-x86_64",
+  )
+  monkeypatch.setattr(ml, "onnxruntime_installed", lambda: False)
+  monkeypatch.setattr(ml, "torch_installed", lambda: False)
+  message = _tf_error()
+
+  assert "TensorFlow had no wheels for Python 3.20 on macOS x86_64 when" in message
+  assert "; use Python 3.11-3.12 to run TensorFlow-based models." in message
+  assert "Alternatively" not in message
+
+
+def test_litert_message_explains_missing_wheels(
+  monkeypatch: pytest.MonkeyPatch, _no_tf: None, _no_litert: None
+) -> None:
+  fake_wheels(monkeypatch, 20, {"ai-edge-litert": range(11, 20)})
+  with pytest.raises(ValueError) as exc_info:
+    load("acoustic", "2.4", "tf", library="litert")
+
+  message = str(exc_info.value)
+  assert (
+    "requires ai-edge-litert, which is not installed, and it had no wheels for "
+    "Python 3.20 when this birdnet version was released"
+  ) in message
+  assert message.endswith("; use Python 3.11-3.19.")
+  assert "pip install ai-edge-litert" not in message
+
+
+def test_litert_message_points_at_tflite_where_litert_has_no_wheels(
+  monkeypatch: pytest.MonkeyPatch, _no_litert: None
+) -> None:
+  fake_wheels(
+    monkeypatch, 12, {"ai-edge-litert": {"macos-x86_64": range(0)}}, "macos-x86_64"
+  )
+  monkeypatch.setattr(ml, "tf_installed", lambda: True)
+  with pytest.raises(ValueError) as exc_info:
+    ml._validate_library("litert")
+
+  message = str(exc_info.value)
+  assert "it had no wheels for macOS x86_64 when" in message
+  assert message.endswith(
+    "; use the default library 'tflite', which runs on the installed TensorFlow."
+  )
+
+
+@pytest.mark.parametrize(
+  ("tf_installed", "ending"),
+  [
+    (
+      True,
+      "Install it ('pip install ai-edge-litert') or use the default library "
+      "'tflite', which runs on the installed TensorFlow.",
+    ),
+    (False, "Install it ('pip install ai-edge-litert')."),
+  ],
+)
+def test_litert_message_offers_tflite_only_beside_an_installed_tensorflow(
+  monkeypatch: pytest.MonkeyPatch, _no_litert: None, tf_installed: bool, ending: str
+) -> None:
+  fake_wheels(monkeypatch, 20)
+  monkeypatch.setattr(ml, "tf_installed", lambda: tf_installed)
+  with pytest.raises(ValueError) as exc_info:
+    ml._validate_library("litert")
+
+  assert str(exc_info.value).endswith(ending)

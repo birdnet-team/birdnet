@@ -2,6 +2,7 @@
 Provides functions to load official and custom models.
 """
 
+import platform
 import sys
 from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass
@@ -329,33 +330,147 @@ def _validate_library(
     if not litert_installed():
       message = (
         f"Parameter '{LIBRARY_TF_PARAM}': Library '{LIBRARY_LITERT}' requires "
-        "ai-edge-litert, which is not installed. Install it ('pip install "
-        "ai-edge-litert')"
+        "ai-edge-litert, which is not installed"
       )
-      if tf_installed():
-        message += (
-          f" or use the default library '{LIBRARY_TFLITE}', which runs on the "
-          "installed TensorFlow."
-        )
+      tflite = (
+        f"the default library '{LIBRARY_TFLITE}', which runs on the installed "
+        "TensorFlow"
+      )
+      if _has_wheels("ai-edge-litert"):
+        message += ". Install it ('pip install ai-edge-litert')"
+        message += f" or use {tflite}." if tf_installed() else "."
       else:
-        message += "."
+        instead = tflite if tf_installed() else _python_option("ai-edge-litert")
+        message += f", and {_no_wheels('it', 'ai-edge-litert')}" + _use([instead])
       raise ValueError(message)
   elif validated_library != LIBRARY_TFLITE:
     raise AssertionError()
   return validated_library
 
 
+# CPython 3.x minors with wheels, per runtime and platform. The tensorflow and
+# onnxruntime rows must match pyproject.toml (test_runtime_wheel_markers.py).
+_WHEEL_MINORS: dict[str, dict[str, range]] = {
+  "tensorflow": {
+    "linux": range(11, 14),
+    "macos-arm64": range(11, 14),
+    "macos-x86_64": range(11, 13),
+    "windows-amd64": range(11, 14),
+  },
+  "onnxruntime": {
+    "linux": range(11, 15),
+    "macos-arm64": range(11, 15),
+    "macos-x86_64": range(11, 14),
+    "windows-amd64": range(11, 15),
+  },
+  "ai-edge-litert": {
+    "linux": range(11, 15),
+    "macos-arm64": range(11, 15),
+    "macos-x86_64": range(0),
+    "windows-amd64": range(11, 15),
+  },
+  "torch": {
+    "linux": range(11, 16),
+    "macos-arm64": range(11, 16),
+    "macos-x86_64": range(11, 13),
+    "windows-amd64": range(11, 16),
+  },
+}
+_WHEEL_PLATFORM_NAMES = {
+  "linux": "Linux",
+  "macos-arm64": "macOS arm64",
+  "macos-x86_64": "macOS x86_64",
+  "windows-amd64": "Windows x86_64",
+}
+
+
+def _wheel_platform() -> str:
+  # Unlisted platforms (e.g. Windows ARM64) fall back to Linux.
+  machine = platform.machine().lower()
+  if sys.platform == "darwin":
+    return "macos-x86_64" if machine == "x86_64" else "macos-arm64"
+  if sys.platform == "win32" and machine in ("amd64", "x86_64"):
+    return "windows-amd64"
+  return "linux"
+
+
+def _wheel_minors(package: str) -> range:
+  return _WHEEL_MINORS[package][_wheel_platform()]
+
+
+def _has_wheels(package: str) -> bool:
+  return sys.version_info.major == 3 and sys.version_info.minor in _wheel_minors(
+    package
+  )
+
+
+def _python_version() -> str:
+  return f"{sys.version_info.major}.{sys.version_info.minor}"
+
+
+def _pythons_with_wheels(package: str) -> str:
+  minors = _wheel_minors(package)
+  return f"Python 3.{minors[0]}-3.{minors[-1]}"
+
+
+def _no_wheels(name: str, package: str) -> str:
+  # Dated: a runtime may publish the wheels after this release.
+  platform_name = _WHEEL_PLATFORM_NAMES[_wheel_platform()]
+  if not _wheel_minors(package):
+    where = platform_name
+  elif _wheel_minors(package) != _WHEEL_MINORS[package]["linux"]:
+    where = f"Python {_python_version()} on {platform_name}"
+  else:
+    where = f"Python {_python_version()}"
+  return f"{name} had no wheels for {where} when this birdnet version was released"
+
+
+def _use(options: list[str | None]) -> str:
+  chosen = [option for option in options if option is not None]
+  return f"; use {' or '.join(chosen)}." if chosen else "."
+
+
+def _python_option(package: str) -> str | None:
+  return _pythons_with_wheels(package) if _wheel_minors(package) else None
+
+
+def _pt_option() -> str | None:
+  if torch_installed():
+    return f"the '{MODEL_BACKEND_PT}' backend"
+  if _has_wheels("torch"):
+    return f"the '{MODEL_BACKEND_PT}' backend ('pip install birdnet[pt]')"
+  return None
+
+
+def _onnx_option() -> str | None:
+  if onnxruntime_installed():
+    return f"the '{MODEL_BACKEND_ONNX}' backend"
+  if _has_wheels("onnxruntime"):
+    return f"the '{MODEL_BACKEND_ONNX}' backend ('pip install onnxruntime')"
+  return None
+
+
 def _validate_optional_backend_runtime(backend: MODEL_BACKENDS) -> None:
   if backend == MODEL_BACKEND_PT and not torch_installed():
+    if _has_wheels("torch"):
+      advice = "Install birdnet with [pt] option."
+    else:
+      advice = _no_wheels("PyTorch", "torch") + _use(
+        [_onnx_option(), _python_option("torch")]
+      )
     raise ValueError(
-      f"Parameter 'backend': Backend '{MODEL_BACKEND_PT}' is not available. "
-      "Install birdnet with [pt] option."
+      f"Parameter 'backend': Backend '{MODEL_BACKEND_PT}' is not available. {advice}"
     )
   elif backend == MODEL_BACKEND_ONNX and not onnxruntime_installed():
+    if _has_wheels("onnxruntime"):
+      advice = "('pip install onnxruntime', or 'onnxruntime-gpu' for GPU support)."
+    else:
+      advice = f"and {_no_wheels('it', 'onnxruntime')}" + _use(
+        [_pt_option(), _python_option("onnxruntime")]
+      )
     raise ValueError(
       f"Parameter 'backend': Backend '{MODEL_BACKEND_ONNX}' is not available: "
-      "onnxruntime is not installed ('pip install onnxruntime', or "
-      "'onnxruntime-gpu' for GPU support)."
+      f"onnxruntime is not installed {advice}"
     )
 
 
@@ -386,8 +501,6 @@ def _validate_tf_backend_runtime(
 def _tensorflow_missing_message(
   backend: str, subject: str | None = None, alternatives: bool = True
 ) -> str:
-  # The advice depends on the interpreter: TensorFlow has no wheels for Python
-  # 3.14+, so there it cannot be installed; on 3.11-3.13 it is the [tf] extra.
   if subject is None:
     if backend == MODEL_BACKEND_TF:
       subject = (
@@ -397,18 +510,18 @@ def _tensorflow_missing_message(
     else:
       subject = f"Parameter 'backend': Backend '{backend}'"
   base = f"{subject} requires TensorFlow, which is not installed. "
-  if sys.version_info >= (3, 14):
-    reason = (
-      "TensorFlow provides no wheels for Python "
-      f"{sys.version_info.major}.{sys.version_info.minor}, so it cannot be "
-      "installed on this interpreter; use Python 3.11-3.13 to run "
-      "TensorFlow-based models. "
-    )
-  else:
+  if _has_wheels("tensorflow"):
     reason = (
       "Install it with 'pip install birdnet[tf]' (on Linux 'birdnet[and-cuda]' "
       "for GPU support). "
     )
+  elif _wheel_minors("tensorflow"):
+    reason = (
+      f"{_no_wheels('TensorFlow', 'tensorflow')}; use "
+      f"{_pythons_with_wheels('tensorflow')} to run TensorFlow-based models. "
+    )
+  else:
+    reason = f"{_no_wheels('TensorFlow', 'tensorflow')}. "
   if not alternatives:
     return base + reason.rstrip()
   if backend == MODEL_BACKEND_TF:
@@ -417,24 +530,36 @@ def _tensorflow_missing_message(
     how = (
       f"use the '{MODEL_BACKEND_TF}' backend with {LIBRARY_TF_PARAM}='{LIBRARY_LITERT}'"
     )
-  if litert_installed():
-    litert_alternative = (
-      f"{how} to run the TFLite model on ai-edge-litert, which is installed and "
-      "needs no TensorFlow"
-    )
-  else:
-    litert_alternative = (
-      f"install ai-edge-litert ('pip install ai-edge-litert', where wheels exist) "
-      f"and {how} to run the TFLite model without TensorFlow"
-    )
-  alternative = (
-    f"Alternatively, {litert_alternative} (e.g. birdnet.load('acoustic', '2.4', "
-    "'tf', library='litert'); not supported by the geo 3.0 model), or use the "
-    "'onnx' backend, available for the acoustic 3.0 and geo 3.0 models (both also "
-    "offer 'pt'), e.g. birdnet.load('geo', '3.0', 'onnx'). The Perch model is "
-    "TensorFlow-only."
+  litert_example = (
+    " (e.g. birdnet.load('acoustic', '2.4', 'tf', library='litert'); not supported "
+    "by the geo 3.0 model)"
   )
-  return base + reason + alternative
+  options = []
+  if litert_installed():
+    options.append(
+      f"{how} to run the TFLite model on ai-edge-litert, which is installed and "
+      f"needs no TensorFlow{litert_example}"
+    )
+  elif _has_wheels("ai-edge-litert"):
+    options.append(
+      f"install ai-edge-litert ('pip install ai-edge-litert') and {how} to run the "
+      f"TFLite model without TensorFlow{litert_example}"
+    )
+  pt_option = _pt_option()
+  if onnxruntime_installed() or _has_wheels("onnxruntime"):
+    also_pt = "" if pt_option is None else f" (both also offer '{MODEL_BACKEND_PT}')"
+    options.append(
+      f"use the '{MODEL_BACKEND_ONNX}' backend, available for the acoustic 3.0 and "
+      f"geo 3.0 models{also_pt}, e.g. birdnet.load('geo', '3.0', "
+      f"'{MODEL_BACKEND_ONNX}')"
+    )
+  elif pt_option is not None:
+    options.append(
+      f"use {pt_option}, available for the acoustic 3.0 and geo 3.0 models, e.g. "
+      f"birdnet.load('geo', '3.0', '{MODEL_BACKEND_PT}')"
+    )
+  alternative = f"Alternatively, {', or '.join(options)}. " if options else ""
+  return base + reason + alternative + "The Perch model is TensorFlow-only."
 
 
 def _raise_unsupported_backend(
