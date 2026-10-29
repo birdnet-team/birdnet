@@ -249,7 +249,7 @@ def _species(n: int) -> OrderedSet[str]:
 def fake_predict_session(
   tmp_path: Path,
   *,
-  n_workers: int = 2,
+  n_workers: int | None = 2,
   n_producers: int = 1,
   batch_size: int = 1,
   top_k: int | None = 5,
@@ -307,7 +307,7 @@ def fake_predict_session(
 def fake_encode_session(
   tmp_path: Path,
   *,
-  n_workers: int = 2,
+  n_workers: int | None = 2,
   n_producers: int = 1,
   batch_size: int = 1,
   seconds_per_batch: float = 0.0,

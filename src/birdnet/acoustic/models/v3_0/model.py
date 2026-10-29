@@ -737,10 +737,13 @@ class AcousticModelV3_0(AcousticModelBase):
       inp: Path(s) or string(s) pointing to audio files to analyze.
       top_k: Number of highest-confidence results to return per segment.
       n_producers: Processes tasked with producing audio batches.
-      n_workers: Number of inference worker processes. ``None`` uses the number of
-        physical CPU cores. Pass a fixed integer to meet a scheduler or container
-        process limit. Each worker holds its own copy of the model, so a high
-        count raises peak memory use. In the cases the pipeline guards against, a
+      n_workers: Number of inference worker processes. ``None`` starts as many
+        as there are physical CPU cores, or fewer when the memory available to
+        this process (a cgroup limit included) would not hold that many: each
+        worker holds its own copy of the model, so peak memory grows with the
+        count. The decision and its estimate are logged at INFO. Pass a fixed
+        integer to meet a scheduler or container process limit, or to override
+        the estimate. In the cases the pipeline guards against, a
         worker killed by the operating system to reclaim memory, including while
         it is processing a batch, is reported as an error naming the dead worker
         rather than hanging the call (see issue #73). Lowering ``n_workers`` or

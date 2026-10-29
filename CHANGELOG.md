@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `n_workers=None` no longer always starts one worker per physical CPU core: every worker holds its own copy of the runtime and the model, so on a machine or container whose memory would not hold that many (a 32-core container under an 8 GB cgroup limit, say) the workers were killed mid-run. The default is now the largest count whose estimated peak fits the memory available to the process, cgroup limit included, never more than the core count; the choice and its estimate are logged at INFO, and an explicit `n_workers` is taken as given ([#NNN](https://github.com/birdnet-team/birdnet/pull/NNN)).
 - `birdnet.utils.helper` is split into topic modules under `birdnet.utils`: `audio_files`, `csv_format`, `downloads`, `dsp`, `dtypes`, `filesystem`, `segments` and `species_lists`; its public names stay importable from `birdnet.utils.helper`, except the internal pipeline helpers `assert_queue_is_empty` and `itertools_batched` ([#140](https://github.com/birdnet-team/birdnet/pull/140)).
 
 ### Bugfixes
