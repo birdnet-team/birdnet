@@ -54,6 +54,31 @@ of the two may be installed: ``pip uninstall onnxruntime && pip install onnxrunt
 (``pip check`` then reports the missing ``onnxruntime``, and every later
 ``pip install``/upgrade of ``birdnet`` puts the CPU build back, so redo the swap).
 
+conda
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The base install is also on `conda-forge <https://anaconda.org/conda-forge/birdnet>`__;
+the conda package brings ``libsndfile`` with it:
+
+.. code-block:: bash
+
+  conda install -c conda-forge birdnet
+
+The runtimes behind the pip extras are separate conda packages, and LiteRT has no conda
+package, so it is added with pip inside the environment:
+
+.. list-table::
+   :header-rows: 1
+
+   * - pip
+     - conda
+   * - ``birdnet[pt]``
+     - ``conda install -c conda-forge pytorch``
+   * - ``birdnet[tf]``
+     - ``conda install -c conda-forge tensorflow`` on Linux x86_64 and macOS ARM64 (Python 3.11-3.13); elsewhere ``pip install tensorflow`` inside the environment
+   * - LiteRT
+     - ``pip install ai-edge-litert`` inside the environment
+
 TensorFlow backends
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -271,6 +296,19 @@ To build and deploy the package to PyPI, use the following commands:
   
   # upload to PyPI
   python3.12 -m twine upload --repository pypi dist/*
+
+Release on conda-forge
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The conda package is built by `conda-forge/birdnet-feedstock
+<https://github.com/conda-forge/birdnet-feedstock>`__ from the PyPI sdist. A few hours
+after a PyPI release, conda-forge's bot opens a pull request there with the new version
+and checksum; review it and merge. The bot does not update dependencies: when
+``pyproject.toml`` gained, dropped or re-pinned a dependency, edit the feedstock's
+``recipe/recipe.yaml`` in that pull request (``soundfile`` is ``pysoundfile`` and
+``torch`` is ``pytorch`` on conda-forge; ``ai-edge-litert`` has no conda package). The copy
+in ``conda/recipe.yaml`` of this repository is the submitted recipe and should be kept in
+step.
 
 Build documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
