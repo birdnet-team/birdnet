@@ -11,11 +11,17 @@ error; the end-to-end proof is in
 from __future__ import annotations
 
 import logging
+import multiprocessing as mp
 import threading
 from types import SimpleNamespace
 
 import pytest
 
+from birdnet.acoustic.inference.core.sync import (
+  FailureSlot,
+  create_failure_slot,
+  write_failure,
+)
 from birdnet.acoustic.inference.process_manager import ProcessManager
 
 
@@ -40,9 +46,13 @@ class _StubManager:
     self._res = SimpleNamespace(
       processing_resources=SimpleNamespace(cancel_event=self.cancel_event)
     )
+    self._failures: list[tuple[_FakeProcess, FailureSlot]] = []
 
   def _iter_children_with_finish_signals(self):  # noqa: ANN202
     return iter(self._pairs)
+
+  def _children_with_failure_slots(self):  # noqa: ANN202
+    return list(self._failures)
 
   raise_if_child_died = ProcessManager.raise_if_child_died
   _wait_for_finish_signal = ProcessManager._wait_for_finish_signal
@@ -187,6 +197,20 @@ def test_the_reported_error_is_stored_for_the_session_to_surface() -> None:
     manager.raise_if_child_died()
 
   assert manager._child_death_error is excinfo.value
+
+
+def test_a_child_that_reported_its_own_failure_is_not_a_mystery_shutdown() -> None:
+  """It wrote its exception and left with code 0; the slot is the diagnosis."""
+  child = _FakeProcess("Worker-0", alive=False, exitcode=0)
+  stub = _StubManager([(child, _signal(is_set=False))])
+  slot = create_failure_slot(mp.get_context("spawn"))
+  write_failure(slot, RuntimeError("the model said no"))
+  stub._failures = [(child, slot)]
+
+  stub.raise_if_child_died()
+
+  assert stub._child_death_error is None
+  assert not stub.cancel_event.is_set()
 
 
 # --- the real pairing logic (no stub for _iter_children_with_finish_signals) --

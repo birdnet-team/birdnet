@@ -18,7 +18,14 @@ import psutil
 
 import birdnet.acoustic.inference.core.logs as bn_logging
 from birdnet.acoustic.inference.core.shm import RingField
-from birdnet.acoustic.inference.core.sync import CountedSemaphore, abandon_queue_feeders
+from birdnet.acoustic.inference.core.sync import (
+  ChildSideEvent,
+  ChildToParentQueue,
+  CountedSemaphore,
+  FailureSlot,
+  abandon_queue_feeders,
+  readable,
+)
 from birdnet.globals import READABLE_FLAG, READING_FLAG, WRITABLE_FLAG
 
 
@@ -100,34 +107,37 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     session_id: str,
     pred_dur_queue: Queue,
     prod_stats_queue: Queue,
-    callback_queue: Queue | None,
-    processing_finished_signal: Semaphore,
+    callback_queue: ChildToParentQueue | None,
+    processing_finished: Semaphore,
     update_interval: float,
     n_workers: int,
     logging_queue: Queue,
     logging_level: int,
-    perf_res: Queue,
+    perf_res: ChildToParentQueue,
     sem_active_workers: CountedSemaphore,
     sem_filled_slots: CountedSemaphore,
     segment_size_s: float,
     parent_process_id: int,
     rf_flags: RingField,
     tot_n_segments_ptr: ctypes.c_uint64,
-    cancel_event: Event,
-    end_event: Event,
+    cancel_event: ChildSideEvent,
+    end_event: ChildSideEvent,
     start_signal: Semaphore,
-    finish_signal: Event,
+    finish_signal: ChildSideEvent,
     start: float,
     start_method: str,
+    failure_slot: FailureSlot | None = None,
   ) -> None:
-    super().__init__(session_id, __name__, logging_queue, logging_level, start_method)
+    super().__init__(
+      session_id, __name__, logging_queue, logging_level, start_method, failure_slot
+    )
 
     n_last_batch_stats = 10
     n_last_seconds_live_stats = 5.0
     n_last_live_stats = math.ceil(n_last_seconds_live_stats / update_interval)
 
     self._sem_filled_slots = sem_filled_slots
-    self._processing_finished_signal = processing_finished_signal
+    self._processing_finished = processing_finished
     self._n_workers = n_workers
     self._prd_stats_queue = prod_stats_queue
     self._perf_res = perf_res
@@ -222,6 +232,7 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       self._logger.exception(
         "PerformanceTracker encountered an exception.", exc_info=e, stack_info=True
       )
+      self._report_failure(e)
       self._cancel_event.set()
 
     # On cancellation the parent stops reading these queues; drop any buffered
@@ -346,11 +357,10 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
       was_empty = self._track_stats()
 
-      # The acquire consumes the signal, so remember it: once the run is over
-      # the loop only drains what the workers still report, without sleeping
-      # another interval per pass.
+      # One token per run: once taken, the remaining passes only drain the
+      # queues, without waiting.
       if not finished:
-        finished = self._processing_finished_signal.acquire(timeout=self._update_every)
+        finished = self._processing_finished.acquire(timeout=self._update_every)
       if finished and was_empty:
         self._log("Processing finished and queues empty.")
         # `was_empty` was measured *before* the wait above, so everything the
@@ -765,23 +775,28 @@ class ProgressDispatcher:
   def __init__(
     self,
     session_id: str,
-    callback_queue: Queue,
+    callback_queue: ChildToParentQueue,
     callback_fn: Callable[[AcousticProgressStats], None],
     cancel_event: Event,
     end_event: Event,
     start_signal: threading.Event,
     finish_signal: threading.Event,
+    processing_finished_event: threading.Event,
     check_interval: float,
     report_error: Callable[[BaseException], None] | None = None,
   ) -> None:
     self._report_error = report_error
     self._session_id = session_id
-    self._callback_queue = callback_queue
+    # Read on this dispatcher thread: a torn frame parks the thread, and
+    # teardown's join of it is bounded. A final update the tracker promised
+    # but never flushed still holds the run (the same class as read_promised).
+    self._callback_queue = readable(callback_queue)
     self._cancel_event = cancel_event
     self._end_event = end_event
     self._start_signal = start_signal
     self._finish_signal = finish_signal
     self._callback_fn = callback_fn
+    self._processing_finished_event = processing_finished_event
     self._check_interval = check_interval
     self._logger = bn_logging.get_logger_from_session(session_id, __name__)
 
@@ -859,6 +874,7 @@ class ProgressDispatcher:
         self._log("Received stats. Call callback function.")
         self._callback_fn(latest)
 
-        if latest.finished:
-          self._log("Received the final stats. Exiting loop.")
+        finished = self._processing_finished_event.is_set()
+        if finished and latest.finished:
+          self._log("Processing finished event is set. Exiting loop.")
           return

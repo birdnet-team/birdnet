@@ -4,7 +4,7 @@ Guidance for AI coding agents working in this repository.
 
 ## Project
 
-Python library (`src` layout) for identifying bird species by their sounds (BirdNET). Python 3.11–3.14 (3.14 is the TensorFlow-free surface only: onnx/pt backends, the `tf` backend on ai-edge-litert via `library="litert"`, and friendly errors on the remaining TF paths).
+Python library (`src` layout) for identifying bird species by their sounds (BirdNET). Python 3.11–3.15 (3.14 is the TensorFlow-free surface only: onnx/pt backends, the `tf` backend on ai-edge-litert via `library="litert"`, and friendly errors on the remaining TF paths; 3.15 has no onnxruntime or ai-edge-litert wheels either, so only the `pt` backend runs there).
 
 - `src/birdnet` — the library
 - `src/birdnet_tests` — pytest suite (not shipped)
@@ -32,7 +32,7 @@ pytest -m "not repro and not load_model and not litert and not gpu and not fork"
 # single test
 pytest src/birdnet_tests/path/to/test_file.py::test_name
 
-# full matrix (py311-314 + py312-repro + py313-notf), used by CI
+# full matrix (py311-315 + py312-repro + py313-notf), used by CI
 tox
 ```
 
@@ -43,7 +43,7 @@ tox
 - `gpu` — run sequentially (`-n 1`).
 - `repro` — requires the exact pinned versions from the `repro` extra (Python 3.12, CPU only, not macOS Intel).
 - `fork` — forces the fork start method; must run serially and in-process (`-n 0`), never in the parallel phase: forking after TensorFlow is loaded can wedge or segfault the child (see `conftest.py`). Fork support is best-effort — a hung fork test on macOS is likely the known TF limitation, not your change.
-- `no_tf` — the TensorFlow-free surface; the only tests that run on Python 3.14, and (with `litert`) in the TF-free `py313-notf` lane. Anything not marked `no_tf` or `litert` is skipped when TensorFlow is not installed.
+- `no_tf` — the TensorFlow-free surface; the only tests that run on Python 3.14 and 3.15, and (with `litert`) in the TF-free `py313-notf` lane. Anything not marked `no_tf` or `litert` is skipped when TensorFlow is not installed.
 - `tf` — a `litert`-marked test that needs TensorFlow after all (e.g. reaches the `pb` guard); skipped in the TF-free lanes.
 
 Per-test timeout is 600 s (thread method, kills the process on hang); worker restarts are disabled (`--max-worker-restart=0`).
@@ -62,6 +62,7 @@ Per-test timeout is 600 s (thread method, kills the process on hang); worker res
 - `core/backends.py` holds the backend abstraction: `TFBackend` (TFLite/LiteRT), `PBBackend` (ProtoBuf SavedModel), `TorchBackend`, `OnnxBackend`, plus `BackendLoader` and TF/torch/onnx device + import helpers. Torch and ONNX are optional extras (`pt`, `onnx`); LiteRT availability is platform-dependent.
 - Acoustic inference runs through session objects (`AcousticPredictionSession`, `AcousticEncodingSession`) driven by prediction/encoding strategies and multiprocessing (`acoustic/inference/process_manager.py`). Result objects export to CSV/Parquet/Arrow/etc.
 - Official models auto-download on first load (what `load_model` tests exercise).
+- The model runtimes (onnxruntime, ai-edge-litert, tensorflow) have no sdist, so each requirement's marker stops at the last Python it has wheels for; an open-ended one makes pip on a newer Python fall back to an old birdnet release. When a runtime publishes new wheels, move its marker and its `_WHEEL_MINORS` row in `model_loader.py` (which drives the missing-runtime errors) together; `test_runtime_wheel_markers.py` fails until they agree.
 - CI keys its ~3 GB model cache on the download set — every quoted `https://` URL and every `dl_size`/`*_DL_SIZE*`/`*_DOWNLOAD_SIZE*` and `sha256`/`*_SHA256*` literal under `src/birdnet` — so adding or updating a model busts the key while backend edits do not. Declare downloads as quoted literals under one of those names, or the `Compute model cache key` step in `ci.yml` stops tracking them and pins the key to a stale cache; it fails the job if it finds implausibly few.
 - Official single-file model downloads (the v3.0 tf/onnx/pt backends) declare a `sha256` in their `ModelInfo`: the download is verified against it once, and the cached file's name carries its first 12 hex chars, so a release that swaps a model under an unchanged family version (`v3.0`) forces a re-download even at an identical byte size. When updating such a model, update URL, sizes and `sha256` together.
 - V3.0 species labels are generated, not shipped: one `<lang>.txt` per language, built from each model's own label file plus a taxonomy CSV shared by the acoustic and geo V3.0 models (`utils/taxonomy_v3.py`). The two models join to that taxonomy on different keys deliberately — geo on `species_code`, acoustic on `sci_name` — and a species the taxonomy cannot resolve silently falls back to its English name. Read that module's docstring before changing anything about labels, languages or the taxonomy.

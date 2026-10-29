@@ -13,7 +13,6 @@ from multiprocessing.process import BaseProcess
 from multiprocessing.synchronize import Event as EventType
 from pathlib import Path
 from queue import Empty
-from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -37,21 +36,32 @@ from birdnet.acoustic.inference.core.producer import Producer
 from birdnet.acoustic.inference.core.sync import (
   PROMISED_MESSAGE_DEADLINE_S as _PROMISED_MESSAGE_DEADLINE_S,
 )
-from birdnet.acoustic.inference.core.sync import ThreadedQueueReader
+from birdnet.acoustic.inference.core.sync import (
+  READER_CLOSE_TIMEOUT_S,
+  ChildToParentQueue,
+  Deadline,
+  FailureSlot,
+  ThreadedQueueReader,
+  read_failure,
+  readable,
+)
 from birdnet.acoustic.inference.core.tensor import AcousticTensorBase
 from birdnet.acoustic.inference.file_writer import QueueFileWriter
 from birdnet.acoustic.inference.resources import PipelineResources
 from birdnet.acoustic.inference.strategy import InferenceStrategyBase
 from birdnet.core.base import get_session_id_hash
 
-if TYPE_CHECKING:
-  from multiprocessing import Queue
-
-# After a cancelled process is asked to stop (SIGTERM), how long to wait for it
-# to actually exit before escalating to SIGKILL. Terminated processes normally
-# die within a moment; this only bounds a child that ignores SIGTERM so teardown
-# can never hang on it.
-_TERMINATE_JOIN_TIMEOUT_S = 5.0
+# One budget for the whole teardown: every wait in it draws what is left, so a
+# child that cannot exit costs the caller at most this much. A healthy teardown
+# uses a second or two of it.
+TEARDOWN_BUDGET_S = 30.0
+# Kept back from the children's grace, so that terminating what is still there
+# and then killing what ignores that still fit inside the budget.
+_KILL_RESERVE_S = 5.0
+# Kept back from the terminate wait for the thread joins after the children: a
+# healthy drainer, dispatcher or reader needs milliseconds, the log writer up
+# to its one-second poll.
+_TAIL_RESERVE_S = 2.0
 # How often the parent looks up from an otherwise unbounded wait to check that
 # its children are still alive. Short enough that a dead child is reported
 # promptly, long enough to be free next to the work being waited on.
@@ -60,16 +70,9 @@ _LIVENESS_POLL_INTERVAL_S = 1.0
 # only ever have one ``get_nowait`` left to finish, so anything still running
 # after this is stuck for good and is left to the daemon-thread machinery.
 _DRAIN_STOP_TIMEOUT_S = 1.0
-# How long teardown waits for the log writer to drain the logging queue and
-# stop. It polls the stop event every second and normally leaves right after
-# it, so this only bounds a writer that cannot return at all.
-_LOGGING_JOIN_TIMEOUT_S = 30.0
-# The same bound for the dispatcher threads, which read their queues on a one
-# second poll and stop within one of it once the run ends.
-_READER_JOIN_TIMEOUT_S = 30.0
 
 
-def _drain_queue(q: Queue, stop: threading.Event) -> None:
+def _drain_queue(q: ChildToParentQueue, stop: threading.Event) -> None:
   """Discard everything a queue holds until told to stop.
 
   Runs on its own thread, one per queue, and never on the teardown path itself.
@@ -81,6 +84,7 @@ def _drain_queue(q: Queue, stop: threading.Event) -> None:
   it off the teardown path can (issue #77). One thread per queue so a queue that
   does wedge cannot stop the others from being drained.
   """
+  reads = readable(q)
   while True:
     # Best-effort by design: this drain only exists to unblock the children so
     # they can exit, and the run has already failed. A payload that arrived
@@ -89,7 +93,7 @@ def _drain_queue(q: Queue, stop: threading.Event) -> None:
     # expects it -- so none of them are enumerated.
     with suppress(Exception):
       while True:
-        q.get_nowait()
+        reads.get_nowait()
         # A child that keeps writing would otherwise hold this loop past the
         # stop, and teardown would then record a perfectly healthy drainer as
         # wedged and never close its queue.
@@ -133,13 +137,15 @@ class ProcessManager:
     self._child_death_error: ChildProcessError | None = None
     self._run_error: BaseException | None = None
     self._run_error_lock = threading.Lock()
-    self._undrainable_queues: list[Queue] = []
+    self._undrainable_queues: list[ChildToParentQueue] = []
     # Readers whose pumps were asked to stop but not yet confirmed gone.
     # Confirming joins a thread that is usually just asleep in its poll, which
     # costs tens of milliseconds -- so it is deferred to the moments that need
     # the answer: before the same queues are read again (start of the next
     # run) and before they are closed (session teardown).
-    self._stopped_readers: list[tuple[ThreadedQueueReader, Queue]] = []
+    self._stopped_readers: list[tuple[ThreadedQueueReader, ChildToParentQueue]] = []
+    # Set when teardown starts; every wait after that draws from it.
+    self._teardown: Deadline | None = None
 
   @property
   def child_death_error(self) -> ChildProcessError | None:
@@ -190,6 +196,7 @@ class ProcessManager:
       end_event=self._res.processing_resources.end_event,
       callback_queue=self._res.stats_resources.callback_queue,
       cancel_event=self._res.processing_resources.cancel_event,
+      processing_finished_event=self._res.processing_resources.processing_finished_event,
       report_error=self.record_run_error,
     )
 
@@ -262,7 +269,7 @@ class ProcessManager:
       target=PerformanceTracker(
         session_id=self._session_id,
         pred_dur_queue=self._res.stats_resources.wkr_stats_queue,
-        processing_finished_signal=self._res.processing_resources.processing_finished_signal,
+        processing_finished=self._res.processing_resources.processing_finished_sem,
         update_interval=self._res.processing_resources.update_interval,
         prod_stats_queue=self._res.stats_resources.prd_stats_queue,
         n_workers=self._cfg.processing_conf.workers,
@@ -282,6 +289,7 @@ class ProcessManager:
         finish_signal=self._res.stats_resources.perf_res_finish_signal,
         callback_queue=self._res.stats_resources.callback_queue,
         start_method=self._cfg.start_method,
+        failure_slot=self._res.stats_resources.perf_failure_slot,
       ),
       name=f"{self._session_hash}-PerformanceTracker",
       daemon=True,
@@ -363,6 +371,7 @@ class ProcessManager:
           unprocessed_inputs_queue=self._res.producer_resources.unprocessed_inputs_queue,
           start_method=self._cfg.start_method,
           completion_queue=self._res.file_completion_resources.marker_queue,
+          failure_slot=self._res.producer_resources.failure_slots[i],
         ),
         name=f"{self._session_hash}-Producer-{i}",
         daemon=True,
@@ -497,6 +506,30 @@ class ProcessManager:
     if self._perf_tracker_process is not None and perf_finish_signal is not None:
       yield self._perf_tracker_process, perf_finish_signal
 
+  def _children_with_failure_slots(self) -> list[tuple[BaseProcess, FailureSlot]]:
+    res = self._res
+    slots: list[tuple[BaseProcess, FailureSlot]] = []
+    if self._producer_processes is not None:
+      slots += zip(
+        self._producer_processes, res.producer_resources.failure_slots, strict=True
+      )
+    if self._worker_processes is not None:
+      slots += zip(
+        self._worker_processes, res.worker_resources.failure_slots, strict=True
+      )
+    perf_slot = res.stats_resources.perf_failure_slot
+    if self._perf_tracker_process is not None and perf_slot is not None:
+      slots.append((self._perf_tracker_process, perf_slot))
+    return slots
+
+  def child_failure(self) -> tuple[str, str] | None:
+    """A child that reported its own exception, in process order: name and text."""
+    for process, slot in self._children_with_failure_slots():
+      text = read_failure(slot)
+      if text is not None:
+        return process.name, text
+    return None
+
   def raise_if_child_died(self) -> None:
     """Fail fast when a child process is gone without having signalled.
 
@@ -523,8 +556,15 @@ class ProcessManager:
     "cancelled", and the process name and exit code are the only actionable
     part.
     """
+    # A child that wrote its failure and left (exit code 0, cancel event set)
+    # has explained itself; the slot is the diagnosis, not a mystery shutdown.
+    explained = {
+      id(p) for p, slot in self._children_with_failure_slots() if read_failure(slot)
+    }
     for process, finish_signal in self._iter_children_with_finish_signals():
       if process.is_alive() or finish_signal.is_set():
+        continue
+      if process.exitcode == 0 and id(process) in explained:
         continue
       if process.exitcode == 0:
         # Children exit cleanly on their own when they see the cancel or end
@@ -659,7 +699,7 @@ class ProcessManager:
         assert marker_queue is not None
         self._stop_reader(marker_reader, marker_queue)
 
-  def _stop_reader(self, reader: ThreadedQueueReader, q: Queue) -> None:
+  def _stop_reader(self, reader: ThreadedQueueReader, q: ChildToParentQueue) -> None:
     """Ask a queue reader to stop, without waiting for it.
 
     Waiting here would put a fixed per-call cost on every ``session.run``;
@@ -684,7 +724,10 @@ class ProcessManager:
     terminated at the grace period instead of flushing.
     """
     for reader, q in self._stopped_readers:
-      if reader.confirm_stopped():
+      timeout = READER_CLOSE_TIMEOUT_S
+      if self._teardown is not None:
+        timeout = min(timeout, self._teardown.remaining())
+      if reader.confirm_stopped(timeout=timeout):
         continue
       self._logger.warning(
         "A queue reader is still blocked on a message a killed child never "
@@ -707,7 +750,7 @@ class ProcessManager:
     self._child_death_error = ChildProcessError(message)
     self._res.processing_resources.cancel_event.set()
 
-  def read_promised(self, q: Queue, n: int, what: str) -> list[object]:
+  def read_promised(self, q: ChildToParentQueue, n: int, what: str) -> list[object]:
     """Read ``n`` messages that finished children have already promised.
 
     Called only after every sender set its finish signal, so each message is
@@ -762,39 +805,31 @@ class ProcessManager:
       self.start_file_completion_dispatcher_thread()
 
   def join(self) -> None:
+    """Bring every child and dispatcher down inside ``TEARDOWN_BUDGET_S``.
+
+    Each wait takes what is left of the one deadline, which ``join_logging``
+    and ``close_queues`` draw from afterwards, so whatever cannot finish, a
+    worker stuck in a model load, a child with buffered data and no reader, a
+    wedged log writer, costs the budget once and not per step. Only a killed
+    child that the kernel cannot reap yet (uninterruptible sleep) holds the
+    call longer.
+    """
     logger = get_logger_from_session(self._session_id, __name__)
+    deadline = Deadline(TEARDOWN_BUDGET_S)
+    self._teardown = deadline
 
     logger.debug("Joining file analyzer thread...")
     assert self._analyzer_thread is not None
-    self._analyzer_thread.join()
+    self._analyzer_thread.join(timeout=deadline.remaining())
+    if self._analyzer_thread.is_alive():
+      logger.warning("The file analyzer thread did not stop; continuing without it.")
     self._analyzer_thread = None
     logger.debug("File analyzer finished.")
 
     if self._res.processing_resources.cancel_event.is_set():
-      self._join_processes_after_cancel(logger)
+      self._join_processes_after_cancel(logger, deadline)
     else:
-      logger.debug("Joining producer processes...")
-      assert self._producer_processes is not None
-      for p in self._producer_processes:
-        p.join()
-        logger.debug(f"Producer '{p.name}' finished.")
-      self._producer_processes = None
-      logger.debug("All producers finished.")
-
-      logger.debug("Joining worker processes...")
-      assert self._worker_processes is not None
-      for w in self._worker_processes:
-        w.join()
-        logger.debug(f"Worker '{w.name}' finished.")
-      self._worker_processes = None
-      logger.debug("All workers finished.")
-
-      if self._res.stats_resources.track_performance:
-        logger.debug("Joining performance tracker process...")
-        assert self._perf_tracker_process is not None
-        self._perf_tracker_process.join()
-        self._perf_tracker_process = None
-        logger.debug("Performance tracker finished.")
+      self._join_processes(logger, deadline)
 
     if self._res.stats_resources.use_callback:
       logger.debug("Joining dispatcher thread...")
@@ -803,6 +838,7 @@ class ProcessManager:
         logger,
         self._progress_dispatcher_thread,
         self._res.stats_resources.callback_queue,
+        deadline,
       )
       self._progress_dispatcher_thread = None
       logger.debug("Dispatcher thread finished.")
@@ -812,12 +848,64 @@ class ProcessManager:
       assert self._file_completion_thread is not None
       # Its queue is an in-process queue.Queue, which cannot carry a half-
       # written message, so there is nothing to leave open.
-      self._join_reader_thread(logger, self._file_completion_thread, None)
+      self._join_reader_thread(logger, self._file_completion_thread, None, deadline)
       self._file_completion_thread = None
       logger.debug("File completion dispatcher thread finished.")
 
+  def _children(self) -> list[BaseProcess]:
+    processes: list[BaseProcess] = [
+      *(self._producer_processes or []),
+      *(self._worker_processes or []),
+    ]
+    if self._perf_tracker_process is not None:
+      processes.append(self._perf_tracker_process)
+    return processes
+
+  def _join_processes(self, logger: Logger, deadline: Deadline) -> None:
+    """Join the children of a run that ended cleanly.
+
+    They exit on their next one-second poll of the end event; the budget
+    covers a child that never gets there, say one still inside a model load.
+    """
+    logger.debug("Joining child processes...")
+    self._reap_children(logger, self._children(), deadline)
+    self._producer_processes = None
+    self._worker_processes = None
+    self._perf_tracker_process = None
+    logger.debug("All child processes finished.")
+
+  def _reap_children(
+    self, logger: Logger, processes: list[BaseProcess], deadline: Deadline
+  ) -> None:
+    """Join, then terminate, then kill: the budget less the reserves for each."""
+    grace_end = time.monotonic() + max(0.0, deadline.remaining() - _KILL_RESERVE_S)
+    for p in processes:
+      # A blocking join, not a poll: a child that exits is reaped the moment
+      # it does, and the grace is shared, so the joins together never exceed it.
+      p.join(timeout=max(0.0, grace_end - time.monotonic()))
+    terminated = [p for p in processes if p.is_alive()]
+    for p in terminated:
+      logger.warning(
+        f"Process '{p.name}' did not exit within the teardown budget; terminating."
+      )
+      p.terminate()
+    for p in terminated:
+      # SIGKILL after that cannot be ignored; the tail reserve stays for the
+      # thread joins behind the children.
+      p.join(timeout=max(0.0, deadline.remaining() - _TAIL_RESERVE_S))
+      if p.is_alive():
+        logger.warning(f"Process '{p.name}' ignored termination; killing.")
+        p.kill()
+        p.join()
+    for p in processes:
+      logger.debug(f"Process '{p.name}' finished.")
+
   def _join_reader_thread(
-    self, logger: Logger, thread: threading.Thread, q: Queue | None
+    self,
+    logger: Logger,
+    thread: threading.Thread,
+    q: ChildToParentQueue | None,
+    deadline: Deadline,
   ) -> None:
     """Join a thread that reads a child-to-parent queue, without waiting forever.
 
@@ -829,7 +917,7 @@ class ProcessManager:
     so parking one costs the closing progress callback; joining it costs
     teardown.
     """
-    thread.join(timeout=_READER_JOIN_TIMEOUT_S)
+    thread.join(timeout=deadline.remaining())
     if not thread.is_alive():
       return
     logger.warning(
@@ -841,9 +929,7 @@ class ProcessManager:
       # _collect_wedged_drainers.
       self._undrainable_queues.append(q)
 
-  def _join_processes_after_cancel(
-    self, logger: Logger, grace_period_s: float = 30.0
-  ) -> None:
+  def _join_processes_after_cancel(self, logger: Logger, deadline: Deadline) -> None:
     """Join child processes after a cancelled run without deadlocking.
 
     A cancelled run leaves undelivered items in the child-to-parent queues
@@ -853,8 +939,8 @@ class ProcessManager:
     data — its exit handler joins the feeders, which block on the full pipe —
     so a plain ``join()`` waits forever. Drain every parent-side queue while
     joining so the children can flush and exit, and terminate any process
-    that still lingers after the grace period. The drained data is discarded,
-    which is fine: the run was cancelled.
+    that still lingers when the budget runs out. The drained data is
+    discarded, which is fine: the run was cancelled.
 
     The drain runs on background threads rather than here, because a single
     ``get_nowait`` can block for good on a message truncated by a killed child
@@ -864,16 +950,10 @@ class ProcessManager:
     """
     logger.debug("Joining processes after cancellation (draining queues)...")
 
-    processes: list[BaseProcess] = [
-      *(self._producer_processes or []),
-      *(self._worker_processes or []),
-    ]
-
-    if self._perf_tracker_process is not None:
-      processes.append(self._perf_tracker_process)
+    processes = self._children()
 
     stats_res = self._res.stats_resources
-    optional_queues: list[Queue | None] = [
+    optional_queues: list[ChildToParentQueue | None] = [
       self._res.producer_resources.unprocessed_inputs_queue,
       self._res.worker_resources.results_queue,
       self._res.file_completion_resources.marker_queue,
@@ -882,7 +962,7 @@ class ProcessManager:
       stats_res.perf_res_queue,
       stats_res.callback_queue,
     ]
-    queues: list[Queue] = [q for q in optional_queues if q is not None]
+    queues: list[ChildToParentQueue] = [q for q in optional_queues if q is not None]
 
     stop_draining = threading.Event()
     drainers = [
@@ -897,41 +977,12 @@ class ProcessManager:
     for drainer in drainers:
       drainer.start()
 
-    deadline = time.monotonic() + grace_period_s
-    terminated = False
-
     try:
-      while True:
-        alive = [p for p in processes if p.is_alive()]
-
-        if not alive:
-          break
-
-        if time.monotonic() >= deadline:
-          for p in alive:
-            logger.warning(
-              f"Process '{p.name}' did not exit after cancellation; terminating."
-            )
-            p.terminate()
-          terminated = True
-          break
-
-        time.sleep(0.05)
+      self._reap_children(logger, processes, deadline)
     finally:
       stop_draining.set()
 
-    # Reap every process. Ones that exited on their own join instantly; ones we
-    # just terminated get a bounded wait and are then SIGKILLed if they ignored
-    # SIGTERM, so a single unresponsive child can never hang teardown.
-    for p in processes:
-      p.join(timeout=_TERMINATE_JOIN_TIMEOUT_S if terminated else None)
-      if p.is_alive():
-        logger.warning(f"Process '{p.name}' ignored termination; killing.")
-        p.kill()
-        p.join()
-      logger.debug(f"Process '{p.name}' finished.")
-
-    self._collect_wedged_drainers(logger, queues, drainers)
+    self._collect_wedged_drainers(logger, queues, drainers, deadline)
 
     self._producer_processes = None
     self._worker_processes = None
@@ -939,7 +990,11 @@ class ProcessManager:
     logger.debug("All processes finished after cancellation.")
 
   def _collect_wedged_drainers(
-    self, logger: Logger, queues: list[Queue], drainers: list[threading.Thread]
+    self,
+    logger: Logger,
+    queues: list[ChildToParentQueue],
+    drainers: list[threading.Thread],
+    deadline: Deadline,
   ) -> None:
     """Note which queues a drainer is still stuck inside, and why it matters.
 
@@ -952,11 +1007,10 @@ class ProcessManager:
     corruption elsewhere in the process, so the queues stay open.
     """
     for q, drainer in zip(queues, drainers, strict=True):
-      # Each drainer gets the full timeout rather than a share of one budget: a
-      # single wedged drainer would otherwise spend it all and leave the rest
-      # with none, so a healthy one that had simply not been rescheduled yet
-      # would be recorded as wedged and its queue never closed.
-      drainer.join(timeout=_DRAIN_STOP_TIMEOUT_S)
+      # At most a second each, so one wedged drainer cannot spend what the
+      # others and the log writer still need; the tail reserve is what keeps
+      # that from being zero after the children.
+      drainer.join(timeout=min(_DRAIN_STOP_TIMEOUT_S, deadline.remaining()))
       if drainer.is_alive():
         logger.warning(
           f"Queue drain '{drainer.name}' is still blocked on a message a "
@@ -975,7 +1029,9 @@ class ProcessManager:
     waiting on it costs the whole teardown.
     """
     assert self._logging_thread is not None
-    self._logging_thread.join(timeout=_LOGGING_JOIN_TIMEOUT_S)
+    if self._teardown is None:
+      self._teardown = Deadline(TEARDOWN_BUDGET_S)
+    self._logging_thread.join(timeout=self._teardown.remaining())
     if self._logging_thread.is_alive():
       self._logger.warning(
         "The log writer is still blocked reading the logging queue; the "
@@ -1002,7 +1058,9 @@ class ProcessManager:
     self.reap_stopped_readers()
     res = self._res
     stats = res.stats_resources
-    queues: list[Queue | None] = [
+    # Closing needs the write side only, so the parent-to-child input queue
+    # and the logging queue fit the same type here.
+    queues: list[ChildToParentQueue | None] = [
       res.producer_resources.input_queue,
       res.producer_resources.unprocessed_inputs_queue,
       res.worker_resources.results_queue,

@@ -6,8 +6,8 @@ and match what CI enforces.
 
 ## Development setup
 
-`birdnet` supports Python 3.11–3.14 (3.11 is the minimum; 3.10 lacks
-`typing.Self`). CI runs the test matrix on all four, but you only need the
+`birdnet` supports Python 3.11–3.15 (3.11 is the minimum; 3.10 lacks
+`typing.Self`). CI runs the test matrix on all five, but you only need the
 versions you intend to test against — `tox` skips interpreters it can't find.
 
 Audio loading needs the `libsndfile` system library:
@@ -53,7 +53,7 @@ For day-to-day work, the fast subset skips model downloads and the isolated lane
 pytest -m "not repro and not load_model and not litert and not gpu and not fork" -n auto
 ```
 
-To run the full matrix exactly as CI does (needs the Python 3.11–3.14 interpreters
+To run the full matrix exactly as CI does (needs the Python 3.11–3.15 interpreters
 installed):
 
 ```sh

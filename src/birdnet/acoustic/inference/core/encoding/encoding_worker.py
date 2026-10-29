@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 from multiprocessing import Queue
-from multiprocessing.synchronize import Event, Lock, Semaphore
+from multiprocessing.synchronize import Lock, Semaphore
 
 import numpy as np
 
 from birdnet.acoustic.inference.core.shm import RingField
+from birdnet.acoustic.inference.core.sync import (
+  ChildSideEvent,
+  ChildToParentQueue,
+  FailureSlot,
+)
 from birdnet.acoustic.inference.core.worker import WorkerBase
 from birdnet.core.backends import BackendLoader, BatchT
 
@@ -23,22 +28,23 @@ class EncodingWorker(WorkerBase):
     rf_batch_sizes: RingField,
     rf_flags: RingField,
     segment_duration_samples: int,
-    out_q: Queue,
+    out_q: ChildToParentQueue,
     wkr_ring_access_lock: Lock,
     sem_free: Semaphore,
     sem_fill: Semaphore,
     sem_active_workers: Semaphore | None,
     half_precision: bool,
-    wkr_stats_queue: Queue | None,
+    wkr_stats_queue: ChildToParentQueue | None,
     logging_queue: Queue,
     logging_level: int,
     device: str,
-    cancel_event: Event,
-    all_producers_finished: Event,
+    cancel_event: ChildSideEvent,
+    all_producers_finished: ChildSideEvent,
     start_signal: Semaphore,
-    finish_signal: Event,
-    end_event: Event,
+    finish_signal: ChildSideEvent,
+    end_event: ChildSideEvent,
     start_method: str,
+    failure_slot: FailureSlot | None = None,
   ) -> None:
     super().__init__(
       session_id=session_id,
@@ -68,6 +74,7 @@ class EncodingWorker(WorkerBase):
       finish_signal=finish_signal,
       end_event=end_event,
       start_method=start_method,
+      failure_slot=failure_slot,
     )
 
   def _get_block(

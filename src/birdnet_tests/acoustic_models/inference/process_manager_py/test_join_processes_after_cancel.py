@@ -20,39 +20,49 @@ import threading
 import time
 from types import SimpleNamespace
 
+from birdnet.acoustic.inference import process_manager
+from birdnet.acoustic.inference.core.sync import Deadline
 from birdnet.acoustic.inference.process_manager import ProcessManager
 
 # Teardown here does no real work: the only waits are the drain-stop timeout
-# (1 s) and a few 50 ms polls. Kept close to that so a regression to the 30 s
-# terminate grace period is caught, but loose enough for a loaded runner.
+# (1 s) and the joins of fake processes. Kept close to that so a wait that
+# outlives the budget is caught, but loose enough for a loaded runner.
 _TEARDOWN_DEADLINE_S = 10.0
+# Budget handed to the method under test; the joins return at once.
+_BUDGET_S = 8.0
 
 
 class _FakeProcess:
-  """A child that exits on its own after `alive_polls` liveness checks."""
+  """A child that exits when joined, unless told to stay alive."""
 
-  def __init__(self, name: str, *, alive_polls: int = 0) -> None:
+  def __init__(
+    self, name: str, *, exits: bool = True, ignores_terminate: bool = False
+  ) -> None:
     self.name = name
     self.terminated = False
     self.killed = False
-    self._alive_polls = alive_polls
+    self._exits = exits
+    self._ignores_terminate = ignores_terminate
+    self._alive = True
 
   def is_alive(self) -> bool:
-    if self._alive_polls <= 0:
-      return False
-    self._alive_polls -= 1
-    return True
+    return self._alive
 
   def join(self, timeout: float | None = None) -> None:
-    pass
+    if self._exits:
+      self._alive = False
+    else:
+      # Like a real join on a child that stays: it waits the timeout out.
+      time.sleep(min(timeout if timeout is not None else 1.0, 1.0))
 
   def terminate(self) -> None:
     self.terminated = True
-    self._alive_polls = 0
+    if not self._ignores_terminate:
+      self._alive = False
 
   def kill(self) -> None:
     self.killed = True
-    self._alive_polls = 0
+    self._alive = False
 
 
 class _WedgedQueue:
@@ -129,8 +139,12 @@ class _Stub:
       ),
     )
 
+    self._teardown = None
+
   _join_processes_after_cancel = ProcessManager._join_processes_after_cancel
   _collect_wedged_drainers = ProcessManager._collect_wedged_drainers
+  _reap_children = ProcessManager._reap_children
+  _children = ProcessManager._children
   close_queues = ProcessManager.close_queues
   reap_stopped_readers = ProcessManager.reap_stopped_readers
 
@@ -148,7 +162,7 @@ def test_a_drain_that_never_returns_does_not_stop_teardown() -> None:
   pytest-timeout would take the whole xdist worker with it.
   """
   wedged = _WedgedQueue()
-  process = _FakeProcess("Producer-0", alive_polls=2)
+  process = _FakeProcess("Producer-0")
   stub = _Stub([process], [wedged])
 
   # Comfortably past the deadline, so a teardown that does wait for the drain
@@ -158,7 +172,7 @@ def test_a_drain_that_never_returns_does_not_stop_teardown() -> None:
   release.start()
   try:
     start = time.monotonic()
-    stub._join_processes_after_cancel(_logger())
+    stub._join_processes_after_cancel(_logger(), Deadline(_BUDGET_S))
     elapsed_s = time.monotonic() - start
   finally:
     release.cancel()
@@ -174,10 +188,10 @@ def test_a_drain_that_never_returns_does_not_stop_teardown() -> None:
 def test_a_wedged_queue_is_recorded_and_never_closed() -> None:
   """Closing it would free the descriptor number under a blocked read."""
   wedged = _WedgedQueue()
-  stub = _Stub([_FakeProcess("Producer-0", alive_polls=1)], [wedged])
+  stub = _Stub([_FakeProcess("Producer-0")], [wedged])
 
   try:
-    stub._join_processes_after_cancel(_logger())
+    stub._join_processes_after_cancel(_logger(), Deadline(_BUDGET_S))
 
     assert any(q is wedged for q in stub._undrainable_queues), (
       "the wedged queue must be remembered so close_queues can skip it"
@@ -196,9 +210,9 @@ def test_a_wedged_queue_is_recorded_and_never_closed() -> None:
 def test_healthy_queues_are_drained_and_then_closed() -> None:
   """The drain is what lets a child blocked on a full pipe flush and exit."""
   healthy = _RecordingQueue(["result-a", "result-b"])
-  stub = _Stub([_FakeProcess("Producer-0", alive_polls=3)], [healthy])
+  stub = _Stub([_FakeProcess("Producer-0")], [healthy])
 
-  stub._join_processes_after_cancel(_logger())
+  stub._join_processes_after_cancel(_logger(), Deadline(_BUDGET_S))
 
   assert healthy.drained == ["result-a", "result-b"]
   assert not stub._undrainable_queues
@@ -208,10 +222,30 @@ def test_healthy_queues_are_drained_and_then_closed() -> None:
 
 
 def test_a_child_that_never_exits_is_terminated_after_the_grace_period() -> None:
-  stubborn = _FakeProcess("Worker-0", alive_polls=10_000)
+  stubborn = _FakeProcess("Worker-0", exits=False)
   healthy = _RecordingQueue()
   stub = _Stub([stubborn], [healthy])
 
-  stub._join_processes_after_cancel(_logger(), grace_period_s=0.2)
+  # The grace is the budget less the kill reserve: 0.2 s here.
+  start = time.monotonic()
+  stub._join_processes_after_cancel(
+    _logger(), Deadline(process_manager._KILL_RESERVE_S + 0.2)
+  )
+  elapsed_s = time.monotonic() - start
 
   assert stubborn.terminated, "a child outliving the grace period must be terminated"
+  assert not stubborn.killed
+  assert 0.2 <= elapsed_s < _TEARDOWN_DEADLINE_S, (
+    f"grace not honoured: {elapsed_s:.2f} s"
+  )
+
+
+def test_a_child_that_ignores_termination_is_killed() -> None:
+  deaf = _FakeProcess("Worker-0", exits=False, ignores_terminate=True)
+  stub = _Stub([deaf], [_RecordingQueue()])
+
+  stub._join_processes_after_cancel(_logger(), Deadline(0.5))
+
+  assert deaf.terminated
+  assert deaf.killed, "a child that ignores SIGTERM must be killed, not waited for"
+  assert not deaf.is_alive()

@@ -16,7 +16,11 @@ from birdnet.acoustic.models.v3_0.tf import (
   AcousticTFBackendFP32V3_0,
 )
 from birdnet.model_loader import load
-from birdnet_tests.helper import ensure_onnxruntime_or_skip, ensure_torch_or_skip
+from birdnet_tests.helper import (
+  ensure_onnxruntime_or_skip,
+  ensure_torch_or_skip,
+  fake_wheels,
+)
 
 
 def test_v3_0_pb_with_library_raises_error() -> None:
@@ -101,6 +105,7 @@ def test_v3_0_pt_with_library_raises_error() -> None:
 
 @pytest.mark.no_tf
 def test_v3_0_pt_runtime_missing_raises_error(monkeypatch: pytest.MonkeyPatch) -> None:
+  fake_wheels(monkeypatch, 13)
   monkeypatch.setattr("birdnet.model_loader.torch_installed", lambda: False)
 
   with pytest.raises(

@@ -47,7 +47,7 @@ For more detailed benchmarks, please refer to the [documentation](https://birdne
 
 ### Instructions
 
-TensorFlow is an optional dependency. The base package ships ONNX Runtime and LiteRT wherever they have wheels (everywhere but macOS x86_64 on Python 3.14 for ONNX Runtime; see the footnote for LiteRT), so it runs the V3.0 models out of the box; the TensorFlow-based backends come with the `tf` extra:
+TensorFlow is an optional dependency. The base package ships ONNX Runtime and LiteRT wherever they have wheels (everywhere but Python 3.15 and macOS x86_64 on Python 3.14 for ONNX Runtime; see the footnote for LiteRT), so it runs the V3.0 models out of the box; the TensorFlow-based backends come with the `tf` extra:
 
 ```sh
 # Base: acoustic 3.0 + geo 3.0 via the onnx backend, 2.4 models via LiteRT
@@ -73,7 +73,7 @@ pip install birdnet[pt] --user
 | `birdnet[onnx]` | (compatibility alias) | ONNX Runtime is part of the base install |
 | `birdnet[repro]` | exact pinned versions incl. TensorFlow | reproducible results (Python 3.12, CPU) |
 
-\* LiteRT (`ai-edge-litert`) is installed with the base package on Linux, macOS ARM64 and Windows x86_64 for Python 3.11–3.13 (no wheels elsewhere; on 3.14 add it with `pip install ai-edge-litert`). It runs the 2.4 `.tflite` models (acoustic 2.4, custom 2.4 classifiers, geo 2.4; pass `library="litert"` to `birdnet.load(..)`) and does not need TensorFlow. Without the `tf` extra, `birdnet.load("acoustic", "2.4", "tf")` raises a `ValueError` naming both options.
+\* LiteRT (`ai-edge-litert`) is installed with the base package on Linux, macOS ARM64 and Windows x86_64 for Python 3.11–3.13 (no wheels elsewhere or for Python 3.15; on 3.14 add it with `pip install ai-edge-litert`). It runs the 2.4 `.tflite` models (acoustic 2.4, custom 2.4 classifiers, geo 2.4; pass `library="litert"` to `birdnet.load(..)`) and does not need TensorFlow. Without the `tf` extra, `birdnet.load("acoustic", "2.4", "tf")` raises a `ValueError` naming both options.
 
 ```py
 import birdnet
@@ -103,11 +103,13 @@ The TensorFlow-based backends (`birdnet[tf]`) are limited to the platforms and P
 | **Windows** | x86_64 | 3.11, 3.12, 3.13 | / | 3.11, 3.12, 3.13 | 3.11, 3.12, 3.13 |
 | | ARM64 | / | / | / | / |
 
-For details see the official [TensorFlow](https://www.tensorflow.org/install/pip#package_location) documentation. The base install (`onnx` backend, `pt` extra) has no such restriction beyond ONNX Runtime's and PyTorch's own wheels (ONNX Runtime's last macOS x86_64 build is 1.23.2, with no Python 3.14 wheel).
+For details see the official [TensorFlow](https://www.tensorflow.org/install/pip#package_location) documentation. The base install (`onnx` backend, `pt` extra) has no such restriction beyond ONNX Runtime's and PyTorch's own wheels (ONNX Runtime's last macOS x86_64 build is 1.23.2, with no Python 3.14 wheel, and ONNX Runtime has no Python 3.15 wheels).
 
-#### Python 3.14
+#### Python 3.14 and 3.15
 
 TensorFlow does not yet publish wheels for Python 3.14, so `birdnet[tf]` installs nothing extra there and the table above stops at 3.13. The base install works as everywhere else: the **acoustic 3.0** and **geo 3.0** models via `onnx` (or `pt`), and — after `pip install ai-edge-litert` — the **acoustic 2.4 model**, **custom 2.4 classifiers** and the **geo 2.4 model** via the `tf` backend on LiteRT (`library="litert"`). The TensorFlow-only paths — the `pb` backend, the `tf` backend with the default `tflite` interpreter, and the Perch model — raise a clear error on Python 3.14; to use them, install `birdnet[tf]` on Python 3.11–3.13.
+
+Python 3.15 has no wheels for ONNX Runtime, LiteRT or TensorFlow, so there the base install brings no model runtime. Install `birdnet[pt]` to run the **acoustic 3.0** and **geo 3.0** models via `pt` (not on macOS x86_64, which has no PyTorch wheels). The 2.4 models and custom 2.4 classifiers need Python 3.11–3.14 (LiteRT); the TensorFlow-only paths, including the Perch model, need Python 3.11–3.13.
 
 If you encounter issues with audio file reading, please ensure that `libsndfile` is installed on your system.
 

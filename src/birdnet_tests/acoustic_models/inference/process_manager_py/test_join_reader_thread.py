@@ -13,18 +13,17 @@ import logging
 import threading
 import time
 
-import pytest
-
-from birdnet.acoustic.inference import process_manager
+from birdnet.acoustic.inference.core.sync import Deadline
 from birdnet.acoustic.inference.process_manager import ProcessManager
 
-# How long the stuck thread stays stuck. Comfortably past the (patched) join
-# timeout, so an unbounded join is released late enough to fail the assertions
-# rather than hang the suite until pytest-timeout kills the xdist worker.
+# How long the stuck thread stays stuck. Comfortably past the deadline handed
+# to the join, so an unbounded join is released late enough to fail the
+# assertions rather than hang the suite until pytest-timeout kills the worker.
 _STUCK_S = 5.0
-_PATCHED_JOIN_TIMEOUT_S = 0.2
-# The join should return after the patched timeout; this only has to separate
-# "returned on the timeout" from "waited out the stuck thread".
+# The deadline handed to the join; the real one is the session's teardown budget.
+_JOIN_TIMEOUT_S = 0.2
+# The join should return on its deadline; this only has to separate "returned
+# on the deadline" from "waited out the stuck thread".
 _RETURN_DEADLINE_S = _STUCK_S / 2
 
 
@@ -43,21 +42,13 @@ def _logger() -> logging.Logger:
   return logging.getLogger(f"{__name__}.stub")
 
 
-@pytest.fixture(autouse=True)
-def _short_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
-  # The real bound is 30 s, which is right for a session and wrong for a test.
-  monkeypatch.setattr(
-    process_manager, "_READER_JOIN_TIMEOUT_S", _PATCHED_JOIN_TIMEOUT_S
-  )
-
-
 def test_a_thread_that_finishes_is_joined_and_nothing_is_recorded() -> None:
   stub = _Stub()
   q = _Queue()
   thread = threading.Thread(target=lambda: None, name="quick-reader", daemon=True)
   thread.start()
 
-  stub._join_reader_thread(_logger(), thread, q)
+  stub._join_reader_thread(_logger(), thread, q, Deadline(_JOIN_TIMEOUT_S))
 
   assert not stub._undrainable_queues, "a healthy reader's queue must stay closeable"
 
@@ -73,7 +64,7 @@ def test_a_thread_that_never_returns_does_not_stop_teardown() -> None:
 
   try:
     start = time.monotonic()
-    stub._join_reader_thread(_logger(), thread, q)
+    stub._join_reader_thread(_logger(), thread, q, Deadline(_JOIN_TIMEOUT_S))
     elapsed_s = time.monotonic() - start
   finally:
     release.set()
@@ -96,7 +87,7 @@ def test_a_stuck_thread_without_a_queue_records_nothing() -> None:
   thread.start()
 
   try:
-    stub._join_reader_thread(_logger(), thread, None)
+    stub._join_reader_thread(_logger(), thread, None, Deadline(_JOIN_TIMEOUT_S))
   finally:
     release.set()
 

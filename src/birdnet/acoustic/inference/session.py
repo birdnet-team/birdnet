@@ -49,6 +49,7 @@ from birdnet.acoustic.inference.core.prediction.prediction_tensor import (
 from birdnet.acoustic.inference.encoding_strategy import (
   EncodingStrategy,
 )
+from birdnet.acoustic.inference.memory import default_n_workers
 from birdnet.acoustic.inference.prediction_strategy import (
   PredictionStrategy,
 )
@@ -61,6 +62,7 @@ from birdnet.acoustic.inference.strategy import InferenceStrategyBase
 from birdnet.core.backends import VersionedAcousticBackendProtocol
 from birdnet.core.base import SessionBase
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
+from birdnet.utils.segments import duration_as_samples
 
 
 class AcousticSessionBase(
@@ -121,7 +123,6 @@ class AcousticSessionBase(
       raise TypeError("on_file_complete must be callable")
 
     n_producers = ProcessingConfig.validate_n_producers(n_producers)
-    n_workers = ProcessingConfig.validate_n_workers(n_workers)
     batch_size = ProcessingConfig.validate_batch_size(batch_size)
     prefetch_ratio = ProcessingConfig.validate_prefetch_ratio(prefetch_ratio)
     overlap_duration_s = ProcessingConfig.validate_overlap_duration(
@@ -151,6 +152,19 @@ class AcousticSessionBase(
       )
 
     max_n_files = ProcessingConfig.validate_max_n_files(max_n_files)
+
+    # Last, after every other check: it reads the host and logs its decision.
+    if n_workers is None:
+      n_workers = default_n_workers(
+        backend_type=model_backend_type,
+        backend_kwargs=model_backend_custom_kwargs,
+        model_path=model_path,
+        batch_size=batch_size,
+        prefetch_ratio=prefetch_ratio,
+        segment_samples=duration_as_samples(model_segment_size_s, model_sample_rate),
+      )
+    else:
+      n_workers = ProcessingConfig.validate_n_workers(n_workers)
 
     return InferenceConfig(
       model_conf=ModelConfig(
@@ -293,8 +307,12 @@ class AcousticSessionBase(
 
     self._resources.stats_resources.save_end_time()
 
-    # The performance tracker has no other defined end to its run.
-    self._resources.processing_resources.processing_finished_signal.release()
+    # The end of the run, for the two that have no other way to see it: the
+    # progress dispatcher (a thread) and the performance tracker (a process).
+    processing = self._resources.processing_resources
+    processing.processing_finished_event.set()
+    if self._resources.stats_resources.track_performance:
+      processing.processing_finished_sem.release()
     self._process_manager.wait_until_all_finished()
 
     # A child dying or a dispatcher callback raising during the waits above
@@ -385,6 +403,10 @@ class AcousticSessionBase(
     if pm is not None and pm.child_death_error is not None:
       cause = pm.child_death_error
       raise RuntimeError(f"{cause}\n\n{message}") from cause
+    failure = pm.child_failure() if pm is not None else None
+    if failure is not None:
+      name, text = failure
+      raise RuntimeError(f"Pipeline process '{name}' failed: {text}\n\n{message}")
     if pm is not None and pm.run_error is not None:
       error = pm.run_error
       raise RuntimeError(f"{type(error).__name__}: {error}\n\n{message}") from error
@@ -403,11 +425,10 @@ class AcousticSessionBase(
 
     assert self._resources is not None
     self._resources.processing_resources.end_event.set()
-    # Clean path only: a cancelled child lingers in its poll, and that linger
-    # is what lets its last log records drain.
-    if not self._resources.processing_resources.cancel_event.is_set():
-      assert self._process_manager is not None
-      self._process_manager.wake_idle_children()
+    # Also after a cancel: a child's last log records are given time to leave
+    # before it exits (_abandon_logging_feeder), so no linger is needed here.
+    assert self._process_manager is not None
+    self._process_manager.wake_idle_children()
 
   def __exit__(self, *args) -> None:  # noqa: ANN002
     assert self._is_initialized

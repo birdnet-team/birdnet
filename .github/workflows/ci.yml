@@ -54,12 +54,14 @@ jobs:
             macos-15-intel,
             windows-2025,
           ]
-        python-version: ["3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
         exclude:
           - os: macos-15-intel
             python-version: "3.13" # no TF support
           - os: macos-15-intel
             python-version: "3.14" # no TF / torch x86 macOS wheels
+          - os: macos-15-intel
+            python-version: "3.15" # no TF / torch / onnxruntime x86 macOS wheels
 
     steps:
       - name: Checkout
@@ -158,12 +160,23 @@ jobs:
       # 10 GB cache limit. Rename the profile when a lane's download set grows: a
       # primary-key hit is never re-saved.
       - name: Cache downloaded models
+        if: matrix.python-version != '3.15'
         uses: actions/cache@v4
         with:
           path: ${{ env.BIRDNET_APP_DATA }}
           key: birdnet-models-${{ matrix.python-version == '3.14' && 'notf-all' || 'full' }}-${{ steps.model-key.outputs.hash }}
           restore-keys: |
             birdnet-models-${{ matrix.python-version == '3.14' && 'notf-all' || 'full' }}-
+
+      # Read-only: saving the smaller py3.15 set would block the py3.14 cells' save.
+      - name: Restore downloaded models (py3.15)
+        if: matrix.python-version == '3.15'
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.BIRDNET_APP_DATA }}
+          key: birdnet-models-notf-all-${{ steps.model-key.outputs.hash }}
+          restore-keys: |
+            birdnet-models-notf-all-
 
       - name: Install dependencies
         run: uv pip install --system '.[tests]'
@@ -193,6 +206,11 @@ jobs:
         if: matrix.python-version == '3.14'
         run: |
           python -m tox -e py314
+
+      - name: Run tests py315
+        if: matrix.python-version == '3.15'
+        run: |
+          python -m tox -e py315
 
       - name: Run repro tests
         if: matrix.python-version == '3.12' && matrix.os != 'macos-15-intel'

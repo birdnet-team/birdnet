@@ -163,6 +163,7 @@ class InferenceStrategyBase(Generic[ResultType, ConfigType, TensorType], ABC):
       "end_event": resources.processing_resources.end_event,
       "start_signal": resources.worker_resources.start_signals[worker_index],
       "finish_signal": resources.worker_resources.finish_signals[worker_index],
+      "failure_slot": resources.worker_resources.failure_slots[worker_index],
       "half_precision": config.processing_conf.half_precision,
       "start_method": config.start_method,
     }

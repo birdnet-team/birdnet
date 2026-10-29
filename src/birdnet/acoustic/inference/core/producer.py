@@ -8,7 +8,7 @@ from functools import partial
 from itertools import count, islice
 from multiprocessing import Queue, shared_memory
 from multiprocessing.sharedctypes import Synchronized
-from multiprocessing.synchronize import Event, Semaphore
+from multiprocessing.synchronize import Semaphore
 from pathlib import Path
 from queue import Empty
 from typing import Any
@@ -20,7 +20,10 @@ import soundfile
 import birdnet.acoustic.inference.core.logs as bn_logging
 from birdnet.acoustic.inference.core.shm import RingField
 from birdnet.acoustic.inference.core.sync import (
+  ChildSideEvent,
+  ChildToParentQueue,
   CountedSemaphore,
+  FailureSlot,
   abandon_queue_feeders,
   acquire_or_give_up_when_cancelled,
 )
@@ -59,30 +62,33 @@ class Producer(bn_logging.LogableProcessBase):
     sem_filled_slots: CountedSemaphore,
     max_segment_idx_ptr: UIntCType,
     prod_done_ptr: Synchronized[int],
-    end_event: Event,
+    end_event: ChildSideEvent,
     start_signal: Semaphore,
-    finish_signal: Event,
+    finish_signal: ChildSideEvent,
     n_producers: int,
     prd_ring_access_lock: multiprocessing.synchronize.Lock,
     logging_queue: Queue,
     logging_level: int,
-    prod_stats_queue: Queue | None,
+    prod_stats_queue: ChildToParentQueue | None,
     segment_duration_s: float,
     overlap_duration_s: float,
     speed: float,
     target_sample_rate: int,
-    cancel_event: Event,
-    all_finished: Event,
+    cancel_event: ChildSideEvent,
+    all_finished: ChildSideEvent,
     use_bandpass: bool,
     bandpass_fmin: int,
     bandpass_fmax: int,
     fmin: int | None,
     fmax: int | None,
-    unprocessed_inputs_queue: Queue,
+    unprocessed_inputs_queue: ChildToParentQueue,
     start_method: str,
-    completion_queue: Queue | None = None,
+    completion_queue: ChildToParentQueue | None = None,
+    failure_slot: FailureSlot | None = None,
   ) -> None:
-    super().__init__(session_id, __name__, logging_queue, logging_level, start_method)
+    super().__init__(
+      session_id, __name__, logging_queue, logging_level, start_method, failure_slot
+    )
     self._completion_queue = completion_queue
     # Duration (s) of the file currently being segmented; reported alongside the
     # per-file completion marker so a single-file result can clamp end times.
@@ -583,6 +589,7 @@ class Producer(bn_logging.LogableProcessBase):
       self._logger.exception(
         "Producer encountered an exception.", exc_info=e, stack_info=True
       )
+      self._report_failure(e)
       self._cancel_event.set()
 
     # On cancellation the parent stops reading these queues; drop any buffered

@@ -112,10 +112,6 @@ class ProcessingConfig:
 
   @classmethod
   def validate_n_workers(cls, n_workers: Any) -> int:  # noqa: ANN401
-    if n_workers is None:
-      n_physical_cores = psutil.cpu_count(logical=False) or 1
-      n_workers = n_physical_cores
-      return n_workers
     if not isinstance(n_workers, int):
       raise TypeError("n_workers must be an integer")
     if not n_workers >= 1:

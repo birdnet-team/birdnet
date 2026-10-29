@@ -2,12 +2,17 @@ from __future__ import annotations
 
 import multiprocessing.synchronize
 from multiprocessing import Queue
-from multiprocessing.synchronize import Event, Semaphore
+from multiprocessing.synchronize import Semaphore
 
 import numpy as np
 from numpy.typing import DTypeLike
 
 from birdnet.acoustic.inference.core.shm import RingField
+from birdnet.acoustic.inference.core.sync import (
+  ChildSideEvent,
+  ChildToParentQueue,
+  FailureSlot,
+)
 from birdnet.acoustic.inference.core.worker import WorkerBase
 from birdnet.core.backends import BackendLoader, BatchT
 from birdnet.utils.dsp import (
@@ -34,7 +39,7 @@ class PredictionWorker(WorkerBase):
     rf_batch_sizes: RingField,
     rf_flags: RingField,
     segment_duration_samples: int,
-    out_q: Queue,
+    out_q: ChildToParentQueue,
     wkr_ring_access_lock: multiprocessing.synchronize.Lock,
     sem_free: Semaphore,
     sem_fill: Semaphore,
@@ -44,16 +49,17 @@ class PredictionWorker(WorkerBase):
     apply_softmax: bool,
     sigmoid_sensitivity: float | None,
     model_applies_sigmoid: bool,
-    wkr_stats_queue: Queue | None,
+    wkr_stats_queue: ChildToParentQueue | None,
     logging_queue: Queue,
     logging_level: int,
     device: str,
-    cancel_event: Event,
-    all_producers_finished: Event,
+    cancel_event: ChildSideEvent,
+    all_producers_finished: ChildSideEvent,
     start_signal: Semaphore,
-    finish_signal: Event,
-    end_event: Event,
+    finish_signal: ChildSideEvent,
+    end_event: ChildSideEvent,
     start_method: str,
+    failure_slot: FailureSlot | None = None,
   ) -> None:
     assert species_thresholds.shape[0] == 1
     assert species_blacklist.shape[0] == 1
@@ -108,6 +114,7 @@ class PredictionWorker(WorkerBase):
       finish_signal=finish_signal,
       end_event=end_event,
       start_method=start_method,
+      failure_slot=failure_slot,
     )
 
   def _infer(self, batch: BatchT) -> BatchT:

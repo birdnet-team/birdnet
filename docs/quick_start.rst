@@ -51,8 +51,10 @@ Limit prediction worker processes
 ---------------------------------
 
 ``predict`` starts one worker process per physical CPU core when ``n_workers`` is
-omitted. Pass a fixed value when a scheduler or container limits the number of
-processes available to the job:
+omitted, or fewer when the memory available to the process (a container's cgroup
+limit included) would not hold that many; the choice is logged at INFO. Pass a
+fixed value when a scheduler or container limits the number of processes
+available to the job, or to override the estimate:
 
 .. code-block:: python
 

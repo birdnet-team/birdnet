@@ -26,7 +26,14 @@ from birdnet.acoustic.inference.core.perf_tracker import (
   PerformanceTrackingResult,
 )
 from birdnet.acoustic.inference.core.shm import RingField, create_shm_ring
-from birdnet.acoustic.inference.core.sync import CountedSemaphore
+from birdnet.acoustic.inference.core.sync import (
+  ChildToParentQueue,
+  CountedSemaphore,
+  FailureSlot,
+  clear_failure,
+  create_failure_slot,
+  readable,
+)
 from birdnet.core.backends import (
   CPU_THREADS_ARG,
   BackendLoader,
@@ -245,9 +252,10 @@ class ProducerResources:
   all_finished: multiprocessing.synchronize.Event
   ring_access_lock: multiprocessing.synchronize.Lock
   input_queue: Queue
-  unprocessed_inputs_queue: Queue
+  unprocessed_inputs_queue: ChildToParentQueue
   start_signals: list[multiprocessing.synchronize.Semaphore]
   finish_signals: list[multiprocessing.synchronize.Event]
+  failure_slots: list[FailureSlot]
 
   _unprocessed_inputs: set[int] | None = None
 
@@ -264,6 +272,8 @@ class ProducerResources:
       drain_signal(start_signal)
     for finish_signal in self.finish_signals:
       finish_signal.clear()
+    for slot in self.failure_slots:
+      clear_failure(slot)
 
   @classmethod
   def create(cls, conf: InferenceConfig) -> ProducerResources:
@@ -283,6 +293,7 @@ class ProducerResources:
       all_finished=ctx.Event(),
       start_signals=[ctx.Semaphore(0) for _ in range(n_producers)],
       finish_signals=[ctx.Event() for _ in range(n_producers)],
+      failure_slots=[create_failure_slot(ctx) for _ in range(n_producers)],
       unprocessed_inputs_queue=ctx.Queue(),
     )
 
@@ -309,12 +320,13 @@ class ProducerResources:
 
 @dataclass(frozen=True)
 class WorkerResources:
-  results_queue: Queue
+  results_queue: ChildToParentQueue
   ring_access_lock: multiprocessing.synchronize.Lock
   devices: list[str]
   backend_loader: BackendLoader
   start_signals: list[multiprocessing.synchronize.Semaphore]
   finish_signals: list[multiprocessing.synchronize.Event]
+  failure_slots: list[FailureSlot]
 
   @classmethod
   def create(cls, config: InferenceConfig) -> WorkerResources:
@@ -349,6 +361,7 @@ class WorkerResources:
       backend_loader=backend_loader,
       start_signals=[ctx.Semaphore(0) for _ in range(n_workers)],
       finish_signals=[ctx.Event() for _ in range(n_workers)],
+      failure_slots=[create_failure_slot(ctx) for _ in range(n_workers)],
     )
 
   def reset(self) -> None:
@@ -356,6 +369,8 @@ class WorkerResources:
       drain_signal(start_signal)
     for finish_signal in self.finish_signals:
       finish_signal.clear()
+    for slot in self.failure_slots:
+      clear_failure(slot)
 
 
 @dataclass(frozen=True)
@@ -436,10 +451,14 @@ class ProcessingResources:
   def update_interval(self) -> float:
     return 1.0
 
-  # Released once per run to end the performance tracker's wait. A semaphore,
-  # not an Event: ``Event.set()`` blocks for good on a waiter killed inside
-  # ``wait()``, and the tracker sleeps on this for the whole run.
-  processing_finished_signal: multiprocessing.synchronize.Semaphore
+  # Read by the progress dispatcher, a thread of this process; no child may
+  # wait on it, and a threading.Event cannot even be handed to one.
+  processing_finished_event: threading.Event
+  # The same signal for the performance tracker, which waits on it from a
+  # child process: a release never blocks, while a cross-process Event.set()
+  # blocks until every waiter confirms it woke, forever if that waiter was
+  # killed inside its wait. One token per run with a tracker.
+  processing_finished_sem: multiprocessing.synchronize.Semaphore
   cancel_event: multiprocessing.synchronize.Event
 
   # end listening for new files
@@ -452,7 +471,7 @@ class ProcessingResources:
     return self.current_run_nr == 1
 
   def reset(self) -> None:
-    drain_signal(self.processing_finished_signal)
+    self.processing_finished_event.clear()
     self.cancel_event.clear()
     self.end_event.clear()
 
@@ -464,7 +483,8 @@ class ProcessingResources:
     ctx = mp.get_context(conf.start_method)
     return ProcessingResources(
       cancel_event=ctx.Event(),
-      processing_finished_signal=ctx.Semaphore(0),
+      processing_finished_event=threading.Event(),
+      processing_finished_sem=ctx.Semaphore(0),
       end_event=ctx.Event(),
       current_run_nr=1,
     )
@@ -496,13 +516,14 @@ class StatisticsResources:
   wkr_stats_queue: Queue | None
   prd_stats_queue: Queue | None
   sem_active_workers: CountedSemaphore | None
-  perf_res_queue: Queue | None
+  perf_res_queue: ChildToParentQueue | None
   perf_res_start_signal: multiprocessing.synchronize.Semaphore | None
   perf_res_finish_signal: multiprocessing.synchronize.Event | None
+  perf_failure_slot: FailureSlot | None
 
   use_callback: bool
   callback_fn: Callable[[AcousticProgressStats], None] | None
-  callback_queue: Queue | None
+  callback_queue: ChildToParentQueue | None
   callback_start_signal: threading.Event | None
   callback_finish_signal: threading.Event | None
 
@@ -548,6 +569,7 @@ class StatisticsResources:
     perf_res_queue = None
     perf_res_start_signal = None
     perf_res_finish_signal = None
+    perf_failure_slot = None
     wkr_stats_queue = None
     prd_stats_queue = None
     sem_active_workers = None
@@ -556,6 +578,7 @@ class StatisticsResources:
       perf_res_queue = ctx.Queue()
       perf_res_start_signal = ctx.Semaphore(0)
       perf_res_finish_signal = ctx.Event()
+      perf_failure_slot = create_failure_slot(ctx)
       wkr_stats_queue = ctx.Queue()
       prd_stats_queue = ctx.Queue()
       sem_active_workers = CountedSemaphore(0, ctx=ctx)
@@ -598,6 +621,7 @@ class StatisticsResources:
       benchmark_session_dir=benchmark_session_dir,
       perf_res_start_signal=perf_res_start_signal,
       perf_res_finish_signal=perf_res_finish_signal,
+      perf_failure_slot=perf_failure_slot,
       use_callback=use_callback,
       callback_queue=callback_queue,
       callback_start_signal=callback_start_signal,
@@ -623,6 +647,8 @@ class StatisticsResources:
     # liveness check on that wait would never execute.
     if self.perf_res_finish_signal is not None:
       self.perf_res_finish_signal.clear()
+    if self.perf_failure_slot is not None:
+      clear_failure(self.perf_failure_slot)
 
     # Cleared for the same reason: left set, the parent would never actually
     # wait for the dispatcher on runs 2+, so those runs would get no closing
@@ -644,7 +670,7 @@ class FileCompletionResources:
 
   enabled: bool
   callback_fn: Callable[[object], None] | None
-  marker_queue: Queue | None
+  marker_queue: ChildToParentQueue | None
   dispatch_queue: queue.Queue | None
   start_signal: threading.Event | None
   finish_signal: threading.Event | None
@@ -678,13 +704,21 @@ class FileCompletionResources:
     assert self.start_signal is not None
     assert self.finish_signal is not None
     # Drain any stragglers (e.g. after a cancelled run) so a reused session
-    # starts clean and never mixes markers/items across runs.
-    for q in (self.dispatch_queue, self.marker_queue):
-      while True:
-        try:
-          q.get_nowait()
-        except queue.Empty:
-          break
+    # starts clean and never mixes markers/items across runs. The marker queue
+    # is read on the calling thread: a marker is a four-field tuple of under
+    # 200 bytes, below PIPE_BUF on every platform, so its write is atomic and
+    # a killed producer cannot leave a torn frame here.
+    while True:
+      try:
+        self.dispatch_queue.get_nowait()
+      except queue.Empty:
+        break
+    markers = readable(self.marker_queue)
+    while True:
+      try:
+        markers.get_nowait()
+      except queue.Empty:
+        break
     self.start_signal.clear()
     self.finish_signal.clear()
 
