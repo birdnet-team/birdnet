@@ -1,5 +1,6 @@
 import logging
 import multiprocessing.synchronize
+import queue
 import threading
 from logging.handlers import MemoryHandler
 from multiprocessing import Queue
@@ -22,7 +23,9 @@ class QueueFileWriter:
     self._log_file = log_file
     self._cancel_event = cancel_event
     self._logging_stop_event = stop_event
-    self._get_logs_interval_s = 1
+    # Only an idle writer waits this long: a record wakes the read at once. It
+    # bounds how long the stop event goes unnoticed, so it is part of every exit.
+    self._get_logs_interval_s = 0.1
     self._logger = logging.getLogger(f"birdnet_file_writer.session_{self._session_id}")
     self._logger.setLevel(self._logging_level)
     self._logger.propagate = False
@@ -58,31 +61,24 @@ class QueueFileWriter:
   def _run_main_loop(self) -> None:
     assert len(self._logger.handlers) == 1
     memory_handler = self._logger.handlers[0]
-    stop_logging = False
+    # Reads with a timeout and never puts anything into the queue itself: a
+    # parent-side put goes through the queue's write lock, which a child killed
+    # inside a write leaves held for good (POSIX). Reading continuously also
+    # keeps the pipe empty, so a child's feeder holds that lock for the
+    # microseconds of a write rather than for the length of a parent-side pause.
     while True:
       try:
-        get_end_marker = None
-        self._log_queue.put(get_end_marker)
-
-        # NOTE: !empty() not working reliable and qsize() not available on macOS
-        is_empty = True
-
-        while True:
-          queue_entry = self._log_queue.get(block=True)
-          if queue_entry is get_end_marker:
-            break
-          is_empty = False
-
-          record: logging.LogRecord = queue_entry
-          self._logger.handle(record)
-        memory_handler.flush()
-
-        if is_empty:
-          if not stop_logging:
-            stop_logging = self._logging_stop_event.wait(self._get_logs_interval_s)
-          else:
+        try:
+          record: logging.LogRecord = self._log_queue.get(
+            timeout=self._get_logs_interval_s
+          )
+        except queue.Empty:
+          memory_handler.flush()
+          if self._logging_stop_event.is_set():
             self._logger.debug("Stop logging event set and log queue is empty.")
             break
+          continue
+        self._logger.handle(record)
       except OSError as e:
         # Expected when the file is closed mid-write, e.g. on termination.
         if e.args[0] == "handle is closed":

@@ -605,8 +605,7 @@ class Producer(bn_logging.LogableProcessBase):
     self._uninit_logging()
 
     # Last, and only now that the handler is gone: see _abandon_logging_feeder.
-    if self._cancel_event.is_set():
-      self._abandon_logging_feeder()
+    self._abandon_logging_feeder()
 
   def _run_main_loop(self) -> None:
     while True:

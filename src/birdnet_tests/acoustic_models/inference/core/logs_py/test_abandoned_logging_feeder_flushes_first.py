@@ -1,10 +1,11 @@
 """A cancelled child flushes its buffered log records before abandoning the feeder.
 
-The parent's log writer reads the logging queue on a one-second poll, so a
-child that logs a burst and exits finds the pipe full and its feeder thread
-holding the tail: the records the parent has not read yet. Abandoning the
-feeder at that moment drops the tail wholesale, and a feeder cut off inside a
-write leaves a half-written frame that wedges the parent's reader for good.
+A child that logs a burst faster than the parent's writer reads it and then
+exits finds the pipe full and its feeder thread holding the tail: the records
+the parent has not read yet. Abandoning the feeder at that moment drops the
+tail wholesale, and a feeder cut off inside a write leaves a half-written
+frame that wedges the parent's reader for good. The reader here starts late to
+stand in for a writer that is behind.
 """
 
 from __future__ import annotations
@@ -27,7 +28,7 @@ pytestmark = pytest.mark.no_tf
 # Well past any pipe: 64 KB on Linux, 8 KB on Windows, at ~300 bytes per
 # pickled record.
 N_RECORDS = 3_000
-# The parent's writer polls every second; the child must outwait that.
+# Long enough for the burst to fill the pipe before anyone reads it.
 READER_DELAY_S = 0.5
 DEADLINE_S = 30.0
 

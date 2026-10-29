@@ -59,9 +59,13 @@ TEARDOWN_BUDGET_S = 30.0
 # and then killing what ignores that still fit inside the budget.
 _KILL_RESERVE_S = 5.0
 # Kept back from the terminate wait for the thread joins after the children: a
-# healthy drainer, dispatcher or reader needs milliseconds, the log writer up
-# to its one-second poll.
+# healthy drainer, dispatcher, reader or log writer needs milliseconds.
 _TAIL_RESERVE_S = 2.0
+# How long teardown waits for the log writer after the stop event. Every child
+# is joined by then, so the writer has only what is left in the pipe to write;
+# one that has not stopped in this time is blocked on a half-written record
+# from a killed child and never will.
+_LOG_WRITER_STOP_TIMEOUT_S = 5.0
 # How often the parent looks up from an otherwise unbounded wait to check that
 # its children are still alive. Short enough that a dead child is reported
 # promptly, long enough to be free next to the work being waited on.
@@ -1022,17 +1026,20 @@ class ProcessManager:
   def join_logging(self) -> None:
     """Wait for the log writer, but never on something that cannot finish.
 
-    The writer reads the shared logging queue with a blocking ``get``, and a
-    child killed mid-``put`` leaves a message whose remainder never arrives:
-    the read then blocks for good, with no exception to catch, exactly as on
-    the cancel-path drain (issue #77). It is a daemon thread, so leaving it
-    parked costs the tail of the session log and nothing else -- whereas
-    waiting on it costs the whole teardown.
+    The writer reads the shared logging queue, and a child killed mid-``put``
+    leaves a message whose remainder never arrives: the read then blocks for
+    good, with no exception to catch, exactly as on the cancel-path drain
+    (issue #77). It is a daemon thread, so leaving it parked costs the tail of
+    the session log and nothing else -- whereas waiting on it costs the whole
+    teardown, so the wait is the shorter of the budget's remainder and
+    ``_LOG_WRITER_STOP_TIMEOUT_S``.
     """
     assert self._logging_thread is not None
     if self._teardown is None:
       self._teardown = Deadline(TEARDOWN_BUDGET_S)
-    self._logging_thread.join(timeout=self._teardown.remaining())
+    self._logging_thread.join(
+      timeout=min(self._teardown.remaining(), _LOG_WRITER_STOP_TIMEOUT_S)
+    )
     if self._logging_thread.is_alive():
       self._logger.warning(
         "The log writer is still blocked reading the logging queue; the "

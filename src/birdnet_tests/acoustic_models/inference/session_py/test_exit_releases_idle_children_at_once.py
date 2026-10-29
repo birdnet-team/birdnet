@@ -9,16 +9,14 @@ exit must also be clean: a child that mistakes the wake for a run start fails
 and cancels the session, and that exit is prompt too. The release also covers
 a cancelled run, where the children's last log records leave through the
 bounded drain in `_abandon_logging_feeder` rather than a wait on the poll.
-The package logger runs at INFO, the library default: the suite raises it to
-DEBUG, where the children's log traffic adds its own half second to every
-exit.
+The suite runs the package logger at DEBUG, so the children's log traffic is
+part of what is measured: the parent's writer reads it continuously, and a
+writer that let the pipe fill would show up here as a slow exit.
 """
 
 from __future__ import annotations
 
-import logging
 import time
-from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -33,16 +31,6 @@ pytestmark = pytest.mark.no_tf
 
 N_SESSIONS = 3
 MAX_FASTEST_EXIT_S = 0.5
-
-
-@pytest.fixture
-def info_level() -> Iterator[None]:
-  # The session captures the package logger's level when it is created.
-  logger = logging.getLogger("birdnet")
-  previous = logger.level
-  logger.setLevel(logging.INFO)
-  yield
-  logger.setLevel(previous)
 
 
 # The second case also starts the performance tracker, the progress dispatcher
@@ -63,7 +51,6 @@ CASES: dict[str, tuple[dict[str, object], bool]] = {
 
 
 @pytest.mark.parametrize("case", CASES.values(), ids=CASES.keys())
-@pytest.mark.usefixtures("info_level")
 def test_fastest_exit_is_well_below_the_idle_poll(
   tmp_path: Path, case: tuple[dict[str, object], bool]
 ) -> None:

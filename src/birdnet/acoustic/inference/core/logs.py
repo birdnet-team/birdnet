@@ -50,9 +50,9 @@ _MAX_RECORD_BYTES = 12_000
 # wrong -- while the head carries the log message and the innermost frames.
 _TRUNCATED_HEAD_BYTES = 7_000
 _TRUNCATED_TAIL_BYTES = 4_000
-# How long a cancelled child waits for its logging feeder to empty before it
-# exits without it. The parent's writer polls every second, so a full pipe
-# needs up to that plus the drain itself; measured need 0.2 to 0.4 s.
+# How long a child waits for its logging feeder to empty before it exits
+# without it. The parent's writer reads continuously, so this covers the drain
+# itself plus a writer briefly behind; measured need 0.2 to 0.4 s.
 _LOG_DRAIN_TIMEOUT_S = 2.0
 
 
@@ -141,21 +141,20 @@ class LogableProcessBase:
   def _abandon_logging_feeder(self) -> None:
     """Flush the logging feeder for a bounded time, then exit without it.
 
-    Call last, on the cancellation path only. Every child writes to this one
-    queue, and a `multiprocessing.Queue` holds a write lock around the actual
-    pipe write on POSIX. A child killed inside that write never releases the
-    lock, so every surviving child's logging feeder thread is stuck on it --
-    and `multiprocessing` joins that feeder when the process exits, so the
-    survivors cannot leave and the parent has to terminate them.
+    Call last, on every exit path. Every child writes to this one queue, and a
+    `multiprocessing.Queue` holds a write lock around the actual pipe write on
+    POSIX. A child killed inside that write never releases the lock, so every
+    surviving child's logging feeder thread is stuck on it -- and
+    `multiprocessing` joins that feeder when the process exits, so without
+    this bound the survivors cannot leave, whether their run ended cleanly or
+    not, and the parent has to terminate them.
 
-    What the feeder still holds is everything logged since the parent's writer
-    last woke from its one-second poll: at DEBUG with a full pipe that is the
-    child's whole tail, its own error record included. And a feeder cut off
-    inside a write leaves a half-written frame that blocks the parent's
-    writer for good, and leaves the queue's write lock held, which blocks
-    every other process's next log write. So the feeder gets a bounded chance
-    to finish; only when the writer is not reading at all is the tail
-    abandoned.
+    What the feeder still holds is whatever the parent's writer has not read
+    yet: on a cancel that includes the child's own error record. And a feeder
+    cut off inside a write leaves a half-written frame that blocks the
+    parent's writer for good, and leaves the queue's write lock held, which
+    blocks every other process's next log write. So the feeder gets a bounded
+    chance to finish; only when nothing reads the pipe is the tail abandoned.
     """
     q = self.__logging_queue
     # Hands the feeder its sentinel; nothing is logged after _uninit_logging.
