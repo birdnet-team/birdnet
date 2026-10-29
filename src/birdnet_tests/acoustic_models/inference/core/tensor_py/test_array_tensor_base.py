@@ -104,7 +104,8 @@ def test_copy_file_slice_returns_independent_copies(
   for copy, (name, array) in zip(copies, named.items(), strict=True):
     assert copy.shape == (1, 3, WIDTH), name
     assert copy.dtype == array.dtype, name
-    assert np.array_equal(copy[0], array[1, :3]), name
+    # Bytes: unwritten segment 1 may hold NaN, which array_equal never matches.
+    assert copy[0].tobytes() == array[1, :3].tobytes(), name
     assert not np.shares_memory(copy, array), name
 
 
