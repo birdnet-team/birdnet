@@ -35,8 +35,8 @@ class ReprCountingBackend(FakeAcousticBackend):
   f-string formatting of an ndarray. The output directory comes from the
   environment because the backend is built inside the spawned worker, which
   inherits the parent's environment but none of its objects. The count is
-  written on every `predict()` and again at interpreter exit, so the file is
-  complete even if the worker leaves abruptly.
+  written on every `predict()`, so the file is current after each batch; the
+  write at interpreter exit covers a clean exit only.
   """
 
   def load(self) -> None:

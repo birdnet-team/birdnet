@@ -1,9 +1,9 @@
 """A session reused after an idle child process died fails that run with a diagnosis.
 
-Starting a run releases every child's start signal. With a semaphore the
-release returns even when the child was killed inside its wait, so the run
-proceeds and the liveness check reports the dead process; with an Event the
-parent blocked in `set()` forever and the run never started. Producers,
+Starting a run releases every child's start signal. A semaphore release
+returns even when the child was killed inside its wait, so the run proceeds
+and the liveness check reports the dead process; a `multiprocessing.Event`
+would block `set()` until the dead waiter confirmed it woke. Producers,
 workers and the performance tracker each wait on a start signal of their own,
 so each kind is killed in turn. The run and the exit each execute on a daemon
 thread so that a hang fails the test instead of wedging it; on failure the

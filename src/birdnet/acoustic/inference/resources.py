@@ -634,6 +634,8 @@ class StatisticsResources:
     start_time = time.time()
     start_timepoint = datetime.now()
 
+    if self.perf_res_start_signal is not None:
+      drain_signal(self.perf_res_start_signal)
     object.__setattr__(self, "_stop", None)
     object.__setattr__(self, "_end_timepoint", None)
     object.__setattr__(self, "_tracking_result", None)

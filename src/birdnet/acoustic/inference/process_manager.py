@@ -53,7 +53,7 @@ from birdnet.core.base import get_session_id_hash
 
 # One budget for the whole teardown: every wait in it draws what is left, so a
 # child that cannot exit costs the caller at most this much. A healthy teardown
-# uses a second or two of it.
+# uses a small fraction of a second of it.
 TEARDOWN_BUDGET_S = 30.0
 # Kept back from the children's grace, so that terminating what is still there
 # and then killing what ignores that still fit inside the budget.
@@ -864,8 +864,9 @@ class ProcessManager:
   def _join_processes(self, logger: Logger, deadline: Deadline) -> None:
     """Join the children of a run that ended cleanly.
 
-    They exit on their next one-second poll of the end event; the budget
-    covers a child that never gets there, say one still inside a model load.
+    ``wake_idle_children`` has released their start-signal waits, so they see
+    the end event at once; the budget covers a child that never gets there,
+    say one still inside a model load.
     """
     logger.debug("Joining child processes...")
     self._reap_children(logger, self._children(), deadline)

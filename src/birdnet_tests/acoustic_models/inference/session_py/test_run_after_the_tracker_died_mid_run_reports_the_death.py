@@ -4,10 +4,10 @@ The tracker sleeps on the processing-finished signal from a few milliseconds
 into a run until the parent announces the end of the run. That signal is a
 semaphore because a release returns even when the sleeper was killed inside
 its wait; `multiprocessing.Event.set()` waits for every registered waiter to
-confirm it woke, forever when that waiter is dead, and the parent reached it
-before any liveness check could notice the death. The tracker is killed
-between the consumer's return and that announcement, the window the hang
-lived in. The run and the exit each execute on a daemon thread so that a hang
+confirm it woke, forever when that waiter is dead, and the parent reaches it
+before any liveness check can notice the death. The tracker is killed
+between the consumer's return and that announcement, where no liveness check
+runs. The run and the exit each execute on a daemon thread so that a hang
 fails the test instead of wedging it; on failure the session's remaining
 children are killed rather than joined.
 """
