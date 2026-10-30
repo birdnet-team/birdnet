@@ -13,6 +13,7 @@ from multiprocessing.process import BaseProcess
 from multiprocessing.synchronize import Event as EventType
 from pathlib import Path
 from queue import Empty
+from typing import Literal
 
 import numpy as np
 
@@ -74,6 +75,10 @@ _LIVENESS_POLL_INTERVAL_S = 1.0
 # only ever have one ``get_nowait`` left to finish, so anything still running
 # after this is stuck for good and is left to the daemon-thread machinery.
 _DRAIN_STOP_TIMEOUT_S = 1.0
+
+
+class PipelineThreadError(RuntimeError):
+  """The manager's own diagnosis of a pipeline thread of this process."""
 
 
 def _drain_queue(q: ChildToParentQueue, stop: threading.Event) -> None:
@@ -189,6 +194,8 @@ class ProcessManager:
     assert self._res.stats_resources.callback_queue is not None
     assert self._res.stats_resources.callback_start_signal is not None
     assert self._res.stats_resources.callback_finish_signal is not None
+    assert self._res.stats_resources.callback_last_update_signal is not None
+    assert self._res.stats_resources.callback_busy_signal is not None
     assert self._res.stats_resources.callback_fn is not None
 
     dispatcher = ProgressDispatcher(
@@ -197,6 +204,8 @@ class ProcessManager:
       check_interval=self._res.processing_resources.update_interval,
       start_signal=self._res.stats_resources.callback_start_signal,
       finish_signal=self._res.stats_resources.callback_finish_signal,
+      last_update_signal=self._res.stats_resources.callback_last_update_signal,
+      busy_signal=self._res.stats_resources.callback_busy_signal,
       end_event=self._res.processing_resources.end_event,
       callback_queue=self._res.stats_resources.callback_queue,
       cancel_event=self._res.processing_resources.cancel_event,
@@ -603,13 +612,13 @@ class ProcessManager:
 
     Two ways it cannot: a child process died, or the run was cancelled.
 
-    The cancel case matters for ``ProgressDispatcher``, which the liveness
-    check cannot see because it is a thread, not a process: its callback is
-    invoked unguarded, so an exception escapes to its handler, which sets the
-    cancel event and returns *without* setting the finish signal. Waiting on
-    that signal would then block forever. (``FileCompletionDispatcher`` catches
-    its callback's exception internally and does signal, so it is safe either
-    way.)
+    The cancel case matters for the threads this wait covers, which the
+    liveness check cannot see because they are not processes: one that fails
+    sets the cancel event and may return *without* setting its finish signal,
+    and waiting on that signal would then block forever.
+    (``ProgressDispatcher`` has its own wait below; ``FileCompletionDispatcher``
+    catches its callback's exception internally and does signal, so it is safe
+    either way.)
 
     Both conditions return rather than raise, so the caller's
     ``_raise_if_cancelled`` reports every failure the same way. Letting the
@@ -652,8 +661,132 @@ class ProcessManager:
       self._wait_for_finish_signal(res.stats_resources.perf_res_finish_signal)
 
     if res.stats_resources.use_callback:
+      assert res.stats_resources.callback_last_update_signal is not None
+      assert res.stats_resources.callback_busy_signal is not None
       assert res.stats_resources.callback_finish_signal is not None
-      self._wait_for_finish_signal(res.stats_resources.callback_finish_signal)
+      self._wait_for_progress_dispatcher(
+        res.stats_resources.callback_last_update_signal,
+        res.stats_resources.callback_busy_signal,
+        res.stats_resources.callback_finish_signal,
+      )
+
+  def _wait_for_progress_dispatcher(
+    self,
+    last_update_signal: threading.Event,
+    busy_signal: threading.Event,
+    finish_signal: threading.Event,
+  ) -> None:
+    """Wait for the dispatcher to read the tracker's last update, then to finish.
+
+    Phase 1 waits for the dispatcher to read the tracker's closing update, the
+    one flagged finished. The tracker hands that update to its queue's feeder
+    thread and then sets its finish signal, so a tracker killed after the
+    signal and before the feeder wrote the update leaves the signal set and
+    the update unsent. The liveness check skips a signalled child on purpose
+    (a finished child may exit), so this is ``read_promised`` in another
+    shape: the same deadline, counted from the tracker's finish signal, which
+    the caller has just seen. The deadline is for the message, not for the
+    caller's code: while the dispatcher is inside the progress callback
+    (``busy_signal``) it cannot read the update, and every poll that finds it
+    there starts the deadline afresh. The update counts as lost only once the
+    dispatcher was free to read it for a whole deadline, less at most one poll.
+
+    Phase 2 waits for the dispatcher to finish, that is for the progress
+    callback on the closing update to return. It has no deadline: the update
+    has arrived, and the callback is the caller's own code.
+
+    The dispatcher reports whatever ends it and cancels the run, which ends
+    either phase. The liveness check cannot see a thread, so both phases also
+    watch the dispatcher themselves, for one that ends any other way. Returns
+    rather than raises, for the reason ``_wait_for_finish_signal`` gives.
+    """
+    thread = self._progress_dispatcher_thread
+    assert thread is not None
+    outcome = self._poll_progress_dispatcher(
+      thread,
+      last_update_signal,
+      Deadline(_PROMISED_MESSAGE_DEADLINE_S),
+      busy_signal,
+    )
+    if outcome == "expired":
+      self._record_lost_last_update()
+    elif outcome == "dead":
+      self._record_dispatcher_death(thread, "without delivering")
+    elif (
+      outcome == "set"
+      and self._poll_progress_dispatcher(thread, finish_signal, None) == "dead"
+    ):
+      self._record_dispatcher_death(thread, "without finishing after")
+
+  def _record_lost_last_update(self) -> None:
+    tracker = self._perf_tracker_process
+    assert tracker is not None
+    if tracker.is_alive():
+      message = (
+        f"Pipeline process '{tracker.name}' finished its work, but its last "
+        f"progress update did not arrive within "
+        f"{_PROMISED_MESSAGE_DEADLINE_S:.0f} s, although the process is still "
+        f"alive. The update was lost on its way to this process."
+      )
+    else:
+      message = (
+        f"Pipeline process '{tracker.name}' exited unexpectedly with exit code "
+        f"{tracker.exitcode} after it finished its work, with its last progress "
+        f"update unsent: the update did not arrive within "
+        f"{_PROMISED_MESSAGE_DEADLINE_S:.0f} s. This usually means the process "
+        f"was killed from the outside (e.g. by the OOM killer when memory ran "
+        f"out) or crashed in native code."
+      )
+    self.record_child_death(message)
+
+  def _poll_progress_dispatcher(
+    self,
+    thread: threading.Thread,
+    signal: threading.Event,
+    deadline: Deadline | None,
+    busy_signal: threading.Event | None = None,
+  ) -> Literal["set", "cancelled", "dead", "expired"]:
+    """Wait for one of the dispatcher's signals, watching the thread that sets it.
+
+    The deadline starts afresh at every poll that finds ``busy_signal`` set.
+    """
+    cancel_event = self._res.processing_resources.cancel_event
+    while True:
+      timeout = _LIVENESS_POLL_INTERVAL_S
+      if deadline is not None:
+        timeout = min(timeout, deadline.remaining())
+      if signal.wait(timeout):
+        return "set"
+      # Read before the signal and the cancel: a thread that set either on its
+      # way out did so before it ended, so it is not taken for a dead one.
+      alive = thread.is_alive()
+      if signal.is_set():
+        return "set"
+      if cancel_event.is_set():
+        self._logger.debug("Run cancelled while waiting for the progress dispatcher.")
+        return "cancelled"
+      if not alive:
+        return "dead"
+      if deadline is not None:
+        if busy_signal is not None and busy_signal.is_set():
+          deadline = Deadline(deadline.budget_s)
+        if deadline.remaining() <= 0:
+          return "expired"
+
+  def _record_dispatcher_death(self, thread: threading.Thread, what: str) -> None:
+    """Fail the run for a dispatcher thread that ended without signalling.
+
+    The dispatcher reports its own failures, its callback's included; this is
+    for one that ended without doing so. Not a child process, so the diagnosis
+    goes to the run-error slot.
+    """
+    message = (
+      f"Progress dispatcher thread '{thread.name}' ended {what} the "
+      f"performance tracker's last progress update and reported no error."
+    )
+    self.record_run_error(PipelineThreadError(message))
+    self._logger.error(message)
+    self._res.processing_resources.cancel_event.set()
 
   def run_consumer(
     self,
@@ -742,13 +875,14 @@ class ProcessManager:
     self._stopped_readers.clear()
 
   def record_child_death(self, message: str) -> None:
-    """Store a diagnosis and fail the run, on behalf of the consumer.
+    """Store a diagnosis and fail the run, for a loss the liveness check cannot see.
 
-    The consumer detects two losses the liveness check is blind to (a child
-    dead *after* its finish signal, its last message unflushed) but has no
-    handle on this manager's error slot; without this the caller would see a
-    bare "Analysis was cancelled" for exactly the failure this machinery
-    exists to name.
+    A child dead *after* its finish signal, its last message unflushed, is
+    found by whoever waited for that message: the consumer, which has no
+    handle on this manager's error slot, or the first phase of the dispatcher
+    wait above, for the tracker's closing update. Without this the caller
+    would see a bare "Analysis was cancelled" for exactly the failure this
+    machinery exists to name.
     """
     self._logger.error(message)
     self._child_death_error = ChildProcessError(message)

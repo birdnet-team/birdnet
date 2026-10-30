@@ -780,6 +780,8 @@ class ProgressDispatcher:
     end_event: Event,
     start_signal: threading.Event,
     finish_signal: threading.Event,
+    last_update_signal: threading.Event,
+    busy_signal: threading.Event,
     processing_finished_event: threading.Event,
     check_interval: float,
     report_error: Callable[[BaseException], None] | None = None,
@@ -788,12 +790,14 @@ class ProgressDispatcher:
     self._session_id = session_id
     # Read on this dispatcher thread: a torn frame parks the thread, and
     # teardown's join of it is bounded. A final update the tracker promised
-    # but never flushed still holds the run (the same class as read_promised).
+    # but never flushed fails the run at the parent's deadline for it.
     self._callback_queue = readable(callback_queue)
     self._cancel_event = cancel_event
     self._end_event = end_event
     self._start_signal = start_signal
     self._finish_signal = finish_signal
+    self._last_update_signal = last_update_signal
+    self._busy_signal = busy_signal
     self._callback_fn = callback_fn
     self._processing_finished_event = processing_finished_event
     self._check_interval = check_interval
@@ -824,6 +828,16 @@ class ProgressDispatcher:
       if self._report_error is not None:
         self._report_error(e)
       self._cancel_event.set()
+    except BaseException as e:
+      # Reported and cancelled like an Exception, so the run fails at once;
+      # re-raised rather than swallowed.
+      self._logger.exception(
+        "ProgressDispatcher ended by %s.", type(e).__name__, exc_info=e
+      )
+      if self._report_error is not None:
+        self._report_error(e)
+      self._cancel_event.set()
+      raise
 
   def run_main_loop(self) -> None:
     while True:
@@ -870,10 +884,20 @@ class ProgressDispatcher:
         if self._check_end_event():
           return
       else:
+        closing = latest.finished and self._processing_finished_event.is_set()
+        # Before the callback: the parent's deadline is for the message, not
+        # for the user's code.
+        if closing:
+          self._last_update_signal.set()
         self._log("Received stats. Call callback function.")
-        self._callback_fn(latest)
+        # This thread cannot read the queue meanwhile, so the parent's deadline
+        # does not count while this is set.
+        self._busy_signal.set()
+        try:
+          self._callback_fn(latest)
+        finally:
+          self._busy_signal.clear()
 
-        finished = self._processing_finished_event.is_set()
-        if finished and latest.finished:
+        if closing:
           self._log("Processing finished event is set. Exiting loop.")
           return
