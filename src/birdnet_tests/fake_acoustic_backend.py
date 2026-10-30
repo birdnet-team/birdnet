@@ -197,6 +197,17 @@ class TimeoutErrorBackend(FakeAcousticBackend):
     raise TimeoutError("network share read timed out")
 
 
+class PageFileBackend(FakeAcousticBackend):
+  """Fails in `load` with the text Windows gives at its commit limit."""
+
+  def load(self) -> None:
+    # Spelled out, so the text is the same on every platform.
+    raise OSError(
+      "[WinError 1455] The paging file is too small for this operation to "
+      'complete. Error loading "torch\\lib\\shm.dll" or one of its dependencies.'
+    )
+
+
 def raise_foreign_load_error() -> None:
   """Raises an exception whose class lives in a module only this call imports."""
   from birdnet_tests.foreign_load_error import ForeignLoadError

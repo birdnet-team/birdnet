@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+import sys
 from abc import ABC
 from collections.abc import Callable, Collection, Iterable
 from contextlib import AbstractContextManager
@@ -63,6 +64,33 @@ from birdnet.core.backends import VersionedAcousticBackendProtocol
 from birdnet.core.base import SessionBase
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
 from birdnet.utils.segments import duration_as_samples
+
+
+def _page_file_hint(failure_text: str) -> str:
+  """What to do when a child failed at the Windows commit limit, else ``""``."""
+  if sys.platform != "win32":
+    return ""
+  # An OSError carries the code; an extension module that failed to load
+  # (numpy, scipy, a runtime) carries only Windows' own text for it.
+  if (
+    "[WinError 1455]" not in failure_text
+    and _windows_error_text(1455) not in failure_text
+  ):
+    return ""
+  # The commit limit is RAM plus page file, so free RAM does not prevent it.
+  return (
+    " WinError 1455 means the page file is too small for this run: enlarge it "
+    "or let Windows manage its size, or lower 'n_workers'."
+  )
+
+
+def _windows_error_text(code: int) -> str:
+  """Windows' own message for an error code, in the system language."""
+  if sys.platform != "win32":
+    raise RuntimeError("Windows only")
+  import ctypes
+
+  return ctypes.FormatError(code).strip()
 
 
 class AcousticSessionBase(
@@ -159,6 +187,7 @@ class AcousticSessionBase(
         backend_type=model_backend_type,
         backend_kwargs=model_backend_custom_kwargs,
         model_path=model_path,
+        n_producers=n_producers,
         batch_size=batch_size,
         prefetch_ratio=prefetch_ratio,
         segment_samples=duration_as_samples(model_segment_size_s, model_sample_rate),
@@ -406,7 +435,9 @@ class AcousticSessionBase(
     failure = pm.child_failure() if pm is not None else None
     if failure is not None:
       name, text = failure
-      raise RuntimeError(f"Pipeline process '{name}' failed: {text}\n\n{message}")
+      raise RuntimeError(
+        f"Pipeline process '{name}' failed: {text}{_page_file_hint(text)}\n\n{message}"
+      )
     if pm is not None and pm.run_error is not None:
       error = pm.run_error
       raise RuntimeError(f"{type(error).__name__}: {error}\n\n{message}") from error
