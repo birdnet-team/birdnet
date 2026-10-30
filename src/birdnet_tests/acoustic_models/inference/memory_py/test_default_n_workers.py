@@ -32,8 +32,9 @@ def _simulate(monkeypatch: pytest.MonkeyPatch, available_mib: int) -> None:
 def test_the_default_shrinks_under_a_simulated_limit(
   tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-  # (1 GiB - 256 MiB) * 0.9 = 691 MiB holds three workers of ~200 MiB (the
-  # fake backend's two ring slots add 1.1 MiB).
+  # (1 GiB - 128 MiB parent - 129 MiB producer with its slots) * 0.9 = 690 MiB
+  # holds three workers of ~200 MiB (the fake backend's two ring slots add
+  # 1.1 MiB).
   _simulate(monkeypatch, 1024)
   with caplog.at_level(logging.INFO, logger="birdnet"):
     session = fake_predict_session(tmp_path, n_workers=None)
@@ -44,6 +45,21 @@ def test_the_default_shrinks_under_a_simulated_limit(
   assert len(decisions) == 1
   assert decisions[0].levelno == logging.INFO
   assert "32 would need" in decisions[0].getMessage()
+  assert "after 256 MiB for the parent and 1 producer" in decisions[0].getMessage()
+
+
+def test_the_sessions_producers_are_kept_back(
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+  # A second producer leaves (1024 - 385.6) * 0.9 = 574 MiB, two workers.
+  _simulate(monkeypatch, 1024)
+  with caplog.at_level(logging.INFO, logger="birdnet"):
+    session = fake_predict_session(tmp_path, n_workers=None, n_producers=2)
+  assert session._conf.processing_conf.workers == 2
+  assert any(
+    "after 385 MiB for the parent and 2 producers" in r.getMessage()
+    for r in caplog.records
+  )
 
 
 def test_an_explicit_count_is_kept_under_the_same_limit(

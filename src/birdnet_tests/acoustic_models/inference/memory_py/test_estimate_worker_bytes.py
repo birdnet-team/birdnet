@@ -92,10 +92,10 @@ def test_estimate_uses_the_backends_row() -> None:
 def test_a_ring_slot_is_four_bytes_per_sample(
   tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-  # 1 GiB after the reserve and the 0.9 planning fraction is 691 MiB; with no
-  # worker memory at all, 2 slots of batch 16 x 100 000 samples x 4 B each
-  # (12.2 MiB per worker) fit 56 times, not the 226 that 1 byte per sample
-  # would give.
+  # 1 GiB after the reserve (256 MiB plus the producer's 1.5 slots) and the
+  # 0.9 planning fraction is 683 MiB; with no worker memory at all, 2 slots of
+  # batch 16 x 100 000 samples x 4 B each (12.2 MiB per worker) fit 55 times,
+  # not the 225 that 1 byte per sample would give.
   monkeypatch.setattr(memory, "physical_cores", lambda: 1000)
   monkeypatch.setattr(memory, "host_memory_available", lambda: 1024 * _MIB)
   monkeypatch.setattr(memory, "cgroup_memory_available", lambda: None)
@@ -104,8 +104,9 @@ def test_a_ring_slot_is_four_bytes_per_sample(
     backend_type=FakeAcousticBackend,  # type: ignore[arg-type]
     backend_kwargs={},
     model_path=tmp_path / "none",
+    n_producers=1,
     batch_size=16,
     prefetch_ratio=1,
     segment_samples=100_000,
   )
-  assert n == 56
+  assert n == 55
