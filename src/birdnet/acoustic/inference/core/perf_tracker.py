@@ -28,6 +28,9 @@ from birdnet.acoustic.inference.core.sync import (
 )
 from birdnet.globals import READABLE_FLAG, READING_FLAG, WRITABLE_FLAG
 
+# Pause between the drains that wait for stats trailing the end-of-run token.
+_LATE_STATS_POLL_S = 0.02
+
 
 @dataclass
 class PerformanceTrackingResult:
@@ -354,23 +357,41 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       if self._check_cancel_event():
         return
 
-      was_empty = self._track_stats()
-
       # One token per run: once taken, the remaining passes only drain the
       # queues, without waiting.
       if not finished:
         finished = self._processing_finished.acquire(timeout=self._update_every)
+      # Before the drain: after a cancel the parent drains these queues too, and
+      # a drainer that takes this drain's end marker would block it for good.
+      if self._check_cancel_event():
+        return
+
+      # Collected after the wait, so an update reports what the workers had
+      # sent by the time it is built. Once the token is taken, the first drain
+      # that finds nothing new closes the run.
+      was_empty = self._track_stats()
       if finished and was_empty:
+        # The token can overtake the last batch's stats (a worker puts its
+        # result before its stats), so a short count drains again for up to one
+        # interval. Segments the producers fail to deliver stay in the total:
+        # a run with such inputs waits out the whole window.
+        if self._wkr_total_segments_processed < self._tot_n_segments_ptr.value:
+          window_end = time.perf_counter() + self._update_every
+          while self._wkr_total_segments_processed < self._tot_n_segments_ptr.value:
+            remaining = window_end - time.perf_counter()
+            if remaining <= 0:
+              break
+            time.sleep(min(_LATE_STATS_POLL_S, remaining))
+            # Before each drain, as above.
+            if self._check_cancel_event():
+              return
+            # Batch stats only: live samples this often would skew the run's
+            # averages.
+            self._track_batch_stats()
         self._log("Processing finished and queues empty.")
-        # `was_empty` was measured *before* the wait above, so everything the
-        # workers reported during it is still unread -- on a short run, every
-        # stat they ever send. Drain once more so the closing update cannot
-        # report 0% for a run that processed everything.
-        self._track_stats()
         self._callback_stats(finished=True)
         break
-      else:
-        self._callback_stats(finished=False)
+      self._callback_stats(finished=False)
 
     stats = PerformanceTrackingResult(
       worker_speed_xrt=(self._wkr_total_segments_processed * self._segment_size_s)
@@ -860,15 +881,18 @@ class ProgressDispatcher:
       self._finish_signal.set()
 
   def get_last_stats(self) -> AcousticProgressStats | None:
-    latest = None
-
+    latest: AcousticProgressStats
+    try:
+      latest = self._callback_queue.get(block=True, timeout=self._check_interval)
+    except Empty:
+      return None
+    # A burst collapses into its newest update; waiting for more would hold a
+    # lone update back.
     while True:
       try:
-        latest = self._callback_queue.get(block=True, timeout=self._check_interval)
+        latest = self._callback_queue.get_nowait()
       except Empty:
-        break
-
-    return latest
+        return latest
 
   def run_main(self) -> None:
     while True:

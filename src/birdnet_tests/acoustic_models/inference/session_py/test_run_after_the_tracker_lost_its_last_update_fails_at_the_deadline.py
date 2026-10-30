@@ -33,7 +33,6 @@ from dataclasses import dataclass
 from multiprocessing.process import BaseProcess
 from multiprocessing.synchronize import Event
 from pathlib import Path
-from queue import Empty
 
 import pytest
 
@@ -164,44 +163,17 @@ def _entered_session(
 def _drop_finished_updates(monkeypatch: pytest.MonkeyPatch) -> None:
   """Make the dispatcher never see the tracker's last update, as if it were lost.
 
-  Re-implemented rather than wrapped: the original coalesces every update in
-  flight into the latest one, and on a short run the ordinary updates reach
-  the dispatcher in the same drain as the last, so dropping the drain's result
-  would lose them too and the callback would never run.
+  The closing update arrives alone or in one burst with the last ordinary
+  update, and the earlier ones have been delivered by then, so dropping the
+  drain's result when it is the closing update loses nothing else.
   """
+  original = ProgressDispatcher.get_last_stats
 
   def get_last_stats(self: ProgressDispatcher) -> AcousticProgressStats | None:
-    latest = None
-    while True:
-      try:
-        update = self._callback_queue.get(  # noqa: SLF001
-          block=True,
-          timeout=self._check_interval,  # noqa: SLF001
-        )
-      except Empty:
-        return latest
-      if not update.finished:
-        latest = update
-
-  monkeypatch.setattr(ProgressDispatcher, "get_last_stats", get_last_stats)
-
-
-def _deliver_each_update(monkeypatch: pytest.MonkeyPatch) -> None:
-  """Hand the callback every update on its own, not the latest of a drain.
-
-  The original returns only once the queue has been quiet for a whole check
-  interval, about as long as the tracker waits between updates, so on a short
-  run the callback often sees nothing before the closing update.
-  """
-
-  def get_last_stats(self: ProgressDispatcher) -> AcousticProgressStats | None:
-    try:
-      return self._callback_queue.get(  # noqa: SLF001
-        block=True,
-        timeout=self._check_interval,  # noqa: SLF001
-      )
-    except Empty:
+    latest = original(self)
+    if latest is not None and latest.finished:
       return None
+    return latest
 
   monkeypatch.setattr(ProgressDispatcher, "get_last_stats", get_last_stats)
 
@@ -379,7 +351,6 @@ def test_an_ordinary_callback_slower_than_the_deadline_does_not_fail_the_run(
   message's.
   """
   monkeypatch.setattr(process_manager, "_PROMISED_MESSAGE_DEADLINE_S", _DEADLINE_S)
-  _deliver_each_update(monkeypatch)
   updates: list[AcousticProgressStats] = []
   tracker_seen = threading.Event()
 
@@ -446,8 +417,6 @@ def test_a_callback_raising_a_base_exception_fails_the_run_at_once(
   which has no deadline, ends at once.
   """
   monkeypatch.setattr(process_manager, "_PROMISED_MESSAGE_DEADLINE_S", _LONG_DEADLINE_S)
-  if not on_closing_update:
-    _deliver_each_update(monkeypatch)
   n_segments = _N_SEGMENTS if on_closing_update else _LONG_RUN_SEGMENTS
   raised: list[tuple[AcousticProgressStats, float]] = []
 
