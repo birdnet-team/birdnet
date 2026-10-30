@@ -50,6 +50,7 @@ from birdnet.acoustic.inference.file_writer import QueueFileWriter
 from birdnet.acoustic.inference.resources import PipelineResources
 from birdnet.acoustic.inference.strategy import InferenceStrategyBase
 from birdnet.core.base import get_session_id_hash
+from birdnet.core.child_env import one_blas_thread_in_children
 
 # One budget for the whole teardown: every wait in it draws what is left, so a
 # child that cannot exit costs the caller at most this much. A healthy teardown
@@ -298,7 +299,8 @@ class ProcessManager:
       name=f"{self._session_hash}-PerformanceTracker",
       daemon=True,
     )
-    perf_tracker_proc.start()
+    with one_blas_thread_in_children(self._cfg.start_method):
+      perf_tracker_proc.start()
 
     assert self._perf_tracker_process is None
     self._perf_tracker_process = perf_tracker_proc
@@ -383,8 +385,9 @@ class ProcessManager:
       for i in range(self._res.producer_resources.n_producers)
     ]
 
-    for p in producer_processes:
-      p.start()
+    with one_blas_thread_in_children(self._cfg.start_method):
+      for p in producer_processes:
+        p.start()
 
     assert self._producer_processes is None
     self._producer_processes = producer_processes
@@ -413,8 +416,9 @@ class ProcessManager:
       )
     ]
 
-    for w in worker_processes:
-      w.start()
+    with one_blas_thread_in_children(self._cfg.start_method):
+      for w in worker_processes:
+        w.start()
 
     assert self._worker_processes is None
     self._worker_processes = worker_processes
