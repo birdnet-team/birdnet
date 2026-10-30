@@ -6,6 +6,7 @@ import psutil
 import pytest
 
 from birdnet.core.backends import run_in_subprocess
+from birdnet.core.child_env import OPENBLAS_THREADS_VAR
 from birdnet_tests.fake_acoustic_backend import raise_foreign_load_error
 
 pytestmark = pytest.mark.no_tf
@@ -14,6 +15,13 @@ pytestmark = pytest.mark.no_tf
 def test_returns_what_the_function_returns_in_another_process() -> None:
   pid = run_in_subprocess(os.getpid, (), timeout_s=60)
   assert pid != os.getpid()
+
+
+def test_the_child_starts_with_one_blas_thread(monkeypatch: pytest.MonkeyPatch) -> None:
+  monkeypatch.delenv(OPENBLAS_THREADS_VAR, raising=False)
+  found = run_in_subprocess(os.getenv, (OPENBLAS_THREADS_VAR,), timeout_s=60)
+  assert found == "1"
+  assert OPENBLAS_THREADS_VAR not in os.environ
 
 
 def test_raises_what_the_function_raises() -> None:

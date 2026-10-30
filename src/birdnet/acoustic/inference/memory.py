@@ -53,10 +53,8 @@ _PARENT_RESERVE_BYTES = 128 * _MIB
 # Kept back per producer, on top of the batch it builds. Peak working set of one
 # producer at batch_size=1, Windows 11, spawn, Python 3.13, numpy 2.5, scipy
 # 1.18, 14 logical cores, n_workers=1, 2.4 tf/pb and 3.0 tf/onnx alike: 45 MiB
-# reading at the model's rate, 111 MiB when it resamples (scipy). Its commit is
-# 449 and 923 MiB, mostly OpenBLAS buffers per thread that it never touches;
-# only the Windows commit limit counts them. Not measured: Linux, macOS, array
-# inputs.
+# reading at the model's rate, 111 MiB when it resamples (scipy); its commit is
+# 31 and 86 MiB (2.4 tf, 3.0 onnx). Not measured: Linux, macOS, array inputs.
 _PRODUCER_RESERVE_BYTES = 128 * _MIB
 # Ring slots a producer holds privately while it builds a batch: the stacked
 # batch and the resample temporaries. Measured 1.2 slots of growth from batch

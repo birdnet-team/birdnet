@@ -208,6 +208,25 @@ class PageFileBackend(FakeAcousticBackend):
     )
 
 
+class OneBlasThreadBackend(FakeAcousticBackend):
+  """Fails unless its worker started with one OpenBLAS thread.
+
+  Checked in `predict` too, so results mean the check ran in the worker.
+  """
+
+  def _require_one_blas_thread(self) -> None:
+    found = os.environ.get("OPENBLAS_NUM_THREADS")
+    if found != "1":
+      raise RuntimeError(f"the worker started with OPENBLAS_NUM_THREADS={found!r}")
+
+  def load(self) -> None:
+    self._require_one_blas_thread()
+
+  def predict(self, batch: np.ndarray) -> np.ndarray:
+    self._require_one_blas_thread()
+    return super().predict(batch)
+
+
 def raise_foreign_load_error() -> None:
   """Raises an exception whose class lives in a module only this call imports."""
   from birdnet_tests.foreign_load_error import ForeignLoadError

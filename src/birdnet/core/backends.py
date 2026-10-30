@@ -23,6 +23,7 @@ from typing import (
 
 import numpy as np
 
+from birdnet.core.child_env import one_blas_thread_in_children
 from birdnet.core.start_method import resolve_start_method
 from birdnet.globals import (
   LIBRARY_LITERT,
@@ -898,11 +899,13 @@ def run_in_subprocess(
   # its target is pickled, and one whose start fails is left alive, waiting on
   # a pipe handle number the next start may reuse.
   call = pickle.dumps((fn, args))
-  ctx: Any = multiprocessing.get_context(resolve_start_method())
+  start_method = resolve_start_method()
+  ctx: Any = multiprocessing.get_context(start_method)
   receiver, sender = ctx.Pipe(duplex=False)
   process = ctx.Process(target=_send_outcome, args=(sender, call), daemon=True)
   try:
-    process.start()
+    with one_blas_thread_in_children(start_method):
+      process.start()
     sender.close()
     if not receiver.poll(timeout_s):
       raise _SubprocessTimeout(
