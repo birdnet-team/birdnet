@@ -617,3 +617,14 @@ def saved_arrays(result: ResultBase) -> dict[str, np.ndarray]:
     NP_MODEL_VERSION_KEY: result._model_version,
     NP_MODEL_PRECISION_KEY: result._model_precision,
   } | result._get_extra_save_data()
+
+
+def move_mtime_forward(path: Path) -> None:
+  """Make `path` look edited a second after it was written.
+
+  Within one mtime tick a stat fast path cannot tell a same-size rewrite from
+  the original; a real edit happens later than the generation it replaces.
+  """
+  st = path.stat()
+  os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
+  assert path.stat().st_mtime_ns != st.st_mtime_ns, "the mtime bump was not recorded"

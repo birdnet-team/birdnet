@@ -28,6 +28,9 @@ from birdnet.acoustic.inference.core.sync import (
 )
 from birdnet.globals import READABLE_FLAG, READING_FLAG, WRITABLE_FLAG
 
+# Pause between the drains that wait for stats trailing the end-of-run token.
+_LATE_STATS_POLL_S = 0.02
+
 
 @dataclass
 class PerformanceTrackingResult:
@@ -354,23 +357,41 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
       if self._check_cancel_event():
         return
 
-      was_empty = self._track_stats()
-
       # One token per run: once taken, the remaining passes only drain the
       # queues, without waiting.
       if not finished:
         finished = self._processing_finished.acquire(timeout=self._update_every)
+      # Before the drain: after a cancel the parent drains these queues too, and
+      # a drainer that takes this drain's end marker would block it for good.
+      if self._check_cancel_event():
+        return
+
+      # Collected after the wait, so an update reports what the workers had
+      # sent by the time it is built. Once the token is taken, the first drain
+      # that finds nothing new closes the run.
+      was_empty = self._track_stats()
       if finished and was_empty:
+        # The token can overtake the last batch's stats (a worker puts its
+        # result before its stats), so a short count drains again for up to one
+        # interval. Segments the producers fail to deliver stay in the total:
+        # a run with such inputs waits out the whole window.
+        if self._wkr_total_segments_processed < self._tot_n_segments_ptr.value:
+          window_end = time.perf_counter() + self._update_every
+          while self._wkr_total_segments_processed < self._tot_n_segments_ptr.value:
+            remaining = window_end - time.perf_counter()
+            if remaining <= 0:
+              break
+            time.sleep(min(_LATE_STATS_POLL_S, remaining))
+            # Before each drain, as above.
+            if self._check_cancel_event():
+              return
+            # Batch stats only: live samples this often would skew the run's
+            # averages.
+            self._track_batch_stats()
         self._log("Processing finished and queues empty.")
-        # `was_empty` was measured *before* the wait above, so everything the
-        # workers reported during it is still unread -- on a short run, every
-        # stat they ever send. Drain once more so the closing update cannot
-        # report 0% for a run that processed everything.
-        self._track_stats()
         self._callback_stats(finished=True)
         break
-      else:
-        self._callback_stats(finished=False)
+      self._callback_stats(finished=False)
 
     stats = PerformanceTrackingResult(
       worker_speed_xrt=(self._wkr_total_segments_processed * self._segment_size_s)
@@ -780,6 +801,8 @@ class ProgressDispatcher:
     end_event: Event,
     start_signal: threading.Event,
     finish_signal: threading.Event,
+    last_update_signal: threading.Event,
+    busy_signal: threading.Event,
     processing_finished_event: threading.Event,
     check_interval: float,
     report_error: Callable[[BaseException], None] | None = None,
@@ -788,12 +811,14 @@ class ProgressDispatcher:
     self._session_id = session_id
     # Read on this dispatcher thread: a torn frame parks the thread, and
     # teardown's join of it is bounded. A final update the tracker promised
-    # but never flushed still holds the run (the same class as read_promised).
+    # but never flushed fails the run at the parent's deadline for it.
     self._callback_queue = readable(callback_queue)
     self._cancel_event = cancel_event
     self._end_event = end_event
     self._start_signal = start_signal
     self._finish_signal = finish_signal
+    self._last_update_signal = last_update_signal
+    self._busy_signal = busy_signal
     self._callback_fn = callback_fn
     self._processing_finished_event = processing_finished_event
     self._check_interval = check_interval
@@ -824,6 +849,16 @@ class ProgressDispatcher:
       if self._report_error is not None:
         self._report_error(e)
       self._cancel_event.set()
+    except BaseException as e:
+      # Reported and cancelled like an Exception, so the run fails at once;
+      # re-raised rather than swallowed.
+      self._logger.exception(
+        "ProgressDispatcher ended by %s.", type(e).__name__, exc_info=e
+      )
+      if self._report_error is not None:
+        self._report_error(e)
+      self._cancel_event.set()
+      raise
 
   def run_main_loop(self) -> None:
     while True:
@@ -846,15 +881,18 @@ class ProgressDispatcher:
       self._finish_signal.set()
 
   def get_last_stats(self) -> AcousticProgressStats | None:
-    latest = None
-
+    latest: AcousticProgressStats
+    try:
+      latest = self._callback_queue.get(block=True, timeout=self._check_interval)
+    except Empty:
+      return None
+    # A burst collapses into its newest update; waiting for more would hold a
+    # lone update back.
     while True:
       try:
-        latest = self._callback_queue.get(block=True, timeout=self._check_interval)
+        latest = self._callback_queue.get_nowait()
       except Empty:
-        break
-
-    return latest
+        return latest
 
   def run_main(self) -> None:
     while True:
@@ -870,10 +908,20 @@ class ProgressDispatcher:
         if self._check_end_event():
           return
       else:
+        closing = latest.finished and self._processing_finished_event.is_set()
+        # Before the callback: the parent's deadline is for the message, not
+        # for the user's code.
+        if closing:
+          self._last_update_signal.set()
         self._log("Received stats. Call callback function.")
-        self._callback_fn(latest)
+        # This thread cannot read the queue meanwhile, so the parent's deadline
+        # does not count while this is set.
+        self._busy_signal.set()
+        try:
+          self._callback_fn(latest)
+        finally:
+          self._busy_signal.clear()
 
-        finished = self._processing_finished_event.is_set()
-        if finished and latest.finished:
+        if closing:
           self._log("Processing finished event is set. Exiting loop.")
           return

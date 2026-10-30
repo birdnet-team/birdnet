@@ -12,6 +12,8 @@ import pytest
 import birdnet.acoustic.inference.core.input_analyzer as input_analyzer
 from birdnet.acoustic.inference.core.consumer import Consumer
 from birdnet.acoustic.inference.core.input_analyzer import InputAnalyzer
+from birdnet.acoustic.inference.core.perf_tracker import ProgressDispatcher
+from birdnet.acoustic.inference.process_manager import PipelineThreadError
 from birdnet.acoustic.inference.session import AcousticPredictionSession
 from birdnet_tests.fake_acoustic_backend import (
   fake_predict_session,
@@ -57,6 +59,28 @@ def test_raising_progress_callback_is_the_cause(tmp_path: Path) -> None:
   )
   assert isinstance(failure.__cause__, ValueError)
   assert "ValueError: progress failure" in str(failure)
+
+
+def test_a_progress_dispatcher_that_ends_unreported_is_the_cause(
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+  """The manager's own diagnosis is passed on as written, with one log pointer."""
+  monkeypatch.setattr(ProgressDispatcher, "__call__", lambda self: None)
+  audio = write_marked_audio(tmp_path / "a.wav", 2)
+  failure = _run_and_get_failure(
+    fake_predict_session(
+      tmp_path,
+      n_workers=1,
+      show_stats="progress",
+      progress_callback=lambda stats: None,
+    ),
+    audio,
+  )
+  assert isinstance(failure.__cause__, PipelineThreadError)
+  text = str(failure)
+  assert text.startswith("Progress dispatcher thread '"), text
+  assert "ended without delivering the performance tracker's last" in text
+  assert text.count("Please check the logs") == 1, text
 
 
 def test_input_too_long_is_the_cause(

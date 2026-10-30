@@ -281,10 +281,10 @@ def test_wait_gives_up_when_a_child_dies_rather_than_raising() -> None:
 
 
 def test_wait_gives_up_when_the_run_was_cancelled() -> None:
-  """ProgressDispatcher sets the cancel event and returns without signalling.
+  """A failed thread sets the cancel event and returns without signalling.
 
-  It is a thread, so the liveness check cannot see it; without this exit the
-  wait for its finish signal would never return.
+  The liveness check cannot see a thread; without this exit the wait for its
+  finish signal would never return.
   """
   manager = _StubManager(
     [(_FakeProcess("Worker-0", alive=True), _signal(is_set=False))]
