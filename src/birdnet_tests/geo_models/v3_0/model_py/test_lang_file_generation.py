@@ -14,6 +14,7 @@ from birdnet.geo.models.v3_0.model import GeoDownloaderBaseV3_0
 from birdnet.globals import ENV_VAR_APP_DATA, VALID_MODEL_LANGUAGES_V3_0
 from birdnet.utils import downloads, v3_labels
 from birdnet.utils.label_manifest import LabelInput, sha256_bytes
+from birdnet_tests.helper import move_mtime_forward
 
 RAW_LABELS = (
   "code1\tScivia one\tRobin\ncode2\tScivia two\tSparrow\ncode9\tScivia nine\tEagle\n"  # noqa: E501
@@ -165,6 +166,7 @@ def test_check_labels_available_detects_a_swapped_taxonomy(
   size_before = path.stat().st_size
   swapped = path.read_bytes().replace(b"Rotkehlchen", b"Rotkehlchan")
   path.write_bytes(swapped)
+  move_mtime_forward(path)
   assert path.stat().st_size == size_before, "the swap must not change the size"
 
   assert not downloader._check_labels_available()
@@ -183,6 +185,7 @@ def test_a_swapped_taxonomy_is_repaired_rather_than_regenerated_forever(
   downloader._generate_lang_files()
   good = taxonomy_file.read_bytes()
   taxonomy_file.write_bytes(good.replace(b"Rotkehlchen", b"Rotkehlchan"))
+  move_mtime_forward(taxonomy_file)
   assert not downloader._check_labels_available()
 
   restored: list[str] = []

@@ -526,6 +526,12 @@ class StatisticsResources:
   callback_queue: ChildToParentQueue | None
   callback_start_signal: threading.Event | None
   callback_finish_signal: threading.Event | None
+  # Set by the dispatcher once it has read the tracker's closing update, before
+  # it calls back with it: the parent bounds its wait for that message alone.
+  callback_last_update_signal: threading.Event | None
+  # Set while the dispatcher is inside the progress callback and cannot read
+  # the queue; the parent's deadline for the closing update does not count then.
+  callback_busy_signal: threading.Event | None
 
   benchmarking: bool
   benchmark_dir: Path | None
@@ -585,12 +591,16 @@ class StatisticsResources:
 
     callback_start_signal = None
     callback_finish_signal = None
+    callback_last_update_signal = None
+    callback_busy_signal = None
     callback_queue = None
     callback_fn = None
 
     if use_callback:
       callback_start_signal = threading.Event()
       callback_finish_signal = threading.Event()
+      callback_last_update_signal = threading.Event()
+      callback_busy_signal = threading.Event()
       callback_queue = ctx.Queue()
       callback_fn = conf.output_conf.progress_callback
 
@@ -627,6 +637,8 @@ class StatisticsResources:
       callback_start_signal=callback_start_signal,
       callback_fn=callback_fn,
       callback_finish_signal=callback_finish_signal,
+      callback_last_update_signal=callback_last_update_signal,
+      callback_busy_signal=callback_busy_signal,
     )
 
   def reset(self) -> None:
@@ -657,6 +669,12 @@ class StatisticsResources:
     # callback and the dispatcher could drift a run behind (#75).
     if self.callback_finish_signal is not None:
       self.callback_finish_signal.clear()
+    # Left set, either would end or suspend the next run's deadline for the
+    # tracker's closing update.
+    if self.callback_last_update_signal is not None:
+      self.callback_last_update_signal.clear()
+    if self.callback_busy_signal is not None:
+      self.callback_busy_signal.clear()
 
 
 @dataclass(frozen=True)

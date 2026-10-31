@@ -54,7 +54,10 @@ from birdnet.acoustic.inference.memory import default_n_workers
 from birdnet.acoustic.inference.prediction_strategy import (
   PredictionStrategy,
 )
-from birdnet.acoustic.inference.process_manager import ProcessManager
+from birdnet.acoustic.inference.process_manager import (
+  PipelineThreadError,
+  ProcessManager,
+)
 from birdnet.acoustic.inference.resources import (
   PipelineResources,
   ResourceManager,
@@ -440,6 +443,8 @@ class AcousticSessionBase(
       )
     if pm is not None and pm.run_error is not None:
       error = pm.run_error
+      if isinstance(error, PipelineThreadError):
+        raise RuntimeError(f"{error}\n\n{message}") from error
       raise RuntimeError(f"{type(error).__name__}: {error}\n\n{message}") from error
     raise RuntimeError(message)
 

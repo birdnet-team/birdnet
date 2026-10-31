@@ -1,6 +1,6 @@
 [project]
 name = "birdnet"
-version = "1.3.1"
+version = "1.4.0"
 description = "A Python library for identifying bird species by their sounds."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -345,7 +345,7 @@ commands =
 
 [testenv:py312-coverage]
 deps =
-  .[tests,tf]
+  .[tests,tf,and-cuda,pt]
 commands =
   python -c "import importlib.util as u, sys; sys.exit(u.find_spec('tensorflow') is None)"
   coverage erase

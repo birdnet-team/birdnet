@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Bugfixes
+
+- `predict_arrays(..)`, `encode_arrays(..)` and `run_arrays(..)` accepted an empty list or iterable of arrays and failed later with an internal error (`max_n_files must be >= 1` from the model methods, `max() iterable argument is empty` from a session that had already started its processes); the input validation now rejects empty input with `No audio arrays were found in the provided input data.`, as file input already does ([#153](https://github.com/birdnet-team/birdnet/pull/153)).
+
+## [1.4.0] - 2026-10-30
+
 ### Added
 
 - `AcousticModelV3_0`, `GeoModelV3_0`, `AcousticSessionBase` and the vocabulary of `load(..)` are importable from `birdnet`: the `Literal` types (`ACOUSTIC_MODEL_VERSIONS`, `MODEL_LANGUAGES`, `MODEL_PRECISIONS`, ...), the `VALID_*` lists (typed, and `VALID_MODEL_LANGUAGES` without its duplicates) and the defaults `MODEL_PRECISION_FP32`, `MODEL_LANGUAGE_EN_US` and `LIBRARY_TF_DEFAULT`, so typed callers no longer need `birdnet.globals` ([#123](https://github.com/birdnet-team/birdnet/pull/123)).
@@ -21,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bugfixes
 
+- With a `progress_callback`, a run whose performance tracker process died just after it had finished (killed by the OOM killer on its way out, say) waited forever for the tracker's last progress update instead of returning; such a run now fails with the usual "exited unexpectedly" error naming the tracker once that update is 30 s overdue. A progress callback that raised a `BaseException` other than an `Exception` (such as `SystemExit`) hung the run the same way; such a run now fails at once, with an error naming that exception ([#149](https://github.com/birdnet-team/birdnet/pull/149)).
+- With a `progress_callback`, updates reached it late and irregularly: each arrived about a second after the performance tracker sent it, some were merged away, and their figures were about a second older still, which made the speed look too low and the remaining time too long. Each update now carries the counts collected as it is sent and reaches the callback as it arrives, about once a second, and `run(..)` returns about a second sooner ([#149](https://github.com/birdnet-team/birdnet/pull/149)).
 - On Windows, a pipeline process that failed because the page file was too small for the run (`WinError 1455`, which a numpy, scipy or runtime import reports as a failed DLL load with the same text) ended the run without saying what to do about it; the error now suggests enlarging the page file, letting Windows manage its size or lowering `n_workers` ([#148](https://github.com/birdnet-team/birdnet/pull/148)).
 - With `show_stats="progress"` or `"benchmark"`, a performance tracker process killed from the outside during a run (by the OOM killer, say) hung the calling process at the end of that run instead of failing it; such a run now ends with the usual error naming the dead process ([#146](https://github.com/birdnet-team/birdnet/pull/146)).
 - An exception raised by the model inside a worker process was printed to stdout and logged at DEBUG only, and the caller got a bare "Analysis was cancelled"; the `RuntimeError` now names the worker and carries the exception's type and message, and the traceback is in the session log at the default logging level. A producer's or performance tracker's own exception reaches the caller the same way ([#146](https://github.com/birdnet-team/birdnet/pull/146)).
@@ -46,7 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The errors for a missing ONNX Runtime, PyTorch, LiteRT or TensorFlow advised installing it even where it publishes no wheels for the interpreter or platform (LiteRT on macOS x86_64, ONNX Runtime and PyTorch there on newer Pythons), so the suggested `pip install` failed. They now say the runtime had no wheels there when the release was made and name what works instead: another backend or a supported Python version ([#144](https://github.com/birdnet-team/birdnet/pull/144)).
 - A session reused after one of its idle worker, producer or performance tracker processes had been killed (for example by the OOM killer between two runs) hung forever when the next `run(..)` started it, because waking a process that died inside `multiprocessing.Event.wait()` never returns; the start signals are now semaphores, so the run starts and fails with the usual "exited unexpectedly" diagnosis ([#147](https://github.com/birdnet-team/birdnet/pull/147)).
 - On Linux and macOS, a worker, producer or performance tracker process killed while it was writing to the session log left that log's write lock held, so the other processes could not finish their own exit and the parent's log writer blocked on the half-written record; leaving the session then took the whole 30 s teardown budget. The log writer read the log queue once a second, which at DEBUG kept the pipe behind it full and the processes blocked in log writes most of the time, so such a kill was likely rather than rare. The writer now reads continuously, each process bounds the wait for its last log records at exit, and a blocked writer is given up after 5 s ([#147](https://github.com/birdnet-team/birdnet/pull/147)).
-- `predict_arrays(..)` and `encode_arrays(..)` with an empty list or iterable of arrays failed with an internal `ValueError: max() iterable argument is empty` from the input analyzer instead of naming the problem; the input validation now rejects empty input with `No audio arrays were found in the provided input data.`, as the file path already does for an empty selection ([#XXX](https://github.com/birdnet-team/birdnet/pull/XXX)).
+- Every worker, producer and performance tracker process loaded numpy's OpenBLAS, and a producer that filters or resamples also scipy's, with one thread per logical core, and on Windows each such copy committed about 32 MiB per thread that the process never used, so on a machine with a fixed, small page file the default `n_workers` could start more processes than the commit limit holds and fail with `WinError 1455`. Processes birdnet starts with `spawn`, its default start method, now get `OPENBLAS_NUM_THREADS=1` unless it is already set, which cuts each one's commit by 420-840 MiB on 14 logical cores and leaves the calling process as it is ([#150](https://github.com/birdnet-team/birdnet/pull/150)).
 
 ### Performance
 
@@ -436,7 +444,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release
 
-[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/birdnet-team/birdnet/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/birdnet-team/birdnet/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/birdnet-team/birdnet/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/birdnet-team/birdnet/compare/v1.1.1...v1.2.0

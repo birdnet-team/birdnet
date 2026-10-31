@@ -12,6 +12,7 @@ from birdnet.utils.label_manifest import (
   labels_up_to_date,
   sha256_bytes,
 )
+from birdnet_tests.helper import move_mtime_forward
 
 from .conftest import GENERATION_VERSION, GENERATOR, LANGUAGES
 
@@ -71,6 +72,7 @@ def test_an_input_swapped_for_same_size_different_content_is_stale(
   swapped[-10:] = b"Kohlmeis3\n"
   assert len(swapped) == taxonomy.size, "the swap must not change the byte size"
   taxonomy.path.write_bytes(bytes(swapped))
+  move_mtime_forward(taxonomy.path)
 
   assert not _check(lang_dir, inputs)
 
@@ -83,6 +85,7 @@ def test_a_generated_file_edited_in_place_is_stale(
   target = lang_dir / "de.txt"
   edited = target.read_text(encoding="utf-8").replace("de", "DE")
   target.write_text(edited, encoding="utf-8")
+  move_mtime_forward(target)
 
   assert not _check(lang_dir, inputs)
 
