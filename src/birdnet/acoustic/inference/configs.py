@@ -370,7 +370,7 @@ class InferenceConfig:
   ) -> list[tuple[npt.NDArray, int]]:
     parsed_audio_arrays: list[tuple[npt.NDArray, int]] = []
 
-    if isinstance(input_audios, tuple):
+    if isinstance(input_audios, tuple) and len(input_audios) > 0:
       input_audios = (input_audios,)
 
     if not isinstance(input_audios, Iterable):
@@ -412,6 +412,10 @@ class InferenceConfig:
         )
 
       parsed_audio_arrays.append((audio_array, sample_rate))
+
+    if len(parsed_audio_arrays) == 0:
+      raise ValueError("No audio arrays were found in the provided input data.")
+
     return parsed_audio_arrays
 
   @classmethod
