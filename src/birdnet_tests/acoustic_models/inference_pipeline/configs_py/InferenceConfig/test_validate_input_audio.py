@@ -19,6 +19,30 @@ def test_list_of_tuples_is_valid() -> None:
   assert len(result) == 2
 
 
+@pytest.mark.no_tf
+def test_empty_list_raises_error() -> None:
+  with pytest.raises(
+    ValueError, match=r"No audio arrays were found in the provided input data."
+  ):
+    InferenceConfig.validate_input_audio([])
+
+
+@pytest.mark.no_tf
+def test_empty_tuple_raises_error() -> None:
+  with pytest.raises(
+    ValueError, match=r"No audio arrays were found in the provided input data."
+  ):
+    InferenceConfig.validate_input_audio(())
+
+
+@pytest.mark.no_tf
+def test_empty_iterable_raises_error() -> None:
+  with pytest.raises(
+    ValueError, match=r"No audio arrays were found in the provided input data."
+  ):
+    InferenceConfig.validate_input_audio(iter(()))
+
+
 def test_non_iterable_raises_error() -> None:
   with pytest.raises(ValueError, match=r"Unsupported input type: <class 'int'>"):
     InferenceConfig.validate_input_audio(123)
