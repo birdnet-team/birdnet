@@ -345,7 +345,7 @@ commands =
 
 [testenv:py312-coverage]
 deps =
-  .[tests,tf]
+  .[tests,tf,and-cuda,pt]
 commands =
   python -c "import importlib.util as u, sys; sys.exit(u.find_spec('tensorflow') is None)"
   coverage erase

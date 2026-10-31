@@ -29,10 +29,10 @@ jobs:
   run-tests:
     runs-on: ${{ matrix.os }}
     continue-on-error: false
-    # Backstop for a wedged job, sized for the fattest cell (ubuntu 3.12: py312 +
-    # py312-repro + py312-coverage, >50 min when healthy) plus one 600 s
-    # fork-lane deadlock.
-    timeout-minutes: 65
+    # Backstop for a wedged job, sized for the fattest cell (windows 3.12: py312 +
+    # py312-repro, 40-60 min with the model cache warm, up to 40 min more for a
+    # cold download) plus one 600 s fork-lane deadlock.
+    timeout-minutes: 100
 
     env:
       # Under the workspace because job-level env has no `runner` context.
@@ -155,28 +155,22 @@ jobs:
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
             handle.write(f"hash={digest[:16]}\n")
 
-      # The files are identical across cells, so the profile (full vs the TF-free
-      # py3.14 set) is the only other component: one copy per cell overran the
-      # 10 GB cache limit. Rename the profile when a lane's download set grows: a
-      # primary-key hit is never re-saved.
-      - name: Cache downloaded models
-        if: matrix.python-version != '3.15'
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.BIRDNET_APP_DATA }}
-          key: birdnet-models-${{ matrix.python-version == '3.14' && 'notf-all' || 'full' }}-${{ steps.model-key.outputs.hash }}
-          restore-keys: |
-            birdnet-models-${{ matrix.python-version == '3.14' && 'notf-all' || 'full' }}-
-
-      # Read-only: saving the smaller py3.15 set would block the py3.14 cells' save.
-      - name: Restore downloaded models (py3.15)
-        if: matrix.python-version == '3.15'
+      # One entry per profile (full, or the TF-free set of py3.14 and py3.15),
+      # shared by every OS: the files are platform independent, and the relative
+      # path (BIRDNET_APP_DATA) keeps the archive portable. Saved at the end of the
+      # job, from main only, or from a pull request when no entry exists at all: a
+      # copy per OS and per branch overran the 10 GB limit and evicted main's
+      # entry, so most runs were cold. Rename the profile when a lane's download
+      # set grows: a primary-key hit is never re-saved.
+      - name: Restore downloaded models
+        id: models
         uses: actions/cache/restore@v4
         with:
-          path: ${{ env.BIRDNET_APP_DATA }}
-          key: birdnet-models-notf-all-${{ steps.model-key.outputs.hash }}
+          path: .birdnet-app-data
+          key: birdnet-models-${{ (matrix.python-version == '3.14' || matrix.python-version == '3.15') && 'notf-all' || 'full' }}-${{ steps.model-key.outputs.hash }}
           restore-keys: |
-            birdnet-models-notf-all-
+            birdnet-models-${{ (matrix.python-version == '3.14' || matrix.python-version == '3.15') && 'notf-all' || 'full' }}-
+          enableCrossOsArchive: true
 
       - name: Install dependencies
         run: uv pip install --system '.[tests]'
@@ -186,8 +180,9 @@ jobs:
         run: |
           python -m tox -e py311
 
+      # ubuntu runs the same phases under coverage below.
       - name: Run tests py312
-        if: matrix.python-version == '3.12'
+        if: matrix.python-version == '3.12' && matrix.os != 'ubuntu-24.04'
         run: |
           python -m tox -e py312
 
@@ -221,6 +216,18 @@ jobs:
         if: matrix.os == 'ubuntu-24.04' && matrix.python-version == '3.12'
         run: |
           python -m tox -e py312-coverage
+
+      # The py3.15 cells download a subset of the notf-all set and must not save it.
+      - name: Save downloaded models
+        if: >-
+          steps.models.outputs.cache-hit != 'true'
+          && matrix.python-version != '3.15'
+          && (github.ref == 'refs/heads/main' || steps.models.outputs.cache-matched-key == '')
+        uses: actions/cache/save@v4
+        with:
+          path: .birdnet-app-data
+          key: ${{ steps.models.outputs.cache-primary-key }}
+          enableCrossOsArchive: true
 
       - name: Upload results to Codecov
         if: matrix.os == 'ubuntu-24.04' && matrix.python-version == '3.12'
