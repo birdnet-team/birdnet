@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-30
+
 ### Added
 
 - `AcousticModelV3_0`, `GeoModelV3_0`, `AcousticSessionBase` and the vocabulary of `load(..)` are importable from `birdnet`: the `Literal` types (`ACOUSTIC_MODEL_VERSIONS`, `MODEL_LANGUAGES`, `MODEL_PRECISIONS`, ...), the `VALID_*` lists (typed, and `VALID_MODEL_LANGUAGES` without its duplicates) and the defaults `MODEL_PRECISION_FP32`, `MODEL_LANGUAGE_EN_US` and `LIBRARY_TF_DEFAULT`, so typed callers no longer need `birdnet.globals` ([#123](https://github.com/birdnet-team/birdnet/pull/123)).
@@ -438,7 +440,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release
 
-[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/birdnet-team/birdnet/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/birdnet-team/birdnet/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/birdnet-team/birdnet/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/birdnet-team/birdnet/compare/v1.1.1...v1.2.0
