@@ -3,6 +3,8 @@ import pytest
 
 from birdnet.acoustic.inference.configs import PredictionConfig
 
+pytestmark = pytest.mark.no_tf
+
 
 def test_one_is_valid() -> None:
   assert PredictionConfig.validate_sigmoid_sensitivity(1.0) == 1.0
@@ -30,7 +32,6 @@ def test_too_large_raises_error() -> None:
     PredictionConfig.validate_sigmoid_sensitivity(2.0)
 
 
-@pytest.mark.no_tf
 def test_none_is_the_plain_sigmoid() -> None:
   assert PredictionConfig.validate_sigmoid_sensitivity(None) == 1.0
 
@@ -40,7 +41,6 @@ def test_non_number_raises_error() -> None:
     PredictionConfig.validate_sigmoid_sensitivity("high")  # type: ignore
 
 
-@pytest.mark.no_tf
 def test_numpy_scalar_becomes_a_python_number() -> None:
   result = PredictionConfig.validate_sigmoid_sensitivity(np.float32(1.25))
   assert result == 1.25

@@ -1,9 +1,12 @@
 import numpy as np
+import pytest
 
 from birdnet.acoustic.inference.resources import (
   RingBufferResources,
 )
 from birdnet.core.base import get_session_id
+
+pytestmark = pytest.mark.no_tf
 
 
 def test_ring_names_have_max_30_chars() -> None:

@@ -16,6 +16,8 @@ from birdnet.utils import downloads, v3_labels
 from birdnet.utils.label_manifest import LabelInput, sha256_bytes
 from birdnet_tests.helper import move_mtime_forward
 
+pytestmark = pytest.mark.no_tf
+
 RAW_LABELS = (
   "code1\tScivia one\tRobin\ncode2\tScivia two\tSparrow\ncode9\tScivia nine\tEagle\n"  # noqa: E501
 )

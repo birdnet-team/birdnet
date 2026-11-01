@@ -5,6 +5,8 @@ from birdnet.acoustic.inference.configs import (
   ProcessingConfig,
 )
 
+pytestmark = pytest.mark.no_tf
+
 
 def test_zero_raises_error() -> None:
   with pytest.raises(
@@ -46,7 +48,6 @@ def test_valid_large_value() -> None:
   assert ProcessingConfig.validate_max_audio_duration_min(1e6) == 1e6
 
 
-@pytest.mark.no_tf
 def test_numpy_scalar_becomes_a_python_number() -> None:
   result = ProcessingConfig.validate_max_audio_duration_min(np.float32(1.5))
   assert result == 1.5

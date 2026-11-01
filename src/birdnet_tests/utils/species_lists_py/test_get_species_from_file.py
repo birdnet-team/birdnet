@@ -1,6 +1,10 @@
 from pathlib import Path
 
+import pytest
+
 from birdnet.utils.species_lists import get_species_from_file
+
+pytestmark = pytest.mark.no_tf
 
 
 def test_get_species_from_file(tmp_path: Path) -> None:

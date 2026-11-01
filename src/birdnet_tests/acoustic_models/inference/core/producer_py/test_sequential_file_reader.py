@@ -1,5 +1,7 @@
 """`SequentialFileReader` yields what reading each window separately yields."""
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 import soundfile
@@ -7,7 +9,6 @@ import soundfile
 from birdnet.acoustic.inference.core.producer import (
   SequentialFileReader,
   get_segments_with_overlap_samples,
-  read_file_in_mono,
 )
 from birdnet.utils.segments import duration_as_samples
 from birdnet_tests.test_files import AUDIO_FORMATS_DIR
@@ -15,6 +16,11 @@ from birdnet_tests.test_files import AUDIO_FORMATS_DIR
 pytestmark = pytest.mark.no_tf
 
 LOSSLESS = ["soundscape.wav", "soundscape_stereo.wav", "soundscape.flac"]
+
+
+def _read_window(path: Path, start: int, end: int) -> np.ndarray:
+  audio, _ = soundfile.read(path, start=start, stop=end, dtype="float32")
+  return audio if audio.ndim == 1 else audio.mean(axis=1, dtype=np.float32)
 
 
 def _windows(n_frames: int, sr: int, overlap_s: float, speed: float) -> list:
@@ -42,7 +48,7 @@ def test_windows_match_separate_reads(
   with soundfile.SoundFile(path) as audio_file:
     reader = SequentialFileReader(audio_file)
     for start, end, _ in windows:
-      expected = read_file_in_mono(start, end, path)
+      expected = _read_window(path, start, end)
       np.testing.assert_array_equal(reader(start, end), expected)
 
 
@@ -51,7 +57,7 @@ def test_backward_jump_seeks() -> None:
   with soundfile.SoundFile(path) as audio_file:
     reader = SequentialFileReader(audio_file)
     reader(48_000, 96_000)
-    np.testing.assert_array_equal(reader(0, 48_000), read_file_in_mono(0, 48_000, path))
+    np.testing.assert_array_equal(reader(0, 48_000), _read_window(path, 0, 48_000))
 
 
 @pytest.mark.parametrize(
@@ -87,5 +93,5 @@ def test_returned_window_survives_in_place_mutation() -> None:
     first[:] = 0.0
     second = reader(n - overlap, 2 * n - overlap)
   np.testing.assert_array_equal(
-    second, read_file_in_mono(n - overlap, 2 * n - overlap, path)
+    second, _read_window(path, n - overlap, 2 * n - overlap)
   )

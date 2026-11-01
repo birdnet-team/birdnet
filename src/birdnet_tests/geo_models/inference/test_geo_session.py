@@ -11,6 +11,8 @@ from birdnet.globals import (
   GEO_YEAR_ROUND_AGGREGATION_MAX,
 )
 
+pytestmark = pytest.mark.no_tf
+
 
 class FakeGeoBackend:
   configured_prediction_batch: ClassVar[np.ndarray] = np.empty((0, 0), dtype=np.float32)

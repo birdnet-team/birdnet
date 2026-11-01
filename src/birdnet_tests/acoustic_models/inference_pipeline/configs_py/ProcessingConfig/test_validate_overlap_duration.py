@@ -7,6 +7,8 @@ from birdnet.acoustic.inference.configs import (
   ProcessingConfig,
 )
 
+pytestmark = pytest.mark.no_tf
+
 
 def test_negative_raises_error() -> None:
   with pytest.raises(
@@ -60,7 +62,6 @@ def test_valid_large_value() -> None:
   assert ProcessingConfig.validate_overlap_duration(2.9, 3) == 2.9
 
 
-@pytest.mark.no_tf
 def test_numpy_scalar_becomes_a_python_number() -> None:
   result = ProcessingConfig.validate_overlap_duration(np.float32(0.5), 3.0)
   assert result == 0.5
@@ -68,7 +69,6 @@ def test_numpy_scalar_becomes_a_python_number() -> None:
   assert type(ProcessingConfig.validate_overlap_duration(np.int64(1), 3.0)) is int
 
 
-@pytest.mark.no_tf
 @pytest.mark.parametrize("value", [1, 0.5, np.float64(0.5), True])
 def test_a_builtin_number_is_returned_as_it_was(value: float) -> None:
   # np.float64 and bool subclass float and int; both always passed unchanged.

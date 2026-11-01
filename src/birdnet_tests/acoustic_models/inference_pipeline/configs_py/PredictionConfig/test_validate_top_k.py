@@ -2,6 +2,8 @@ import pytest
 
 from birdnet.acoustic.inference.configs import PredictionConfig
 
+pytestmark = pytest.mark.no_tf
+
 
 def test_valid_value() -> None:
   assert PredictionConfig.validate_top_k(3, max_value=5) == 3

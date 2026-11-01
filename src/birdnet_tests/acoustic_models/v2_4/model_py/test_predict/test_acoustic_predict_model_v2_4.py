@@ -1,15 +1,12 @@
 import multiprocessing
 import multiprocessing.synchronize
-import queue
 import tempfile
-import threading
 from pathlib import Path
 
 import numpy
 import pytest
 import soundfile as sf
 
-from birdnet.acoustic.inference.core.perf_tracker import AcousticProgressStats
 from birdnet.model_loader import load
 from birdnet_tests.helper import (
   assert_prediction_result_is_close,
@@ -23,7 +20,6 @@ from birdnet_tests.helper import (
   use_spawn_or_skip,
 )
 from birdnet_tests.test_files import (
-  TEST_FILE_LONG,
   TEST_FILE_SHORT,
   TEST_FILE_SHORT_SCORE_SHAPE,
 )
@@ -41,27 +37,6 @@ def test_pb_cpu_fp32() -> None:
   with model.predict_session(n_workers=1, top_k=None, device="CPU") as session:
     res = session.run(TEST_FILE_SHORT)
   assert res.species_probs.shape == TEST_FILE_SHORT_SCORE_SHAPE
-
-
-@pytest.mark.skip(reason="machine-speed dependent: may collect no stats at all")
-def test_pb_cpu_fp32_callback() -> None:
-  collected_stats = []
-
-  def test_callback(data: AcousticProgressStats) -> None:
-    assert data is not None
-    collected_stats.append(data)
-
-  model = load("acoustic", "2.4", "pb", precision="fp32")
-  with model.predict_session(
-    n_workers=1,
-    top_k=None,
-    device="CPU",
-    progress_callback=test_callback,
-    show_stats="progress",
-  ) as session:
-    res = session.run(TEST_FILE_LONG)
-  assert res.species_probs.shape == (1, 40, 6522)
-  assert len(collected_stats) > 0
 
 
 def test_pb_cpu_fp32_speed_factor() -> None:
@@ -221,16 +196,6 @@ def test_tflite_fp32_two_np_arrays() -> None:
   with model.predict_session(n_workers=1, top_k=None) as session:
     res = session.run_arrays([sf_read, sf_read])
   assert res.species_probs.shape == (2, 3, 6522)
-
-
-@pytest.mark.skip(reason="6 h of tiled audio; too slow and memory-heavy for CI")
-def test_tflite_fp32_large_np_array() -> None:
-  sf_data, sr = sf.read(TEST_FILE_LONG, dtype="float32")
-  data_6h = numpy.tile(sf_data, 30 * 6)
-  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
-  with model.predict_session(top_k=None) as session:
-    res = session.run_arrays((data_6h, sr))
-  assert res.species_probs.shape == (1, 40 * 30 * 6, 6522)
 
 
 def test_tflite_fp16() -> None:
@@ -445,50 +410,6 @@ def test_tflite_fp32_twice_two_sessions_parallel_processes_spawn() -> None:
   assert_prediction_result_is_close(
     res1, res2, max_abs_diff=_CROSS_INSTANCE_MAX_ABS_DIFF
   )
-
-
-def run_session_thread(barrier: threading.Barrier, queue: queue.Queue) -> None:
-  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
-  barrier.wait()
-  with model.predict_session(
-    n_workers=1, top_k=None, show_stats="benchmark"
-  ) as session:
-    result = session.run(TEST_FILE_SHORT)
-  queue.put(result)
-
-
-@pytest.mark.skip(reason="hangs sometimes, reason unknown")
-def test_tflite_fp32_twice_two_sessions_parallel_threads() -> None:
-  n_threads = 10
-
-  barrier = threading.Barrier(n_threads)
-  thread_queue = queue.Queue()
-
-  threads: list[threading.Thread] = []
-  for i in range(n_threads):
-    t = threading.Thread(
-      target=run_session_thread,
-      args=(barrier, thread_queue),
-      name=f"{i}-run_session_thread",
-    )
-    threads.append(t)
-
-  for t in threads:
-    t.start()
-
-  results = []
-  for _ in range(n_threads):
-    # if run() never finishes, this will timeout and fail the test
-    res = thread_queue.get(timeout=None)
-    results.append(res)
-
-  for t in threads:
-    t.join()
-
-  for i in range(1, n_threads):
-    assert_prediction_result_is_close(
-      results[0], results[i], max_abs_diff=_CROSS_INSTANCE_MAX_ABS_DIFF
-    )
 
 
 def test_tflite_fp32_twice_same_session() -> None:

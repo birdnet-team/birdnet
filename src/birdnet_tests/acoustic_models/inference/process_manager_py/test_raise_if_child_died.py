@@ -24,6 +24,8 @@ from birdnet.acoustic.inference.core.sync import (
 )
 from birdnet.acoustic.inference.process_manager import ProcessManager
 
+pytestmark = pytest.mark.no_tf
+
 
 class _FakeProcess:
   def __init__(self, name: str, *, alive: bool, exitcode: int | None = None) -> None:

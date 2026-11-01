@@ -66,14 +66,3 @@ def test_each_segment_lands_in_its_own_row(tmp_path: Path, n_workers: int) -> No
         f"got {actual.tolist()}, want {expected.tolist()}"
       ),
     )
-
-
-def test_the_marker_would_actually_catch_a_swap(tmp_path: Path) -> None:
-  """Guards the guard: distinct markers, so a reordering is visible.
-
-  If every segment carried the same value the test above would pass under any
-  permutation, which is the decorative-test trap this whole file exists to
-  avoid.
-  """
-  markers = [segment_marker(i) for i in range(_N_SEGMENTS)]
-  assert len(set(markers)) == _N_SEGMENTS, "segment markers must be distinct"

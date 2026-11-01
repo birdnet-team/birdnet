@@ -5,6 +5,8 @@ import pytest
 
 from birdnet.acoustic.inference.configs import InferenceConfig
 
+pytestmark = pytest.mark.no_tf
+
 
 def test_component_test() -> None:
   with TemporaryDirectory() as tmpdir:

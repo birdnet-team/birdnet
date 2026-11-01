@@ -13,6 +13,8 @@ from birdnet.acoustic.inference.core.encoding.encoding_tensor import (
 from birdnet.utils.dtypes import get_float_dtype
 from birdnet.utils.segments import get_hop_duration_s, get_n_segments_speed
 
+pytestmark = pytest.mark.no_tf
+
 DEFAULT_EMBEDDING_DIM = 6
 
 # start_time/end_time are stored as float32 and, on numpy 1.x, the intermediate
@@ -338,12 +340,6 @@ def test_end_time_clipping_multiple_segments_float16() -> None:
 def test_end_time_clipping_multiple_segments_float32() -> None:
   result = _test_end_time_clipping_multiple_segments(5_000.0)
   assert result.input_durations.dtype == np.float32
-
-
-@pytest.mark.skip(reason="2**25 segments; takes too long")
-def test_end_time_clipping_multiple_segments_float64() -> None:
-  result = _test_end_time_clipping_multiple_segments(2**25)
-  assert result.input_durations.dtype == np.float64
 
 
 def test_multiple_files() -> None:

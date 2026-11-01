@@ -2,6 +2,8 @@ import pytest
 
 from birdnet.acoustic.inference.configs import ProcessingConfig
 
+pytestmark = pytest.mark.no_tf
+
 
 def test_CPU_is_valid() -> None:
   assert ProcessingConfig.validate_device("CPU", workers=1) == "CPU"

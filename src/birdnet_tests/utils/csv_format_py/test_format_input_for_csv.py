@@ -1,4 +1,8 @@
+import pytest
+
 from birdnet.utils.csv_format import format_input_for_csv
+
+pytestmark = pytest.mark.no_tf
 
 
 def test_format_input_for_csv() -> None:

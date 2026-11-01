@@ -3,6 +3,8 @@ import pytest
 
 from birdnet.utils.dtypes import max_value_for_uint_dtype
 
+pytestmark = pytest.mark.no_tf
+
 
 def test_max_value_for_uint_dtype() -> None:
   assert max_value_for_uint_dtype(np.dtype(np.uint8)) == 255

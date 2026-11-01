@@ -6,6 +6,8 @@ from birdnet.acoustic.models.perch_v2.pb import AcousticPBDownloaderPerchV2
 from birdnet.utils.downloads import write_source_marker
 from birdnet_tests.helper import create_fake_saved_model
 
+pytestmark = pytest.mark.no_tf
+
 
 def _prepare(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
   model_dir = tmp_path / "perch-v2-cpu"

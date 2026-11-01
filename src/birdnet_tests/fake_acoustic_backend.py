@@ -480,7 +480,3 @@ def write_marked_audio(
   # Quantisation would only force the assertions to guess at a tolerance.
   sf.write(path, samples, sample_rate, subtype="FLOAT")
   return path
-
-
-def worker_pid_file(tmp_path: Path) -> Path:
-  return tmp_path / f"worker-{os.getpid()}.pid"

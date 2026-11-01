@@ -1,5 +1,8 @@
+import pytest
 
 from birdnet.acoustic.inference.core.producer import get_segments_with_overlap_all_int
+
+pytestmark = pytest.mark.no_tf
 
 
 def test_1_2_0__returns_01() -> None:

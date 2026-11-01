@@ -1,5 +1,9 @@
+import pytest
+
 from birdnet.acoustic.inference.core.producer import get_segments_with_overlap_samples
 from birdnet.utils.segments import duration_as_samples, get_n_segments_speed
+
+pytestmark = pytest.mark.no_tf
 
 
 def assert_equal_to_get_segments_fn(

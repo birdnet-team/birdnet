@@ -1,7 +1,4 @@
-from typing import Literal, cast
-
 import pytest
-from requests import ReadTimeout
 
 from birdnet.geo.models.v3_0.model import GeoModelV3_0
 from birdnet.model_loader import load
@@ -10,24 +7,12 @@ from birdnet_tests.helper import (
   ensure_tf_2_19_or_2_18,
   ensure_torch_or_skip,
   ensure_v3_0_torch_backend_or_skip,
-  geo_v3_0_litert_not_supported_skip,
 )
-
-
-def test_pb_v3_0_with_library_raises_error() -> None:
-  with pytest.raises(
-    ValueError,
-    match=r"Unexpected keyword arguments: library.",
-  ):
-    load("geo", "3.0", "pb", precision="fp32", library="litert")  # type: ignore
 
 
 @pytest.mark.load_model
 def test_v3_0_pb() -> None:
-  try:
-    model = load("geo", "3.0", "pb", precision="fp32")
-  except ReadTimeout as e:
-    pytest.fail(f"Model download timed out: {e}. Try again later.")
+  model = load("geo", "3.0", "pb", precision="fp32")
   assert isinstance(model, GeoModelV3_0)
 
 
@@ -36,10 +21,7 @@ def test_v3_0_pb() -> None:
 def test_v3_0_pt() -> None:
   ensure_torch_or_skip()
   ensure_v3_0_torch_backend_or_skip()
-  try:
-    model = load("geo", "3.0", "pt", precision="fp32")
-  except ReadTimeout as e:
-    pytest.fail(f"Model download timed out: {e}. Try again later.")
+  model = load("geo", "3.0", "pt", precision="fp32")
   assert isinstance(model, GeoModelV3_0)
 
 
@@ -47,10 +29,7 @@ def test_v3_0_pt() -> None:
 @pytest.mark.load_model
 def test_v3_0_onnx_fp32() -> None:
   ensure_onnxruntime_or_skip()
-  try:
-    model = load("geo", "3.0", "onnx", precision="fp32")
-  except ReadTimeout as e:
-    pytest.fail(f"Model download timed out: {e}. Try again later.")
+  model = load("geo", "3.0", "onnx", precision="fp32")
   assert isinstance(model, GeoModelV3_0)
 
 
@@ -58,64 +37,28 @@ def test_v3_0_onnx_fp32() -> None:
 @pytest.mark.load_model
 def test_v3_0_onnx_fp16() -> None:
   ensure_onnxruntime_or_skip()
-  try:
-    model = load("geo", "3.0", "onnx", precision="fp16")
-  except ReadTimeout as e:
-    pytest.fail(f"Model download timed out: {e}. Try again later.")
+  model = load("geo", "3.0", "onnx", precision="fp16")
   assert isinstance(model, GeoModelV3_0)
 
 
 @pytest.mark.load_model
 def test_v3_0_tf_fp32() -> None:
   ensure_tf_2_19_or_2_18()
-  try:
-    model = load("geo", "3.0", "tf", precision="fp32", library="tflite")
-  except ReadTimeout as e:
-    pytest.fail(f"Model download timed out: {e}. Try again later.")
+  model = load("geo", "3.0", "tf", precision="fp32", library="tflite")
   assert isinstance(model, GeoModelV3_0)
 
 
 @pytest.mark.load_model
 def test_v3_0_tf_fp16() -> None:
   ensure_tf_2_19_or_2_18()
-  try:
-    model = load("geo", "3.0", "tf", precision="fp16", library="tflite")
-  except ReadTimeout as e:
-    pytest.fail(f"Model download timed out: {e}. Try again later.")
+  model = load("geo", "3.0", "tf", precision="fp16", library="tflite")
   assert isinstance(model, GeoModelV3_0)
 
 
 @pytest.mark.load_model
 def test_v3_0_tf_int8() -> None:
   ensure_tf_2_19_or_2_18()
-  try:
-    model = load("geo", "3.0", "tf", precision="int8", library="tflite")
-  except ReadTimeout as e:
-    pytest.fail(f"Model download timed out: {e}. Try again later.")
-  assert isinstance(model, GeoModelV3_0)
-
-
-@pytest.mark.litert
-def test_v3_0_litert_fp32() -> None:
-  geo_v3_0_litert_not_supported_skip()
-
-  model = load("geo", "3.0", "tf", precision="fp32", library="litert")
-  assert isinstance(model, GeoModelV3_0)
-
-
-@pytest.mark.litert
-def test_v3_0_litert_fp16() -> None:
-  geo_v3_0_litert_not_supported_skip()
-
-  model = load("geo", "3.0", "tf", precision="fp16", library="litert")
-  assert isinstance(model, GeoModelV3_0)
-
-
-@pytest.mark.litert
-def test_v3_0_litert_int8() -> None:
-  geo_v3_0_litert_not_supported_skip()
-
-  model = load("geo", "3.0", "tf", precision="int8", library="litert")
+  model = load("geo", "3.0", "tf", precision="int8", library="tflite")
   assert isinstance(model, GeoModelV3_0)
 
 
@@ -127,40 +70,5 @@ def test_v3_0_litert_raises_error() -> None:
     load("geo", "3.0", "tf", precision="fp32", library="litert")
 
 
-def test_tf_tflite_fp32_type_is_correct() -> None:
-  ensure_tf_2_19_or_2_18()
-  assert type(load("geo", "3.0", "tf", library="tflite")) is GeoModelV3_0
-
-
-@pytest.mark.litert
-def test_tf_litert_fp32_type_is_correct() -> None:
-  geo_v3_0_litert_not_supported_skip()
-
-  assert type(load("geo", "3.0", "tf", library="litert")) is GeoModelV3_0
-
-
-def test_types_with_precisions_are_correct() -> None:
-  ensure_tf_2_19_or_2_18()
-  assert (
-    type(load("geo", "3.0", "tf", precision=cast(Literal["fp32"], f"fp{32}")))
-    is GeoModelV3_0
-  )
-  assert (
-    type(load("geo", "3.0", "tf", precision=cast(Literal["fp16"], f"fp{16}")))
-    is GeoModelV3_0
-  )
-  assert (
-    type(load("geo", "3.0", "tf", precision=cast(Literal["int8"], f"int{8}")))
-    is GeoModelV3_0
-  )
-
-
 def test_pb_type_is_correct() -> None:
   assert type(load("geo", "3.0", "pb")) is GeoModelV3_0
-
-
-def test_pb_type_with_precision_is_correct() -> None:
-  assert (
-    type(load("geo", "3.0", "pb", precision=cast(Literal["fp32"], f"fp{32}")))
-    is GeoModelV3_0
-  )

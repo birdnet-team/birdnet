@@ -3,10 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
+
 import birdnet.acoustic.models.v3_0.model as model_module
 from birdnet.acoustic.models.v3_0.model import AcousticDownloaderBaseV3_0
 from birdnet.globals import ENV_VAR_APP_DATA, VALID_MODEL_LANGUAGES_V3_0
 from birdnet.utils.label_manifest import LabelInput, sha256_file
+
+pytestmark = pytest.mark.no_tf
 
 if TYPE_CHECKING:
   from pytest import MonkeyPatch

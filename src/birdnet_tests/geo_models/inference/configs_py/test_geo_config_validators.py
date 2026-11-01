@@ -9,6 +9,8 @@ from birdnet.geo.inference.configs import (
   RunConfig,
 )
 
+pytestmark = pytest.mark.no_tf
+
 # ----------------------------------- latitude ------------------------------------
 
 
@@ -137,20 +139,17 @@ def test_validate_half_precision_non_bool_raises_error() -> None:
 # -------------------------------- numpy scalars ----------------------------------
 
 
-@pytest.mark.no_tf
 def test_numpy_coordinates_are_valid() -> None:
   assert RunConfig.validate_latitude(np.float32(42.5)) == 42.5
   assert RunConfig.validate_longitude(np.float32(-76.5)) == -76.5
 
 
-@pytest.mark.no_tf
 def test_numpy_week_becomes_a_python_int() -> None:
   result = RunConfig.validate_week(np.int64(12))
   assert result == 12
   assert type(result) is int
 
 
-@pytest.mark.no_tf
 def test_numpy_float_week_raises_error() -> None:
   with pytest.raises(TypeError, match=r"'week' is invalid! It must be an integer"):
     RunConfig.validate_week(np.float64(12.0))  # type: ignore

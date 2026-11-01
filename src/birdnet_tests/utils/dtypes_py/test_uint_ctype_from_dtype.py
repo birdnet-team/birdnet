@@ -5,6 +5,8 @@ import pytest
 
 from birdnet.utils.dtypes import uint_ctype_from_dtype
 
+pytestmark = pytest.mark.no_tf
+
 
 @pytest.mark.parametrize(
   ("dtype", "expected"),

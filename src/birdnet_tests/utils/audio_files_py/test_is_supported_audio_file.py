@@ -1,6 +1,10 @@
 from pathlib import Path
 
+import pytest
+
 from birdnet.utils.audio_files import is_supported_audio_file
+
+pytestmark = pytest.mark.no_tf
 
 
 def test_is_supported_audio_file(tmp_path: Path) -> None:

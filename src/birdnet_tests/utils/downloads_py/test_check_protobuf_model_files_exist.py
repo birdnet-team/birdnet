@@ -1,6 +1,10 @@
 from pathlib import Path
 
+import pytest
+
 from birdnet.utils.downloads import check_protobuf_model_files_exist
+
+pytestmark = pytest.mark.no_tf
 
 
 def test_check_protobuf_model_files_exist(tmp_path: Path) -> None:

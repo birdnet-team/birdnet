@@ -2,6 +2,8 @@ import pytest
 
 from birdnet.utils.segments import get_hop_duration_s
 
+pytestmark = pytest.mark.no_tf
+
 
 def test_get_hop_duration_s() -> None:
   assert get_hop_duration_s(3.0, 1.0, 1.0) == 2.0

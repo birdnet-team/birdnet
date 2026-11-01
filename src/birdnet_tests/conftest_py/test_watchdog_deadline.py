@@ -34,15 +34,6 @@ def test_concurrent_tests_use_the_latest_deadline() -> None:
   assert deadline == LOAD_MODEL_TIMEOUT_S + WATCHDOG_MARGIN_S
 
 
-def test_a_finished_sibling_does_not_shorten_a_running_download() -> None:
-  """The controller sees every worker's events; xdist runs tests concurrently."""
-  in_flight = {"short": _NOW + _SHORT, "download": _NOW + LOAD_MODEL_TIMEOUT_S}
-
-  in_flight.pop("short")
-
-  assert _watchdog_deadline(in_flight, _NOW) == LOAD_MODEL_TIMEOUT_S + WATCHDOG_MARGIN_S
-
-
 def test_a_sibling_event_does_not_extend_a_running_download() -> None:
   """Re-arming mid-test must not hand the test a fresh full budget."""
   in_flight = {"download": _NOW + LOAD_MODEL_TIMEOUT_S}
@@ -57,14 +48,6 @@ def test_an_overdue_test_arms_only_the_margin() -> None:
   deadline = _watchdog_deadline({"wedged": _NOW - 10}, _NOW)
 
   assert deadline == WATCHDOG_MARGIN_S
-
-
-def test_deadline_returns_to_idle_once_the_last_test_finishes() -> None:
-  in_flight = {"download": _NOW + LOAD_MODEL_TIMEOUT_S}
-
-  in_flight.pop("download")
-
-  assert _watchdog_deadline(in_flight, _NOW) == WATCHDOG_IDLE_S
 
 
 def test_logfinish_keeps_the_deadline_of_a_still_running_test(

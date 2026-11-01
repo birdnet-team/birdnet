@@ -3,6 +3,8 @@ import pytest
 
 from birdnet.utils.dtypes import get_uint_dtype
 
+pytestmark = pytest.mark.no_tf
+
 
 @pytest.mark.parametrize(
   ("max_value", "expected"),

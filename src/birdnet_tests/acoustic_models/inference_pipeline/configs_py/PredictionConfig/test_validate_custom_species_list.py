@@ -4,6 +4,8 @@ import pytest
 
 from birdnet.acoustic.inference.configs import PredictionConfig
 
+pytestmark = pytest.mark.no_tf
+
 MODEL_SPECIES = ["species_a", "species_b", "species_c"]
 
 
@@ -15,9 +17,7 @@ def test_list_is_valid() -> None:
 
 
 def test_set_is_valid() -> None:
-  result = PredictionConfig.validate_custom_species_list(
-    {"species_a"}, MODEL_SPECIES
-  )
+  result = PredictionConfig.validate_custom_species_list({"species_a"}, MODEL_SPECIES)
   assert result == {"species_a"}
 
 

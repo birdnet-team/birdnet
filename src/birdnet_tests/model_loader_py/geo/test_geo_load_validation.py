@@ -17,16 +17,6 @@ def _species_file(tmp_path: Path) -> Path:
   return species
 
 
-def _pb_dir(tmp_path: Path) -> Path:
-  model_path = tmp_path / "pb"
-  variables = model_path / "variables"
-  variables.mkdir(parents=True)
-  (model_path / "saved_model.pb").write_bytes(b"pb")
-  (variables / "variables.data-00000-of-00001").write_bytes(b"data")
-  (variables / "variables.index").write_bytes(b"index")
-  return model_path
-
-
 # ----------------------------- load() version / precision guards -----------------
 
 

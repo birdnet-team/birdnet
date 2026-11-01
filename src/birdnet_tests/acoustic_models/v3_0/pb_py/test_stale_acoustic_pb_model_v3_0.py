@@ -6,6 +6,8 @@ from birdnet.acoustic.models.v3_0.pb import _PB_DL_URL, AcousticPBDownloaderV3_0
 from birdnet.utils.downloads import write_source_marker
 from birdnet_tests.helper import create_fake_saved_model
 
+pytestmark = pytest.mark.no_tf
+
 
 def test_cached_model_without_marker_is_not_available(
   tmp_path: Path, monkeypatch: pytest.MonkeyPatch

@@ -2,6 +2,8 @@ import pytest
 
 from birdnet.acoustic.inference.configs import ProcessingConfig
 
+pytestmark = pytest.mark.no_tf
+
 
 def test_0_raise_error() -> None:
   with pytest.raises(

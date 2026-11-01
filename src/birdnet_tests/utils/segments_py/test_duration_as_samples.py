@@ -1,4 +1,8 @@
+import pytest
+
 from birdnet.utils.segments import duration_as_samples
+
+pytestmark = pytest.mark.no_tf
 
 
 def test_duration_as_samples() -> None:

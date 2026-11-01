@@ -8,25 +8,9 @@ from birdnet_tests.helper import (
   ensure_tf_2_19_or_2_18,
   ensure_torch_or_skip,
   ensure_v3_0_torch_backend_or_skip,
-  geo_v3_0_litert_not_supported_skip,
 )
 
 # --- FP32 ---
-
-
-@pytest.mark.litert
-def test_litert_fp32() -> None:
-  geo_v3_0_litert_not_supported_skip()
-
-  model = load("geo", "3.0", "tf", precision="fp32", library="litert")
-  result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=False)
-
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
-  assert result.model_version == "3.0"
-  assert result.model_precision == "fp32"
 
 
 def test_tf_fp32() -> None:
@@ -34,21 +18,6 @@ def test_tf_fp32() -> None:
 
   model = load("geo", "3.0", "tf", precision="fp32", library="tflite")
   result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=False)
-
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
-  assert result.model_version == "3.0"
-  assert result.model_precision == "fp32"
-
-
-@pytest.mark.litert
-def test_litert_fp32_half() -> None:
-  geo_v3_0_litert_not_supported_skip()
-
-  model = load("geo", "3.0", "tf", precision="fp32", library="litert")
-  result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=True)
 
   assert result.latitude == 20
   assert result.longitude == 50
@@ -75,21 +44,6 @@ def test_tf_fp32_half() -> None:
 # --- FP16 ---
 
 
-@pytest.mark.litert
-def test_litert_fp16() -> None:
-  geo_v3_0_litert_not_supported_skip()
-
-  model = load("geo", "3.0", "tf", precision="fp16", library="litert")
-  result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=False)
-
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
-  assert result.model_version == "3.0"
-  assert result.model_precision == "fp16"
-
-
 def test_tf_fp16() -> None:
   ensure_tf_2_19_or_2_18()
 
@@ -105,21 +59,6 @@ def test_tf_fp16() -> None:
 
 
 # --- INT8 ---
-
-
-@pytest.mark.litert
-def test_litert_int8() -> None:
-  geo_v3_0_litert_not_supported_skip()
-
-  model = load("geo", "3.0", "tf", precision="int8", library="litert")
-  result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=False)
-
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
-  assert result.model_version == "3.0"
-  assert result.model_precision == "int8"
 
 
 def test_tf_int8() -> None:

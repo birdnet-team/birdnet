@@ -1,18 +1,13 @@
-import contextlib
-import ctypes
 import multiprocessing as mp
 import os
 import sys
-import threading
-import time
 import zipfile
-from collections.abc import Callable, Generator, Iterable, Mapping
+from collections.abc import Iterable, Mapping
 from multiprocessing import get_all_start_methods, set_start_method
 from pathlib import Path
 from typing import IO
 
 import numpy as np
-import psutil
 import pytest
 
 from birdnet.acoustic.inference.core.encoding.encoding_result import (
@@ -333,10 +328,6 @@ def ensure_onnxruntime_or_skip() -> None:
     pytest.skip("ONNX Runtime is not available")
 
 
-def geo_v3_0_litert_not_supported_skip() -> None:
-  pytest.skip("Geo model v3.0 TF backend is not supported with ai_edge_litert yet")
-
-
 def _tf_version_or_skip() -> str:
   if not tf_installed():
     pytest.skip("TensorFlow is not installed (pip install birdnet[tf])")
@@ -410,112 +401,6 @@ def use_spawn_or_skip() -> None:
     pytest.skip("spawn start method not available on this platform")
 
 
-@contextlib.contextmanager
-def memory_monitor() -> Generator[Callable, None, None]:
-  """Context manager für Memory-Monitoring."""
-  process = psutil.Process(os.getpid())
-  memory_before = process.memory_full_info().uss
-  max_memory = ctypes.c_float(memory_before)
-  stop_event = threading.Event()
-
-  def monitor_worker() -> None:
-    while not stop_event.is_set():
-      try:
-        current_memory = process.memory_full_info().uss
-        if current_memory > max_memory.value:
-          max_memory.value = current_memory
-        time.sleep(0.05)
-      except (psutil.NoSuchProcess, psutil.AccessDenied):
-        break
-
-  monitor_thread = threading.Thread(
-    target=monitor_worker, daemon=True, name="MemoryMonitorThread"
-  )
-  monitor_thread.start()
-
-  def get_memory_delta() -> float:
-    return (max_memory.value - memory_before) / 1024**2
-
-  try:
-    yield get_memory_delta
-  finally:
-    stop_event.set()
-    monitor_thread.join(timeout=1.0)
-
-
-@contextlib.contextmanager
-def duration_counter() -> Generator[Callable, None, None]:
-  """Context manager to measure duration of a code block."""
-  start = time.perf_counter()
-
-  def get_duration() -> float:
-    end = time.perf_counter()
-    return end - start
-
-  try:
-    yield get_duration
-  finally:
-    pass  # No cleanup needed
-
-
-def get_max_absolute_tolerance(a: np.ndarray, b: np.ndarray) -> float:
-  a = np.asarray(a)
-  b = np.asarray(b)
-
-  diff = np.abs(a - b)
-  maximum = np.max(diff)
-
-  return maximum
-
-
-def get_max_absolute_tolerance_threshold(
-  a: np.ndarray, b: np.ndarray, threshold: float = 0.1
-) -> float:
-  a = np.asarray(a)
-  b = np.asarray(b)
-
-  mask = a > threshold
-  if not np.any(mask):
-    return 0.0
-
-  diff = np.abs(a - b)
-  masked_diff = diff[mask]
-
-  mean = np.mean(masked_diff)
-
-  return mean
-
-
-def estimate_best_rtol_atol(a: np.ndarray, b: np.ndarray) -> tuple[float, float]:
-  a = np.asarray(a)
-  b = np.asarray(b)
-
-  diff = np.abs(a - b)
-  denom = np.abs(b)
-
-  with np.errstate(divide="ignore", invalid="ignore"):
-    rel = np.where(denom == 0, np.inf, diff / denom)
-
-  max_rel = np.max(rel)
-  max_abs = np.max(diff)
-
-  return max_rel, max_abs
-
-
-def get_max_relative_tolerance(a: np.ndarray, b: np.ndarray) -> float:
-  a = np.asarray(a)
-  b = np.asarray(b)
-
-  diff = np.abs(a - b)
-  denom = np.abs(b)
-
-  # Sonderfall: b == 0 → relative Fehler ist nur sinnvoll, wenn diff ebenfalls 0 ist
-  with np.errstate(divide="ignore", invalid="ignore"):
-    rel = np.where(denom == 0, np.inf, diff / denom)
-
-  return np.max(rel)
-
-
 def scores_at_sigmoid_sensitivity(scores: np.ndarray, sensitivity: float) -> np.ndarray:
   """The pipeline's scaled sigmoid on the logits behind a model's sigmoid scores.
 
@@ -528,16 +413,6 @@ def scores_at_sigmoid_sensitivity(scores: np.ndarray, sensitivity: float) -> np.
     logits = np.log(p) - np.log(1.0 - p)
   shifted = np.clip(logits + (sensitivity - 1.0) * 10.0, -15.0, 15.0)
   return 1.0 / (1.0 + np.exp(-shifted))
-
-
-def worst_decimal_precision(a: np.ndarray, b: np.ndarray, max_decimals: int = 8) -> int:
-  diff = np.abs(a - b)
-  max_diff = np.max(diff)
-
-  for decimals in range(max_decimals, 0, -1):
-    if max_diff < 10 ** (-decimals):
-      return decimals
-  return 0
 
 
 def create_fake_saved_model(model_dir: Path) -> None:

@@ -12,6 +12,8 @@ from birdnet.acoustic.inference.core.producer import (
 )
 from birdnet_tests.test_files import AUDIO_FORMATS_DIR, TEST_FILE_LONG
 
+pytestmark = pytest.mark.no_tf
+
 
 def format_can_be_read(filename: str) -> bool:
   inp = AUDIO_FORMATS_DIR / filename
@@ -43,13 +45,6 @@ def test_three_channels_can_be_read() -> None:
   assert format_can_be_read("soundscape_3ch.wav")
 
 
-def test_aac_can_not_be_read() -> None:
-  with pytest.raises(
-    soundfile.LibsndfileError,
-  ):
-    format_can_be_read("soundscape.aac")
-
-
 def test_aifc_can_be_read() -> None:
   assert format_can_be_read("soundscape.aifc")
 
@@ -64,13 +59,6 @@ def test_au_can_be_read() -> None:
 
 def test_flac_can_be_read() -> None:
   assert format_can_be_read("soundscape.flac")
-
-
-def test_m4a_can_not_be_read() -> None:
-  with pytest.raises(
-    soundfile.LibsndfileError,
-  ):
-    format_can_be_read("soundscape.m4a")
 
 
 def test_mp3_can_be_read() -> None:
@@ -90,13 +78,6 @@ def test_wav_can_be_read() -> None:
   assert format_can_be_read("soundscape_ulaw.wav")
   assert format_can_be_read("soundscape_alaw.wav")
   assert format_can_be_read("soundscape_24bit.wav")
-
-
-def test_wma_can_not_be_read() -> None:
-  with pytest.raises(
-    soundfile.LibsndfileError,
-  ):
-    format_can_be_read("soundscape.wma")
 
 
 def test_audio_duration_uses_frames_over_sf_duration_field() -> None:

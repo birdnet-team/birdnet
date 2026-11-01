@@ -1,4 +1,8 @@
+import pytest
+
 from birdnet.acoustic.inference.core.producer import get_segments_with_overlap_samples
+
+pytestmark = pytest.mark.no_tf
 
 
 def test_n_samples_smaller_than_segment() -> None:

@@ -1,6 +1,9 @@
 import numpy as np
+import pytest
 
 from birdnet.utils.dtypes import upgrade_float_dtype_for_value
+
+pytestmark = pytest.mark.no_tf
 
 
 def test_upgrade_float_dtype_keeps_exactly_representable_value() -> None:

@@ -1,10 +1,14 @@
 from pathlib import Path
 
+import pytest
+
 from birdnet.utils.downloads import (
   SOURCE_MARKER_NAME,
   check_source_marker,
   write_source_marker,
 )
+
+pytestmark = pytest.mark.no_tf
 
 _URL = "https://example.org/records/1/files/model.zip"
 

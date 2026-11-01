@@ -3,6 +3,8 @@ import pytest
 
 from birdnet.utils.dsp import fillup_with_silence
 
+pytestmark = pytest.mark.no_tf
+
 
 def test_fillup_with_silence_pads() -> None:
   segment = np.array([1.0, 2.0, 3.0], dtype=np.float32)

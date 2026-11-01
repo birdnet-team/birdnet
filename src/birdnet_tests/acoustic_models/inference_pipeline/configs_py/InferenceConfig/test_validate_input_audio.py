@@ -3,6 +3,8 @@ import pytest
 
 from birdnet.acoustic.inference.configs import InferenceConfig
 
+pytestmark = pytest.mark.no_tf
+
 
 def test_single_tuple_is_wrapped() -> None:
   audio = np.zeros(3, dtype=np.float32)
@@ -19,7 +21,6 @@ def test_list_of_tuples_is_valid() -> None:
   assert len(result) == 2
 
 
-@pytest.mark.no_tf
 def test_empty_list_raises_error() -> None:
   with pytest.raises(
     ValueError, match=r"No audio arrays were found in the provided input data."
@@ -27,7 +28,6 @@ def test_empty_list_raises_error() -> None:
     InferenceConfig.validate_input_audio([])
 
 
-@pytest.mark.no_tf
 def test_empty_tuple_raises_error() -> None:
   with pytest.raises(
     ValueError, match=r"No audio arrays were found in the provided input data."
@@ -35,7 +35,6 @@ def test_empty_tuple_raises_error() -> None:
     InferenceConfig.validate_input_audio(())
 
 
-@pytest.mark.no_tf
 def test_empty_iterable_raises_error() -> None:
   with pytest.raises(
     ValueError, match=r"No audio arrays were found in the provided input data."
