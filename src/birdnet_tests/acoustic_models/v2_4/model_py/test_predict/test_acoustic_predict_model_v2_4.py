@@ -15,6 +15,7 @@ from birdnet_tests.helper import (
   ensure_gpu_or_skip,
   ensure_litert_or_skip,
   ensure_not_mac_or_skip,
+  join_children_or_fail,
   use_fork_or_skip,
   use_forkserver_or_skip,
   use_spawn_or_skip,
@@ -355,11 +356,9 @@ def test_tflite_fp32_twice_two_sessions_parallel_processes_fork() -> None:
     p1.start()
     p2.start()
 
-    res1 = queue.get(timeout=None)
-    res2 = queue.get(timeout=None)
-
-    p1.join()
-    p2.join()
+    join_children_or_fail(p1, p2)
+    res1 = queue.get(timeout=10)
+    res2 = queue.get(timeout=10)
 
   assert_prediction_result_is_close(
     res1, res2, max_abs_diff=_CROSS_INSTANCE_MAX_ABS_DIFF
@@ -378,11 +377,9 @@ def test_tflite_fp32_twice_two_sessions_parallel_processes_forkserver() -> None:
     p1.start()
     p2.start()
 
-    res1 = queue.get(timeout=None)
-    res2 = queue.get(timeout=None)
-
-    p1.join()
-    p2.join()
+    join_children_or_fail(p1, p2)
+    res1 = queue.get(timeout=10)
+    res2 = queue.get(timeout=10)
 
   assert_prediction_result_is_close(
     res1, res2, max_abs_diff=_CROSS_INSTANCE_MAX_ABS_DIFF
@@ -401,11 +398,9 @@ def test_tflite_fp32_twice_two_sessions_parallel_processes_spawn() -> None:
     p1.start()
     p2.start()
 
-    res1 = queue.get(timeout=None)
-    res2 = queue.get(timeout=None)
-
-    p1.join()
-    p2.join()
+    join_children_or_fail(p1, p2)
+    res1 = queue.get(timeout=10)
+    res2 = queue.get(timeout=10)
 
   assert_prediction_result_is_close(
     res1, res2, max_abs_diff=_CROSS_INSTANCE_MAX_ABS_DIFF

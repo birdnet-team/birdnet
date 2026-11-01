@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `BIRDNET_OFFLINE=1` makes `birdnet` refuse every download: a model, label file or taxonomy that is not cached raises a `DownloadError` naming its URL instead of being fetched, without retrying, for machines without internet access and for test or CI runs that must fail fast on a missing model ([#NNN](https://github.com/birdnet-team/birdnet/pull/NNN)).
+- `BIRDNET_OFFLINE=1` makes `birdnet` refuse every download: a model, label file or taxonomy that is not cached raises a `ValueError` naming its URL instead of being fetched, without retrying, for machines without internet access and for test or CI runs that must fail fast on a missing model ([#NNN](https://github.com/birdnet-team/birdnet/pull/NNN)).
 
 ### Bugfixes
 
