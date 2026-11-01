@@ -38,7 +38,7 @@ class LocalServer:
 
 
 @pytest.fixture
-def server() -> Generator[LocalServer, None, None]:
+def server(allow_downloads: None) -> Generator[LocalServer, None, None]:
   """Routes (all HTTP/1.0, so the connection closes after each response):
 
   ``/file``            200, Content-Length, BODY

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `BIRDNET_OFFLINE=1` makes `birdnet` refuse every download: a model, label file or taxonomy that is not cached raises a `DownloadError` naming its URL instead of being fetched, without retrying, for machines without internet access and for test or CI runs that must fail fast on a missing model ([#NNN](https://github.com/birdnet-team/birdnet/pull/NNN)).
+
 ### Bugfixes
 
 - `predict_arrays(..)`, `encode_arrays(..)` and `run_arrays(..)` accepted an empty list or iterable of arrays and failed later with an internal error (`max_n_files must be >= 1` from the model methods, `max() iterable argument is empty` from a session that had already started its processes); the input validation now rejects empty input with `No audio arrays were found in the provided input data.`, as file input already does ([#153](https://github.com/birdnet-team/birdnet/pull/153)).

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-TEST_FILES_DIR = Path("src/birdnet_tests/TEST_FILES")
+TEST_FILES_DIR = Path(__file__).resolve().parent / "TEST_FILES"
 AUDIO_FORMATS_DIR = TEST_FILES_DIR / "audio_formats"
 
 # Duration: 120s

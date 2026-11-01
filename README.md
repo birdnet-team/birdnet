@@ -277,6 +277,7 @@ Each prediction or encoding session writes its own log file to the system temp d
 | `BIRDNET_APP_DATA` | platform app data dir | Where downloaded models, labels and the taxonomy are cached. Set it to a persistent path in ephemeral environments. |
 | `BIRDNET_TF_VERBOSE` | `0` | Set to `1` to let TensorFlow's native startup output through. It is hidden by default, because TensorFlow prints its `absl::InitializeLog` warning and oneDNN notice on every import — and every worker process imports it, so one prediction emits dozens of lines. Diagnostics from a *failed* import are always shown, whatever this is set to. |
 | `BIRDNET_START_METHOD` | `spawn` | Multiprocessing start method: `spawn`, `forkserver` or `fork`. See the [documentation](https://birdnet-team.github.io/birdnet/general.html) before choosing `fork`. |
+| `BIRDNET_OFFLINE` | `0` | Set to `1` to refuse every download: a model, label file or taxonomy that is not cached raises a `DownloadError` naming its URL instead of being fetched. Set it on machines without internet access, and in test or CI runs that must fail fast on a missing model. |
 
 ## File formats
 

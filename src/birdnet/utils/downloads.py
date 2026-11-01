@@ -23,6 +23,7 @@ from pathlib import Path
 
 from tqdm import tqdm
 
+from birdnet.globals import ENV_VAR_OFFLINE
 from birdnet.utils.download_progress import (
   DownloadReporter,
   get_download_progress_callback,
@@ -115,9 +116,15 @@ class DownloadError(ValueError):
     self.status_code = status_code
 
 
+class _DownloadsDisabledError(DownloadError):
+  """The refusal `ENV_VAR_OFFLINE` asks for; no retry can change it."""
+
+
 def _is_retriable_download_error(error: Exception) -> bool:
   import requests
 
+  if isinstance(error, _DownloadsDisabledError):
+    return False
   status: int | None = None
   if isinstance(error, DownloadError):
     status = error.status_code
@@ -196,6 +203,12 @@ def _download_file_once(
   attempt: int = 1,
   reporter: DownloadReporter | None = None,
 ) -> int:
+  offline = os.environ.get(ENV_VAR_OFFLINE, "0")
+  if offline not in ("", "0"):
+    raise _DownloadsDisabledError(
+      f"Not downloading {url} to {file_path}: {ENV_VAR_OFFLINE}={offline!r} "
+      "disables all downloads."
+    )
   assert file_path.parent.is_dir()
   import requests
 

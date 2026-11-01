@@ -346,6 +346,17 @@ The default location can be overridden by setting the ``BIRDNET_APP_DATA`` envir
   # Linux / macOS pre-execution script
   export BIRDNET_APP_DATA=/opt/birdnet-analyzer/birdnet-data
 
+How do I keep birdnet from downloading?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set the ``BIRDNET_OFFLINE`` environment variable to ``1``. A model, label file or taxonomy that is not in the application-data directory then raises a ``DownloadError`` naming its URL instead of being downloaded, which suits machines without internet access and test or CI runs that must fail fast on a missing model. Any value other than ``0`` or the empty string counts as set, and it is read at every download, so it can also be changed while the program runs. ::
+
+  # Windows
+  set BIRDNET_OFFLINE=1
+
+  # Linux / macOS
+  export BIRDNET_OFFLINE=1
+
 Why is Python 3.10 not supported?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

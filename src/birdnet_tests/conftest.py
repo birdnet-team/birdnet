@@ -9,6 +9,7 @@ from typing import IO
 import pytest
 
 from birdnet.core.backends import tf_installed
+from birdnet.globals import ENV_VAR_OFFLINE
 from birdnet.utils.logging_utils import get_package_logger
 
 # The v3.0 models are ~520 MiB and Zenodo serves them at roughly 2 MiB/s, so a single
@@ -210,35 +211,36 @@ def pytest_configure(config: pytest.Config) -> None:
   root.setLevel(logging.DEBUG)
 
 
-# Every `https://` literal under src/birdnet points at one of these.
-_DOWNLOAD_HOSTS = frozenset({"zenodo.org", "github.com", "tuc.cloud"})
+_OFFLINE_BEFORE = pytest.StashKey[str | None]()
 
 
-@pytest.fixture(autouse=True)
-def _no_internet_downloads_outside_load_model(
-  request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
-) -> None:
-  """A test without the ``load_model`` marker never downloads from the internet.
+@pytest.hookimpl(tryfirst=True)
+def pytest_runtest_setup(item: pytest.Item) -> None:
+  """Only a test marked ``load_model`` may download.
 
-  The ``load_model`` phase fills the cache; a later test that still downloads
-  ran on a cold cache, which costs minutes per model and hides which test
-  depends on which download. Only the hosts the package downloads from are
-  blocked, so local test servers and fake transports keep working.
+  An environment variable rather than a fixture: set before any fixture of any
+  scope, and inherited by the children and subprocesses a test starts. A test
+  that needs a download carries ``load_model``; a test of the downloader itself
+  takes ``allow_downloads``.
   """
-  if request.node.get_closest_marker("load_model") is not None:
+  if item.get_closest_marker("load_model") is not None:
     return
-  from urllib.parse import urlparse
+  item.stash[_OFFLINE_BEFORE] = os.environ.get(ENV_VAR_OFFLINE)
+  os.environ[ENV_VAR_OFFLINE] = "1"
 
-  from birdnet.utils import downloads
 
-  original = downloads._download_file_once
+@pytest.hookimpl(trylast=True)
+def pytest_runtest_teardown(item: pytest.Item) -> None:
+  if _OFFLINE_BEFORE not in item.stash:
+    return
+  before = item.stash[_OFFLINE_BEFORE]
+  if before is None:
+    os.environ.pop(ENV_VAR_OFFLINE, None)
+  else:
+    os.environ[ENV_VAR_OFFLINE] = before
 
-  def guarded(url: str, *args: object, **kwargs: object) -> int:
-    if urlparse(url).hostname not in _DOWNLOAD_HOSTS:
-      return original(url, *args, **kwargs)  # type: ignore[arg-type]
-    pytest.fail(
-      f"{request.node.nodeid} tried to download {url}; downloads belong to tests "
-      "marked load_model"
-    )
 
-  monkeypatch.setattr(downloads, "_download_file_once", guarded)
+@pytest.fixture
+def allow_downloads(monkeypatch: pytest.MonkeyPatch) -> None:
+  """For tests that drive the real transport against a fake or local server."""
+  monkeypatch.delenv(ENV_VAR_OFFLINE, raising=False)

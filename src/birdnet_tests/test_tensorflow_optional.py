@@ -13,6 +13,7 @@ import pytest
 
 from birdnet.core.backends import litert_installed, onnxruntime_installed, tf_installed
 from birdnet_tests.helper import ensure_validity_check_or_skip
+from birdnet_tests.test_files import TEST_FILE_SHORT, TEST_FILES_DIR
 
 pytestmark = pytest.mark.no_tf
 
@@ -46,17 +47,20 @@ def test_custom_classifier_checks_do_not_import_tensorflow() -> None:
     library = "litert"
   else:
     pytest.skip("neither TensorFlow nor ai_edge_litert is installed")
+  model = TEST_FILES_DIR / "custom_models/tf/replace.tflite"
+  labels = TEST_FILES_DIR / "custom_models/tf/replace_Labels.txt"
+  raven = TEST_FILES_DIR / "custom_models/raven/CustomClassifier"
   _run_isolated(
     f"""
     import sys
     import birdnet
-    model = "src/birdnet_tests/TEST_FILES/custom_models/tf/replace.tflite"
-    labels = "src/birdnet_tests/TEST_FILES/custom_models/tf/replace_Labels.txt"
+    model = {str(model)!r}
+    labels = {str(labels)!r}
     birdnet.inspect_custom_tflite(model, library="{library}")
     birdnet.load_custom("acoustic", "2.4", "tf", model, labels, library="{library}")
     if {tf_installed()}:
       # The pb path checks validity by loading the SavedModel.
-      raven = "src/birdnet_tests/TEST_FILES/custom_models/raven/CustomClassifier"
+      raven = {str(raven)!r}
       birdnet.load_custom(
         "acoustic", "2.4", "pb", raven, raven + "/labels/label_names.csv", is_raven=True
       )
@@ -69,11 +73,11 @@ def test_custom_classifier_checks_do_not_import_tensorflow() -> None:
 @pytest.mark.skipif(not onnxruntime_installed(), reason="onnxruntime not installed")
 def test_acoustic_v3_onnx_prediction_does_not_import_tensorflow() -> None:
   _run_isolated(
-    """
+    f"""
     import sys
     import birdnet
     model = birdnet.load("acoustic", "3.0", "onnx")
-    predictions = model.predict("example/soundscape.wav")
+    predictions = model.predict({str(TEST_FILE_SHORT)!r}, n_workers=1)
     assert predictions.species_probs.shape[0] == 1
     assert "tensorflow" not in sys.modules, "the onnx backend imported tensorflow"
     """
