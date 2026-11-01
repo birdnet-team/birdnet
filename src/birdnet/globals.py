@@ -148,6 +148,9 @@ ENV_VAR_START_METHOD: Final = "BIRDNET_START_METHOD"
 # Set to anything but "0" to let TensorFlow's native startup output through.
 ENV_VAR_TF_VERBOSE: Final = "BIRDNET_TF_VERBOSE"
 
+# Set to anything but "0" to refuse every download.
+ENV_VAR_OFFLINE: Final = "BIRDNET_OFFLINE"
+
 # flag for "can be written to" = free
 WRITABLE_FLAG = np.uint8(0)
 

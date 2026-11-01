@@ -69,6 +69,7 @@ def test_exhausted_attempts_fail_terminally_after_the_last_retry(
   assert not list(tmp_path.glob("*.tmp"))
 
 
+@pytest.mark.usefixtures("allow_downloads")
 def test_connection_error_before_any_response_is_reported_and_raised(
   events: list[DownloadProgress], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -137,6 +138,7 @@ def test_keyboard_interrupt_in_the_backoff_sleep_fails_terminally(
   assert not list(tmp_path.glob("*.tmp"))
 
 
+@pytest.mark.usefixtures("allow_downloads")
 def test_response_is_closed_even_if_content_length_header_is_malformed(
   tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

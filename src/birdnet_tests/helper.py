@@ -1,6 +1,7 @@
 import multiprocessing as mp
 import os
 import sys
+import time
 import zipfile
 from collections.abc import Iterable, Mapping
 from multiprocessing import get_all_start_methods, set_start_method
@@ -378,6 +379,34 @@ def ensure_not_mac_or_skip() -> None:
 
   if platform.system() == "Darwin":
     pytest.skip("Test not supported on macOS systems")
+
+
+CHILD_JOIN_TIMEOUT_S = 300
+
+
+def join_children_or_fail(
+  *processes: mp.process.BaseProcess, timeout_s: float = CHILD_JOIN_TIMEOUT_S
+) -> None:
+  """Fail unless every child exits with code 0 within `timeout_s` in total.
+
+  A child that dies (a refused download, a crash) would otherwise leave the
+  parent waiting for its result until the per-test timeout. One deadline for
+  all children keeps the bound below that timeout however many of them hang.
+  Children still running at the deadline are killed before the test fails.
+  """
+  deadline = time.monotonic() + timeout_s
+  for process in processes:
+    process.join(max(0.0, deadline - time.monotonic()))
+  exitcodes = [process.exitcode for process in processes]
+  for process in processes:
+    if process.is_alive():
+      process.kill()
+      process.join()
+  if any(code != 0 for code in exitcodes):
+    pytest.fail(
+      f"child exit codes {exitcodes} (None: still running after {timeout_s:.0f} s, "
+      "killed); a child that raised printed its traceback to the captured stderr"
+    )
 
 
 def use_forkserver_or_skip() -> None:

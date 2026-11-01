@@ -31,7 +31,7 @@ from birdnet.core.backends import (
   torch_installed,
 )
 from birdnet_tests.helper import ensure_not_intel_macos_or_skip
-from birdnet_tests.test_files import TEST_FILES_DIR
+from birdnet_tests.test_files import TEST_FILE_LONG, TEST_FILES_DIR
 
 pytestmark = [
   pytest.mark.no_tf,
@@ -86,7 +86,7 @@ def test_load_custom_tf_backends_raise_clear_error_without_tensorflow(
 @pytest.mark.skipif(not onnxruntime_installed(), reason="onnxruntime not installed")
 def test_acoustic_v3_onnx_predicts_without_tensorflow() -> None:
   model = birdnet.load("acoustic", "3.0", "onnx")
-  predictions = model.predict("example/soundscape.wav")
+  predictions = model.predict(TEST_FILE_LONG)
   assert predictions is not None
 
 
@@ -107,7 +107,7 @@ def test_geo_v3_pt_predicts_without_tensorflow() -> None:
 @pytest.mark.skipif(not torch_installed(), reason="torch not installed")
 def test_acoustic_v3_pt_predicts_without_tensorflow() -> None:
   model = birdnet.load("acoustic", "3.0", "pt")
-  predictions = model.predict("example/soundscape.wav")
+  predictions = model.predict(TEST_FILE_LONG)
   assert predictions is not None
 
 
@@ -133,10 +133,10 @@ def test_tf_backend_error_points_at_litert_without_tensorflow() -> None:
 @_needs_litert
 def test_acoustic_v2_4_tf_litert_predicts_and_encodes_without_tensorflow() -> None:
   model = birdnet.load("acoustic", "2.4", "tf", library="litert")
-  predictions = model.predict("example/soundscape.wav")
+  predictions = model.predict(TEST_FILE_LONG)
   # 120 s soundscape -> 40 segments, default top_k=5
   assert predictions.species_probs.shape == (1, 40, 5)
-  embeddings = model.encode("example/soundscape.wav")
+  embeddings = model.encode(TEST_FILE_LONG)
   assert embeddings.embeddings.shape == (1, 40, 1024)
 
 

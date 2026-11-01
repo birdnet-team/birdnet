@@ -5,7 +5,8 @@
 :class:`DownloadProgress` snapshots, per downloaded file:
 
 - ``"started"`` once per attempt, before any I/O -- a repeat with a higher
-  ``attempt`` and ``bytes_done == 0`` announces a retry;
+  ``attempt`` and ``bytes_done == 0`` announces a retry; a download refused by
+  ``BIRDNET_OFFLINE`` sends only ``"failed"``, with ``attempt == 0``;
 - ``"progress"`` at most every 0.1 s (first chunk of an attempt always);
 - ``"retrying"`` before each back-off, with ``error`` and ``retry_in_s``;
 - exactly one of ``"finished"`` / ``"failed"`` (the error is raised right after).
