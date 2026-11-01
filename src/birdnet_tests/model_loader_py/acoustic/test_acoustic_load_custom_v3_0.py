@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from birdnet.acoustic.models.custom_tflite import CustomTFLiteInfo
@@ -18,7 +20,7 @@ from birdnet.acoustic.models.v3_0.tf import (
 from birdnet.model_loader import load_custom
 
 
-def _create_fake_pb_model_dir(tmp_path) -> object:
+def _create_fake_pb_model_dir(tmp_path: Path) -> object:
   model_path = tmp_path / "birdnet_v3_pb"
   variables_dir = model_path / "variables"
   variables_dir.mkdir(parents=True)
@@ -30,7 +32,7 @@ def _create_fake_pb_model_dir(tmp_path) -> object:
 
 @pytest.mark.no_tf
 def test_v3_0_custom_pt_type_is_correct(
-  tmp_path, monkeypatch: pytest.MonkeyPatch
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
   model_path = tmp_path / "birdnet_v3.pt"
   model_path.write_bytes(b"pt")
@@ -49,7 +51,7 @@ def test_v3_0_custom_pt_type_is_correct(
 
 
 def test_v3_0_custom_pb_type_is_correct(
-  tmp_path, monkeypatch: pytest.MonkeyPatch
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
   model_path = _create_fake_pb_model_dir(tmp_path)
   species_list = tmp_path / "species.txt"
@@ -66,7 +68,7 @@ def test_v3_0_custom_pb_type_is_correct(
 
 
 def test_v3_0_custom_pb_raven_type_is_correct(
-  tmp_path, monkeypatch: pytest.MonkeyPatch
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
   model_path = _create_fake_pb_model_dir(tmp_path)
   species_list = tmp_path / "species.txt"
@@ -77,22 +79,19 @@ def test_v3_0_custom_pb_raven_type_is_correct(
     lambda *args, **kwargs: 1,
   )
 
-  model = load_custom(
-    "acoustic", "3.0", "pb", model_path, species_list, is_raven=True
-  )
+  model = load_custom("acoustic", "3.0", "pb", model_path, species_list, is_raven=True)
   assert type(model) is AcousticModelV3_0
   assert model.backend_type is AcousticRavenBackendFP32V3_0
 
 
 def test_v3_0_custom_tf_type_is_correct_fp32(
-  tmp_path, monkeypatch: pytest.MonkeyPatch
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
   model_path = tmp_path / "birdnet_v3.tflite"
   model_path.write_bytes(b"tf")
   species_list = tmp_path / "species.txt"
   species_list.write_text("species_a\n", encoding="utf-8")
 
-  monkeypatch.setattr("birdnet.model_loader.tf_installed", lambda: True)
   monkeypatch.setattr(
     "birdnet.model_loader.BackendLoader.inspect_custom_tflite_model",
     lambda *args, **kwargs: CustomTFLiteInfo("3.0", "replace", 1, True, True),
@@ -106,14 +105,13 @@ def test_v3_0_custom_tf_type_is_correct_fp32(
 
 
 def test_v3_0_custom_tf_type_is_correct_fp16(
-  tmp_path, monkeypatch: pytest.MonkeyPatch
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
   model_path = tmp_path / "birdnet_v3.tflite"
   model_path.write_bytes(b"tf")
   species_list = tmp_path / "species.txt"
   species_list.write_text("species_a\n", encoding="utf-8")
 
-  monkeypatch.setattr("birdnet.model_loader.tf_installed", lambda: True)
   monkeypatch.setattr(
     "birdnet.model_loader.BackendLoader.inspect_custom_tflite_model",
     lambda *args, **kwargs: CustomTFLiteInfo("3.0", "replace", 1, True, True),
@@ -128,7 +126,7 @@ def test_v3_0_custom_tf_type_is_correct_fp16(
 
 @pytest.mark.no_tf
 def test_v3_0_custom_onnx_type_is_correct_fp32(
-  tmp_path, monkeypatch: pytest.MonkeyPatch
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
   model_path = tmp_path / "birdnet_v3.onnx"
   model_path.write_bytes(b"onnx")
@@ -150,7 +148,7 @@ def test_v3_0_custom_onnx_type_is_correct_fp32(
 
 @pytest.mark.no_tf
 def test_v3_0_custom_onnx_type_is_correct_fp16(
-  tmp_path, monkeypatch: pytest.MonkeyPatch
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
   model_path = tmp_path / "birdnet_v3.onnx"
   model_path.write_bytes(b"onnx")
@@ -170,7 +168,7 @@ def test_v3_0_custom_onnx_type_is_correct_fp16(
   assert model.backend_type is AcousticOnnxBackendFP16V3_0
 
 
-def test_v3_0_custom_pb_with_library_raises_error(tmp_path) -> None:
+def test_v3_0_custom_pb_with_library_raises_error(tmp_path: Path) -> None:
   model_path = _create_fake_pb_model_dir(tmp_path)
   species_list = tmp_path / "species.txt"
   species_list.write_text("species_a\n", encoding="utf-8")
@@ -187,7 +185,7 @@ def test_v3_0_custom_pb_with_library_raises_error(tmp_path) -> None:
 
 
 @pytest.mark.no_tf
-def test_v3_0_custom_pt_wrong_suffix_raises_error(tmp_path) -> None:
+def test_v3_0_custom_pt_wrong_suffix_raises_error(tmp_path: Path) -> None:
   model_path = tmp_path / "birdnet_v3.bin"
   model_path.write_bytes(b"pt")
   species_list = tmp_path / "species.txt"
@@ -198,7 +196,7 @@ def test_v3_0_custom_pt_wrong_suffix_raises_error(tmp_path) -> None:
 
 
 @pytest.mark.no_tf
-def test_v3_0_custom_onnx_wrong_suffix_raises_error(tmp_path) -> None:
+def test_v3_0_custom_onnx_wrong_suffix_raises_error(tmp_path: Path) -> None:
   model_path = tmp_path / "birdnet_v3.bin"
   model_path.write_bytes(b"onnx")
   species_list = tmp_path / "species.txt"

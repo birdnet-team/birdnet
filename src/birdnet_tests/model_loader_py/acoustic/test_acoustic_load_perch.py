@@ -1,5 +1,4 @@
 import pytest
-from requests import ReadTimeout
 
 import birdnet.model_loader as model_loader
 from birdnet.acoustic.models.perch_v2 import pb as perch_pb
@@ -17,10 +16,7 @@ def test_perch_cpu_v2() -> None:
   ensure_not_intel_macos_or_skip()
   ensure_tf_2_20_or_skip()
 
-  try:
-    model = load_perch_v2("CPU")
-  except ReadTimeout as e:
-    pytest.fail(f"Model download timed out: {e}. Try again later.")
+  model = load_perch_v2("CPU")
   assert isinstance(model, AcousticModelPerchV2)
 
 
@@ -46,9 +42,7 @@ def test_perch_v2_on_intel_macos_raises_error(
 ) -> None:
   monkeypatch.setattr(model_loader, "check_is_intel_macos", lambda: True)
 
-  with pytest.raises(
-    OSError, match=r"Perch v2 model is not supported on Intel macOS"
-  ):
+  with pytest.raises(OSError, match=r"Perch v2 model is not supported on Intel macOS"):
     load_perch_v2("CPU")
 
 
@@ -59,8 +53,5 @@ def test_perch_gpu_v2() -> None:
   ensure_tf_2_20_or_skip()
   ensure_gpu_or_skip()
 
-  try:
-    model = load_perch_v2("GPU")
-  except ReadTimeout as e:
-    pytest.fail(f"Model download timed out: {e}. Try again later.")
+  model = load_perch_v2("GPU")
   assert isinstance(model, AcousticModelPerchV2)

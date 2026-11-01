@@ -15,7 +15,11 @@ import multiprocessing as mp
 import threading
 import time
 
+import pytest
+
 from birdnet.acoustic.inference.core.sync import acquire_or_give_up_when_cancelled
+
+pytestmark = pytest.mark.no_tf
 
 # Bounds a wait that must not happen at all, not a duration to measure.
 _DEADLINE_S = 30.0

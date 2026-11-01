@@ -2,6 +2,8 @@ import pytest
 
 from birdnet.acoustic.inference.core.producer import itertools_batched
 
+pytestmark = pytest.mark.no_tf
+
 
 def test_itertools_batched() -> None:
   assert list(itertools_batched("ABCDEFG", 3)) == [

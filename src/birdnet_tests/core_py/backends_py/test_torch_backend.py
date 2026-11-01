@@ -15,6 +15,8 @@ from birdnet.acoustic.models.v3_0.pt import AcousticPTBackendFP32V3_0
 from birdnet.geo.models.v3_0.pt import GeoPTBackendFP32V3_0
 from birdnet_tests.helper import ensure_torch_or_skip
 
+pytestmark = pytest.mark.no_tf
+
 
 def _backend(backend_type: Any, model: Any) -> Any:  # noqa: ANN401
   """Build a backend around a stand-in module, skipping load()/the download."""

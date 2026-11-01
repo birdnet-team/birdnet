@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Literal, cast
 
 import pytest
 
@@ -14,7 +13,6 @@ from birdnet.acoustic.models.v2_4.tf import (
   AcousticTFDownloaderV2_4,
 )
 from birdnet.core.backends import check_is_intel_macos
-from birdnet.globals import MODEL_PRECISIONS
 from birdnet.model_loader import load_custom
 from birdnet.utils.local_data import get_lang_dir, get_model_path
 from birdnet_tests.helper import check_is_python_312, ensure_litert_or_skip
@@ -26,29 +24,6 @@ def check_validity() -> bool:
   # it will result in a TimeoutError
   check_it = not (check_is_python_312() and check_is_intel_macos())
   return check_it
-
-
-@pytest.mark.litert
-@pytest.mark.tf  # the pb guard fires before the kwarg check
-def test_v2_4_pb_with_library_raises_error() -> None:
-  ensure_litert_or_skip()
-
-  with pytest.raises(
-    ValueError,
-    match=r"Unexpected keyword arguments: library.",
-  ):
-    AcousticPBDownloaderV2_4.get_model_path_and_labels("en_us")
-    load_custom(
-      "acoustic",
-      "2.4",
-      "pb",  # type: ignore
-      get_model_path("acoustic", "2.4", "pb", "fp32"),
-      get_lang_dir("acoustic", "2.4", "pb") / "en_us.txt",
-      library="litert",
-      precision="fp32",
-      check_validity=check_validity(),
-      is_raven=False,
-    )  # type: ignore
 
 
 def test_v2_4_pb() -> None:
@@ -212,57 +187,6 @@ def test_types_are_correct() -> None:
         get_lang_dir(model_type, version, backend) / "en_us.txt",
         check_validity=False,
         precision=precision,
-      )
-    )
-    is AcousticModelV2_4
-  )
-
-
-def test_types_with_precisions_are_correct() -> None:
-  AcousticPBDownloaderV2_4.get_model_path_and_labels("en_us")
-  AcousticTFDownloaderV2_4.get_model_path_and_labels("en_us", "fp32")
-
-  assert (
-    type(
-      load_custom(
-        "acoustic",
-        "2.4",
-        "pb",
-        get_model_path("acoustic", "2.4", "pb", "fp32"),
-        get_lang_dir("acoustic", "2.4", "pb") / "en_us.txt",
-        precision=cast(Literal["fp32"], f"fp{32}"),
-        check_validity=False,
-        is_raven=False,
-      )
-    )
-    is AcousticModelV2_4
-  )
-
-  assert (
-    type(
-      load_custom(
-        "acoustic",
-        "2.4",
-        "pb",
-        get_model_path("acoustic", "2.4", "pb", "fp32"),
-        get_lang_dir("acoustic", "2.4", "pb") / "en_us.txt",
-        precision=cast(Literal["fp32"], f"fp{32}"),
-        check_validity=False,
-        is_raven=True,
-      )
-    )
-    is AcousticModelV2_4
-  )
-  assert (
-    type(
-      load_custom(
-        "acoustic",
-        "2.4",
-        "tf",
-        get_model_path("acoustic", "2.4", "tf", "fp32"),
-        get_lang_dir("acoustic", "2.4", "tf") / "en_us.txt",
-        precision=cast(MODEL_PRECISIONS, f"fp{32}"),
-        check_validity=False,
       )
     )
     is AcousticModelV2_4

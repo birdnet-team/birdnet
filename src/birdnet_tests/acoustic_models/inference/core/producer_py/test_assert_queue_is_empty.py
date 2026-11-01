@@ -1,6 +1,10 @@
 from multiprocessing import Queue
 
+import pytest
+
 from birdnet.acoustic.inference.core.producer import assert_queue_is_empty
+
+pytestmark = pytest.mark.no_tf
 
 
 def test_assert_queue_is_empty_passes_for_empty_queue() -> None:

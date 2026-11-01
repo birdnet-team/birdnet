@@ -1,4 +1,8 @@
+import pytest
+
 from birdnet.acoustic.inference.configs import ProcessingConfig
+
+pytestmark = pytest.mark.no_tf
 
 
 def test_half_precision_is_valid() -> None:

@@ -1,8 +1,11 @@
 import numpy as np
 import numpy.testing as npt
+import pytest
 
 from birdnet.acoustic.inference.core.producer import resample_array_by_sr
 from birdnet.utils.segments import apply_speed_to_samples
+
+pytestmark = pytest.mark.no_tf
 
 
 def test_same_sr__changes_nothing() -> None:

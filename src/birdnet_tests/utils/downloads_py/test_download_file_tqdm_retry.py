@@ -13,6 +13,8 @@ import requests
 
 from birdnet.utils import downloads
 
+pytestmark = pytest.mark.no_tf
+
 
 def _http_error(status_code: int) -> requests.HTTPError:
   response = requests.Response()

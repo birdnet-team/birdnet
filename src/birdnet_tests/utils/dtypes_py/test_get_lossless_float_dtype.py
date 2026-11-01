@@ -1,6 +1,9 @@
 import numpy as np
+import pytest
 
 from birdnet.utils.dtypes import get_lossless_float_dtype
+
+pytestmark = pytest.mark.no_tf
 
 
 def test_get_lossless_float_dtype() -> None:

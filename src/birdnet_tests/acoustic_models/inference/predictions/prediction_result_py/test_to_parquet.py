@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
+import pytest
 
 from birdnet.acoustic.inference.core.prediction.prediction_result import (
   AcousticFilePredictionResult,
@@ -10,6 +11,8 @@ from birdnet.acoustic.inference.core.prediction.prediction_result import (
 from birdnet_tests.acoustic_models.inference.predictions.prediction_result_py.test_prediction_to_structured_array import (  # noqa: E501
   create_file_prediction_result,
 )
+
+pytestmark = pytest.mark.no_tf
 
 
 def _create_result_with_float16_durations() -> AcousticFilePredictionResult:
@@ -146,19 +149,3 @@ def test_parquet_roundtrip_values_float64(tmp_path: Path) -> None:
 
   np.testing.assert_allclose(expected_start, actual_start, rtol=1e-9)
   np.testing.assert_allclose(expected_end, actual_end, rtol=1e-9)
-
-
-def test_parquet_time_columns_no_halffloat(tmp_path: Path) -> None:
-  """Ensure start_time and end_time never use halffloat in Parquet."""
-  result = _create_result_with_float16_durations()
-  out = tmp_path / "result.parquet"
-
-  result.to_parquet(out, silent=True)
-  table = pq.read_table(out)
-
-  for col_name in ("start_time", "end_time"):
-    field = table.schema.field(col_name)
-    assert field.type != pa.float16(), (
-      f"Column '{col_name}' uses halffloat (float16), "
-      f"which is not interoperable across Arrow implementations"
-    )

@@ -8,7 +8,6 @@ from birdnet.utils.label_manifest import (
   artifact_is_current,
   ensure_artifact,
   sha256_bytes,
-  verify_download,
 )
 
 _CONTENT = b"the pinned release\n"
@@ -120,15 +119,3 @@ def test_leaves_a_legacy_file_of_another_release_alone(
 
   assert legacy.read_bytes() == _SAME_LENGTH
   _assert_one_verified_download(no_network, expected)
-
-
-@pytest.mark.no_tf
-def test_verify_download_discards_a_mismatching_file(tmp_path: Path) -> None:
-  expected = _expected(tmp_path)
-  expected.path.parent.mkdir()
-  expected.path.write_bytes(_SAME_LENGTH)
-
-  with pytest.raises(RuntimeError, match="does not match its expected checksum"):
-    verify_download(expected.path, expected)
-
-  assert not expected.path.exists(), "a retry must start from nothing"

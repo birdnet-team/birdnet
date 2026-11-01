@@ -2,6 +2,8 @@ import pytest
 
 from birdnet.core.backends import check_is_intel_macos
 
+pytestmark = pytest.mark.no_tf
+
 
 def test_check_is_intel_macos_false_off_mac(monkeypatch: pytest.MonkeyPatch) -> None:
   import platform

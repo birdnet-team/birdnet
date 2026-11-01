@@ -1,10 +1,13 @@
 import numpy as np
+import pytest
 
 from birdnet.acoustic.inference.resources import (
   RingBufferResources,
 )
 from birdnet.core.base import get_session_id
 from birdnet.core.start_method import resolve_start_method
+
+pytestmark = pytest.mark.no_tf
 
 
 def _create() -> RingBufferResources:

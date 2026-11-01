@@ -9,8 +9,8 @@ when reviewing PRs. Everything here can be verified from the diff text alone.
 - **Test markers.** New test files must carry the marker matching what they do:
   `load_model` (downloads models), `litert` (imports/exercises `ai_edge_litert` —
   cannot run in the same process after TensorFlow is imported), `gpu`, `fork`
-  (forces the fork start method — must run serially), `repro` (needs exact pinned
-  versions), `no_tf` (TensorFlow-free surface; TensorFlow is an optional
+  (forces the fork start method — must run serially), `no_tf` (TensorFlow-free
+  surface; TensorFlow is an optional
   dependency, and without it only `no_tf`/`litert` tests run), `tf` (a `litert`
   test that needs TensorFlow after all). A missing or wrong marker breaks CI lane
   isolation even when the test itself passes.

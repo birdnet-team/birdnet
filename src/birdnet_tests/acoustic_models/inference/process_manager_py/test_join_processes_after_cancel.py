@@ -20,9 +20,13 @@ import threading
 import time
 from types import SimpleNamespace
 
+import pytest
+
 from birdnet.acoustic.inference import process_manager
 from birdnet.acoustic.inference.core.sync import Deadline
 from birdnet.acoustic.inference.process_manager import ProcessManager
+
+pytestmark = pytest.mark.no_tf
 
 # Teardown here does no real work: the only waits are the drain-stop timeout
 # (1 s) and the joins of fake processes. Kept close to that so a wait that

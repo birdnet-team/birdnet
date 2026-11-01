@@ -1,7 +1,6 @@
 # ruff: noqa: F841
 import multiprocessing
 import multiprocessing.synchronize
-import threading
 
 import pytest
 
@@ -148,37 +147,6 @@ def test_tflite_fp32_twice_two_sessions_parallel_processes_spawn() -> None:
 
     p1.join()
     p2.join()
-
-
-def run_session_thread(barrier: threading.Barrier) -> None:
-  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
-  barrier.wait()
-  with model.predict_session(
-    n_workers=1, top_k=None, show_stats="benchmark"
-  ) as session:
-    pass
-
-
-@pytest.mark.skip(reason="hangs sometimes, reason unknown")
-def test_tflite_fp32_twice_two_sessions_parallel_threads() -> None:
-  n_threads = 10
-
-  barrier = threading.Barrier(n_threads)
-
-  threads: list[threading.Thread] = []
-  for i in range(n_threads):
-    t = threading.Thread(
-      target=run_session_thread,
-      args=(barrier,),
-      name=f"{i}-run_session_thread",
-    )
-    threads.append(t)
-
-  for t in threads:
-    t.start()
-
-  for t in threads:
-    t.join()
 
 
 def test_pb_cpu_fp32_two_sessions() -> None:

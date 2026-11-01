@@ -7,6 +7,8 @@ from birdnet.acoustic.models.v2_4.pb import _PB_DL_URL, AcousticPBDownloaderV2_4
 from birdnet.utils.downloads import write_source_marker
 from birdnet_tests.helper import create_fake_lang_dir, create_fake_saved_model
 
+pytestmark = pytest.mark.no_tf
+
 
 def _prepare(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
   model_dir = tmp_path / "model"

@@ -3,6 +3,8 @@ import pytest
 
 from birdnet.acoustic.inference.configs import PredictionConfig
 
+pytestmark = pytest.mark.no_tf
+
 MODEL_SPECIES = ["species_a", "species_b", "species_c"]
 
 
@@ -31,7 +33,8 @@ def test_non_dict_raises_error() -> None:
     TypeError, match=r"custom confidence thresholds must be a dictionary"
   ):
     PredictionConfig.validate_custom_confidence_thresholds(
-      [("species_a", 0.5)], MODEL_SPECIES  # type: ignore
+      [("species_a", 0.5)],  # type: ignore
+      MODEL_SPECIES,
     )
 
 
@@ -60,7 +63,6 @@ def test_non_number_value_raises_error() -> None:
     )
 
 
-@pytest.mark.no_tf
 def test_numpy_scalar_value_is_valid() -> None:
   thresholds = {"species_a": np.float32(0.5), "species_b": np.int64(0)}
   assert (

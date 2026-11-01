@@ -6,6 +6,8 @@ from birdnet.geo.models.v3_0.pb import _PB_DL_URL, GeoPBDownloaderV3_0
 from birdnet.utils.downloads import write_source_marker
 from birdnet_tests.helper import create_fake_saved_model
 
+pytestmark = pytest.mark.no_tf
+
 
 def _prepare(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
   model_dir = tmp_path / "model-fp32"

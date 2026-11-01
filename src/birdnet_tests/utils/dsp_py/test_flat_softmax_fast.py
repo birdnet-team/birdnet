@@ -1,6 +1,9 @@
 import numpy as np
+import pytest
 
 from birdnet.utils.dsp import flat_softmax_fast
+
+pytestmark = pytest.mark.no_tf
 
 
 def test_rows_sum_to_one() -> None:

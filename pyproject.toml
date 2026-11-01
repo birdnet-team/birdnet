@@ -212,7 +212,6 @@ markers = [
   "load_model: tests that download all models, should be run before other tests",
   "litert: tests requiring ai_edge_litert backend which can not be loaded after tf is imported (raises ImportError) which happens on parallel test runs",
   "gpu: tests requiring a GPU to run and to be run sequentially",
-  "repro: tests requiring exact package versions to reproduce results",
   "no_tf: tests for the TensorFlow-free surface, run when TF is absent (e.g. Python 3.14+)",
   "tf: litert-lane tests that need TensorFlow after all; without TF a test runs only if marked no_tf or litert (and not tf), everything else is skipped (see conftest.py)",
   "fork: tests that force the fork start method; run in a dedicated serial (-n 1) lane in a fresh process so a fork-after-TensorFlow deadlock cannot wedge the parallel general-phase workers (the library itself defaults to spawn, see birdnet.core.start_method)",
@@ -280,15 +279,15 @@ commands =
   # mypy src/birdnet
   # without TensorFlow conftest.py would skip most of the suite and stay green
   python -c "import importlib.util as u, sys; sys.exit(u.find_spec('tensorflow') is None)"
-  pytest -m "not repro and load_model" -n auto
-  pytest -m "not repro and not load_model and (not litert and not gpu and not fork)" -n auto
-  pytest -m "not repro and not load_model and litert and not fork" -n auto
-  pytest -m "not repro and not load_model and gpu" -n 1
+  pytest -m "load_model" -n auto
+  pytest -m "not load_model and (not litert and not gpu and not fork)" -n auto
+  pytest -m "not load_model and litert and not fork" -n auto
+  pytest -m "not load_model and gpu" -n 1
   # Fork lanes last, isolated and -n 0 on purpose: a fork-after-TensorFlow deadlock
   # must not wedge the parallel phase, and an xdist worker loses its timeout report
   # when a forked child wedges.
-  pytest -m "not repro and not load_model and fork and not litert and not gpu" -n 0
-  pytest -m "not repro and not load_model and fork and litert and not gpu" -n 0
+  pytest -m "not load_model and fork and not litert and not gpu" -n 0
+  pytest -m "not load_model and fork and litert and not gpu" -n 0
   # pyproject-build, not `python -m build`: the build/ dir shadows the module.
   pyproject-build -o dist/
   python -m twine check dist/*
@@ -317,8 +316,8 @@ deps =
   .[tests,pt]
   ai-edge-litert
 commands =
-  pytest -m "not repro and load_model and (no_tf or litert)" -n auto
-  pytest -m "not repro and not load_model and (no_tf or litert) and not fork and not gpu" -n auto
+  pytest -m "load_model and (no_tf or litert)" -n auto
+  pytest -m "not load_model and (no_tf or litert) and not fork and not gpu" -n auto
   pyproject-build -o dist/
   python -m twine check dist/*
 
@@ -327,8 +326,8 @@ commands =
 deps =
   .[tests,pt]
 commands =
-  pytest -m "not repro and load_model and (no_tf or litert)" -n auto
-  pytest -m "not repro and not load_model and (no_tf or litert) and not fork and not gpu" -n auto
+  pytest -m "load_model and (no_tf or litert)" -n auto
+  pytest -m "not load_model and (no_tf or litert) and not fork and not gpu" -n auto
   pyproject-build -o dist/
   python -m twine check dist/*
 
@@ -340,8 +339,8 @@ deps =
 commands =
   # fails if TensorFlow sneaked into the env
   python -c "import importlib.util as u, sys; sys.exit(u.find_spec('tensorflow') is not None)"
-  pytest -m "not repro and load_model and (no_tf or litert)" -n auto
-  pytest -m "not repro and not load_model and (no_tf or litert) and not fork and not gpu" -n auto
+  pytest -m "load_model and (no_tf or litert)" -n auto
+  pytest -m "not load_model and (no_tf or litert) and not fork and not gpu" -n auto
 
 [testenv:py312-coverage]
 deps =
@@ -349,12 +348,12 @@ deps =
 commands =
   python -c "import importlib.util as u, sys; sys.exit(u.find_spec('tensorflow') is None)"
   coverage erase
-  pytest -m "not repro and load_model" -n auto --cov=src/birdnet --cov-append --cov-report=
-  pytest -m "not repro and not load_model and (not litert and not gpu and not fork)" -n auto --cov=src/birdnet --cov-append --cov-report=
-  pytest -m "not repro and not load_model and litert and not fork" -n auto --cov=src/birdnet --cov-append --cov-report=
-  pytest -m "not repro and not load_model and gpu" -n 1 --cov=src/birdnet --cov-append --cov-report=
-  pytest -m "not repro and not load_model and fork and not litert and not gpu" -n 0 --cov=src/birdnet --cov-append --cov-report=
-  pytest -m "not repro and not load_model and fork and litert and not gpu" -n 0 --cov=src/birdnet --cov-append --cov-report=
+  pytest -m "load_model" -n auto --cov=src/birdnet --cov-append --cov-report=
+  pytest -m "not load_model and (not litert and not gpu and not fork)" -n auto --cov=src/birdnet --cov-append --cov-report=
+  pytest -m "not load_model and litert and not fork" -n auto --cov=src/birdnet --cov-append --cov-report=
+  pytest -m "not load_model and gpu" -n 1 --cov=src/birdnet --cov-append --cov-report=
+  pytest -m "not load_model and fork and not litert and not gpu" -n 0 --cov=src/birdnet --cov-append --cov-report=
+  pytest -m "not load_model and fork and litert and not gpu" -n 0 --cov=src/birdnet --cov-append --cov-report=
   coverage report
 """
 

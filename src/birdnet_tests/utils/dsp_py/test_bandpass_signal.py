@@ -3,6 +3,8 @@ import pytest
 
 from birdnet.utils.dsp import bandpass_signal
 
+pytestmark = pytest.mark.no_tf
+
 
 @pytest.mark.parametrize(
   ("fmin", "fmax", "new_fmin", "new_fmax"),

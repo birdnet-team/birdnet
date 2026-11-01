@@ -1,6 +1,9 @@
 import numpy as np
+import pytest
 
 from birdnet.utils.dsp import flat_sigmoid_logaddexp_fast
+
+pytestmark = pytest.mark.no_tf
 
 
 def test_flat_sigmoid_logaddexp_fast_zero_is_half() -> None:

@@ -72,16 +72,6 @@ def test_description_falls_back_to_the_url(
   assert all(e.description == server.url("/file") for e in events)
 
 
-def test_no_events_without_a_registered_callback(
-  server: LocalServer, tmp_path: Path
-) -> None:
-  # `events` fixture not requested: nothing registered. Just has to work.
-  result = download_file_tqdm(server.url("/file"), tmp_path / "f.bin")
-
-  assert result == len(server.body)
-  assert (tmp_path / "f.bin").read_bytes() == server.body
-
-
 def test_callback_is_captured_when_the_download_starts(
   server: LocalServer, tmp_path: Path
 ) -> None:

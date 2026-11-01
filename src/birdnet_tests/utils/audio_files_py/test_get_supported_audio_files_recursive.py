@@ -1,7 +1,11 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+import pytest
+
 from birdnet.utils.audio_files import get_supported_audio_files_recursive
+
+pytestmark = pytest.mark.no_tf
 
 
 def test_component_test() -> None:

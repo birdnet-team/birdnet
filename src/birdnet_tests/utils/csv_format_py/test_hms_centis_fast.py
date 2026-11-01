@@ -1,6 +1,9 @@
 import numpy as np
+import pytest
 
 from birdnet.utils.csv_format import hms_centis_fast
+
+pytestmark = pytest.mark.no_tf
 
 
 def test_hms_centis_fast() -> None:

@@ -8,6 +8,8 @@ from ordered_set import OrderedSet
 from birdnet.geo.inference.prediction_result import GeoPredictionResult
 from birdnet_tests.helper import saved_arrays
 
+pytestmark = pytest.mark.no_tf
+
 
 def get_dummy_result(
   latitude: float = 10.0,
@@ -73,7 +75,6 @@ def test_save_and_load_is_equal() -> None:
   np.testing.assert_array_equal(reference._species_masked, loaded._species_masked)
 
 
-@pytest.mark.no_tf
 def test_loading_a_second_file_leaves_the_first_result_untouched(
   tmp_path: Path,
 ) -> None:

@@ -2,6 +2,8 @@ import pytest
 
 from birdnet.acoustic.inference.configs import OutputConfig
 
+pytestmark = pytest.mark.no_tf
+
 
 @pytest.mark.parametrize("value", ["minimal", "progress", "benchmark", None])
 def test_valid_values(value: str | None) -> None:

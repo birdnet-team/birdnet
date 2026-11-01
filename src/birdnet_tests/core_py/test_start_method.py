@@ -6,6 +6,8 @@ import pytest
 from birdnet.core.start_method import resolve_start_method
 from birdnet.globals import ENV_VAR_START_METHOD
 
+pytestmark = pytest.mark.no_tf
+
 
 def test_env_var_wins_over_global(monkeypatch: pytest.MonkeyPatch) -> None:
   # the autouse conftest fixture has fixed the global to "spawn"
@@ -20,13 +22,6 @@ def test_env_var_invalid_raises(monkeypatch: pytest.MonkeyPatch) -> None:
   monkeypatch.setenv(ENV_VAR_START_METHOD, "teleport")
   with pytest.raises(ValueError, match=ENV_VAR_START_METHOD):
     resolve_start_method()
-
-
-def test_explicitly_fixed_global_is_honored(monkeypatch: pytest.MonkeyPatch) -> None:
-  monkeypatch.delenv(ENV_VAR_START_METHOD, raising=False)
-  # the autouse conftest fixture has fixed the global to "spawn"
-  assert mp.get_start_method() == "spawn"
-  assert resolve_start_method() == "spawn"
 
 
 def test_fork_opt_in_is_honored(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -2,6 +2,8 @@ import pytest
 
 from birdnet.acoustic.inference.configs import PredictionConfig
 
+pytestmark = pytest.mark.no_tf
+
 
 def test_float_is_valid() -> None:
   assert PredictionConfig.validate_default_confidence_threshold(0.5) == 0.5
@@ -19,14 +21,10 @@ def test_negative_is_valid() -> None:
 
 
 def test_string_raises_error() -> None:
-  with pytest.raises(
-    TypeError, match=r"default confidence threshold must be a number"
-  ):
+  with pytest.raises(TypeError, match=r"default confidence threshold must be a number"):
     PredictionConfig.validate_default_confidence_threshold("high")  # type: ignore
 
 
 def test_none_raises_error() -> None:
-  with pytest.raises(
-    TypeError, match=r"default confidence threshold must be a number"
-  ):
+  with pytest.raises(TypeError, match=r"default confidence threshold must be a number"):
     PredictionConfig.validate_default_confidence_threshold(None)  # type: ignore

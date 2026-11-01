@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.no_tf
+
 REPOSITORY_ROOT = Path(__file__).parents[3]
 
 

@@ -13,8 +13,12 @@ import logging
 import threading
 import time
 
+import pytest
+
 from birdnet.acoustic.inference.core.sync import Deadline
 from birdnet.acoustic.inference.process_manager import ProcessManager
+
+pytestmark = pytest.mark.no_tf
 
 # How long the stuck thread stays stuck. Comfortably past the deadline handed
 # to the join, so an unbounded join is released late enough to fail the

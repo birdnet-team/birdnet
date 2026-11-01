@@ -1,10 +1,13 @@
 import multiprocessing as mp
 
 import numpy as np
+import pytest
 
 from birdnet.acoustic.inference.core.encoding.encoding_tensor import (
   AcousticEncodingTensor,
 )
+
+pytestmark = pytest.mark.no_tf
 
 
 def test_resize_keeps_unwritten_encoding_segments_masked() -> None:

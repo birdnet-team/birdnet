@@ -25,6 +25,8 @@ import pytest
 
 from birdnet.acoustic.inference.core.sync import CountedSemaphore
 
+pytestmark = pytest.mark.no_tf
+
 _SYNC_LOGGER = "birdnet.acoustic.inference.core.sync"
 # The give-up costs one poll interval (1 s) the first time and nothing after.
 # These bound "did not wait again", not how fast a machine is.

@@ -2,6 +2,8 @@ import pytest
 
 from birdnet.utils.segments import apply_speed_to_duration
 
+pytestmark = pytest.mark.no_tf
+
 
 def test_apply_speed_to_duration() -> None:
   assert apply_speed_to_duration(10.0, 2.0) == 20.0

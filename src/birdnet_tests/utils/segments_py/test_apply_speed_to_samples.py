@@ -1,4 +1,8 @@
+import pytest
+
 from birdnet.utils.segments import apply_speed_to_samples
+
+pytestmark = pytest.mark.no_tf
 
 
 def test_apply_speed_to_samples_rounds() -> None:
