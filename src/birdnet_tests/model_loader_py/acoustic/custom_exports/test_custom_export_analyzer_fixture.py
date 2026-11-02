@@ -51,9 +51,8 @@ def _assert_runs_like_the_official_model(
   assert scores.min() >= 0.0
   assert scores.max() <= 1.0
 
-  # The head overwrites the memory of the pooling tensor that holds the
-  # embeddings, which is only readable once the interpreter preserves
-  # intermediate tensors.
+  # Its embeddings are an intermediate tensor of a hidden-layer head; agreement
+  # with the official embeddings shows the right tensor is read.
   np.testing.assert_allclose(
     embeddings(custom),
     official_embeddings("2.4", library),

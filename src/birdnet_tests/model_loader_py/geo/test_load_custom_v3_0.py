@@ -12,9 +12,7 @@ from birdnet_tests.helper import (
   ensure_tf_2_19_or_2_18,
   ensure_torch_or_skip,
   ensure_v3_0_torch_backend_or_skip,
-)
-from birdnet_tests.model_loader_py.acoustic.test_acoustic_load_custom import (
-  check_validity,
+  validity_check_available,
 )
 
 
@@ -29,7 +27,7 @@ def test_load_custom_geo_model_v3_0_tf_fp32() -> None:
     get_lang_dir("geo", "3.0", "tf") / "en_us.txt",
     precision="fp32",
     library="tflite",
-    check_validity=check_validity(),
+    check_validity=validity_check_available(),
   )
   assert isinstance(model, GeoModelV3_0)
 
@@ -45,7 +43,7 @@ def test_load_custom_geo_model_v3_0_tf_fp16() -> None:
     get_lang_dir("geo", "3.0", "tf") / "en_us.txt",
     precision="fp16",
     library="tflite",
-    check_validity=check_validity(),
+    check_validity=validity_check_available(),
   )
   assert isinstance(model, GeoModelV3_0)
 
@@ -61,7 +59,7 @@ def test_load_custom_geo_model_v3_0_tf_int8() -> None:
     get_lang_dir("geo", "3.0", "tf") / "en_us.txt",
     precision="int8",
     library="tflite",
-    check_validity=check_validity(),
+    check_validity=validity_check_available(),
   )
   assert isinstance(model, GeoModelV3_0)
 
@@ -85,7 +83,7 @@ def test_load_custom_geo_model_v3_0_litert_raises_error(tmp_path: Path) -> None:
       species_path,
       precision="fp32",
       library="litert",
-      check_validity=check_validity(),
+      check_validity=validity_check_available(),
     )
 
 
@@ -98,7 +96,7 @@ def test_load_custom_geo_model_v3_0_pb_fp32() -> None:
     get_model_path("geo", "3.0", "pb", "fp32"),
     get_lang_dir("geo", "3.0", "pb") / "en_us.txt",
     precision="fp32",
-    check_validity=check_validity(),
+    check_validity=validity_check_available(),
   )
   assert isinstance(model, GeoModelV3_0)
 
@@ -115,6 +113,6 @@ def test_load_custom_geo_model_v3_0_pt_fp32() -> None:
     model_path,
     get_lang_dir("geo", "3.0", "pt") / "en_us.txt",
     precision="fp32",
-    check_validity=check_validity(),
+    check_validity=validity_check_available(),
   )
   assert isinstance(model, GeoModelV3_0)

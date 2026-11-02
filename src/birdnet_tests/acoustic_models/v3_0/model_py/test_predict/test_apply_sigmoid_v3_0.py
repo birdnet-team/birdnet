@@ -1,28 +1,27 @@
-import functools
 import inspect
 from pathlib import Path
 from types import ModuleType
-from typing import Literal
 
 import numpy as np
 import pytest
 from ordered_set import OrderedSet
 
+from birdnet.acoustic.inference.core.prediction.prediction_result import (
+  AcousticPredictionResultBase,
+)
 from birdnet.acoustic.models.v3_0 import onnx, pb, pt, tf
 from birdnet.acoustic.models.v3_0.model import AcousticModelV3_0
 from birdnet.model_loader import load
-from birdnet_tests.helper import (
-  ensure_onnxruntime_or_skip,
-  ensure_tf_2_18_or_skip,
-  ensure_torch_or_skip,
-  ensure_v3_0_torch_backend_or_skip,
-  scores_at_sigmoid_sensitivity,
+from birdnet_tests.acoustic_models.v3_0.model_py.conftest import (
+  V3_0Backend,
+  load_v3_0,
+  onnx_fp32_prediction,
 )
+from birdnet_tests.helper import scores_at_sigmoid_sensitivity
 from birdnet_tests.test_files import TEST_FILE_SHORT
 
 # Deliberately no `load_model` marker: that phase holds only the download
 # tests; these use the models it already fetched.
-_Backend = Literal["pt", "onnx", "tf", "pb"]
 
 # The exports bake in the sigmoid; a second one squashes every score into
 # [0.5, 0.73]. An absolute anchor catches that class - backends that are wrong
@@ -130,23 +129,18 @@ def test_every_v3_0_backend_declares_the_sigmoid_in_its_graph(
     assert cls.applies_sigmoid() is True, cls.__name__
 
 
-def _load_model(backend: _Backend, precision: str) -> AcousticModelV3_0:
-  if backend == "pt":
-    ensure_torch_or_skip()
-    ensure_v3_0_torch_backend_or_skip()
-    return load("acoustic", "3.0", "pt", precision=precision)
-  if backend == "onnx":
-    ensure_onnxruntime_or_skip()
-    return load("acoustic", "3.0", "onnx", precision=precision)
-  # The v3.0 exports need a newer TF than the macOS Intel pin (<2.17).
-  if backend == "tf":
-    ensure_tf_2_18_or_skip()
-    return load("acoustic", "3.0", "tf", precision=precision, library="tflite")
-  ensure_tf_2_18_or_skip()
-  return load("acoustic", "3.0", "pb", precision=precision)
+def _run(model: AcousticModelV3_0, **kwargs: object) -> AcousticPredictionResultBase:
+  with model.predict_session(
+    n_workers=1,
+    top_k=None,
+    default_confidence_threshold=-float("inf"),
+    **kwargs,  # type: ignore[arg-type]
+  ) as session:
+    return session.run(TEST_FILE_SHORT)
 
 
-# fp16 variants are separate export files with their own output indices.
+# fp16 variants are separate export files with their own output indices. pb is
+# bounded to onnx within 1e-4 by test_v3_0_predict_pb_and_onnx_are_close.
 @pytest.mark.parametrize(
   ("backend", "precision"),
   [
@@ -155,19 +149,15 @@ def _load_model(backend: _Backend, precision: str) -> AcousticModelV3_0:
     pytest.param("onnx", "fp16", marks=pytest.mark.no_tf),
     ("tf", "fp32"),
     ("tf", "fp16"),
-    ("pb", "fp32"),
   ],
 )
 def test_v3_0_predict_default_confidence_is_calibrated(
-  backend: _Backend, precision: str
+  backend: V3_0Backend, precision: str
 ) -> None:
-  model = _load_model(backend, precision)
-  with model.predict_session(
-    n_workers=1,
-    top_k=None,
-    default_confidence_threshold=-float("inf"),
-  ) as session:
-    res = session.run(TEST_FILE_SHORT)
+  if (backend, precision) == ("onnx", "fp32"):
+    res = onnx_fp32_prediction()
+  else:
+    res = _run(load_v3_0(backend, precision))
 
   # The species axis is in top-k selection order, not species order: map the
   # winning slot through species_ids to get the actual species.
@@ -179,40 +169,27 @@ def test_v3_0_predict_default_confidence_is_calibrated(
   assert first_segment[top_slot] == pytest.approx(_EXPECTED_TOP_CONFIDENCE, abs=tol)
 
 
-def _scores(model: AcousticModelV3_0, **kwargs: object) -> np.ndarray:
+def _in_model_order(res: AcousticPredictionResultBase) -> np.ndarray:
   """Every score of every segment, species in model order; shape (segments, n)."""
-  with model.predict_session(
-    n_workers=1,
-    top_k=None,
-    default_confidence_threshold=-float("inf"),
-    **kwargs,  # type: ignore[arg-type]
-  ) as session:
-    res = session.run(TEST_FILE_SHORT)
   order = np.argsort(np.asarray(res.species_ids), axis=-1)
   return np.take_along_axis(np.asarray(res.species_probs), order, axis=-1)[0]
 
 
-# One run per backend and pytest process, however many tests compare against it.
-@functools.cache
-def _default_scores(backend: _Backend) -> np.ndarray:
-  return _scores(_load_model(backend, "fp32"))
+def _default_scores() -> np.ndarray:
+  return _in_model_order(onnx_fp32_prediction())
 
 
-_BACKENDS = [
-  pytest.param("pt", marks=pytest.mark.no_tf),
-  pytest.param("onnx", marks=pytest.mark.no_tf),
-  "tf",
-  "pb",
-]
-
-
+# The recovery runs in the prediction worker and never reads the backend:
+# prediction_worker_py/test_in_graph_sigmoid_sensitivity.py pins it on the
+# fake for both model classes, and the flag the worker branches on is pinned
+# per class above. One real backend shows it on real scores.
+@pytest.mark.no_tf
 @pytest.mark.parametrize("sensitivity", [0.5, 1.5])
-@pytest.mark.parametrize("backend", _BACKENDS)
 def test_v3_0_sigmoid_sensitivity_transforms_the_recovered_logits(
-  backend: _Backend, sensitivity: float
+  sensitivity: float,
 ) -> None:
-  default = _default_scores(backend)
-  scores = _scores(_load_model(backend, "fp32"), sigmoid_sensitivity=sensitivity)
+  default = _default_scores()
+  scores = _in_model_order(_run(load_v3_0("onnx"), sigmoid_sensitivity=sensitivity))
 
   # Two runs of one model differ by ~1e-7 in score, which a score next to 1
   # turns into a visible shift of its logit; the recovery itself is good to
@@ -235,7 +212,7 @@ def test_v3_0_threshold_applies_to_the_transformed_scores() -> None:
   threshold = 0.1
   # 0.75 shifts every logit by -2.5: the file's top detection (0.918) lands at
   # 0.48 and still clears the threshold, which at 0.5 nothing does.
-  with _load_model("onnx", "fp32").predict_session(
+  with load_v3_0("onnx").predict_session(
     n_workers=1,
     top_k=None,
     sigmoid_sensitivity=0.75,
@@ -247,4 +224,4 @@ def test_v3_0_threshold_applies_to_the_transformed_scores() -> None:
   masked = np.asarray(res.species_masked)
   np.testing.assert_array_equal(masked, probs < threshold)
   # The sensitivity moved scores below the threshold that cleared it before.
-  assert 0 < (~masked).sum() < (_default_scores("onnx") >= threshold).sum()
+  assert 0 < (~masked).sum() < (_default_scores() >= threshold).sum()

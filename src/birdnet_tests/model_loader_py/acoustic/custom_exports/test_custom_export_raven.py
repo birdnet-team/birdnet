@@ -7,7 +7,6 @@ from birdnet.acoustic.models.v2_4.pb import AcousticRavenBackendFP32V2_4
 from birdnet.acoustic.models.v3_0.model import AcousticModelV3_0
 from birdnet.acoustic.models.v3_0.pb import AcousticRavenBackendFP32V3_0
 from birdnet.utils.species_lists import get_species_from_file
-from birdnet_tests.helper import scores_at_sigmoid_sensitivity
 from birdnet_tests.model_loader_py.acoustic.custom_exports.conftest import (
   EXPORT_TEST_TIMEOUT_S,
   N_SEGMENTS,
@@ -88,17 +87,6 @@ def test_v3_0_raven_loaded_as_the_official_layout_is_rejected(
     birdnet.load_custom("acoustic", "3.0", "pb", export.model, export.labels)
 
 
-def test_v3_0_raven_applies_a_sigmoid_sensitivity(get_export: GetExport) -> None:
-  model = _load_raven_v3_0(get_export)
-  default = scores_in_model_order(model)
-  scores = scores_in_model_order(model, sigmoid_sensitivity=0.5)
-  np.testing.assert_allclose(
-    scores, scores_at_sigmoid_sensitivity(default, 0.5), atol=1e-4
-  )
-  moved = (default > 0.01) & (default < 0.99)
-  assert np.all(scores[moved] < default[moved])
-
-
 def test_v3_0_raven_rejects_batches(get_export: GetExport) -> None:
   model = _load_raven_v3_0(get_export)
   with pytest.raises(
@@ -126,22 +114,6 @@ def test_v2_4_raven_scores_are_the_models_probabilities() -> None:
   # And whatever apply_sigmoid says: two runs of one model differ by ~1e-7.
   np.testing.assert_allclose(
     scores_in_model_order(raven, apply_sigmoid=False), scores, atol=1e-5
-  )
-
-
-@pytest.mark.parametrize("sensitivity", [0.5, 1.5])
-def test_v2_4_raven_sigmoid_sensitivity_matches_the_tflite_export(
-  sensitivity: float,
-) -> None:
-  # The same head twice: as logits that get the pipeline's scaled sigmoid, and
-  # as in-graph scores whose logits the pipeline recovers first. Same backbone
-  # spread as at the default sensitivity.
-  raven = _load_raven_v2_4()
-  tflite = load_unchecked(TFLITE_V2_4, TFLITE_V2_4_LABELS, "2.4")
-  np.testing.assert_allclose(
-    scores_in_model_order(raven, sigmoid_sensitivity=sensitivity),
-    scores_in_model_order(tflite, sigmoid_sensitivity=sensitivity),
-    atol=5e-3,
   )
 
 

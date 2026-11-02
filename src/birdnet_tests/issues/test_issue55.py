@@ -5,7 +5,10 @@ Python 3.14, so a base install runs without it. This module documents and pins
 what works there:
 
 - ``import birdnet`` works without TensorFlow installed.
-- The acoustic 3.0 and geo 3.0 models run via the ``onnx`` and ``pt`` backends.
+- The acoustic 3.0 and geo 3.0 models run via the ``onnx`` and ``pt`` backends;
+  their scores are pinned in these lanes too, by
+  ``test_v3_0_predict_default_confidence_is_calibrated`` and geo's
+  ``test_calibration_anchor_probabilities`` (both ``no_tf``).
 - The ``tf`` backend runs the .tflite models on ai-edge-litert with
   ``library="litert"`` (acoustic 2.4, geo 2.4 and custom 2.4 classifiers) --
   ai-edge-litert never imports TensorFlow, and this lane, not a mocked
@@ -24,12 +27,7 @@ import pytest
 
 import birdnet
 from birdnet.acoustic.models.v2_4.tf import AcousticTFBackendCustomV2_4
-from birdnet.core.backends import (
-  litert_installed,
-  onnxruntime_installed,
-  tf_installed,
-  torch_installed,
-)
+from birdnet.core.backends import litert_installed, tf_installed
 from birdnet_tests.helper import ensure_not_intel_macos_or_skip
 from birdnet_tests.test_files import TEST_FILE_LONG, TEST_FILES_DIR
 
@@ -81,34 +79,6 @@ def test_load_custom_tf_backends_raise_clear_error_without_tensorflow(
   species.write_text("a\n", encoding="utf-8")
   with pytest.raises(ValueError, match="TensorFlow"):
     birdnet.load_custom("acoustic", "2.4", backend, tmp_path, species)
-
-
-@pytest.mark.skipif(not onnxruntime_installed(), reason="onnxruntime not installed")
-def test_acoustic_v3_onnx_predicts_without_tensorflow() -> None:
-  model = birdnet.load("acoustic", "3.0", "onnx")
-  predictions = model.predict(TEST_FILE_LONG)
-  assert predictions is not None
-
-
-@pytest.mark.skipif(not onnxruntime_installed(), reason="onnxruntime not installed")
-def test_geo_v3_onnx_predicts_without_tensorflow() -> None:
-  model = birdnet.load("geo", "3.0", "onnx")
-  predictions = model.predict(42.5, -76.45, week=4)
-  assert predictions is not None
-
-
-@pytest.mark.skipif(not torch_installed(), reason="torch not installed")
-def test_geo_v3_pt_predicts_without_tensorflow() -> None:
-  model = birdnet.load("geo", "3.0", "pt")
-  predictions = model.predict(42.5, -76.45, week=4)
-  assert predictions is not None
-
-
-@pytest.mark.skipif(not torch_installed(), reason="torch not installed")
-def test_acoustic_v3_pt_predicts_without_tensorflow() -> None:
-  model = birdnet.load("acoustic", "3.0", "pt")
-  predictions = model.predict(TEST_FILE_LONG)
-  assert predictions is not None
 
 
 # ----------------------------- tf backend on ai-edge-litert -----------------------
