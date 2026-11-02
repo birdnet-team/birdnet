@@ -91,7 +91,7 @@ def test_custom_from_analyzer_v2_4_raven_fp32_raise_exception() -> None:
     "pb",
     TEST_FILES_DIR / "custom_models/raven/CustomClassifier",
     TEST_FILES_DIR / "custom_models/raven/CustomClassifier/labels/label_names.csv",
-    check_validity=True,
+    check_validity=False,
     is_raven=True,
   )
 

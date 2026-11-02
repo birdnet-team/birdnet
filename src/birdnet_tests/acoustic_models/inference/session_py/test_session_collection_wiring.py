@@ -61,13 +61,12 @@ def test_collection_goes_through_the_bounded_read(
 def test_a_warm_call_pays_no_fixed_reader_toll(tmp_path: Path) -> None:
   """The collection machinery must not put a fixed barrier into warm calls.
 
-  This pipeline has reintroduced a fixed per-call cost through teardown
-  bookkeeping twice (a poll interval in #75, reader closes in the change this
-  file belongs to), each time invisible to the real-model overhead guard
-  because its threshold is sized for a 1 s barrier. The stub backend does
-  ~2 ms of work, so the *fastest* of several warm calls is almost pure
-  pipeline overhead — and a fixed toll in the tens of milliseconds moves it,
-  while scheduler noise cannot (noise only ever makes a call slower).
+  Teardown bookkeeping can put a fixed per-call cost into every call (a poll
+  interval, a reader join) far below what a threshold sized for a 1 s barrier
+  would notice. The stub backend does ~2 ms of work, so the *fastest*
+  of several warm calls is almost pure pipeline overhead — and a fixed toll in
+  the tens of milliseconds moves it, while scheduler noise cannot (noise only
+  ever makes a call slower).
   """
   audio = _clip()
   with fake_predict_session(tmp_path, n_workers=1) as session:

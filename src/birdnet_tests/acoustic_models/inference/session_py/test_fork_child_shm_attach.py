@@ -15,6 +15,9 @@ race, so it is not what gets asserted here.
 Both stats modes are covered because they start different sets of children:
 ``show_stats=None`` runs producers and workers only, while ``"progress"`` also
 starts ``PerformanceTracker``, which attaches the ring flags of its own.
+
+The pipeline runs on the fake backend: the invariant is the ring buffers', not
+the model's, and forking after TensorFlow is loaded can wedge the child.
 """
 
 import multiprocessing as mp
@@ -26,8 +29,10 @@ from typing import Literal
 import numpy as np
 import pytest
 
-from birdnet.model_loader import load
+from birdnet_tests.fake_acoustic_backend import fake_predict_session
 from birdnet_tests.helper import use_fork_or_skip
+
+pytestmark = pytest.mark.no_tf
 
 SAMPLE_RATE = 48_000
 CLIP_DURATION_S = 9.0
@@ -65,10 +70,7 @@ def test_fork_children_do_not_attach_shared_memory_themselves(
 
   resource_tracker.register = _tracing_register  # type: ignore[assignment]
   try:
-    model = load("acoustic", "2.4", "tf", library="tflite")
-    with model.predict_session(
-      n_workers=1, top_k=None, show_stats=show_stats
-    ) as session:
+    with fake_predict_session(tmp_path, n_workers=1, show_stats=show_stats) as session:
       session.run_arrays((audio * 0.1, SAMPLE_RATE))
   finally:
     resource_tracker.register = _original_register  # type: ignore[assignment]
