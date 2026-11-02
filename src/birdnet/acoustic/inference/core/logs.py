@@ -2,7 +2,11 @@ import logging
 from logging.handlers import QueueHandler
 from multiprocessing import Queue
 
-from birdnet.acoustic.inference.core.sync import FailureSlot, write_failure
+from birdnet.acoustic.inference.core.sync import (
+  FailureSlot,
+  parent_is_alive,
+  write_failure,
+)
 from birdnet.core.base import get_session_id_hash
 from birdnet.utils.logging_utils import get_package_logger, init_package_logger
 
@@ -117,6 +121,7 @@ class LogableProcessBase:
     # global still says "fork"), and these branches must match the context the
     # process was really created with.
     self.__start_method = start_method
+    self.__parent_gone = False
     self._session_hash = get_session_id_hash(session_id)
 
   def _init_logging(self) -> None:
@@ -137,6 +142,17 @@ class LogableProcessBase:
     """Leave the exception's type and message where the parent can read them."""
     if self.__failure_slot is not None:
       write_failure(self.__failure_slot, exc)
+
+  def _parent_is_gone(self) -> bool:
+    """True once the parent process has died, see ``parent_is_alive``.
+
+    Every bounded wait asks on its way round, and so does the exit path. Logged
+    once, the first time the parent is found gone.
+    """
+    if not self.__parent_gone and not parent_is_alive():
+      self.__parent_gone = True
+      self._logger.debug("Parent process is gone; exiting.")
+    return self.__parent_gone
 
   def _abandon_logging_feeder(self) -> None:
     """Flush the logging feeder for a bounded time, then exit without it.

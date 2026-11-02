@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import ctypes
+import functools
 import logging
 import multiprocessing as mp
 import multiprocessing.synchronize
+import os
 import queue as pyqueue
 import threading
 import time
@@ -52,7 +54,10 @@ class ChildToParentQueue(Protocol):
   through ``readable``; a ``get`` on a queue typed like this anywhere else is
   a type error. Typed as a plain ``Queue`` instead, on purpose: the logging
   queue, read by the log writer thread; the two stats queues, read by the
-  performance tracker in its own process; and the parent-to-child input queue.
+  performance tracker in its own process; and the parent-to-child input queue,
+  whose reader, the producer, is bounded only between frames: a frame the
+  parent was killed inside of (an array from ``run_arrays``; a path is one
+  small write) keeps it waiting.
   """
 
   def put(
@@ -172,12 +177,58 @@ def abandon_queue_feeders(*queues: ChildToParentQueue | None) -> None:
       q.cancel_join_thread()
 
 
+def parent_is_alive() -> bool:
+  """Whether the process that started this one is still there.
+
+  A child cannot otherwise learn that its parent is gone: the cancel and end
+  events it leaves on are the parent's to set, and ``daemon=True`` only acts
+  when the parent's interpreter exits normally, not when it is killed, crashes
+  or leaves through ``os._exit``. Without this check every child waits in its
+  polls for a signal nobody will send, keeping its model, and a GPU worker its
+  device memory, for good.
+
+  Two signals, each covering the other's blind spot. The parent sentinel every
+  start method sets up, polled with a zero timeout: the parent's process handle
+  on Windows; on POSIX a pipe, whose write end every process the parent forks
+  after this child started inherits too, so a fork-mode pool or an
+  ``os.fork()`` in the application keeps it open past the parent's death. And
+  the OS parent: the kernel hands an orphan to a new one at once, whatever fds
+  survive. That is compared only where the OS parent *is* the parent, which
+  under ``forkserver`` it is not (the fork server is), so a forked descendant
+  does keep a forkserver pipeline waiting: the fork server's own exit hangs on
+  the same pipe inheritance. Windows never reparents, so the comparison is
+  inert there. A process ``multiprocessing`` did not start has no parent to
+  lose and counts as alive.
+  """
+  parent = mp.parent_process()
+  if parent is None:
+    return True
+  if not parent.is_alive():
+    return False
+  if _os_parent_is_the_parent(os.getpid(), parent.pid):
+    return os.getppid() == parent.pid
+  return True
+
+
+@functools.lru_cache(maxsize=1)
+def _os_parent_is_the_parent(pid: int, parent_pid: int) -> bool:
+  """Whether ``os.getppid()`` names the parent: under spawn and fork, not forkserver.
+
+  Decided once per process (``pid`` keys the cache, so a fork child does not
+  inherit its parent's answer). Both tests are needed: a forkserver child
+  always reports its start method, but a fork child inherits the parent's
+  global, which unset reads as the platform default (``forkserver`` on Linux
+  from 3.14); and the pid comparison only tells while the parent is alive.
+  """
+  return mp.get_start_method() != "forkserver" or os.getppid() == parent_pid
+
+
 def acquire_or_give_up_when_cancelled(
   lock: multiprocessing.synchronize.Lock,
   cancel_event: ChildSideEvent,
   poll_interval_s: float = LOCK_POLL_INTERVAL_S,
 ) -> bool:
-  """Take a cross-process lock, giving up if the run has been cancelled.
+  """Take a cross-process lock, giving up if the run was cancelled or the parent died.
 
   A ``multiprocessing.Lock`` is a semaphore on every platform -- a POSIX
   semaphore, or a Windows kernel semaphore (``CreateSemaphore``), not a mutex.
@@ -189,8 +240,9 @@ def acquire_or_give_up_when_cancelled(
 
   Polling makes the leak survivable instead: the parent notices the dead child
   within a second and sets the cancel event, and every waiter here then leaves
-  on its own. Returns ``False`` when it gave up, in which case the caller has
-  *not* got the lock and must not touch what the lock protects.
+  on its own; a waiter whose parent has died, which no cancel will reach, leaves
+  too. Returns ``False`` when it gave up, in which case the caller has *not*
+  got the lock and must not touch what the lock protects.
 
   The non-blocking attempt first is not an optimization for its own sake. macOS
   has no ``sem_timedwait``, so CPython emulates *any* timed acquire with a
@@ -204,7 +256,9 @@ def acquire_or_give_up_when_cancelled(
   if lock.acquire(block=False):
     return True
   while not lock.acquire(timeout=poll_interval_s):
-    if cancel_event.is_set():
+    # The parent first: is_set() takes the event's lock, which a parent killed
+    # inside an operation on the event never released.
+    if not parent_is_alive() or cancel_event.is_set():
       return False
   return True
 

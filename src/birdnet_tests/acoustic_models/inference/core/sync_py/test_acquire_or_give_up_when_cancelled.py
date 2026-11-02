@@ -17,6 +17,7 @@ import time
 
 import pytest
 
+from birdnet.acoustic.inference.core import sync
 from birdnet.acoustic.inference.core.sync import acquire_or_give_up_when_cancelled
 
 pytestmark = pytest.mark.no_tf
@@ -62,6 +63,56 @@ def test_a_never_released_lock_is_abandoned_once_the_run_is_cancelled() -> None:
     "giving up must be reported, or the caller would touch the ring buffer "
     "without holding the lock"
   )
+
+  lock.release()
+
+
+def test_a_waiter_whose_parent_is_gone_does_not_ask_the_cancel_event(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  """A parent killed inside an operation on the event left its lock held."""
+
+  class Wedged:
+    def is_set(self) -> bool:
+      pytest.fail("asked the cancel event after the parent died")
+
+    def set(self) -> None:
+      pass
+
+  lock = mp.get_context("spawn").Lock()
+  lock.acquire()
+  monkeypatch.setattr(sync, "parent_is_alive", lambda: False)
+
+  got_lock = acquire_or_give_up_when_cancelled(lock, Wedged(), poll_interval_s=0.05)
+
+  assert got_lock is False
+
+
+def test_a_never_released_lock_is_abandoned_once_the_parent_is_gone(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  """A dead parent sets no cancel event, so the wait must give up on its own."""
+  ctx = mp.get_context("spawn")
+  lock = ctx.Lock()
+  cancel = ctx.Event()
+  lock.acquire()
+  monkeypatch.setattr(sync, "parent_is_alive", lambda: False)
+
+  done = threading.Event()
+  result: dict[str, bool] = {}
+
+  def waiter() -> None:
+    result["got_lock"] = acquire_or_give_up_when_cancelled(
+      lock, cancel, poll_interval_s=0.05
+    )
+    done.set()
+
+  threading.Thread(target=waiter, name="ring-lock-waiter", daemon=True).start()
+
+  assert done.wait(timeout=_DEADLINE_S), (
+    "the waiter never gave up although its parent is gone"
+  )
+  assert result["got_lock"] is False
 
   lock.release()
 
