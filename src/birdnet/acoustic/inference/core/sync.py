@@ -291,8 +291,8 @@ class ThreadedQueueReader(Generic[T]):
   One reader per queue per run. Stopping is split in two on purpose:
   ``stop()`` returns immediately, because joining a pump that is merely asleep
   in its poll costs tens of milliseconds and runs on every ``session.run``
-  call -- a fixed per-call latency ``test_session_call_overhead`` guards
-  against. ``confirm_stopped()`` does the bounded join, and is called
+  call -- a fixed per-call latency ``test_a_warm_call_pays_no_fixed_reader_toll``
+  guards against. ``confirm_stopped()`` does the bounded join, and is called
   where the answer is actually needed: before the same queue is read again,
   and before it is closed. A pump that does not confirm is wedged inside the
   queue, and the owner must then leave that queue open -- closing it would

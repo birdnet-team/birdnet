@@ -4,8 +4,8 @@ Every parent-side wait in a healthy run is unbounded on purpose. That is only
 safe while the children are working: one killed by the OOM killer or crashing
 in native code never sets its finish signal, so the parent would block forever
 with no output. These tests pin the decision logic that turns that into an
-error; the end-to-end proof is in
-`acoustic_models/v2_4/model_py/test_predict/test_dead_worker_v2_4.py`.
+error; the end-to-end proof is the kill points in
+`acoustic_models/inference/kill_points/test_killed_children.py`.
 """
 
 from __future__ import annotations

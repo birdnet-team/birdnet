@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import numpy as np
+import pytest
 import soundfile
 from ordered_set import OrderedSet
 
@@ -11,10 +12,14 @@ from birdnet.acoustic.inference.core.prediction.prediction_result import (
 from birdnet.acoustic.inference.core.prediction.prediction_tensor import (
   AcousticPredictionTensor,
 )
-from birdnet.model_loader import load
 from birdnet.utils.dtypes import get_float_dtype
 from birdnet.utils.segments import get_hop_duration_s, get_n_segments_speed
-from birdnet_tests.test_files import TEST_FILE_LONG
+from birdnet_tests.fake_acoustic_backend import (
+  fake_predict_session,
+  write_marked_audio,
+)
+
+pytestmark = pytest.mark.no_tf
 
 
 def assert_species_masked_pattern(species_masked: np.ndarray) -> None:
@@ -499,25 +504,30 @@ def test_masking_behavior() -> None:
   assert structured[2]["input"] == str(Path("/test/file_1.wav").absolute())
 
 
-def test_full_pipeline() -> None:
-  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
-  with model.predict_session(
-    n_workers=1, top_k=1, speed=0.5, default_confidence_threshold=-np.inf
-  ) as session:
-    res = session.run(TEST_FILE_LONG)
-  structured = res.to_structured_array()
-  assert len(structured) == 80
+# The row count depends only on segmentation: ten 3 s segments of audio at
+# speed 0.5 are twenty, one row each at top_k=1 with nothing masked.
+_N_SEGMENTS_WRITTEN = 10
+_N_ROWS_AT_HALF_SPEED = 20
 
 
-def test_full_pipeline_np() -> None:
-  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
-  with model.predict_session(
-    n_workers=1, top_k=1, speed=0.5, default_confidence_threshold=-np.inf
+def test_full_pipeline(tmp_path: Path) -> None:
+  audio = write_marked_audio(tmp_path / "in.wav", _N_SEGMENTS_WRITTEN)
+  with fake_predict_session(
+    tmp_path, n_workers=1, top_k=1, speed=0.5, default_confidence_threshold=-np.inf
   ) as session:
-    sf_read = soundfile.read(TEST_FILE_LONG)
-    res = session.run_arrays(sf_read)
+    res = session.run(audio)
   structured = res.to_structured_array()
-  assert len(structured) == 80
+  assert len(structured) == _N_ROWS_AT_HALF_SPEED
+
+
+def test_full_pipeline_np(tmp_path: Path) -> None:
+  audio = write_marked_audio(tmp_path / "in.wav", _N_SEGMENTS_WRITTEN)
+  with fake_predict_session(
+    tmp_path, n_workers=1, top_k=1, speed=0.5, default_confidence_threshold=-np.inf
+  ) as session:
+    res = session.run_arrays(soundfile.read(audio))
+  structured = res.to_structured_array()
+  assert len(structured) == _N_ROWS_AT_HALF_SPEED
 
 
 def test_time_calculations_issue_38_long_file_with_overlap_and_slowdown() -> None:

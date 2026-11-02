@@ -176,6 +176,19 @@ class IgnoringTerminationBackend(FakeAcousticBackend):
     time.sleep(60)
 
 
+class SlowLoadingBackend(FakeAcousticBackend):
+  """Takes a moment in `load`, as a real model does, so a first run starts idle.
+
+  The workers load while the parent already runs, so the consumer waits out at
+  least one of its one-second polls before the first block arrives.
+  """
+
+  seconds_to_load: ClassVar[float] = 1.5
+
+  def load(self) -> None:
+    time.sleep(self.seconds_to_load)
+
+
 class FailingToLoadBackend(FakeAcousticBackend):
   """Raises in `load`, as a model with corrupt weights would."""
 

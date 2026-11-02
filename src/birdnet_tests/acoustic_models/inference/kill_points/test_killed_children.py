@@ -1,10 +1,9 @@
 """Killing any child at any point must end the run, not wedge it.
 
 These run on the fake backend, so the pipeline starts in a quarter of a second
-and a kill point costs a test rather than a model download. That is the whole
-reason they can be specific about *where* the child dies: the existing
-end-to-end versions of these tests kill a worker at whatever moment a progress
-callback or a ring-flag poll happens to catch, which is neither reproducible
+and a kill point costs a test rather than a model download. That is what lets
+them be specific about *where* the child dies: a kill at whatever moment a
+progress callback or a ring-flag poll happens to catch is neither reproducible
 nor aimed at anything in particular.
 
 `seconds_per_batch` is what makes the aim possible. A worker that spends half a
@@ -29,6 +28,7 @@ from birdnet_tests.fake_acoustic_backend import (
   fake_predict_session,
   write_marked_audio,
 )
+from birdnet_tests.helper import run_session_in_thread
 
 # The fake backend is pure numpy, so these exercise the pipeline on the
 # TensorFlow-free surface too — the 3.14 lane otherwise runs almost none of it.
@@ -60,29 +60,7 @@ def _run_in_thread(
   files: list[str],
   kill: Callable[[AcousticSessionBase], None],
 ) -> dict:
-  """Run a session to completion in one thread, and report what happened.
-
-  The session is entered and exited on the same thread on purpose: if anything
-  wedges, exiting the `with` from the test thread would block there instead,
-  and the deadline assertion would never be reached.
-  """
-  outcome: dict = {}
-  finished = threading.Event()
-
-  def run() -> None:
-    try:
-      with session_factory() as session:
-        outcome["session"] = session
-        kill(session)
-        session.run(files)
-    except BaseException as e:  # noqa: BLE001 - asserted on by the caller
-      outcome["error"] = e
-    finally:
-      finished.set()
-
-  threading.Thread(target=run, name="kill-point-run", daemon=True).start()
-  outcome["finished"] = finished.wait(timeout=_DEADLINE_S)
-  return outcome
+  return run_session_in_thread(session_factory, files, kill, _DEADLINE_S)
 
 
 def _kill_after(
@@ -159,6 +137,9 @@ def _assert_reported(outcome: dict, what: str) -> None:
   )
   assert "exited unexpectedly" in str(error), (
     f"the failure must name the dead child; got {str(error)[:200]!r}"
+  )
+  assert isinstance(error.__cause__, ChildProcessError), (
+    f"the ChildProcessError should be chained as the cause, got {error.__cause__!r}"
   )
 
 

@@ -1,22 +1,26 @@
 import multiprocessing as mp
 import os
 import sys
+import threading
 import time
 import zipfile
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from multiprocessing import get_all_start_methods, set_start_method
 from pathlib import Path
-from typing import IO
+from typing import IO, Generic, TypeVar
 
 import numpy as np
 import pytest
 
 from birdnet.acoustic.inference.core.encoding.encoding_result import (
   AcousticEncodingResultBase,
+  AcousticFileEncodingResult,
 )
 from birdnet.acoustic.inference.core.prediction.prediction_result import (
+  AcousticFilePredictionResult,
   AcousticPredictionResultBase,
 )
+from birdnet.acoustic.inference.session import AcousticSessionBase
 from birdnet.core.backends import (
   _get_major_minor_version,
   check_is_intel_macos,
@@ -532,3 +536,57 @@ def move_mtime_forward(path: Path) -> None:
   st = path.stat()
   os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
   assert path.stat().st_mtime_ns != st.st_mtime_ns, "the mtime bump was not recorded"
+
+
+FileResultT = TypeVar(
+  "FileResultT", AcousticFilePredictionResult, AcousticFileEncodingResult
+)
+
+
+class FileResultCollector(Generic[FileResultT]):
+  """Thread-safe sink for ``on_file_complete``, which fires on a background thread."""
+
+  def __init__(self) -> None:
+    self._lock = threading.Lock()
+    self.results: dict[str, FileResultT] = {}
+    self.order: list[str] = []
+
+  def __call__(self, result: FileResultT) -> None:
+    assert result.n_inputs == 1
+    key = str(result.inputs[0])
+    with self._lock:
+      self.results[key] = result
+      self.order.append(key)
+
+
+def run_session_in_thread(
+  session_factory: Callable[[], AcousticSessionBase],
+  files: list[str],
+  before_run: Callable[[AcousticSessionBase], None],
+  deadline_s: float,
+) -> dict:
+  """Run a session to completion in one thread, and report what happened.
+
+  The session is entered and exited on the same thread on purpose: if anything
+  wedges, exiting the `with` from the test thread would block there instead,
+  and the caller's deadline assertion would never be reached. The outcome holds
+  ``finished`` (the thread returned within ``deadline_s``), the ``session``,
+  and the run's ``result`` or the ``error`` that ended it.
+  """
+  outcome: dict = {}
+  finished = threading.Event()
+
+  def run() -> None:
+    try:
+      with session_factory() as session:
+        outcome["session"] = session
+        before_run(session)
+        outcome["result"] = session.run(files)
+    except BaseException as e:  # noqa: BLE001 - asserted on by the caller
+      outcome["error"] = e
+    finally:
+      finished.set()
+
+  threading.Thread(target=run, name="session-run", daemon=True).start()
+  outcome["finished"] = finished.wait(timeout=deadline_s)
+  return outcome
