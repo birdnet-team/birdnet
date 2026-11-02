@@ -163,6 +163,10 @@ class WorkerBase(bn_logging.LogableProcessBase):
     self._logger.debug(f"W_{self._pid}: {msg}", *args)
 
   def _check_cancel_event(self) -> bool:
+    # The parent first: is_set() takes the event's lock, which a parent killed
+    # inside an operation on the event never released.
+    if self._parent_is_gone():
+      return True
     if self._cancel_event.is_set():
       self._log("Received cancel event.")
       return True
@@ -205,10 +209,10 @@ class WorkerBase(bn_logging.LogableProcessBase):
       self._report_failure(e)
       self._cancel_event.set()
 
-    # On cancellation the consumer has stopped reading these queues; drop any
-    # buffered results/stats so this process can exit without blocking on its
-    # feeder threads (see abandon_queue_feeders).
-    if self._cancel_event.is_set():
+    # After a cancel, or once the parent is gone, nothing reads these queues;
+    # drop any buffered results/stats so this process can exit without blocking
+    # on its feeder threads (see abandon_queue_feeders).
+    if self._parent_is_gone() or self._cancel_event.is_set():
       abandon_queue_feeders(self._out_q, self._wkr_stats_queue)
 
     self._uninit_logging()
@@ -234,6 +238,10 @@ class WorkerBase(bn_logging.LogableProcessBase):
 
       self.run_main()
 
+      # A parent that died inside finish_signal.wait() never confirms the
+      # wake, and set() would then block for good (see ChildSideEvent).
+      if self._parent_is_gone():
+        return
       self._log("Set finish signal.")
       self._finish_signal.set()
 

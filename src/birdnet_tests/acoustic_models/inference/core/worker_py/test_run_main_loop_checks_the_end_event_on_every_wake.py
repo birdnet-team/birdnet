@@ -2,7 +2,8 @@
 
 `end()` releases every idle start signal so the waits return at once, so a
 release is not by itself a run start: the loop must look at the end and
-cancel events after every wake and return without calling `run_main`.
+cancel events, and at its parent, after every wake and return without calling
+`run_main`.
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ def _idle_worker(run_main) -> SimpleNamespace:  # noqa: ANN001
     _end_event=threading.Event(),
     _cancel_event=threading.Event(),
     _finish_signal=threading.Event(),
+    _parent_is_gone=lambda: False,
     _log=lambda *args: None,
     run_main=run_main,
   )
@@ -76,3 +78,46 @@ def test_a_wake_without_either_event_runs_once_and_waits_again() -> None:
 
   assert runs == [1]
   assert worker._finish_signal.is_set()
+
+
+def test_a_wake_after_the_parent_died_returns_without_running() -> None:
+  runs: list[int] = []
+  worker = _idle_worker(lambda: runs.append(1))
+  worker._parent_is_gone = lambda: True
+  worker._start_signal.release()
+
+  WorkerBase.run_main_loop(worker)
+
+  assert runs == []
+  assert not worker._finish_signal.is_set()
+
+
+def test_a_wake_after_the_parent_died_does_not_ask_the_cancel_event() -> None:
+  """A parent killed inside an operation on the event left its lock held."""
+  worker = _idle_worker(lambda: None)
+  worker._parent_is_gone = lambda: True
+  worker._cancel_event = SimpleNamespace(
+    is_set=lambda: pytest.fail("asked the cancel event after the parent died")
+  )
+  worker._start_signal.release()
+
+  WorkerBase.run_main_loop(worker)
+
+
+def test_a_run_that_outlived_its_parent_leaves_the_finish_signal_alone() -> None:
+  """Setting an event the dead parent waited on never returns, see ChildSideEvent."""
+  worker = _idle_worker(lambda: None)
+  gone = False
+
+  def run_main() -> None:
+    nonlocal gone
+    gone = True
+
+  worker.run_main = run_main
+  worker._parent_is_gone = lambda: gone
+  worker._start_signal.release()
+
+  WorkerBase.run_main_loop(worker)
+
+  assert gone
+  assert not worker._finish_signal.is_set()
