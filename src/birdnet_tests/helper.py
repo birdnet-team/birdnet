@@ -321,10 +321,14 @@ def ensure_torch_or_skip() -> None:
     pytest.skip("PyTorch runtime is not available")
 
 
+def validity_check_available() -> bool:
+  # The validity check opens the model in a subprocess, which times out on
+  # Intel macOS under Python 3.12.
+  return not (check_is_python_312() and check_is_intel_macos())
+
+
 def ensure_validity_check_or_skip() -> None:
-  # Opening a model in the validity-check subprocess times out there, see
-  # model_loader_py/acoustic/test_acoustic_load_custom.py.
-  if check_is_python_312() and check_is_intel_macos():
+  if not validity_check_available():
     pytest.skip("The model validity check times out on Intel macOS, Python 3.12")
 
 

@@ -194,3 +194,17 @@ def test_predict_takes_the_location_positionally_and_the_rest_by_keyword(
     model.predict(latitude=20, longitude=50)  # type: ignore[call-arg]
   with pytest.raises(TypeError):
     model.predict(20, 50, 12)  # type: ignore[misc]
+
+
+@pytest.mark.parametrize("model_class", MODEL_CLASSES, ids=lambda c: c.__name__)
+def test_predict_reports_the_model_and_the_location(
+  tmp_path: Path, model_class: type[GeoModelBase]
+) -> None:
+  model = _load(tmp_path, model_class, np.array([[0.1, 0.2, 0.3]], dtype=np.float32))
+
+  result = model.predict(20, 50, week=1)
+
+  assert result.model_path == model.model_path.absolute()
+  assert result.model_version == model_class.get_version()
+  assert result.model_precision == "fp32"
+  assert (result.latitude, result.longitude, result.week) == (20, 50, 1)

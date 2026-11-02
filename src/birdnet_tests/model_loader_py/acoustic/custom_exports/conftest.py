@@ -24,18 +24,20 @@ from birdnet_tests.custom_classifier_exports import (
 )
 from birdnet_tests.test_files import TEST_FILE_SHORT
 
+# No hidden units, no 3.0 append and no 3.0 detached head: none reaches a branch
+# of custom_tflite.py these do not (tensors are found by signature name or the
+# pooling marker; no real export reaches the pre-Keras-3 index table, which
+# custom_tflite_py/test_resolve_custom_tflite_layout.py stubs), and the 3.0
+# append export alone is ~540 MB.
 V2_4_REPLACE = ExportSpec("2.4", "replace", 0)
 V2_4_APPEND = ExportSpec("2.4", "append", 0)
-V2_4_REPLACE_HIDDEN = ExportSpec("2.4", "replace", 128)
 V2_4_DETACHED = ExportSpec("2.4", "replace", 0, "detached")
 V3_0_REPLACE = ExportSpec("3.0", "replace", 0)
-V3_0_APPEND = ExportSpec("3.0", "append", 0)
 V3_0_RAVEN = ExportSpec("3.0", "replace", 0, "raven")
-V3_0_DETACHED = ExportSpec("3.0", "replace", 0, "detached")
 
 EXPORT_SETS: dict[str, list[ExportSpec]] = {
-  "2.4": [V2_4_REPLACE, V2_4_APPEND, V2_4_REPLACE_HIDDEN, V2_4_DETACHED],
-  "3.0": [V3_0_REPLACE, V3_0_APPEND, V3_0_RAVEN, V3_0_DETACHED],
+  "2.4": [V2_4_REPLACE, V2_4_APPEND, V2_4_DETACHED],
+  "3.0": [V3_0_REPLACE, V3_0_RAVEN],
 }
 
 EXPORT_TEST_TIMEOUT_S = BUILD_TIMEOUT_S + 300

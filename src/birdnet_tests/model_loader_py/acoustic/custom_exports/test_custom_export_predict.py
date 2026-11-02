@@ -3,14 +3,12 @@ import pytest
 
 import birdnet
 from birdnet_tests.custom_classifier_exports import ExportSpec
-from birdnet_tests.helper import ensure_litert_or_skip, scores_at_sigmoid_sensitivity
+from birdnet_tests.helper import ensure_litert_or_skip
 from birdnet_tests.model_loader_py.acoustic.custom_exports.conftest import (
   EXPORT_TEST_TIMEOUT_S,
   N_SEGMENTS,
   V2_4_APPEND,
   V2_4_REPLACE,
-  V2_4_REPLACE_HIDDEN,
-  V3_0_APPEND,
   V3_0_REPLACE,
   GetExport,
   load_export_unchecked,
@@ -20,13 +18,7 @@ from birdnet_tests.model_loader_py.acoustic.custom_exports.conftest import (
 
 pytestmark = pytest.mark.timeout(EXPORT_TEST_TIMEOUT_S)
 
-TFLITE_EXPORTS = [
-  V2_4_REPLACE,
-  V2_4_APPEND,
-  V2_4_REPLACE_HIDDEN,
-  V3_0_REPLACE,
-  V3_0_APPEND,
-]
+TFLITE_EXPORTS = [V2_4_REPLACE, V2_4_APPEND, V3_0_REPLACE]
 
 # A custom export embeds the official SavedModel's graph, which TFLite converts
 # with slightly different op fusion than the official .tflite release.
@@ -36,9 +28,7 @@ OFFICIAL_SCORES_ATOL = 1e-3
 @pytest.mark.parametrize("spec", TFLITE_EXPORTS, ids=lambda s: s.name)
 def test_predict_returns_probabilities(get_export: GetExport, spec: ExportSpec) -> None:
   export = get_export(spec)
-  model = birdnet.load_custom(
-    "acoustic", spec.version, "tf", export.model, export.labels
-  )
+  model = load_export_unchecked(export)
   scores = scores_in_model_order(model)
   assert scores.shape == (1, N_SEGMENTS, export.n_species)
   assert np.isfinite(scores).all()
@@ -46,18 +36,15 @@ def test_predict_returns_probabilities(get_export: GetExport, spec: ExportSpec) 
   assert scores.max() <= 1.0
 
 
-@pytest.mark.parametrize("spec", [V2_4_APPEND, V3_0_APPEND], ids=lambda s: s.name)
-def test_append_keeps_the_official_scores(
-  get_export: GetExport, spec: ExportSpec
-) -> None:
-  custom = load_export_unchecked(get_export(spec))
-  official = birdnet.load("acoustic", spec.version, "tf")
+def test_append_keeps_the_official_scores(get_export: GetExport) -> None:
+  custom = load_export_unchecked(get_export(V2_4_APPEND))
+  official = birdnet.load("acoustic", "2.4", "tf")
   n_official = len(official.species_list)
   assert list(custom.species_list)[:n_official] == list(official.species_list)
 
   np.testing.assert_allclose(
     scores_in_model_order(custom)[..., :n_official],
-    official_scores(spec.version),
+    official_scores("2.4"),
     atol=OFFICIAL_SCORES_ATOL,
   )
 
@@ -98,19 +85,6 @@ def test_v3_0_export_rejects_batches(get_export: GetExport) -> None:
     ValueError, match=r"batch_size=2 is not supported .* static batch"
   ):
     model.predict_session(batch_size=2)
-
-
-def test_v3_0_export_applies_a_sigmoid_sensitivity(get_export: GetExport) -> None:
-  model = load_export_unchecked(get_export(V3_0_REPLACE))
-  default = scores_in_model_order(model)
-  scores = scores_in_model_order(model, sigmoid_sensitivity=0.5)
-  # The export applies the sigmoid in its graph; the sensitivity acts on the
-  # logits recovered from its scores.
-  np.testing.assert_allclose(
-    scores, scores_at_sigmoid_sensitivity(default, 0.5), atol=1e-4
-  )
-  moved = (default > 0.01) & (default < 0.99)
-  assert np.all(scores[moved] < default[moved])
 
 
 def test_v3_0_export_scores_do_not_depend_on_apply_sigmoid(

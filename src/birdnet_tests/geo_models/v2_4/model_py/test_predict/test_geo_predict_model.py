@@ -1,126 +1,38 @@
+import numpy as np
 import pytest
 
 from birdnet.model_loader import load
 from birdnet_tests.helper import ensure_gpu_or_skip, ensure_litert_or_skip
 
-
-@pytest.mark.litert
-def test_litert() -> None:
-  ensure_litert_or_skip()
-
-  model = load("geo", "2.4", "tf", precision="fp32", library="litert")
-  result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=False)
-
-  assert result.species_probs.shape == (6522,)
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
-  assert result.model_version == "2.4"
-  assert result.model_precision == "fp32"
+# What the result reports about the call (path, version, coordinates, week) is
+# pinned on the fake in geo_models/base_py/test_geo_predict_forwards_its_arguments.py.
+_CASES = [
+  pytest.param("tflite", "CPU", id="tflite"),
+  pytest.param("litert", "CPU", marks=pytest.mark.litert, id="litert"),
+  pytest.param("pb", "CPU", id="pb-cpu"),
+  pytest.param("pb", "GPU", marks=pytest.mark.gpu, id="pb-gpu"),
+]
 
 
-def test_tf() -> None:
-  model = load("geo", "2.4", "tf", precision="fp32", library="tflite")
-  result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=False)
+@pytest.mark.parametrize("half_precision", [False, True], ids=["fp32", "half"])
+@pytest.mark.parametrize(("backend", "device"), _CASES)
+def test_predict_shape_and_dtype(
+  backend: str, device: str, half_precision: bool
+) -> None:
+  if backend == "litert":
+    ensure_litert_or_skip()
+  if device == "GPU":
+    ensure_gpu_or_skip()
+  if backend == "pb":
+    model = load("geo", "2.4", "pb", precision="fp32")
+  else:
+    model = load("geo", "2.4", "tf", precision="fp32", library=backend)
 
-  assert result.species_probs.shape == (6522,)
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
-  assert result.model_version == "2.4"
-  assert result.model_precision == "fp32"
-
-
-def test_pb_cpu() -> None:
-  model = load("geo", "2.4", "pb", precision="fp32")
-  result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=False)
-
-  assert result.species_probs.shape == (6522,)
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
-  assert result.model_version == "2.4"
-  assert result.model_precision == "fp32"
-
-
-@pytest.mark.gpu
-def test_pb_gpu() -> None:
-  ensure_gpu_or_skip()
-
-  model = load("geo", "2.4", "pb", precision="fp32")
   result = model.predict(
-    20, 50, week=1, min_confidence=0.03, half_precision=False, device="GPU"
+    20, 50, week=1, min_confidence=0.03, half_precision=half_precision, device=device
   )
 
   assert result.species_probs.shape == (6522,)
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
-  assert result.model_version == "2.4"
-  assert result.model_precision == "fp32"
-
-
-@pytest.mark.litert
-def test_litert_half() -> None:
-  ensure_litert_or_skip()
-
-  model = load("geo", "2.4", "tf", precision="fp32", library="litert")
-  result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=True)
-
-  assert result.species_probs.shape == (6522,)
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
-  assert result.model_version == "2.4"
-  assert result.model_precision == "fp32"
-
-
-def test_tf_half() -> None:
-  model = load("geo", "2.4", "tf", precision="fp32", library="tflite")
-  result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=True)
-
-  assert result.species_probs.shape == (6522,)
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
-  assert result.model_version == "2.4"
-  assert result.model_precision == "fp32"
-
-
-def test_pb_cpu_half() -> None:
-  model = load("geo", "2.4", "pb", precision="fp32")
-  result = model.predict(
-    20, 50, week=1, min_confidence=0.03, half_precision=True, device="CPU"
-  )
-
-  assert result.species_probs.shape == (6522,)
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
-  assert result.model_version == "2.4"
-  assert result.model_precision == "fp32"
-
-
-@pytest.mark.gpu
-def test_pb_gpu_half() -> None:
-  ensure_gpu_or_skip()
-
-  model = load("geo", "2.4", "pb", precision="fp32")
-  result = model.predict(
-    20, 50, week=1, min_confidence=0.03, half_precision=True, device="GPU"
-  )
-
-  assert result.species_probs.shape == (6522,)
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
+  assert result.species_probs.dtype == (np.float16 if half_precision else np.float32)
   assert result.model_version == "2.4"
   assert result.model_precision == "fp32"

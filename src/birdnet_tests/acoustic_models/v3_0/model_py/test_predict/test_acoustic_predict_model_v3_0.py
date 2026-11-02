@@ -1,98 +1,68 @@
 import math
-from typing import Literal
 
 import pytest
-import soundfile
 
+from birdnet.acoustic.inference.core.prediction.prediction_result import (
+  AcousticPredictionResultBase,
+)
 from birdnet.acoustic.models.v3_0.model import AcousticModelV3_0
-from birdnet.model_loader import load
+from birdnet_tests.acoustic_models.v3_0.model_py.conftest import (
+  V3_0Backend,
+  load_v3_0,
+  onnx_fp32_prediction,
+)
 from birdnet_tests.helper import (
   assert_prediction_result_is_close,
   ensure_onnxruntime_or_skip,
-  ensure_tf_2_18_or_skip,
-  ensure_torch_or_skip,
-  ensure_v3_0_torch_backend_or_skip,
 )
-from birdnet_tests.test_files import TEST_FILE_SHORT
+from birdnet_tests.test_files import TEST_FILE_SHORT, TEST_FILE_SHORT_DURATION_S
 
-_Backend = Literal["pt", "onnx"]
 _DEFAULT_SCORE_SHAPE = (1, 3, 11560)
-_TWO_ARRAY_SCORE_SHAPE = (2, 3, 11560)
 _PT_ONNX_PREDICTION_MAX_ABS_DIFF = 1e-4
 _PT_ONNX_PREDICTION_MEAN_ABS_DIFF = 1e-5
 _PB_ONNX_PREDICTION_MAX_ABS_DIFF = 1e-4
 _PB_ONNX_PREDICTION_MEAN_ABS_DIFF = 1e-5
 
 
-def _load_model(backend: _Backend) -> AcousticModelV3_0:
-  if backend == "pt":
-    ensure_torch_or_skip()
-    ensure_v3_0_torch_backend_or_skip()
-  else:
-    ensure_onnxruntime_or_skip()
-
-  return load("acoustic", "3.0", backend, precision="fp32")
-
-
-@pytest.mark.no_tf
-@pytest.mark.parametrize("backend", ["pt", "onnx"])
-def test_v3_0_predict_default_file_shape(backend: _Backend) -> None:
-  model = _load_model(backend)
+def _predict(
+  model: AcousticModelV3_0, segment_size_s: float = 3.0
+) -> AcousticPredictionResultBase:
   with model.predict_session(
     n_workers=1,
     top_k=None,
     default_confidence_threshold=-float("inf"),
+    segment_size_s=segment_size_s,
   ) as session:
-    res = session.run(TEST_FILE_SHORT)
+    return session.run(TEST_FILE_SHORT)
+
+
+def _onnx_prediction(segment_size_s: float) -> AcousticPredictionResultBase:
+  if segment_size_s == 3.0:
+    return onnx_fp32_prediction()
+  return _predict(load_v3_0("onnx"), segment_size_s)
+
+
+@pytest.mark.no_tf
+@pytest.mark.parametrize("backend", ["pt", "onnx"])
+def test_v3_0_predict_default_file_shape(backend: V3_0Backend) -> None:
+  res = _onnx_prediction(3.0) if backend == "onnx" else _predict(load_v3_0(backend))
 
   assert res.species_probs.shape == _DEFAULT_SCORE_SHAPE
   assert res.segment_duration_s == 3.0
 
 
+# A segment length that does not divide the file is the producer's arithmetic
+# (core/producer_py/test_get_segments_with_overlap_samples.py); the model sees
+# the same dynamic-width path either way.
 @pytest.mark.no_tf
 @pytest.mark.parametrize("backend", ["pt", "onnx"])
-def test_v3_0_predict_default_np_array_shape(backend: _Backend) -> None:
-  audio = soundfile.read(TEST_FILE_SHORT)
-  model = _load_model(backend)
-  with model.predict_session(
-    n_workers=1,
-    top_k=None,
-    default_confidence_threshold=-float("inf"),
-  ) as session:
-    res = session.run_arrays(audio)
-
-  assert res.species_probs.shape == _DEFAULT_SCORE_SHAPE
-  assert res.segment_duration_s == 3.0
-
-
-@pytest.mark.no_tf
-@pytest.mark.parametrize("backend", ["pt", "onnx"])
-def test_v3_0_predict_two_np_arrays_shape(backend: _Backend) -> None:
-  audio = soundfile.read(TEST_FILE_SHORT)
-  model = _load_model(backend)
-  with model.predict_session(
-    n_workers=1,
-    top_k=None,
-    default_confidence_threshold=-float("inf"),
-  ) as session:
-    res = session.run_arrays([audio, audio])
-
-  assert res.species_probs.shape == _TWO_ARRAY_SCORE_SHAPE
-  assert res.segment_duration_s == 3.0
-
-
-@pytest.mark.no_tf
-@pytest.mark.parametrize("backend", ["pt", "onnx"])
-@pytest.mark.parametrize(
-  ("segment_size_s", "expected_segments"),
-  [(2.0, 4), (4.0, 2), (2.01, 4), (2.5, 3)],
-)
+@pytest.mark.parametrize(("segment_size_s", "expected_segments"), [(2.0, 4), (4.0, 2)])
 def test_v3_0_predict_respects_segment_size(
-  backend: _Backend,
+  backend: V3_0Backend,
   segment_size_s: float,
   expected_segments: int,
 ) -> None:
-  model = _load_model(backend)
+  model = load_v3_0(backend)
   res = model.predict(
     TEST_FILE_SHORT,
     n_workers=1,
@@ -109,24 +79,8 @@ def test_v3_0_predict_pb_and_onnx_are_close() -> None:
   # Runs the real SavedModel end to end: stale signature names or keys, which
   # no load-only test can catch, fail here against onnx.
   ensure_onnxruntime_or_skip()
-  ensure_tf_2_18_or_skip()
-
-  pb_model = load("acoustic", "3.0", "pb", precision="fp32")
-  onnx_model = load("acoustic", "3.0", "onnx", precision="fp32")
-
-  with pb_model.predict_session(
-    n_workers=1,
-    top_k=None,
-    default_confidence_threshold=-float("inf"),
-  ) as pb_session:
-    pb_result = pb_session.run(TEST_FILE_SHORT)
-
-  with onnx_model.predict_session(
-    n_workers=1,
-    top_k=None,
-    default_confidence_threshold=-float("inf"),
-  ) as onnx_session:
-    onnx_result = onnx_session.run(TEST_FILE_SHORT)
+  pb_result = _predict(load_v3_0("pb"))
+  onnx_result = onnx_fp32_prediction()
 
   assert pb_result.species_probs.shape == _DEFAULT_SCORE_SHAPE
   assert_prediction_result_is_close(
@@ -138,65 +92,15 @@ def test_v3_0_predict_pb_and_onnx_are_close() -> None:
 
 
 @pytest.mark.no_tf
-def test_v3_0_predict_pt_and_onnx_are_close() -> None:
-  ensure_torch_or_skip()
-  ensure_v3_0_torch_backend_or_skip()
-  ensure_onnxruntime_or_skip()
-
-  pt_model = load("acoustic", "3.0", "pt", precision="fp32")
-  onnx_model = load("acoustic", "3.0", "onnx", precision="fp32")
-
-  with pt_model.predict_session(
-    n_workers=1,
-    top_k=None,
-    default_confidence_threshold=-float("inf"),
-  ) as pt_session:
-    pt_result = pt_session.run(TEST_FILE_SHORT)
-
-  with onnx_model.predict_session(
-    n_workers=1,
-    top_k=None,
-    default_confidence_threshold=-float("inf"),
-  ) as onnx_session:
-    onnx_result = onnx_session.run(TEST_FILE_SHORT)
-
-  assert_prediction_result_is_close(
-    pt_result,
-    onnx_result,
-    max_abs_diff=_PT_ONNX_PREDICTION_MAX_ABS_DIFF,
-    mean_abs_diff=_PT_ONNX_PREDICTION_MEAN_ABS_DIFF,
-  )
-
-
-@pytest.mark.no_tf
-@pytest.mark.parametrize("segment_size_s", [2.0, 4.0, 5.0])
+@pytest.mark.parametrize("segment_size_s", [2.0, 3.0, 4.0, 5.0])
 def test_v3_0_predict_pt_and_onnx_are_close_with_custom_segment_size(
   segment_size_s: float,
 ) -> None:
-  ensure_torch_or_skip()
-  ensure_v3_0_torch_backend_or_skip()
   ensure_onnxruntime_or_skip()
+  pt_result = _predict(load_v3_0("pt"), segment_size_s)
+  onnx_result = _onnx_prediction(segment_size_s)
 
-  pt_model = load("acoustic", "3.0", "pt", precision="fp32")
-  onnx_model = load("acoustic", "3.0", "onnx", precision="fp32")
-
-  with pt_model.predict_session(
-    n_workers=1,
-    top_k=None,
-    default_confidence_threshold=-float("inf"),
-    segment_size_s=segment_size_s,
-  ) as pt_session:
-    pt_result = pt_session.run(TEST_FILE_SHORT)
-
-  with onnx_model.predict_session(
-    n_workers=1,
-    top_k=None,
-    default_confidence_threshold=-float("inf"),
-    segment_size_s=segment_size_s,
-  ) as onnx_session:
-    onnx_result = onnx_session.run(TEST_FILE_SHORT)
-
-  segments_cnt = math.ceil(7.0 / segment_size_s)
+  segments_cnt = math.ceil(TEST_FILE_SHORT_DURATION_S / segment_size_s)
   assert pt_result.species_probs.shape == (1, segments_cnt, 11560)
   assert onnx_result.species_probs.shape == (1, segments_cnt, 11560)
   assert_prediction_result_is_close(

@@ -11,9 +11,6 @@ from birdnet_tests.model_loader_py.acoustic.custom_exports.conftest import (
   V2_4_APPEND,
   V2_4_DETACHED,
   V2_4_REPLACE,
-  V2_4_REPLACE_HIDDEN,
-  V3_0_APPEND,
-  V3_0_DETACHED,
   V3_0_REPLACE,
   GetExport,
 )
@@ -24,9 +21,7 @@ pytestmark = pytest.mark.timeout(EXPORT_TEST_TIMEOUT_S)
 EXPECTED: dict[ExportSpec, CustomTFLiteInfo] = {
   V2_4_REPLACE: CustomTFLiteInfo("2.4", "replace", 3, False, True, 144_000),
   V2_4_APPEND: CustomTFLiteInfo("2.4", "append", 6522 + 3, False, True, 144_000),
-  V2_4_REPLACE_HIDDEN: CustomTFLiteInfo("2.4", "replace", 3, False, True, 144_000),
   V3_0_REPLACE: CustomTFLiteInfo("3.0", "replace", 3, True, True, 96_000),
-  V3_0_APPEND: CustomTFLiteInfo("3.0", "append", 11560 + 3, True, True, 96_000),
 }
 
 # Exports of earlier analyzer releases, checked in under TEST_FILES.
@@ -65,11 +60,8 @@ def test_inspect_with_litert(get_export: GetExport, spec: ExportSpec) -> None:
   assert birdnet.inspect_custom_tflite(export.model, library="litert") == EXPECTED[spec]
 
 
-@pytest.mark.parametrize("spec", [V2_4_DETACHED, V3_0_DETACHED], ids=lambda s: s.name)
-def test_inspect_rejects_a_detached_head(
-  get_export: GetExport, spec: ExportSpec
-) -> None:
-  export = get_export(spec)
+def test_inspect_rejects_a_detached_head(get_export: GetExport) -> None:
+  export = get_export(V2_4_DETACHED)
   with pytest.raises(ValueError, match=r"detached classifier head"):
     birdnet.inspect_custom_tflite(export.model)
 

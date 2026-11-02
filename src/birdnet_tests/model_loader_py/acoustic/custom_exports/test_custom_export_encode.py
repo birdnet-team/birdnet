@@ -1,7 +1,6 @@
 import numpy as np
 import pytest
 
-import birdnet
 from birdnet_tests.custom_classifier_exports import ExportSpec
 from birdnet_tests.helper import ensure_litert_or_skip
 from birdnet_tests.model_loader_py.acoustic.custom_exports.conftest import (
@@ -9,8 +8,6 @@ from birdnet_tests.model_loader_py.acoustic.custom_exports.conftest import (
   N_SEGMENTS,
   V2_4_APPEND,
   V2_4_REPLACE,
-  V2_4_REPLACE_HIDDEN,
-  V3_0_APPEND,
   V3_0_REPLACE,
   GetExport,
   embeddings,
@@ -38,17 +35,13 @@ LEGACY_FIXTURES = [
 
 
 @pytest.mark.parametrize(
-  "spec",
-  [V2_4_REPLACE, V2_4_APPEND, V2_4_REPLACE_HIDDEN, V3_0_REPLACE, V3_0_APPEND],
-  ids=lambda s: s.name,
+  "spec", [V2_4_REPLACE, V2_4_APPEND, V3_0_REPLACE], ids=lambda s: s.name
 )
 def test_encode_gives_the_official_embeddings(
   get_export: GetExport, spec: ExportSpec
 ) -> None:
   export = get_export(spec)
-  custom = birdnet.load_custom(
-    "acoustic", spec.version, "tf", export.model, export.labels
-  )
+  custom = load_export_unchecked(export)
 
   custom_embeddings = embeddings(custom)
   assert custom_embeddings.shape == (1, N_SEGMENTS, EMBEDDINGS_DIM[spec.version])

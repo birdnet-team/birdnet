@@ -51,11 +51,11 @@ from birdnet.utils.species_lists import get_species_from_file
 
 LABELS = ["Sci a_Common a", "Sci b_Common b", "Sci c_Common c"]
 
-# Building an export plus the official model load it needs; the 3.0 append tflite
-# alone is ~540 MB.
+# Building an export plus the official model load it needs; the 3.0 Raven export
+# alone is ~520 MB.
 BUILD_TIMEOUT_S = 1500
 
-# The exports are ~1.2 GB and rebuilt within minutes. CI points this outside
+# The exports are ~0.7 GB and rebuilt within minutes. CI points this outside
 # BIRDNET_APP_DATA, the directory its model cache stores.
 ENV_VAR_EXPORTS_DIR = "BIRDNET_TEST_EXPORTS_DIR"
 

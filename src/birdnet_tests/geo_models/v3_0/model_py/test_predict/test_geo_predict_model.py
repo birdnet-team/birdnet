@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from birdnet.geo.models.base import GeoModelBase
 from birdnet.model_loader import load
 from birdnet_tests.helper import (
   ensure_gpu_or_skip,
@@ -10,69 +11,65 @@ from birdnet_tests.helper import (
   ensure_v3_0_torch_backend_or_skip,
 )
 
-# --- FP32 ---
+# What the result reports about the call (path, version, coordinates, week) is
+# pinned on the fake in geo_models/base_py/test_geo_predict_forwards_its_arguments.py,
+# the dtype the session returns in geo_models/inference/session_py/
+# test_half_precision.py, and each export's model_precision in the calibration
+# test below.
 
 
-def test_tf_fp32() -> None:
-  ensure_tf_2_19_or_2_18()
+def _load(backend: str, precision: str = "fp32") -> GeoModelBase:
+  kwargs: dict = {"precision": precision}
+  if backend == "onnx":
+    ensure_onnxruntime_or_skip()
+  elif backend == "pt":
+    ensure_torch_or_skip()
+    ensure_v3_0_torch_backend_or_skip()
+  elif backend == "tf":
+    ensure_tf_2_19_or_2_18()
+    kwargs["library"] = "tflite"
+  return load("geo", "3.0", backend, **kwargs)
 
-  model = load("geo", "3.0", "tf", precision="fp32", library="tflite")
-  result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=False)
+
+_SMOKE_CASES = [
+  pytest.param("tf", "CPU", True, id="tf-fp32-half"),
+  pytest.param("pb", "CPU", True, id="pb-half"),
+  pytest.param("onnx", "CPU", True, marks=pytest.mark.no_tf, id="onnx-fp32-half"),
+  pytest.param("pt", "CPU", True, marks=pytest.mark.no_tf, id="pt-half"),
+  pytest.param("tf", "GPU", False, marks=pytest.mark.gpu, id="tf-gpu"),
+  pytest.param("pb", "GPU", False, marks=pytest.mark.gpu, id="pb-gpu"),
+  pytest.param("pt", "GPU", False, marks=pytest.mark.gpu, id="pt-gpu"),
+  pytest.param("onnx", "GPU", False, marks=pytest.mark.gpu, id="onnx-gpu"),
+]
+
+
+@pytest.mark.parametrize(("backend", "device", "half_precision"), _SMOKE_CASES)
+def test_predict_shape_and_dtype(
+  backend: str, device: str, half_precision: bool
+) -> None:
+  if device == "GPU":
+    ensure_gpu_or_skip()
+  model = _load(backend)
+
+  result = model.predict(
+    20, 50, week=1, min_confidence=0.03, half_precision=half_precision, device=device
+  )
+
+  assert result.species_probs.shape == (14082,)
+  assert result.species_probs.dtype == (np.float16 if half_precision else np.float32)
+
+
+@pytest.mark.no_tf
+@pytest.mark.parametrize("backend", ["pt", "onnx"])
+def test_year_round(backend: str) -> None:
+  model = _load(backend)
+  result = model.predict(20, 50, min_confidence=0.03, half_precision=False)
 
   assert result.latitude == 20
   assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
+  assert result.week == -1
   assert result.model_version == "3.0"
   assert result.model_precision == "fp32"
-
-
-def test_tf_fp32_half() -> None:
-  ensure_tf_2_19_or_2_18()
-
-  model = load("geo", "3.0", "tf", precision="fp32", library="tflite")
-  result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=True)
-
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
-  assert result.model_version == "3.0"
-  assert result.model_precision == "fp32"
-
-
-# --- FP16 ---
-
-
-def test_tf_fp16() -> None:
-  ensure_tf_2_19_or_2_18()
-
-  model = load("geo", "3.0", "tf", precision="fp16", library="tflite")
-  result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=False)
-
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
-  assert result.model_version == "3.0"
-  assert result.model_precision == "fp16"
-
-
-# --- INT8 ---
-
-
-def test_tf_int8() -> None:
-  ensure_tf_2_19_or_2_18()
-
-  model = load("geo", "3.0", "tf", precision="int8", library="tflite")
-  result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=False)
-
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
-  assert result.model_version == "3.0"
-  assert result.model_precision == "int8"
 
 
 # --- Calibration ---
@@ -127,128 +124,12 @@ def test_calibration_anchor_probabilities(
     _CALIBRATION_LAT, _CALIBRATION_LON, week=_CALIBRATION_WEEK, min_confidence=0.0
   )
 
+  assert result.model_precision == precision
   resident = _species_prob(result, _RESIDENT_PREFIX)
   absent = _species_prob(result, _ABSENT_PREFIX)
   # Two-sided: raw logits (missing baked-in sigmoid) pass one-sided bounds.
   assert resident_min < resident <= 1.0, f"resident species scored {resident}"
   assert 0.0 <= absent < absent_max, f"absent species scored {absent}"
-
-
-# --- GPU ---
-
-
-@pytest.mark.gpu
-def test_tf_fp32_gpu() -> None:
-  ensure_gpu_or_skip()
-  ensure_tf_2_19_or_2_18()
-
-  model = load("geo", "3.0", "tf", precision="fp32", library="tflite")
-  result = model.predict(
-    20, 50, week=1, min_confidence=0.03, half_precision=False, device="GPU"
-  )
-
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
-  assert result.model_version == "3.0"
-  assert result.model_precision == "fp32"
-
-
-# --- PB ---
-
-
-def test_pb_cpu() -> None:
-  model = load("geo", "3.0", "pb", precision="fp32")
-  result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=False)
-
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
-  assert result.model_version == "3.0"
-  assert result.model_precision == "fp32"
-
-
-@pytest.mark.gpu
-def test_pb_gpu() -> None:
-  ensure_gpu_or_skip()
-
-  model = load("geo", "3.0", "pb", precision="fp32")
-  result = model.predict(
-    20, 50, week=1, min_confidence=0.03, half_precision=False, device="GPU"
-  )
-
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
-  assert result.model_version == "3.0"
-  assert result.model_precision == "fp32"
-
-
-def test_pb_cpu_half() -> None:
-  model = load("geo", "3.0", "pb", precision="fp32")
-  result = model.predict(
-    20, 50, week=1, min_confidence=0.03, half_precision=True, device="CPU"
-  )
-
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
-  assert result.model_version == "3.0"
-  assert result.model_precision == "fp32"
-
-
-# --- PT ---
-
-
-@pytest.mark.no_tf
-def test_pt_fp32() -> None:
-  ensure_torch_or_skip()
-  ensure_v3_0_torch_backend_or_skip()
-
-  model = load("geo", "3.0", "pt", precision="fp32")
-  result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=False)
-
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
-  assert result.model_version == "3.0"
-  assert result.model_precision == "fp32"
-
-
-@pytest.mark.no_tf
-def test_pt_year_round() -> None:
-  ensure_torch_or_skip()
-  ensure_v3_0_torch_backend_or_skip()
-
-  model = load("geo", "3.0", "pt", precision="fp32")
-  result = model.predict(20, 50, min_confidence=0.03, half_precision=False)
-
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == -1
-  assert result.model_version == "3.0"
-  assert result.model_precision == "fp32"
-
-
-@pytest.mark.no_tf
-def test_pt_returns_probabilities() -> None:
-  # The TorchScript export returns logits; the backend applies the sigmoid the
-  # other backends have baked in. Without it the values leave [0, 1].
-  ensure_torch_or_skip()
-  ensure_v3_0_torch_backend_or_skip()
-
-  model = load("geo", "3.0", "pt", precision="fp32")
-  result = model.predict(20, 50, week=1, min_confidence=0.0, half_precision=False)
-
-  assert result.species_probs.min() >= 0.0
-  assert result.species_probs.max() <= 1.0
-  # a range model that predicts nothing anywhere would also satisfy the bounds
-  assert result.species_probs.max() > 0.5
 
 
 @pytest.mark.no_tf
@@ -278,102 +159,3 @@ def test_pt_matches_onnx() -> None:
       atol=1e-5,
       err_msg=f"pt and onnx disagree at ({latitude}, {longitude}, week={week})",
     )
-
-
-@pytest.mark.gpu
-def test_pt_fp32_gpu() -> None:
-  ensure_gpu_or_skip()
-  ensure_torch_or_skip()
-  ensure_v3_0_torch_backend_or_skip()
-
-  model = load("geo", "3.0", "pt", precision="fp32")
-  result = model.predict(
-    20, 50, week=1, min_confidence=0.03, half_precision=False, device="GPU"
-  )
-
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
-  assert result.model_version == "3.0"
-  assert result.model_precision == "fp32"
-
-
-# --- ONNX ---
-
-
-@pytest.mark.no_tf
-def test_onnx_fp32() -> None:
-  ensure_onnxruntime_or_skip()
-
-  model = load("geo", "3.0", "onnx", precision="fp32")
-  result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=False)
-
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
-  assert result.model_version == "3.0"
-  assert result.model_precision == "fp32"
-
-
-@pytest.mark.no_tf
-def test_onnx_fp32_half() -> None:
-  ensure_onnxruntime_or_skip()
-
-  model = load("geo", "3.0", "onnx", precision="fp32")
-  result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=True)
-
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
-  assert result.model_version == "3.0"
-  assert result.model_precision == "fp32"
-
-
-@pytest.mark.no_tf
-def test_onnx_fp16() -> None:
-  ensure_onnxruntime_or_skip()
-
-  model = load("geo", "3.0", "onnx", precision="fp16")
-  result = model.predict(20, 50, week=1, min_confidence=0.03, half_precision=False)
-
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
-  assert result.model_version == "3.0"
-  assert result.model_precision == "fp16"
-
-
-@pytest.mark.no_tf
-def test_onnx_year_round() -> None:
-  ensure_onnxruntime_or_skip()
-
-  model = load("geo", "3.0", "onnx", precision="fp32")
-  result = model.predict(20, 50, min_confidence=0.03, half_precision=False)
-
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == -1
-  assert result.model_version == "3.0"
-  assert result.model_precision == "fp32"
-
-
-@pytest.mark.gpu
-def test_onnx_fp32_gpu() -> None:
-  ensure_gpu_or_skip()
-  ensure_onnxruntime_or_skip()
-
-  model = load("geo", "3.0", "onnx", precision="fp32")
-  result = model.predict(
-    20, 50, week=1, min_confidence=0.03, half_precision=False, device="GPU"
-  )
-
-  assert result.latitude == 20
-  assert result.longitude == 50
-  assert result.week == 1
-  assert result.model_path == model.model_path.absolute()
-  assert result.model_version == "3.0"
-  assert result.model_precision == "fp32"

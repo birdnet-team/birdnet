@@ -34,6 +34,10 @@ from birdnet.acoustic.inference.session import (
   AcousticEncodingSession,
   AcousticPredictionSession,
 )
+from birdnet.acoustic.models.base import AcousticModelBase
+from birdnet.acoustic.models.perch_v2.model import AcousticModelPerchV2
+from birdnet.acoustic.models.v2_4.model import AcousticModelV2_4
+from birdnet.acoustic.models.v3_0.model import AcousticModelV3_0
 
 # Small enough that a result block is a few hundred bytes, which keeps the
 # fake pipeline off the queue-tearing path unless a test asks for it.
@@ -341,6 +345,35 @@ class InGraphSigmoidFakeBackend(FakeAcousticBackend):
     out = np.empty((batch.shape[0], self.n_species_out), dtype=np.float32)
     out[:] = self.scores()
     return out
+
+
+class FakeAcousticBackendV2_4(FakeAcousticBackend):
+  """The stub at the 2.4 class's embedding width, for sessions that class builds."""
+
+  emb_dim_out = AcousticModelV2_4.get_embeddings_dim()
+
+
+class FakeAcousticBackendV3_0(FakeAcousticBackend):
+  """The stub at the 3.0 class's embedding width, for sessions that class builds."""
+
+  emb_dim_out = AcousticModelV3_0.get_embeddings_dim()
+
+
+class FakeAcousticBackendPerchV2(FakeAcousticBackend):
+  """The stub at the Perch class's embedding width, for sessions that class builds."""
+
+  emb_dim_out = AcousticModelPerchV2.get_embeddings_dim()
+
+
+# Each model class sizes its encoding session's tensor from its own embedding
+# width, so a session built through the class needs the stub at that width.
+FAKE_BACKEND_FOR_MODEL_CLASS: dict[
+  type[AcousticModelBase], type[FakeAcousticBackend]
+] = {
+  AcousticModelV2_4: FakeAcousticBackendV2_4,
+  AcousticModelV3_0: FakeAcousticBackendV3_0,
+  AcousticModelPerchV2: FakeAcousticBackendPerchV2,
+}
 
 
 def fake_model_path(tmp_path: Path) -> Path:
