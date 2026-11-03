@@ -4,6 +4,7 @@
 [![codecov](https://codecov.io/github/birdnet-team/birdnet/branch/main/graph/badge.svg?token=DZ8LB2Q5I0)](https://codecov.io/github/birdnet-team/birdnet)
 [![PyPI](https://img.shields.io/pypi/v/birdnet.svg)](https://pypi.python.org/pypi/birdnet)
 ![PyPI](https://img.shields.io/pypi/pyversions/birdnet.svg)
+[![conda-forge](https://img.shields.io/conda/vn/conda-forge/birdnet.svg)](https://anaconda.org/conda-forge/birdnet)
 [![MIT](https://img.shields.io/github/license/birdnet-team/birdnet.svg)](https://github.com/birdnet-team/birdnet/blob/main/LICENSE.md)
 [![Support our work](https://img.shields.io/badge/Support%20our%20work-8A2BE2?logo=githubsponsors&logoColor=white)](https://birdnet.cornell.edu/donate)
 
@@ -89,6 +90,22 @@ predictions_litert = model_litert.predict("example/soundscape.wav")
 model_tflite = birdnet.load("acoustic", "2.4", "tf")
 predictions_tflite = model_tflite.predict("example/soundscape.wav")
 ```
+
+### conda
+
+The base install is also on [conda-forge](https://anaconda.org/conda-forge/birdnet); the conda package brings `libsndfile` with it:
+
+```sh
+conda install -c conda-forge birdnet
+```
+
+The runtimes behind the pip extras are separate conda packages, and LiteRT has no conda package, so it is added with pip inside the environment:
+
+| pip | conda |
+| --- | --- |
+| `birdnet[pt]` | `conda install -c conda-forge pytorch` |
+| `birdnet[tf]` | `conda install -c conda-forge tensorflow` on Linux x86_64 and macOS ARM64 (Python 3.11–3.13); elsewhere `pip install tensorflow` inside the environment |
+| LiteRT | `pip install ai-edge-litert` inside the environment |
 
 ### Platform support and Python versions
 
