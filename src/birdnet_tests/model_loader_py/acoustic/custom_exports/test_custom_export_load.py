@@ -9,14 +9,11 @@ from birdnet.acoustic.models.v3_0.tf import AcousticTFBackendCustomFixedInputV3_
 from birdnet.core.backends import VersionedAcousticBackendProtocol
 from birdnet_tests.custom_classifier_exports import ExportSpec
 from birdnet_tests.model_loader_py.acoustic.custom_exports.conftest import (
-  EXPORT_TEST_TIMEOUT_S,
   V2_4_DETACHED,
   V2_4_REPLACE,
   V3_0_REPLACE,
   GetExport,
 )
-
-pytestmark = pytest.mark.timeout(EXPORT_TEST_TIMEOUT_S)
 
 
 # The real-file wiring the stubbed detection suite

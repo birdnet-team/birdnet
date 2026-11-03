@@ -4,7 +4,7 @@ Pinned on the fake backend: its raw scores (``linspace(0, 1, 32)`` plus the
 segment marker) sum to about 16, so a worker that skips the softmax fails the
 sum. The 3.0 class rejects the option (``test_v3_0_apply_softmax_raises_error``);
 the real V2.4 model shows it once in
-``test_tflite_fp32_softmax_probs_sum_to_one_per_segment``.
+``test_tflite_fp32_softmax_matches_softmax_of_logits``.
 """
 
 from __future__ import annotations

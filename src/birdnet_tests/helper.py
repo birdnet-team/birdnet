@@ -382,13 +382,6 @@ def ensure_tf_2_20_or_skip() -> None:
     pytest.skip("TensorFlow >= 2.20 is required for this test")
 
 
-def ensure_not_mac_or_skip() -> None:
-  import platform
-
-  if platform.system() == "Darwin":
-    pytest.skip("Test not supported on macOS systems")
-
-
 CHILD_JOIN_TIMEOUT_S = 300
 
 

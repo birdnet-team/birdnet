@@ -408,13 +408,14 @@ def fake_predict_session(
   half_precision: bool = False,
   max_audio_duration_min: float | None = None,
   max_n_files: int = 1024,
+  model_sample_rate: int = 48_000,
   **kwargs: object,
 ) -> AcousticPredictionSession:
   return AcousticPredictionSession(
     species_list=_species(backend.n_species_out),
     model_path=fake_model_path(tmp_path),
     model_segment_size_s=3.0,
-    model_sample_rate=48_000,
+    model_sample_rate=model_sample_rate,
     model_is_custom=False,
     model_sig_fmin=0,
     model_sig_fmax=15_000,
@@ -464,13 +465,14 @@ def fake_encode_session(
   half_precision: bool = False,
   max_audio_duration_min: float | None = None,
   max_n_files: int = 1024,
+  model_sample_rate: int = 48_000,
   **kwargs: object,
 ) -> AcousticEncodingSession:
   return AcousticEncodingSession(
     species_list=_species(backend.n_species_out),
     model_path=fake_model_path(tmp_path),
     model_segment_size_s=3.0,
-    model_sample_rate=48_000,
+    model_sample_rate=model_sample_rate,
     model_is_custom=False,
     model_sig_fmin=0,
     model_sig_fmax=15_000,
@@ -510,10 +512,11 @@ def write_marked_audio(
   """A wav file whose every segment is a constant identifying that segment.
 
   The pipeline is configured here so nothing alters the samples on the way in:
-  the file's rate matches the model's, speed is 1.0, and the bandpass bounds
-  equal the model's own, which is what switches filtering off. So the value the
-  backend sees is the value written here, and `encode` can hand it back as the
-  first element of the embedding.
+  the file's rate matches the model's (or each segment is resampled alone, which
+  keeps a constant), speed is 1.0, and the bandpass bounds equal the model's
+  own, which is what switches filtering off. So the backend sees the value
+  written here (to about 1e-9 once a segment has been resampled), and `encode`
+  can hand it back as the first element of the embedding.
   """
   import soundfile as sf
 

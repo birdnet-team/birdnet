@@ -2,7 +2,8 @@
 
 Built once per machine by `birdnet_tests.custom_classifier_exports` (see its
 docstring); the first test that needs a base version pays for that version's
-set, so these modules carry a timeout above the build budget.
+set, so a test that takes ``get_export`` carries a timeout above the build
+budget (``pytest_collection_modifyitems`` below).
 """
 
 from __future__ import annotations
@@ -46,6 +47,15 @@ EXPORT_TEST_TIMEOUT_S = BUILD_TIMEOUT_S + 300
 N_SEGMENTS = 3
 
 GetExport = Callable[[ExportSpec], Export]
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+  # Only a test that takes `get_export` can wait on a build; the rest keep the
+  # default timeout. Before the root conftest's hook, which reads the marker.
+  for item in items:
+    if "get_export" in getattr(item, "fixturenames", ()):
+      item.add_marker(pytest.mark.timeout(EXPORT_TEST_TIMEOUT_S))
 
 
 @pytest.fixture(scope="session")

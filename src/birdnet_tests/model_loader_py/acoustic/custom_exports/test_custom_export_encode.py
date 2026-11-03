@@ -4,7 +4,6 @@ import pytest
 from birdnet_tests.custom_classifier_exports import ExportSpec
 from birdnet_tests.helper import ensure_litert_or_skip
 from birdnet_tests.model_loader_py.acoustic.custom_exports.conftest import (
-  EXPORT_TEST_TIMEOUT_S,
   N_SEGMENTS,
   V2_4_APPEND,
   V2_4_REPLACE,
@@ -16,8 +15,6 @@ from birdnet_tests.model_loader_py.acoustic.custom_exports.conftest import (
   official_embeddings,
 )
 from birdnet_tests.test_files import TEST_FILES_DIR
-
-pytestmark = pytest.mark.timeout(EXPORT_TEST_TIMEOUT_S)
 
 EMBEDDINGS_DIM = {"2.4": 1024, "3.0": 1280}
 OFFICIAL_EMBEDDINGS_ATOL = 1e-3
