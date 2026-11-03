@@ -1,3 +1,4 @@
+import numpy
 import pytest
 import soundfile
 
@@ -8,25 +9,27 @@ from birdnet_tests.test_files import TEST_FILE_SHORT, TEST_FILE_SHORT_EMB_SHAPE
 
 def test_tflite_fp32() -> None:
   model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
+  array = soundfile.read(TEST_FILE_SHORT)
   with model.encode_session(n_workers=1) as session:
-    res = session.run(TEST_FILE_SHORT)
-  assert res.embeddings.shape == TEST_FILE_SHORT_EMB_SHAPE
+    from_file = session.run(TEST_FILE_SHORT)
+    from_array = session.run_arrays(array)
+    from_two_arrays = session.run_arrays([array, array])
 
-
-def test_tflite_fp32_np_array() -> None:
-  sf_read = soundfile.read(TEST_FILE_SHORT)
-  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
-  with model.encode_session(n_workers=1) as session:
-    res = session.run_arrays(sf_read)
-  assert res.embeddings.shape == TEST_FILE_SHORT_EMB_SHAPE
-
-
-def test_tflite_fp32_two_np_arrays() -> None:
-  sf_read = soundfile.read(TEST_FILE_SHORT)
-  model = load("acoustic", "2.4", "tf", precision="fp32", library="tflite")
-  with model.encode_session(n_workers=1) as session:
-    res = session.run_arrays([sf_read, sf_read])
-  assert res.embeddings.shape == (2, 3, 1024)
+  assert from_file.embeddings.shape == TEST_FILE_SHORT_EMB_SHAPE
+  assert from_array.embeddings.shape == TEST_FILE_SHORT_EMB_SHAPE
+  assert from_two_arrays.embeddings.shape == (2, 3, 1024)
+  # One interpreter: the two copies of the array come out exactly alike, and
+  # the same bytes read as float32 by the producer and as float64 by soundfile
+  # come out as the file does (measured: identical).
+  numpy.testing.assert_array_equal(
+    from_two_arrays.embeddings[0], from_two_arrays.embeddings[1]
+  )
+  numpy.testing.assert_allclose(
+    from_array.embeddings, from_file.embeddings, rtol=0, atol=1e-6
+  )
+  numpy.testing.assert_allclose(
+    from_two_arrays.embeddings[0], from_file.embeddings[0], rtol=0, atol=1e-6
+  )
 
 
 def test_tflite_fp16() -> None:

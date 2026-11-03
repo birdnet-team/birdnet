@@ -18,8 +18,8 @@ from birdnet_tests.helper import (
 # test below.
 
 
-def _load(backend: str, precision: str = "fp32") -> GeoModelBase:
-  kwargs: dict = {"precision": precision}
+def _load(backend: str) -> GeoModelBase:
+  kwargs: dict = {"precision": "fp32"}
   if backend == "onnx":
     ensure_onnxruntime_or_skip()
   elif backend == "pt":

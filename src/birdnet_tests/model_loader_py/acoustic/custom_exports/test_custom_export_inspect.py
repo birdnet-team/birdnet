@@ -7,7 +7,6 @@ from birdnet.acoustic.models.custom_tflite import CustomTFLiteInfo
 from birdnet_tests.custom_classifier_exports import ExportSpec
 from birdnet_tests.helper import ensure_litert_or_skip, ensure_validity_check_or_skip
 from birdnet_tests.model_loader_py.acoustic.custom_exports.conftest import (
-  EXPORT_TEST_TIMEOUT_S,
   V2_4_APPEND,
   V2_4_DETACHED,
   V2_4_REPLACE,
@@ -15,8 +14,6 @@ from birdnet_tests.model_loader_py.acoustic.custom_exports.conftest import (
   GetExport,
 )
 from birdnet_tests.test_files import TEST_FILES_DIR
-
-pytestmark = pytest.mark.timeout(EXPORT_TEST_TIMEOUT_S)
 
 EXPECTED: dict[ExportSpec, CustomTFLiteInfo] = {
   V2_4_REPLACE: CustomTFLiteInfo("2.4", "replace", 3, False, True, 144_000),

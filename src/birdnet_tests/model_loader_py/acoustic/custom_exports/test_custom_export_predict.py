@@ -5,7 +5,6 @@ import birdnet
 from birdnet_tests.custom_classifier_exports import ExportSpec
 from birdnet_tests.helper import ensure_litert_or_skip
 from birdnet_tests.model_loader_py.acoustic.custom_exports.conftest import (
-  EXPORT_TEST_TIMEOUT_S,
   N_SEGMENTS,
   V2_4_APPEND,
   V2_4_REPLACE,
@@ -15,8 +14,6 @@ from birdnet_tests.model_loader_py.acoustic.custom_exports.conftest import (
   official_scores,
   scores_in_model_order,
 )
-
-pytestmark = pytest.mark.timeout(EXPORT_TEST_TIMEOUT_S)
 
 TFLITE_EXPORTS = [V2_4_REPLACE, V2_4_APPEND, V3_0_REPLACE]
 

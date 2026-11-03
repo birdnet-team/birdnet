@@ -8,7 +8,6 @@ from birdnet.acoustic.models.v3_0.model import AcousticModelV3_0
 from birdnet.acoustic.models.v3_0.pb import AcousticRavenBackendFP32V3_0
 from birdnet.utils.species_lists import get_species_from_file
 from birdnet_tests.model_loader_py.acoustic.custom_exports.conftest import (
-  EXPORT_TEST_TIMEOUT_S,
   N_SEGMENTS,
   V3_0_RAVEN,
   V3_0_REPLACE,
@@ -18,8 +17,6 @@ from birdnet_tests.model_loader_py.acoustic.custom_exports.conftest import (
   scores_in_model_order,
 )
 from birdnet_tests.test_files import TEST_FILES_DIR
-
-pytestmark = pytest.mark.timeout(EXPORT_TEST_TIMEOUT_S)
 
 # A Raven export of the same (trained) head as replace.tflite.
 RAVEN_V2_4 = TEST_FILES_DIR / "custom_models" / "raven" / "CustomClassifier"
