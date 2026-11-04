@@ -249,7 +249,9 @@ def test_a_child_that_never_exits_is_terminated_after_the_grace_period() -> None
 
   assert stubborn.terminated, "a child outliving the grace period must be terminated"
   assert not stubborn.killed
-  assert 0.2 <= elapsed_s < _TEARDOWN_DEADLINE_S, (
+  # Two 15.6 ms ticks under the grace: Windows before 3.13 reads time.monotonic()
+  # in such ticks, once inside the deadline and once here.
+  assert 0.15 <= elapsed_s < _TEARDOWN_DEADLINE_S, (
     f"grace not honoured: {elapsed_s:.2f} s"
   )
 
