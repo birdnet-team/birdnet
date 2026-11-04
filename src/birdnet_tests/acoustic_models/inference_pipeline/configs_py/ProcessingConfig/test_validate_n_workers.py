@@ -1,5 +1,4 @@
-import multiprocessing
-
+import psutil
 import pytest
 
 from birdnet.acoustic.inference.configs import (
@@ -38,12 +37,13 @@ def test_one_is_valid() -> None:
 
 
 def test_max_cpus_is_valid() -> None:
-  if max_logical_cpus := multiprocessing.cpu_count():
+  # The validator's own count: PYTHON_CPU_COUNT changes multiprocessing's only.
+  if max_logical_cpus := psutil.cpu_count(logical=True):
     assert ProcessingConfig.validate_n_workers(max_logical_cpus) == max_logical_cpus
 
 
 def test_more_than_max_cpus_is_raises_error() -> None:
-  if max_logical_cpus := multiprocessing.cpu_count():
+  if max_logical_cpus := psutil.cpu_count(logical=True):
     with pytest.raises(
       ValueError,
       match=rf"workers must be <= {max_logical_cpus}",

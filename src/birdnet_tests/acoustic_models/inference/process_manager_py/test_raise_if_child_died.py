@@ -17,6 +17,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from birdnet.acoustic.inference import process_manager
 from birdnet.acoustic.inference.core.sync import (
   FailureSlot,
   create_failure_slot,
@@ -264,12 +265,16 @@ def _never_set() -> threading.Event:
   return threading.Event()
 
 
-def test_wait_gives_up_when_a_child_dies_rather_than_raising() -> None:
+def test_wait_gives_up_when_a_child_dies_rather_than_raising(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
   """Raising here would surface an OSError where callers expect RuntimeError.
 
   It must also not keep waiting: the signal in this test is never set, so a
   wait that ignored the dead child would hang the test.
   """
+  # Read at every poll of the signal; the first poll finds the dead child.
+  monkeypatch.setattr(process_manager, "_LIVENESS_POLL_INTERVAL_S", 0.2)
   manager = _StubManager(
     [(_FakeProcess("Worker-0", alive=False, exitcode=-9), _signal(is_set=False))]
   )
@@ -282,12 +287,15 @@ def test_wait_gives_up_when_a_child_dies_rather_than_raising() -> None:
   )
 
 
-def test_wait_gives_up_when_the_run_was_cancelled() -> None:
+def test_wait_gives_up_when_the_run_was_cancelled(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
   """A failed thread sets the cancel event and returns without signalling.
 
   The liveness check cannot see a thread; without this exit the wait for its
   finish signal would never return.
   """
+  monkeypatch.setattr(process_manager, "_LIVENESS_POLL_INTERVAL_S", 0.2)
   manager = _StubManager(
     [(_FakeProcess("Worker-0", alive=True), _signal(is_set=False))]
   )

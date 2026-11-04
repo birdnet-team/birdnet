@@ -29,8 +29,9 @@ from birdnet.acoustic.inference.process_manager import ProcessManager
 pytestmark = pytest.mark.no_tf
 
 # Teardown here does no real work: the only waits are the drain-stop timeout
-# (1 s) and the joins of fake processes. Kept close to that so a wait that
-# outlives the budget is caught, but loose enough for a loaded runner.
+# (patched down to 0.2 s) and the joins of fake processes. Kept close to that
+# so a wait that outlives the budget is caught, but loose enough for a loaded
+# runner.
 _TEARDOWN_DEADLINE_S = 10.0
 # Budget handed to the method under test; the joins return at once.
 _BUDGET_S = 8.0
@@ -53,6 +54,8 @@ class _FakeProcess:
     return self._alive
 
   def join(self, timeout: float | None = None) -> None:
+    if not self._alive:
+      return
     if self._exits:
       self._alive = False
     else:
@@ -157,7 +160,9 @@ def _logger() -> logging.Logger:
   return logging.getLogger(f"{__name__}.stub")
 
 
-def test_a_drain_that_never_returns_does_not_stop_teardown() -> None:
+def test_a_drain_that_never_returns_does_not_stop_teardown(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
   """The whole point: teardown must not wait on a drain that never returns.
 
   The release timer is what makes this a *failing* test rather than a hanging
@@ -165,6 +170,8 @@ def test_a_drain_that_never_returns_does_not_stop_teardown() -> None:
   below could never be evaluated -- the call would simply never return, and
   pytest-timeout would take the whole xdist worker with it.
   """
+  # Read at the drainer join; the wedged drain never returns, so it is waited out.
+  monkeypatch.setattr(process_manager, "_DRAIN_STOP_TIMEOUT_S", 0.2)
   wedged = _WedgedQueue()
   process = _FakeProcess("Producer-0")
   stub = _Stub([process], [wedged])
@@ -189,8 +196,11 @@ def test_a_drain_that_never_returns_does_not_stop_teardown() -> None:
   assert not process.terminated, "the child exited on its own; nothing to terminate"
 
 
-def test_a_wedged_queue_is_recorded_and_never_closed() -> None:
+def test_a_wedged_queue_is_recorded_and_never_closed(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
   """Closing it would free the descriptor number under a blocked read."""
+  monkeypatch.setattr(process_manager, "_DRAIN_STOP_TIMEOUT_S", 0.2)
   wedged = _WedgedQueue()
   stub = _Stub([_FakeProcess("Producer-0")], [wedged])
 

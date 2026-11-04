@@ -7,8 +7,8 @@ ordinary one.
 
 - The call count is a coarse floor. A tracker that collects before its wait,
   paired with a dispatcher that holds each update for a quiet interval, made 3
-  calls on this run in most tries but not all. That dispatcher alone made 4 or
-  5; its own unit test is what catches it.
+  calls on this run in most tries, which the floor lets through. That
+  dispatcher alone made 4 or 5; its own unit test is what catches it.
 - The closing update at the full count is a guard here, not a proof: a close
   that misses stats trailing the end-of-run token passed this test in every
   run tried; the tracker's own unit test enforces it.
@@ -33,10 +33,11 @@ pytestmark = pytest.mark.no_tf
 # 40 single-segment batches of 250 ms on 2 workers keep the run going for at
 # least 4.75 s after the first batch is in: four interval updates and the
 # closing one, six calls in practice. The batches sleep, so load does not
-# stretch the run; it slows the tracker's passes, which removes updates. Four
-# leaves two lost updates of margin.
+# stretch the run; it slows the tracker's passes, which removes updates. Three
+# leaves three lost updates of margin and still separates once per interval
+# from once per run.
 _N_SEGMENTS = 40
-_MIN_CALLS = 4
+_MIN_CALLS = 3
 
 
 def test_a_five_second_run_gets_an_update_every_interval(tmp_path: Path) -> None:

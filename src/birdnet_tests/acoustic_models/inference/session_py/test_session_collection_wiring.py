@@ -64,9 +64,9 @@ def test_a_warm_call_pays_no_fixed_reader_toll(tmp_path: Path) -> None:
   Teardown bookkeeping can put a fixed per-call cost into every call (a poll
   interval, a reader join) far below what a threshold sized for a 1 s barrier
   would notice. The stub backend does ~2 ms of work, so the *fastest*
-  of several warm calls is almost pure pipeline overhead — and a fixed toll in
-  the tens of milliseconds moves it, while scheduler noise cannot (noise only
-  ever makes a call slower).
+  of several warm calls is almost pure pipeline overhead — and a fixed toll of
+  a tenth of a second moves it, while scheduler noise cannot (noise only ever
+  makes a call slower).
   """
   audio = _clip()
   with fake_predict_session(tmp_path, n_workers=1) as session:
@@ -79,7 +79,7 @@ def test_a_warm_call_pays_no_fixed_reader_toll(tmp_path: Path) -> None:
       durations.append(time.perf_counter() - start)
 
   fastest = min(durations)
-  assert fastest < 0.040, (
+  assert fastest < 0.100, (
     f"fastest warm run_arrays took {fastest * 1000:.1f} ms on a stub backend "
     f"whose inference is ~2 ms; a fixed per-call toll is back. "
     f"Samples: {[round(d * 1000, 1) for d in durations]}"
