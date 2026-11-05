@@ -123,7 +123,7 @@ def test_a_sentinel_lost_after_the_finish_signal_still_ends_the_run(
   """
   from birdnet.acoustic.inference.core import consumer as consumer_module
 
-  monkeypatch.setattr(consumer_module, "PROMISED_MESSAGE_DEADLINE_S", 2.0)
+  monkeypatch.setattr(consumer_module, "PROMISED_MESSAGE_DEADLINE_S", 0.5)
 
   release = threading.Event()
   cancel = threading.Event()
@@ -185,7 +185,7 @@ def test_a_marker_lost_after_the_finish_signal_still_ends_the_run(
 
   from birdnet.acoustic.inference.core import consumer as consumer_module
 
-  monkeypatch.setattr(consumer_module, "PROMISED_MESSAGE_DEADLINE_S", 2.0)
+  monkeypatch.setattr(consumer_module, "PROMISED_MESSAGE_DEADLINE_S", 0.5)
 
   release = threading.Event()
   cancel = threading.Event()

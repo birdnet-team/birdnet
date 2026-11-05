@@ -45,6 +45,7 @@ from birdnet.acoustic.inference.core.prediction.prediction_result import (
   AcousticFilePredictionResult,
 )
 from birdnet.acoustic.inference.process_manager import ProcessManager
+from birdnet.acoustic.inference.resources import ProcessingResources
 from birdnet.acoustic.inference.session import AcousticPredictionSession
 from birdnet_tests.fake_acoustic_backend import (
   fake_predict_session,
@@ -57,10 +58,13 @@ _LOGGER = logging.getLogger(__name__)
 
 # The promised-message deadline, patched down from 30 s: right for a session,
 # wrong for a test that has to wait it out twice.
-_DEADLINE_S = 5.0
+_DEADLINE_S = 2.0
+# The tracker's update interval and the parent's liveness poll, patched down
+# from 1 s: they pace the run and the way to the deadline, not what is asserted.
+_UPDATE_INTERVAL_S = 0.25
 # How much later than the deadline run() may return: the way to the deadline is
-# polled once a second, and a loaded runner adds its own delay.
-_MARGIN_S = 10.0
+# polled once per update interval, and a loaded runner adds its own delay.
+_MARGIN_S = 5.0
 # The test's own bound on run() and __exit__. Below the unpatched 30 s on
 # purpose: a wait that ignores the patched deadline fails here instead of
 # passing late.
@@ -69,8 +73,8 @@ _STEP_BOUND_S = 25.0
 # a writer killed inside a log write keeps the logging queue's lock.
 _SETTLE_S = 0.3
 # Long enough for the tracker to send ordinary updates before the last one:
-# 20 single-segment batches of 250 ms on 2 workers, one update per second.
-_N_SEGMENTS = 20
+# 8 single-segment batches of 250 ms on 2 workers, one update per interval.
+_N_SEGMENTS = 8
 # Past the deadline, so a wait that still bounds the callback fails the run.
 _SLOW_CALLBACK_S = _DEADLINE_S + 2.0
 # For a run that has to be cut short: 120 single-segment batches of 250 ms on 2
@@ -119,10 +123,17 @@ class _Entered:
 @contextmanager
 def _entered_session(
   tmp_path: Path,
+  monkeypatch: pytest.MonkeyPatch,
   progress_callback: Callable[[AcousticProgressStats], None],
   n_segments: int = _N_SEGMENTS,
 ) -> Iterator[_Entered]:
   """A progress session, left on a `_Step` after the body; killed on failure."""
+  # The parent reads the interval once, when it starts the tracker, and the
+  # liveness poll at every wait.
+  monkeypatch.setattr(
+    ProcessingResources, "update_interval", property(lambda _self: _UPDATE_INTERVAL_S)
+  )
+  monkeypatch.setattr(process_manager, "_LIVENESS_POLL_INTERVAL_S", _UPDATE_INTERVAL_S)
   audio = write_marked_audio(tmp_path / "in.wav", n_segments)
   session: AcousticPredictionSession = fake_predict_session(
     tmp_path,
@@ -248,7 +259,7 @@ def _run_with_lost_last_update(
   _drop_finished_updates(monkeypatch)
   updates: list[AcousticProgressStats] = []
 
-  with _entered_session(tmp_path, updates.append) as entered:
+  with _entered_session(tmp_path, monkeypatch, updates.append) as entered:
     _fails_at_the_deadline(
       entered,
       updates,
@@ -278,7 +289,7 @@ def test_a_later_run_whose_last_update_never_arrives_fails_at_the_deadline(
   monkeypatch.setattr(process_manager, "_PROMISED_MESSAGE_DEADLINE_S", _DEADLINE_S)
   updates: list[AcousticProgressStats] = []
 
-  with _entered_session(tmp_path, updates.append) as entered:
+  with _entered_session(tmp_path, monkeypatch, updates.append) as entered:
     first = _Step(lambda: entered.session.run([str(entered.audio)]), "first run()")
     assert first.done.wait(_STEP_BOUND_S), (
       f"the first run() did not return within {_STEP_BOUND_S:.0f} s"
@@ -306,7 +317,7 @@ def test_a_closing_callback_slower_than_the_deadline_does_not_fail_the_run(
       time.sleep(_SLOW_CALLBACK_S)
       closing_callback_returned_at.append(time.monotonic())
 
-  with _entered_session(tmp_path, callback) as entered:
+  with _entered_session(tmp_path, monkeypatch, callback) as entered:
     run = _Step(lambda: entered.session.run([str(entered.audio)]), "run()")
     assert entered.tracker_finished.wait(_STEP_BOUND_S), "the tracker never finished"
     tracker_finished_at = time.monotonic()
@@ -362,7 +373,7 @@ def test_an_ordinary_callback_slower_than_the_deadline_does_not_fail_the_run(
       tracker_seen.wait(_STEP_BOUND_S)
       time.sleep(_SLOW_CALLBACK_S)
 
-  with _entered_session(tmp_path, callback) as entered:
+  with _entered_session(tmp_path, monkeypatch, callback) as entered:
     run = _Step(lambda: entered.session.run([str(entered.audio)]), "run()")
     assert entered.tracker_finished.wait(_STEP_BOUND_S), "the tracker never finished"
     tracker_finished_at = time.monotonic()
@@ -439,7 +450,7 @@ def test_a_callback_raising_a_base_exception_fails_the_run_at_once(
 
   monkeypatch.setattr(threading, "excepthook", excepthook)
 
-  with _entered_session(tmp_path, callback, n_segments) as entered:
+  with _entered_session(tmp_path, monkeypatch, callback, n_segments) as entered:
     dispatcher = entered.manager._progress_dispatcher_thread  # noqa: SLF001
     assert dispatcher is not None
     session_log = entered.session._resources.logging_resources.session_log_file  # noqa: SLF001

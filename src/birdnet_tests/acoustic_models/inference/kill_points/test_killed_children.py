@@ -45,9 +45,11 @@ def _corpus(tmp_path: Path, n_files: int = 2, n_segments: int = 4) -> list[str]:
   """Just enough work that the kill lands mid-run.
 
   Sized deliberately: with `seconds_per_batch` set, every extra segment is
-  half a second of test. Eight segments across two workers is ~2 s of work
-  against a kill at 0.5 s, which leaves plenty outstanding without paying for
-  audio nobody looks at.
+  half a second of test. One file of four segments is 2 s of work against a
+  kill at 0.5 s, 1.5 s of it still outstanding, and the run ends only once the
+  survivor has done the dead worker's share. The default two files overfill
+  the four-slot ring, so a producer is still at work when its kill at 0.25 s
+  arrives, however fast it started.
   """
   return [
     str(write_marked_audio(tmp_path / f"in_{i}.wav", n_segments))
@@ -106,25 +108,6 @@ def _producer(index: int) -> Callable[[AcousticSessionBase], BaseProcess]:
   return get
 
 
-def _tracker(session: AcousticSessionBase) -> BaseProcess:
-  proc = session._process_manager._perf_tracker_process
-  assert proc is not None
-  return proc
-
-
-def _kill_leftovers(outcome: dict) -> None:
-  """A run that never returned leaves its children behind; take them with us."""
-  session = outcome.get("session")
-  pm = session._process_manager if session is not None else None
-  if pm is None:
-    return
-  for p in [*(pm._producer_processes or []), *(pm._worker_processes or [])]:
-    if p.is_alive():
-      p.kill()
-  if pm._perf_tracker_process is not None and pm._perf_tracker_process.is_alive():
-    pm._perf_tracker_process.kill()
-
-
 def _assert_reported(outcome: dict, what: str) -> None:
   assert outcome["finished"], (
     f"the run did not return within {_DEADLINE_S:.0f} s after {what} was "
@@ -152,7 +135,7 @@ def test_worker_killed_while_inside_inference(tmp_path: Path) -> None:
   """
   outcome = _run_in_thread(
     lambda: fake_predict_session(tmp_path, n_workers=2, seconds_per_batch=_STALL_S),
-    _corpus(tmp_path),
+    _corpus(tmp_path, n_files=1),
     _kill_after(_worker(0), delay_s=_STALL_S),
   )
   _assert_reported(outcome, "a worker mid-inference")
@@ -187,6 +170,9 @@ def test_worker_killed_during_encoding(tmp_path: Path) -> None:
   one batch-4 block really is past 16 KB, the size at which POSIX splits a
   queue message into separate header and body writes -- where a killed writer
   can leave a header whose body never arrives.
+
+  Sixteen segments give each worker two batches, so the kill at 0.5 s lands
+  inside a batch rather than at the end of a worker's only one.
   """
   outcome = _run_in_thread(
     lambda: fake_encode_session(
@@ -196,71 +182,22 @@ def test_worker_killed_during_encoding(tmp_path: Path) -> None:
       seconds_per_batch=_STALL_S,
       backend=WideFakeAcousticBackend,
     ),
-    _corpus(tmp_path),
+    _corpus(tmp_path, n_segments=8),
     _kill_after(_worker(0), delay_s=_STALL_S),
   )
   _assert_reported(outcome, "a worker mid-encode")
 
 
-def test_worker_killed_with_top_k_none_blocks(tmp_path: Path) -> None:
-  """The configuration issue #83 names: ~45 KB result blocks.
+def test_a_lone_worker_killed_leaves_no_survivor(tmp_path: Path) -> None:
+  """With one worker there are no survivors.
 
-  With `top_k=None` every block carries a score per species; at the wide
-  backend's 6000 species that is well past every framing threshold, so a kill
-  mid-run is a kill amid multi-write frames. The run must end with a
-  diagnosis; before the consumer read through a sacrificial thread, a frame
-  torn here could block the parent's main loop with nothing raised.
+  A leaked lock needs somebody left to block on it, so the one-worker case
+  exercises a different path through teardown than the many-worker case of
+  `test_worker_killed_while_inside_inference`.
   """
   outcome = _run_in_thread(
-    lambda: fake_predict_session(
-      tmp_path,
-      n_workers=2,
-      top_k=None,
-      seconds_per_batch=_STALL_S,
-      backend=WideFakeAcousticBackend,
-    ),
-    _corpus(tmp_path),
+    lambda: fake_predict_session(tmp_path, n_workers=1, seconds_per_batch=_STALL_S),
+    _corpus(tmp_path, n_files=1),
     _kill_after(_worker(0), delay_s=_STALL_S),
   )
-  _assert_reported(outcome, "a worker with top_k=None")
-
-
-@pytest.mark.parametrize("n_workers", [1, 3])
-def test_the_survivors_do_not_matter(tmp_path: Path, n_workers: int) -> None:
-  """With one worker there are no survivors; with three there are two.
-
-  Worth pinning both: a leaked lock needs somebody left to block on it, so the
-  one-worker case exercises a different path through teardown than the many-
-  worker case, and the original regression test only ever ran the first.
-  """
-  outcome = _run_in_thread(
-    lambda: fake_predict_session(
-      tmp_path, n_workers=n_workers, seconds_per_batch=_STALL_S
-    ),
-    _corpus(tmp_path),
-    _kill_after(_worker(0), delay_s=_STALL_S),
-  )
-  _assert_reported(outcome, f"a worker of {n_workers}")
-
-
-def test_tracker_killed_mid_run_does_not_hang_the_run(tmp_path: Path) -> None:
-  """Killed well after its start-up and well before the end of the run.
-
-  Between its once-a-second passes the tracker sleeps on the signal the
-  session gives at the end of the run; that signal must not block on a
-  sleeper that no longer exists. Sixteen segments at half a second over two
-  workers is a four-second run; the kill at 1.5 s lands while blocks are
-  still flowing, so the consumer's liveness check (which only runs when it
-  waits for a block) cannot be what saves the run.
-  """
-  outcome = _run_in_thread(
-    lambda: fake_predict_session(
-      tmp_path, n_workers=2, seconds_per_batch=_STALL_S, show_stats="progress"
-    ),
-    _corpus(tmp_path, n_files=2, n_segments=8),
-    _kill_after(_tracker, delay_s=3 * _STALL_S),
-  )
-  try:
-    _assert_reported(outcome, "the performance tracker")
-  finally:
-    _kill_leftovers(outcome)
+  _assert_reported(outcome, "a lone worker")

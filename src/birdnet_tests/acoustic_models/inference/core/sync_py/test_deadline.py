@@ -11,11 +11,18 @@ from birdnet.acoustic.inference.core.sync import Deadline
 pytestmark = pytest.mark.no_tf
 
 
-def test_remaining_shrinks_with_time_and_stops_at_zero() -> None:
+def test_remaining_shrinks_with_time_and_stops_at_zero(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  # A clock the test advances: on the real one, a preemption between two
+  # reads is indistinguishable from a budget that leaks.
+  clock = [1000.0]
+  monkeypatch.setattr(time, "monotonic", lambda: clock[0])
   deadline = Deadline(0.05)
-  first = deadline.remaining()
-  assert 0 < first <= 0.05
-  time.sleep(0.07)
+  assert deadline.remaining() == 0.05
+  clock[0] += 0.03
+  assert deadline.remaining() == pytest.approx(0.02, abs=1e-9)
+  clock[0] += 0.07
   assert deadline.remaining() == 0.0
   assert deadline.budget_s == 0.05
 

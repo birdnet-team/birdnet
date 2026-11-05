@@ -27,6 +27,7 @@ from pathlib import Path
 import pytest
 
 import birdnet.acoustic.inference.file_writer as fw_mod
+from birdnet.acoustic.inference import process_manager
 from birdnet_tests.fake_acoustic_backend import (
   LogBurstBackend,
   fake_predict_session,
@@ -55,6 +56,8 @@ def test_exit_returns_with_the_log_wedged(
     original_loop(self)
 
   monkeypatch.setattr(fw_mod.QueueFileWriter, "_run_main_loop", held_back_loop)
+  # Read at the writer join; a writer that never reads is waited out, once.
+  monkeypatch.setattr(process_manager, "_LOG_WRITER_STOP_TIMEOUT_S", 1.0)
 
   audio = write_marked_audio(tmp_path / "in.wav", 4)
   session = fake_predict_session(tmp_path, n_workers=1, backend=LogBurstBackend)

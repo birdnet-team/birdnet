@@ -105,7 +105,7 @@ def test_a_queue_poisoned_by_a_killed_writer_cannot_block_the_caller() -> None:
   try:
     while True:
       try:
-        reader.get(timeout=2.0)
+        reader.get(timeout=0.5)
         drained += 1
       except Empty:
         break

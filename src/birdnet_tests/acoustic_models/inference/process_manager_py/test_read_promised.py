@@ -110,12 +110,16 @@ def test_a_cancelled_run_stops_the_wait_immediately() -> None:
   q.close()
 
 
-def test_a_wedged_reader_keeps_its_queue_out_of_the_closable_set() -> None:
+def test_a_wedged_reader_keeps_its_queue_out_of_the_closable_set(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
   """`close_queues` must skip a queue whose pump is still inside a read."""
   import queue as pyqueue
 
   from birdnet.acoustic.inference.core.sync import ThreadedQueueReader
 
+  # Read at each reap; the pump never confirms, so it is waited out twice.
+  monkeypatch.setattr(process_manager, "READER_CLOSE_TIMEOUT_S", 0.2)
   release = threading.Event()
 
   class _BlockingQueue:

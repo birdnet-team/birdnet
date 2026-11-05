@@ -22,7 +22,7 @@ def test_gives_up_at_its_timeout(
 ) -> None:
   """A model that hangs while opening must fail the check at the timeout, not
   when the hang ends."""
-  monkeypatch.setattr(backends, "_SUBPROCESS_TIMEOUT_S", 2)
+  monkeypatch.setattr(backends, "_SUBPROCESS_TIMEOUT_S", 0.5)
   model = tmp_path / "model.tflite"
   model.write_bytes(b"not a model")
 

@@ -90,7 +90,10 @@ def server(allow_downloads: None) -> Generator[LocalServer, None, None]:
 
   httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
   local.base_url = f"http://127.0.0.1:{httpd.server_address[1]}"
-  thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+  # shutdown() returns within one poll.
+  thread = threading.Thread(
+    target=lambda: httpd.serve_forever(poll_interval=0.01), daemon=True
+  )
   thread.start()
   try:
     yield local
