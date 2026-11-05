@@ -10,6 +10,8 @@ from birdnet.globals import ENV_VAR_APP_DATA
 from birdnet.utils import downloads
 from birdnet.utils.label_manifest import sha256_bytes
 
+pytestmark = pytest.mark.no_tf
+
 
 def test_taxonomy_v3_available_checks_the_content(
   tmp_path: Path,

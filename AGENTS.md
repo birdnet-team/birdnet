@@ -38,12 +38,14 @@ tox
 
 ### Test markers (ordering matters)
 
-- `load_model` — downloads all models, and is the only marker under which a test may download; run first before other tests.
+- `load_model` — downloads all models, and is the only marker under which a test may download; run before the tests that need its downloads.
 - `litert` — must run in a separate pytest process: `ai_edge_litert` cannot be imported after TensorFlow (`pytest -m litert -n auto`).
-- `gpu` — run sequentially (`-n 1`).
+- `gpu` — run sequentially (`-n 1`); a gpu test that also forks runs in its own `-n 0` lane.
 - `fork` — forces the fork start method; must run serially and in-process (`-n 0`), never in the parallel phase: forking after TensorFlow is loaded can wedge or segfault the child (see `conftest.py`). Fork support is best-effort — a hung fork test on macOS is likely the known TF limitation, not your change.
 - `no_tf` — the TensorFlow-free surface; the only tests that run on Python 3.14 and 3.15, and (with `litert`) in the TF-free `py313-notf` lane. Anything not marked `no_tf` or `litert` is skipped when TensorFlow is not installed.
 - `tf` — a `litert`-marked test that needs TensorFlow after all (e.g. reaches the `pb` guard); skipped in the TF-free lanes.
+
+The tox lanes partition the suite by marker, which `test_tox_lanes_partition_the_markers.py` pins; a `litert` test that also needs a GPU has no lane, and that file fails while one is collected.
 
 `py312-repro` is a tox environment, not a marker: it runs the ordinary lanes under the exact versions the `repro` extra pins (Python 3.12, CPU only, not macOS Intel).
 

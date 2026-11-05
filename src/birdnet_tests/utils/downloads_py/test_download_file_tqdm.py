@@ -7,7 +7,7 @@ import pytest
 from birdnet.utils.downloads import download_file_tqdm
 
 # Reaches zenodo: belongs to the download phase, like every model download.
-pytestmark = pytest.mark.load_model
+pytestmark = [pytest.mark.no_tf, pytest.mark.load_model]
 
 
 def test_download_geo_model_to_tmp() -> None:

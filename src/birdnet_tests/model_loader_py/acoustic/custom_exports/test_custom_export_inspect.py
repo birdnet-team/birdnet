@@ -63,6 +63,7 @@ def test_inspect_rejects_a_detached_head(get_export: GetExport) -> None:
     birdnet.inspect_custom_tflite(export.model)
 
 
+@pytest.mark.no_tf
 def test_inspect_rejects_a_non_tflite_path(tmp_path: Path) -> None:
   model = tmp_path / "model.onnx"
   model.write_bytes(b"x")

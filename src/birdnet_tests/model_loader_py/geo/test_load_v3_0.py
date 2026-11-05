@@ -62,6 +62,7 @@ def test_v3_0_tf_int8() -> None:
   assert isinstance(model, GeoModelV3_0)
 
 
+@pytest.mark.no_tf
 def test_v3_0_litert_raises_error() -> None:
   with pytest.raises(
     RuntimeError,

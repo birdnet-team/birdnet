@@ -29,7 +29,9 @@ from birdnet.geo.models.v3_0.pt import GeoPTDownloaderV3_0
 from birdnet.geo.models.v3_0.tf import GeoTFDownloaderV3_0
 from birdnet_tests.helper import (
   ensure_not_intel_macos_or_skip,
+  ensure_onnxruntime_or_skip,
   ensure_tf_2_20_or_skip,
+  ensure_torch_or_skip,
   ensure_v3_0_torch_backend_or_skip,
 )
 
@@ -48,13 +50,25 @@ _CASES: list[tuple[type[ModelBase], type, tuple[str, ...]]] = [
   (GeoModelV3_0, GeoPTDownloaderV3_0, ("en_us", "fp32")),
   (GeoModelV3_0, GeoPBDownloaderV3_0, ("en_us",)),
 ]
+_ONNX = (AcousticOnnxDownloaderV3_0, GeoOnnxDownloaderV3_0)
+_PT = (AcousticPTDownloaderV3_0, GeoPTDownloaderV3_0)
+# The 2.4 tflite files are in every lane: the get_n_classes tests fetch them.
+_NO_TF = (AcousticTFDownloaderV2_4, GeoTFDownloaderV2_4, *_ONNX, *_PT)
 
 
 @pytest.mark.load_model
 @pytest.mark.parametrize(
   ("model", "downloader", "args"),
-  _CASES,
-  ids=[downloader.__name__ for _, downloader, _ in _CASES],
+  [
+    pytest.param(
+      model,
+      downloader,
+      args,
+      id=downloader.__name__,
+      marks=[pytest.mark.no_tf] if downloader in _NO_TF else [],
+    )
+    for model, downloader, args in _CASES
+  ],
 )
 def test_a_label_file_of_another_length_is_refused(
   model: type[ModelBase],
@@ -66,6 +80,11 @@ def test_a_label_file_of_another_length_is_refused(
     # The guards of load_perch_v2's tests: the download is only made where Perch runs.
     ensure_not_intel_macos_or_skip()
     ensure_tf_2_20_or_skip()
+  # Like the load tests: a lane without the runtime does not download its models.
+  if downloader in _ONNX:
+    ensure_onnxruntime_or_skip()
+  if downloader in _PT:
+    ensure_torch_or_skip()
   if downloader is GeoPTDownloaderV3_0:
     # The geo 3.0 pt load test skips on Intel macOS; keep that lane's download set.
     ensure_v3_0_torch_backend_or_skip()

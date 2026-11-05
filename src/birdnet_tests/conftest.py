@@ -105,6 +105,11 @@ def _runs_without_tensorflow(item: pytest.Item) -> bool:
   )
 
 
+# Marker names of every collected test, the ones -m deselects included:
+# test_tox_lanes_partition_the_markers.py checks that each of them has a lane.
+collected_markers: dict[str, frozenset[str]] = {}
+
+
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
   tf_available = tf_installed()
   skip_needs_tf = pytest.mark.skip(
@@ -112,6 +117,7 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
     "is not installed (pip install birdnet[tf])"
   )
   for item in items:
+    collected_markers[item.nodeid] = frozenset(m.name for m in item.iter_markers())
     if item.get_closest_marker("load_model") is not None:
       item.add_marker(pytest.mark.timeout(LOAD_MODEL_TIMEOUT_S))
     if not tf_available and not _runs_without_tensorflow(item):
