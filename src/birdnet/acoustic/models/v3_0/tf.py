@@ -1,11 +1,7 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-from birdnet.acoustic.models.custom_tflite import (
-  CustomTFLiteBackend,
-  resolve_custom_tflite_layout,
-)
+from birdnet.acoustic.models import custom_tflite
+from birdnet.acoustic.models.custom_tflite import CustomTFLiteBackend
 from birdnet.acoustic.models.v3_0.model import (
   AcousticModelV3_0,
   _AcousticSingleFileDownloaderV3_0,
@@ -19,9 +15,6 @@ from birdnet.globals import (
   MODEL_PRECISIONS,
 )
 from birdnet.utils.downloads import ModelInfo
-
-if TYPE_CHECKING:
-  from birdnet.acoustic.models.custom_tflite import Interpreter
 
 models: dict[MODEL_PRECISIONS, ModelInfo] = {
   MODEL_PRECISION_FP16: ModelInfo(
@@ -51,10 +44,12 @@ class _AcousticTFBackendV3_0(TFBackend, VersionedAcousticBackendProtocol):
   def supports_encoding(cls) -> bool:
     return True
 
-  def _resolve_tensor_indices(self, interp: Interpreter) -> tuple[int, int, int | None]:
+  def _resolve_tensor_indices(
+    self, interp: custom_tflite.Interpreter
+  ) -> tuple[int, int, int | None]:
     # Read from the signature ("predictions", "embeddings"): the tensor indices
     # differ between exports of the model, and a stale one names another tensor.
-    layout = resolve_custom_tflite_layout(interp)
+    layout = custom_tflite.resolve_custom_tflite_layout(interp)
     return layout.input_idx, layout.prediction_idx, layout.embeddings_idx
 
   @classmethod

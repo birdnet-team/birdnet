@@ -113,6 +113,26 @@ def test_a_class_without_a_common_name_keeps_its_position(
   )
 
 
+def test_a_row_without_a_scientific_name_is_no_class(
+  tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+  labels_raw = tmp_path / "labels_raw.csv"
+  labels_raw.write_bytes(
+    b"sci_name;com_name\nAaa aaa;English One\n;\nBbb bbb;English Two\n",
+  )
+  taxonomy = tmp_path / "taxonomy.csv"
+  taxonomy.write_text("sci_name,com_name,common_name_de\n", encoding="utf-8")
+
+  _point_at(monkeypatch, tmp_path, labels_raw, taxonomy)
+  ProbeDownloader.lang_dir = tmp_path / "labels"
+
+  ProbeDownloader._generate_lang_files()
+
+  assert (ProbeDownloader.lang_dir / "en_us.txt").read_text(encoding="utf-8") == (
+    "Aaa aaa_English One\nBbb bbb_English Two"
+  )
+
+
 def test_a_name_with_an_underscore_does_not_move_the_label_separator(
   tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
