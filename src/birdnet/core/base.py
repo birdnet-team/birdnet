@@ -1,4 +1,5 @@
 import hashlib
+import itertools
 import os
 import time
 from abc import ABC, abstractmethod
@@ -111,30 +112,35 @@ class SessionBase(ABC):
   def run(self, *args, **kwargs) -> ResultBase: ...  # noqa: ANN002, ANN003
 
 
+# The wall clock alone repeats: on Windows before Python 3.13 it advances in
+# steps of up to 15.6 ms, so two ids one thread took within a step were equal.
+_SESSION_COUNTER = itertools.count()
+
+
 def get_session_id() -> str:
   """
-  Get a unique session ID based on the current process and thread.
+  Get a unique session ID based on the current process, thread and call.
 
   Example for two processes (fork):
-    Process 1: 53554_127397175535424_1762165676846175803
-    Process 2: 53555_127397175535424_1762165676846559511
+    Process 1: 53554_127397175535424_1762165676846175803_0
+    Process 2: 53555_127397175535424_1762165676846559511_0
 
   Example for two processes (spawn):
-    Process 1: 54155_126834937165632_1762165717644505438
-    Process 2: 54154_132842492557120_1762165717644777865
+    Process 1: 54155_126834937165632_1762165717644505438_0
+    Process 2: 54154_132842492557120_1762165717644777865_0
 
   Example for two threads in the same process:
-    Thread 1: 53142_138235445503680_1762165643891762916
-    Thread 2: 53142_138235453896384_1762165653498085145
+    Thread 1: 53142_138235445503680_1762165643891762916_0
+    Thread 2: 53142_138235453896384_1762165653498085145_1
 
   Example for same thread and process but different calls:
-    Call 1: 50179_128078941120320_1762165462208616340
-    Call 2: 50179_128078941120320_1762165485281125126
+    Call 1: 50179_128078941120320_1762165462208616340_0
+    Call 2: 50179_128078941120320_1762165485281125126_1
   """
   proc = current_process()
   thread = current_thread()
   timestamp = time.time_ns()
-  result = f"{proc.ident}_{thread.ident}_{timestamp}"
+  result = f"{proc.ident}_{thread.ident}_{timestamp}_{next(_SESSION_COUNTER)}"
   return result
 
 
@@ -146,6 +152,16 @@ def get_hash(session_id: str) -> str:
 def get_session_id_hash(session_id: str) -> str:
   hash_digest = get_hash(session_id)[:5]
   return hash_digest
+
+
+def get_session_tag(session_id: str) -> str:
+  """Names what a session shares with other processes.
+
+  64 bits, where the 20 of `get_session_id_hash` let two sessions alive at once
+  meet on one name. Behind "bn_file_idx_" it stays within the 31 characters
+  macOS allows for a shared memory name, leading slash included.
+  """
+  return get_hash(session_id)[:16]
 
 
 class ModelBase(ABC):

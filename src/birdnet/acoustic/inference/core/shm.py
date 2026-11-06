@@ -38,19 +38,6 @@ class RingField:
     """
     return shared_memory.SharedMemory(name=self.name, create=False)
 
-  def cleanup(self, session_id: str) -> None:
-    try:
-      shm = self.attach_shared_memory()
-    except FileNotFoundError:
-      return
-    else:
-      logger = get_logger_from_session(session_id, __name__)
-      logger.debug(f"Cleaning up shared memory {self.name}.")
-      shm.close()
-      with suppress(FileNotFoundError):
-        shm.unlink()
-      logger.debug(f"Shared memory {self.name} cleaned up.")
-
   def get_array(self, shm: shared_memory.SharedMemory) -> np.ndarray:
     view = np.ndarray(self.shape, self.dtype, buffer=shm.buf)
     return view
