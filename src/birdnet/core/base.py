@@ -113,7 +113,7 @@ class SessionBase(ABC):
 
 
 # The wall clock alone repeats: on Windows before Python 3.13 it advances in
-# steps of about a millisecond, so two ids taken within one step were equal.
+# steps of up to 15.6 ms, so two ids one thread took within a step were equal.
 _SESSION_COUNTER = itertools.count()
 
 
@@ -152,6 +152,16 @@ def get_hash(session_id: str) -> str:
 def get_session_id_hash(session_id: str) -> str:
   hash_digest = get_hash(session_id)[:5]
   return hash_digest
+
+
+def get_session_tag(session_id: str) -> str:
+  """Names what a session shares with other processes.
+
+  64 bits, where the 20 of `get_session_id_hash` let two sessions alive at once
+  meet on one name. Behind "bn_file_idx_" it stays within the 31 characters
+  macOS allows for a shared memory name, leading slash included.
+  """
+  return get_hash(session_id)[:16]
 
 
 class ModelBase(ABC):

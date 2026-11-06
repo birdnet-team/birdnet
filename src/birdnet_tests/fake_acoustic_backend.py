@@ -498,6 +498,14 @@ def fake_encode_session(
   )
 
 
+# Two ids of the form `get_session_id` returns whose 5-character hashes are
+# equal (`get_session_id_hash` gives "0da62" for both).
+COLLIDING_SESSION_IDS = (
+  "4242_140226235138176_1793967460642847365_0",
+  "4246_140226235138176_1793967460643896331_0",
+)
+
+
 def segment_marker(segment_index: int) -> float:
   """The constant sample value carried by one segment of marked audio."""
   return (segment_index + 1) / 1000.0

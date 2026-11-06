@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 import birdnet.core.base as base_module
-from birdnet.core.base import get_session_id, get_session_id_hash
+from birdnet.core.base import get_session_id, get_session_tag
 from birdnet_tests.fake_acoustic_backend import (
   fake_predict_session,
   write_marked_audio,
@@ -27,14 +27,14 @@ def test_ids_differ_while_the_clock_stands_still(
   ids = [get_session_id() for _ in range(100)]
 
   assert len(set(ids)) == 100
-  assert len({get_session_id_hash(i) for i in ids}) > 1
+  assert len({get_session_tag(i) for i in ids}) == 100
 
 
 def test_two_sessions_built_in_the_same_clock_tick_run_side_by_side(
   tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-  # Their shared memory is named after the id; equal ids made the second
-  # session fail on names the first one held.
+  # Their shared memory is named after the id, so equal ids gave both
+  # sessions the same names.
   _stop_the_clock(monkeypatch)
   audio = write_marked_audio(tmp_path / "audio.wav", 2)
   first = fake_predict_session(tmp_path, n_workers=1)
