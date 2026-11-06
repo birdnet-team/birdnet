@@ -243,8 +243,8 @@ class TFBackend(Backend, ABC):
   ) -> tuple[int, int, int | None]:
     """(input, prediction, embeddings) tensor indices of the loaded file.
 
-    The official models pin them per file; a custom classifier resolves them
-    from the file itself.
+    The 2.4 and geo models pin them per file; the acoustic 3.0 exports and the
+    custom classifiers resolve them from the file itself.
     """
 
   def load(self) -> None:
