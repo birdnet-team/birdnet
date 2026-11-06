@@ -167,14 +167,18 @@ class AcousticDownloaderBaseV3_0(V3LabelDownloaderBase):
   @classmethod
   def _parse_labels(cls, labels_raw: bytes) -> list[tuple[str, str, str]]:
     species_order: list[tuple[str, str, str]] = []
-    with io.StringIO(labels_raw.decode("utf-8"), newline="") as f:
+    # The released file starts with a byte order mark.
+    with io.StringIO(labels_raw.decode("utf-8-sig"), newline="") as f:
       reader = csv.DictReader(f, delimiter=";")
       for row in reader:
         sci_name = (row.get("sci_name") or "").strip()
-        if not sci_name:
+        en_us_name = (row.get("com_name") or "").strip()
+        if not sci_name and not en_us_name:
           continue
-        # Dropping a class without a common name would shift every later one.
-        en_us_name = (row.get("com_name") or "").strip() or sci_name
+        # A class with one name only keeps its line under that name: dropping
+        # it would shift every later class.
+        sci_name = sci_name or en_us_name
+        en_us_name = en_us_name or sci_name
         species_order.append((sci_name, _label_name(sci_name), _label_name(en_us_name)))
     return species_order
 

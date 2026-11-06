@@ -113,13 +113,10 @@ def test_a_class_without_a_common_name_keeps_its_position(
   )
 
 
-def test_a_row_without_a_scientific_name_is_no_class(
-  tmp_path: Path, monkeypatch: MonkeyPatch
-) -> None:
+def _english_labels(tmp_path: Path, monkeypatch: MonkeyPatch, labels: bytes) -> str:
+  """The generated English label file for `labels`, with an empty taxonomy."""
   labels_raw = tmp_path / "labels_raw.csv"
-  labels_raw.write_bytes(
-    b"sci_name;com_name\nAaa aaa;English One\n;\nBbb bbb;English Two\n",
-  )
+  labels_raw.write_bytes(labels)
   taxonomy = tmp_path / "taxonomy.csv"
   taxonomy.write_text("sci_name,com_name,common_name_de\n", encoding="utf-8")
 
@@ -128,9 +125,45 @@ def test_a_row_without_a_scientific_name_is_no_class(
 
   ProbeDownloader._generate_lang_files()
 
-  assert (ProbeDownloader.lang_dir / "en_us.txt").read_text(encoding="utf-8") == (
+  return (ProbeDownloader.lang_dir / "en_us.txt").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+  ("row", "label"),
+  [
+    (b";Sound_(event)", "Sound (event)_Sound (event)"),
+    (b"Bbb bbb", "Bbb bbb_Bbb bbb"),
+  ],
+  ids=["no scientific name", "fewer fields than the header"],
+)
+def test_a_class_with_one_name_only_keeps_its_position(
+  tmp_path: Path, monkeypatch: MonkeyPatch, row: bytes, label: str
+) -> None:
+  labels = (
+    b"sci_name;com_name\nAaa aaa;English One\n" + row + b"\nCcc ccc;English Three\n"
+  )
+
+  assert _english_labels(tmp_path, monkeypatch, labels) == (
+    f"Aaa aaa_English One\n{label}\nCcc ccc_English Three"
+  )
+
+
+def test_a_row_without_any_name_is_no_class(
+  tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+  labels = b"sci_name;com_name\nAaa aaa;English One\n;\nBbb bbb;English Two\n"
+
+  assert _english_labels(tmp_path, monkeypatch, labels) == (
     "Aaa aaa_English One\nBbb bbb_English Two"
   )
+
+
+def test_a_byte_order_mark_does_not_hide_the_first_column(
+  tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+  labels = b"\xef\xbb\xbfsci_name;com_name\nAaa aaa;English One\n"
+
+  assert _english_labels(tmp_path, monkeypatch, labels) == "Aaa aaa_English One"
 
 
 def test_a_name_with_an_underscore_does_not_move_the_label_separator(

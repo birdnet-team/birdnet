@@ -50,6 +50,23 @@ class _AcousticTFBackendV3_0(TFBackend, VersionedAcousticBackendProtocol):
     # Read from the signature ("predictions", "embeddings"): the tensor indices
     # differ between exports of the model, and a stale one names another tensor.
     layout = custom_tflite.resolve_custom_tflite_layout(interp)
+    n_classes = AcousticModelV3_0.get_n_classes()
+    embeddings_dim = AcousticModelV3_0.get_embeddings_dim()
+    if (
+      layout.n_species != n_classes
+      or not layout.embeddings_is_output
+      or layout.embeddings_dim != embeddings_dim
+    ):
+      embeddings = (
+        f"an embeddings output of width {layout.embeddings_dim}"
+        if layout.embeddings_is_output
+        else "no embeddings output"
+      )
+      raise ValueError(
+        f"Model '{self._model_path.absolute()}' is not the official acoustic 3.0 "
+        f"TFLite export: expected {n_classes} classes and an embeddings output of "
+        f"width {embeddings_dim}, found {layout.n_species} classes and {embeddings}."
+      )
     return layout.input_idx, layout.prediction_idx, layout.embeddings_idx
 
   @classmethod
