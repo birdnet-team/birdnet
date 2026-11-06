@@ -1,7 +1,8 @@
 """How a TFLite backend gets its tensor indices.
 
-An official model pins them at class level; a custom classifier resolves them
-from the file, so it has no class-level indices at all.
+The 2.4 and geo models pin them at class level; a custom classifier resolves
+them from the file, so it has no class-level indices at all. The acoustic 3.0
+exports resolve them the same way (acoustic_models/v3_0/tf_py).
 """
 
 from pathlib import Path

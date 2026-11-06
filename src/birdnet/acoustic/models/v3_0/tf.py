@@ -1,9 +1,16 @@
-from birdnet.acoustic.models.custom_tflite import CustomTFLiteBackend
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from birdnet.acoustic.models.custom_tflite import (
+  CustomTFLiteBackend,
+  resolve_custom_tflite_layout,
+)
 from birdnet.acoustic.models.v3_0.model import (
   AcousticModelV3_0,
   _AcousticSingleFileDownloaderV3_0,
 )
-from birdnet.core.backends import PinnedTFBackend, VersionedAcousticBackendProtocol
+from birdnet.core.backends import TFBackend, VersionedAcousticBackendProtocol
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSIONS,
   MODEL_BACKEND_TF,
@@ -12,6 +19,9 @@ from birdnet.globals import (
   MODEL_PRECISIONS,
 )
 from birdnet.utils.downloads import ModelInfo
+
+if TYPE_CHECKING:
+  from birdnet.acoustic.models.custom_tflite import Interpreter
 
 models: dict[MODEL_PRECISIONS, ModelInfo] = {
   MODEL_PRECISION_FP16: ModelInfo(
@@ -36,14 +46,16 @@ class AcousticTFDownloaderV3_0(_AcousticSingleFileDownloaderV3_0):
   _models = models
 
 
-class _AcousticTFBackendV3_0(PinnedTFBackend, VersionedAcousticBackendProtocol):
-  @classmethod
-  def in_idx(cls) -> int:
-    return 0
-
+class _AcousticTFBackendV3_0(TFBackend, VersionedAcousticBackendProtocol):
   @classmethod
   def supports_encoding(cls) -> bool:
     return True
+
+  def _resolve_tensor_indices(self, interp: Interpreter) -> tuple[int, int, int | None]:
+    # Read from the signature ("predictions", "embeddings"): the tensor indices
+    # differ between exports of the model, and a stale one names another tensor.
+    layout = resolve_custom_tflite_layout(interp)
+    return layout.input_idx, layout.prediction_idx, layout.embeddings_idx
 
   @classmethod
   def probe_input_size_samples(cls) -> int:
@@ -61,27 +73,11 @@ class _AcousticTFBackendV3_0(PinnedTFBackend, VersionedAcousticBackendProtocol):
 
 class AcousticTFBackendFP32V3_0(_AcousticTFBackendV3_0):
   @classmethod
-  def prediction_out_idx(cls) -> int:
-    return 1164
-
-  @classmethod
-  def encoding_out_idx(cls) -> int | None:
-    return 1090
-
-  @classmethod
   def precision(cls) -> MODEL_PRECISIONS:
     return MODEL_PRECISION_FP32
 
 
 class AcousticTFBackendFP16V3_0(_AcousticTFBackendV3_0):
-  @classmethod
-  def prediction_out_idx(cls) -> int:
-    return 1546
-
-  @classmethod
-  def encoding_out_idx(cls) -> int | None:
-    return 1472
-
   @classmethod
   def precision(cls) -> MODEL_PRECISIONS:
     return MODEL_PRECISION_FP16

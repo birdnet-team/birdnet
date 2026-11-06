@@ -45,11 +45,13 @@ def _digest(path: Path) -> str:
   return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _assert_recorded(lang_dir: Path, generator: str, languages: dict[str, str]) -> None:
+def _assert_recorded(
+  lang_dir: Path, generator: str, version: int, languages: dict[str, str]
+) -> None:
   manifest = read_manifest(lang_dir)
   assert manifest is not None
   assert manifest["generator"] == generator
-  assert manifest["generator_version"] == 2
+  assert manifest["generator_version"] == version
   assert manifest["languages"] == languages
 
 
@@ -104,7 +106,7 @@ def test_geo_generated_bytes_are_unchanged(
   assert _digest(lang_dir / "de.txt") == (
     "7eaba39b35a29b40be81bf8141c9bdb0d539ca1b85c06fc562e0675e0daa3c48"
   )
-  _assert_recorded(lang_dir, "geo_v3_0", languages)
+  _assert_recorded(lang_dir, "geo_v3_0", 2, languages)
 
 
 @pytest.mark.no_tf
@@ -129,4 +131,4 @@ def test_acoustic_generated_bytes_are_unchanged(
   assert _digest(lang_dir / "de.txt") == (
     "7eaba39b35a29b40be81bf8141c9bdb0d539ca1b85c06fc562e0675e0daa3c48"
   )
-  _assert_recorded(lang_dir, "acoustic_v3_0", languages)
+  _assert_recorded(lang_dir, "acoustic_v3_0", 3, languages)

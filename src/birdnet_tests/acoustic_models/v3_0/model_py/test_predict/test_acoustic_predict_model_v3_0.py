@@ -17,7 +17,8 @@ from birdnet_tests.helper import (
 )
 from birdnet_tests.test_files import TEST_FILE_SHORT, TEST_FILE_SHORT_DURATION_S
 
-_DEFAULT_SCORE_SHAPE = (1, 3, 11560)
+_N_CLASSES = AcousticModelV3_0.get_n_classes()
+_DEFAULT_SCORE_SHAPE = (1, 3, _N_CLASSES)
 _PT_ONNX_PREDICTION_MAX_ABS_DIFF = 1e-4
 _PT_ONNX_PREDICTION_MEAN_ABS_DIFF = 1e-5
 _PB_ONNX_PREDICTION_MAX_ABS_DIFF = 1e-4
@@ -71,7 +72,7 @@ def test_v3_0_predict_respects_segment_size(
     segment_size_s=segment_size_s,
   )
 
-  assert res.species_probs.shape == (1, expected_segments, 11560)
+  assert res.species_probs.shape == (1, expected_segments, _N_CLASSES)
   assert res.segment_duration_s == segment_size_s
 
 
@@ -101,8 +102,8 @@ def test_v3_0_predict_pt_and_onnx_are_close_with_custom_segment_size(
   onnx_result = _onnx_prediction(segment_size_s)
 
   segments_cnt = math.ceil(TEST_FILE_SHORT_DURATION_S / segment_size_s)
-  assert pt_result.species_probs.shape == (1, segments_cnt, 11560)
-  assert onnx_result.species_probs.shape == (1, segments_cnt, 11560)
+  assert pt_result.species_probs.shape == (1, segments_cnt, _N_CLASSES)
+  assert onnx_result.species_probs.shape == (1, segments_cnt, _N_CLASSES)
   assert_prediction_result_is_close(
     pt_result,
     onnx_result,

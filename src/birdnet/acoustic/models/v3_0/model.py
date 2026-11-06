@@ -116,7 +116,14 @@ _GENERATOR_NAME = "acoustic_v3_0"
 # birdnet/utils/v3_labels.py, which is shared and so changes both models. The
 # golden-digest test fails when the bytes generated from its fixture move;
 # nothing forces this bump when its digests are updated.
-_GENERATION_VERSION = 2
+_GENERATION_VERSION = 3
+
+
+def _label_name(name: str) -> str:
+  # A label is "<scientific name>_<common name>" and is split at its first
+  # underscore, which a scientific name containing one would move. The common
+  # name is treated alike, so a class named the same in both columns stays so.
+  return name.replace("_", " ")
 
 
 class AcousticDownloaderBaseV3_0(V3LabelDownloaderBase):
@@ -163,10 +170,12 @@ class AcousticDownloaderBaseV3_0(V3LabelDownloaderBase):
     with io.StringIO(labels_raw.decode("utf-8"), newline="") as f:
       reader = csv.DictReader(f, delimiter=";")
       for row in reader:
-        sci_name = row.get("sci_name", "").strip()
-        en_us_name = row.get("com_name", "").strip()
-        if sci_name and en_us_name:
-          species_order.append((sci_name, sci_name, en_us_name))
+        sci_name = (row.get("sci_name") or "").strip()
+        if not sci_name:
+          continue
+        # Dropping a class without a common name would shift every later one.
+        en_us_name = (row.get("com_name") or "").strip() or sci_name
+        species_order.append((sci_name, _label_name(sci_name), _label_name(en_us_name)))
     return species_order
 
   @classmethod

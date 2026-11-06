@@ -85,6 +85,68 @@ def test_generate_lang_files_from_taxonomy(
   )
 
 
+def test_a_class_without_a_common_name_keeps_its_position(
+  tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+  # Labels pair with the model's outputs by position, so a class the label
+  # file gives no common name must still take up its line.
+  labels_raw = tmp_path / "labels_raw.csv"
+  labels_raw.write_bytes(
+    b"sci_name;com_name\nAaa aaa;English One\nBbb bbb;\nCcc ccc;English Three\n",
+  )
+  taxonomy = tmp_path / "taxonomy.csv"
+  taxonomy.write_text(
+    "sci_name,com_name,common_name_de\nBbb bbb,,Deutsch Zwei\n",
+    encoding="utf-8",
+  )
+
+  _point_at(monkeypatch, tmp_path, labels_raw, taxonomy)
+  ProbeDownloader.lang_dir = tmp_path / "labels"
+
+  ProbeDownloader._generate_lang_files()
+
+  assert (ProbeDownloader.lang_dir / "en_us.txt").read_text(encoding="utf-8") == (
+    "Aaa aaa_English One\nBbb bbb_Bbb bbb\nCcc ccc_English Three"
+  )
+  assert (ProbeDownloader.lang_dir / "de.txt").read_text(encoding="utf-8") == (
+    "Aaa aaa_English One\nBbb bbb_Deutsch Zwei\nCcc ccc_English Three"
+  )
+
+
+def test_a_name_with_an_underscore_does_not_move_the_label_separator(
+  tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+  labels_raw = tmp_path / "labels_raw.csv"
+  labels_raw.write_bytes(
+    b"sci_name;com_name\n"
+    b"Zipper_(clothing);Zipper_(clothing)\n"
+    b"Aaa sp.nov.Bbb_Ccc;English One\n",
+  )
+  # The taxonomy is still joined on the name as the label file spells it.
+  taxonomy = tmp_path / "taxonomy.csv"
+  taxonomy.write_text(
+    "sci_name,com_name,common_name_de\nAaa sp.nov.Bbb_Ccc,English One,Deutsch Eins\n",
+    encoding="utf-8",
+  )
+
+  _point_at(monkeypatch, tmp_path, labels_raw, taxonomy)
+  ProbeDownloader.lang_dir = tmp_path / "labels"
+
+  ProbeDownloader._generate_lang_files()
+
+  en_us = (ProbeDownloader.lang_dir / "en_us.txt").read_text(encoding="utf-8")
+  assert en_us == (
+    "Zipper (clothing)_Zipper (clothing)\nAaa sp.nov.Bbb Ccc_English One"
+  )
+  assert [label.split("_", 1)[0] for label in en_us.split("\n")] == [
+    "Zipper (clothing)",
+    "Aaa sp.nov.Bbb Ccc",
+  ]
+  assert (ProbeDownloader.lang_dir / "de.txt").read_text(encoding="utf-8") == (
+    "Zipper (clothing)_Zipper (clothing)\nAaa sp.nov.Bbb Ccc_Deutsch Eins"
+  )
+
+
 def test_ensure_labels_regenerates_when_only_the_taxonomy_changed(
   tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
