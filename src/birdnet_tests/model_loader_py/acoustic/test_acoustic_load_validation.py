@@ -14,11 +14,13 @@ from birdnet.model_loader import load, load_custom
 # ----------------------------- shared top-level validators -----------------------
 
 
+@pytest.mark.no_tf
 def test_unknown_model_type_raises_error() -> None:
   with pytest.raises(ValueError, match=r"Unknown model type: foo\."):
     load("foo", "2.4", "tf")  # type: ignore[arg-type]
 
 
+@pytest.mark.no_tf
 def test_unknown_backend_raises_error() -> None:
   with pytest.raises(ValueError, match=r"Unknown model backend: zzz\."):
     load("acoustic", "2.4", "zzz")  # type: ignore[arg-type]
@@ -48,11 +50,13 @@ def test_unknown_language_v3_0_raises_error() -> None:
     load("acoustic", "3.0", "tf", lang="zz")
 
 
+@pytest.mark.no_tf
 def test_unknown_library_raises_error() -> None:
   with pytest.raises(ValueError, match=r"Unsupported TensorFlow library: zzz\."):
     load("acoustic", "2.4", "tf", library="zzz")  # type: ignore[arg-type]
 
 
+@pytest.mark.no_tf
 def test_litert_library_unavailable_raises_error(
   monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -95,6 +99,7 @@ def test_v3_0_pb_non_fp32_precision_raises_error() -> None:
     load("acoustic", "3.0", "pb", precision="fp16")
 
 
+@pytest.mark.no_tf
 def test_v3_0_pt_non_fp32_precision_raises_error() -> None:
   with pytest.raises(
     ValueError,
@@ -104,6 +109,7 @@ def test_v3_0_pt_non_fp32_precision_raises_error() -> None:
     load("acoustic", "3.0", "pt", precision="fp16")
 
 
+@pytest.mark.no_tf
 def test_v3_0_onnx_int8_precision_raises_error() -> None:
   with pytest.raises(
     ValueError,
@@ -116,6 +122,7 @@ def test_v3_0_onnx_int8_precision_raises_error() -> None:
 # ----------------------------- load() unsupported backend ------------------------
 
 
+@pytest.mark.no_tf
 def test_v2_4_pt_backend_unsupported_raises_error() -> None:
   with pytest.raises(
     ValueError,
@@ -125,6 +132,7 @@ def test_v2_4_pt_backend_unsupported_raises_error() -> None:
     load("acoustic", "2.4", "pt")
 
 
+@pytest.mark.no_tf
 def test_v2_4_onnx_backend_unsupported_raises_error() -> None:
   with pytest.raises(
     ValueError,
@@ -134,6 +142,7 @@ def test_v2_4_onnx_backend_unsupported_raises_error() -> None:
     load("acoustic", "2.4", "onnx")
 
 
+@pytest.mark.no_tf
 def test_unexpected_keyword_arguments_are_listed_sorted() -> None:
   names = ["zeta", "alpha", "omega", "beta", "kappa", "delta"]
   with pytest.raises(
@@ -198,6 +207,7 @@ def test_custom_pb_missing_protobuf_files_raises_error(tmp_path: Path) -> None:
     load_custom("acoustic", "2.4", "pb", empty, species)
 
 
+@pytest.mark.no_tf
 def test_custom_pt_directory_is_not_a_file_raises_error(tmp_path: Path) -> None:
   species = tmp_path / "species.txt"
   species.write_text("a\n", encoding="utf-8")
@@ -207,6 +217,7 @@ def test_custom_pt_directory_is_not_a_file_raises_error(tmp_path: Path) -> None:
     load_custom("acoustic", "3.0", "pt", a_dir, species)
 
 
+@pytest.mark.no_tf
 def test_custom_onnx_directory_is_not_a_file_raises_error(tmp_path: Path) -> None:
   species = tmp_path / "species.txt"
   species.write_text("a\n", encoding="utf-8")
@@ -264,6 +275,7 @@ def test_custom_v3_0_pb_non_fp32_precision_raises_error(tmp_path: Path) -> None:
     load_custom("acoustic", "3.0", "pb", tmp_path, species, precision="fp16")
 
 
+@pytest.mark.no_tf
 def test_custom_v3_0_pt_non_fp32_precision_raises_error(tmp_path: Path) -> None:
   species = tmp_path / "species.txt"
   species.write_text("a\n", encoding="utf-8")
@@ -275,6 +287,7 @@ def test_custom_v3_0_pt_non_fp32_precision_raises_error(tmp_path: Path) -> None:
     load_custom("acoustic", "3.0", "pt", tmp_path, species, precision="fp16")
 
 
+@pytest.mark.no_tf
 def test_custom_v3_0_onnx_int8_precision_raises_error(tmp_path: Path) -> None:
   species = tmp_path / "species.txt"
   species.write_text("a\n", encoding="utf-8")
@@ -289,6 +302,7 @@ def test_custom_v3_0_onnx_int8_precision_raises_error(tmp_path: Path) -> None:
 # ----------------------------- load_custom() unsupported / kwargs ----------------
 
 
+@pytest.mark.no_tf
 def test_custom_v2_4_pt_backend_unsupported_raises_error(tmp_path: Path) -> None:
   species = tmp_path / "species.txt"
   species.write_text("a\n", encoding="utf-8")

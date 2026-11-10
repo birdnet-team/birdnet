@@ -64,6 +64,7 @@ def test_load_custom_geo_model_v3_0_tf_int8() -> None:
   assert isinstance(model, GeoModelV3_0)
 
 
+@pytest.mark.no_tf
 def test_load_custom_geo_model_v3_0_litert_raises_error(tmp_path: Path) -> None:
   # Refused before either file is read; the real ones would mean a download.
   model_path = tmp_path / "model.tflite"

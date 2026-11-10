@@ -52,6 +52,7 @@ def test_v3_0_pb_non_fp32_precision_raises_error() -> None:
     load("geo", "3.0", "pb", precision="fp16")
 
 
+@pytest.mark.no_tf
 def test_v3_0_onnx_int8_precision_raises_error() -> None:
   with pytest.raises(
     ValueError,
@@ -64,6 +65,7 @@ def test_v3_0_onnx_int8_precision_raises_error() -> None:
 # ----------------------------- load() unsupported backend ------------------------
 
 
+@pytest.mark.no_tf
 def test_v2_4_pt_backend_unsupported_raises_error() -> None:
   with pytest.raises(
     ValueError,
@@ -73,6 +75,7 @@ def test_v2_4_pt_backend_unsupported_raises_error() -> None:
     load("geo", "2.4", "pt")
 
 
+@pytest.mark.no_tf
 def test_v2_4_onnx_backend_unsupported_raises_error() -> None:
   with pytest.raises(
     ValueError,
@@ -82,6 +85,7 @@ def test_v2_4_onnx_backend_unsupported_raises_error() -> None:
     load("geo", "2.4", "onnx")
 
 
+@pytest.mark.no_tf
 def test_v3_0_pt_non_fp32_precision_raises_error() -> None:
   with pytest.raises(
     ValueError,
@@ -121,6 +125,7 @@ def test_custom_v3_0_pb_non_fp32_precision_raises_error(tmp_path: Path) -> None:
     load_custom("geo", "3.0", "pb", tmp_path, _species_file(tmp_path), precision="fp16")
 
 
+@pytest.mark.no_tf
 def test_custom_v3_0_onnx_int8_precision_raises_error(tmp_path: Path) -> None:
   with pytest.raises(
     ValueError,
@@ -135,6 +140,7 @@ def test_custom_v3_0_onnx_int8_precision_raises_error(tmp_path: Path) -> None:
 # ----------------------------- load_custom() unsupported backend -----------------
 
 
+@pytest.mark.no_tf
 def test_custom_v2_4_pt_backend_unsupported_raises_error(tmp_path: Path) -> None:
   model = tmp_path / "m.pt"
   model.write_bytes(b"x")
@@ -146,6 +152,7 @@ def test_custom_v2_4_pt_backend_unsupported_raises_error(tmp_path: Path) -> None
     load_custom("geo", "2.4", "pt", model, _species_file(tmp_path))
 
 
+@pytest.mark.no_tf
 def test_custom_v3_0_pt_non_fp32_precision_raises_error(tmp_path: Path) -> None:
   model = tmp_path / "m.pt"
   model.write_bytes(b"x")

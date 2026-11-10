@@ -50,7 +50,7 @@ mypy
 For day-to-day work, the fast subset skips model downloads and the isolated lanes:
 
 ```sh
-pytest -m "not repro and not load_model and not litert and not gpu and not fork" -n auto
+pytest -m "not load_model and not litert and not gpu and not fork" -n auto
 ```
 
 To run the full matrix exactly as CI does (needs the Python 3.11–3.15 interpreters
@@ -63,7 +63,7 @@ tox
 Official models auto-download on first use (~3 GB for the full set). Set the
 `BIRDNET_APP_DATA` environment variable to a persistent path to keep the cache
 between runs. `AGENTS.md` documents the test markers (`load_model`, `litert`,
-`gpu`, `fork`, `repro`, `no_tf`, `tf`) and why their run order matters.
+`gpu`, `fork`, `no_tf`, `tf`) and why their run order matters.
 
 ## Pull requests
 

@@ -20,10 +20,11 @@ def test_perch_cpu_v2() -> None:
   assert isinstance(model, AcousticModelPerchV2)
 
 
+@pytest.mark.no_tf
 def test_perch_cpu_v2_invalid_device_raise_error() -> None:
   ensure_not_intel_macos_or_skip()
 
-  with pytest.raises(ValueError):
+  with pytest.raises(ValueError, match=r"Unknown device: TPU\."):
     load_perch_v2("TPU")  # type: ignore
 
 
@@ -37,6 +38,7 @@ def test_perch_cpu_v2_wrong_tf_version_raises_error(
     load_perch_v2("CPU")
 
 
+@pytest.mark.no_tf
 def test_perch_v2_on_intel_macos_raises_error(
   monkeypatch: pytest.MonkeyPatch,
 ) -> None:
