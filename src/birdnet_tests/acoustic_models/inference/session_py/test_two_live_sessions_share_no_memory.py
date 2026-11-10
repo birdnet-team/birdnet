@@ -1,10 +1,9 @@
 """Two sessions alive at once keep their shared memory and their log apart.
 
-Both are named after a hash of the session id. Under the 5-character hash
-that names a session's threads and processes, two live sessions met on the
-same names once in about a million pairs: on Windows the second one failed to
-start, on POSIX it took over the first one's memory and either of them could
-return the other's values.
+Both are named after a hash of the session id, long enough that two live
+sessions never share it. With shared names the second session fails to start,
+on every platform: a segment is created exclusively and never removed first,
+which RingBufferResources/test_create.py pins.
 """
 
 from __future__ import annotations
@@ -21,7 +20,7 @@ from birdnet.acoustic.inference.core.encoding.encoding_result import (
 )
 from birdnet.acoustic.inference.session import AcousticEncodingSession
 from birdnet_tests.fake_acoustic_backend import (
-  COLLIDING_SESSION_IDS,
+  colliding_session_ids,
   fake_encode_session,
 )
 
@@ -39,7 +38,7 @@ def _constant_audio(value: float) -> tuple[np.ndarray, int]:
 def test_sessions_whose_short_hashes_collide_run_at_once_on_their_own_data(
   tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-  ids = iter(COLLIDING_SESSION_IDS)
+  ids = iter(colliding_session_ids())
   monkeypatch.setattr(base_module, "get_session_id", lambda: next(ids))
   sessions = {
     value: fake_encode_session(tmp_path, n_workers=2, n_producers=2, batch_size=4)

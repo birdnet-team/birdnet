@@ -7,7 +7,7 @@ from birdnet.acoustic.inference.resources import (
   RingBufferResources,
 )
 from birdnet.core.base import get_session_id, get_session_id_hash
-from birdnet_tests.fake_acoustic_backend import COLLIDING_SESSION_IDS
+from birdnet_tests.fake_acoustic_backend import colliding_session_ids
 
 pytestmark = pytest.mark.no_tf
 
@@ -50,7 +50,8 @@ def test_ring_names_have_max_30_chars() -> None:
 
 
 def test_sessions_whose_short_hashes_collide_get_their_own_ring_names() -> None:
-  first, second = COLLIDING_SESSION_IDS
+  first, second = colliding_session_ids()
+  assert first != second
   assert get_session_id_hash(first) == get_session_id_hash(second)
 
   assert not set(_names(_create(first))) & set(_names(_create(second)))

@@ -604,10 +604,10 @@ class StatisticsResources:
       benchmark_dir = get_benchmark_dir(
         model=MODEL_TYPE_ACOUSTIC, dir_name=benchmark_dir_name
       )
-      session_id_hash = get_session_id_hash(session_id)
       start_iso_time = get_iso_time(start_timepoint)
+      # Holds the session's log and run outputs, so its name has to be its own.
       benchmark_session_dir = (
-        benchmark_dir / f"{start_iso_time}-session-{session_id_hash}"
+        benchmark_dir / f"{start_iso_time}-session-{get_session_tag(session_id)}"
       )
       benchmark_session_dir.mkdir(parents=True, exist_ok=True)
 

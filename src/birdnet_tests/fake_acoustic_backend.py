@@ -23,6 +23,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+import uuid
 from collections.abc import Callable
 from pathlib import Path
 from typing import ClassVar, Literal
@@ -38,6 +39,7 @@ from birdnet.acoustic.models.base import AcousticModelBase
 from birdnet.acoustic.models.perch_v2.model import AcousticModelPerchV2
 from birdnet.acoustic.models.v2_4.model import AcousticModelV2_4
 from birdnet.acoustic.models.v3_0.model import AcousticModelV3_0
+from birdnet.core.base import get_session_id_hash
 
 # Small enough that a result block is a few hundred bytes, which keeps the
 # fake pipeline off the queue-tearing path unless a test asks for it.
@@ -498,12 +500,21 @@ def fake_encode_session(
   )
 
 
-# Two ids of the form `get_session_id` returns whose 5-character hashes are
-# equal (`get_session_id_hash` gives "0da62" for both).
-COLLIDING_SESSION_IDS = (
-  "4242_140226235138176_1793967460642847365_0",
-  "4246_140226235138176_1793967460643896331_0",
-)
+def colliding_session_ids() -> tuple[str, str]:
+  """Two session ids whose 5-character hashes are equal, new on every call.
+
+  Never constants: what a session names after its id is visible to the whole
+  machine, so fixed ids would meet those of another test run.
+  """
+  prefix = f"{os.getpid()}_{uuid.uuid4().hex}"
+  by_hash: dict[str, str] = {}
+  number = 0
+  while True:
+    session_id = f"{prefix}_{number}"
+    other = by_hash.setdefault(get_session_id_hash(session_id), session_id)
+    if other != session_id:
+      return other, session_id
+    number += 1
 
 
 def segment_marker(segment_index: int) -> float:
