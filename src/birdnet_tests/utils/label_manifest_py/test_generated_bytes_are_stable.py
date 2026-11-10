@@ -35,9 +35,12 @@ _TAXONOMY = (
 _GEO_LABELS = (
   b"code1\tScivia one\tRobin\ncode2\tScivia two\tSparrow\ncode9\tScivia nine\tEagle\n"
 )
+# The last three rows are what the acoustic parser rewrites: an underscore in a
+# name, a class without a common name, one without a scientific name.
 _ACOUSTIC_LABELS = (
   b"sci_name;com_name\r\nScivia one;Robin\r\nScivia two;Sparrow\r\n"
-  b"Scivia nine;Eagle\r\n"
+  b"Scivia nine;Eagle\r\nSound_(event);Sound_(event)\r\nScivia ten;\r\n"
+  b";Noise\r\n"
 )
 
 
@@ -45,11 +48,13 @@ def _digest(path: Path) -> str:
   return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _assert_recorded(lang_dir: Path, generator: str, languages: dict[str, str]) -> None:
+def _assert_recorded(
+  lang_dir: Path, generator: str, version: int, languages: dict[str, str]
+) -> None:
   manifest = read_manifest(lang_dir)
   assert manifest is not None
   assert manifest["generator"] == generator
-  assert manifest["generator_version"] == 2
+  assert manifest["generator_version"] == version
   assert manifest["languages"] == languages
 
 
@@ -104,7 +109,7 @@ def test_geo_generated_bytes_are_unchanged(
   assert _digest(lang_dir / "de.txt") == (
     "7eaba39b35a29b40be81bf8141c9bdb0d539ca1b85c06fc562e0675e0daa3c48"
   )
-  _assert_recorded(lang_dir, "geo_v3_0", languages)
+  _assert_recorded(lang_dir, "geo_v3_0", 2, languages)
 
 
 @pytest.mark.no_tf
@@ -124,9 +129,9 @@ def test_acoustic_generated_bytes_are_unchanged(
   _D._generate_lang_files()
 
   assert _digest(lang_dir / "en_us.txt") == (
-    "adf11f6f8c5116b6663e7d3df2aafcef26d1298692162f972ed2351931824881"
+    "19ac0f5ba4d7fde0535f0c21f22a71a6829526902c2b817837eceaeb2f042bb3"
   )
   assert _digest(lang_dir / "de.txt") == (
-    "7eaba39b35a29b40be81bf8141c9bdb0d539ca1b85c06fc562e0675e0daa3c48"
+    "b1620889dc4cd17947ce3ec083b0fbe08a3291bd023bf63a33eaa06f92e195d2"
   )
-  _assert_recorded(lang_dir, "acoustic_v3_0", languages)
+  _assert_recorded(lang_dir, "acoustic_v3_0", 3, languages)

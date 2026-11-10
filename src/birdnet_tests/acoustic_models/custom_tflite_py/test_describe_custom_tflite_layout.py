@@ -5,6 +5,7 @@ from birdnet.acoustic.models.custom_tflite import (
   CustomTFLiteLayout,
   describe_custom_tflite_layout,
 )
+from birdnet.acoustic.models.v3_0.model import AcousticModelV3_0
 
 pytestmark = pytest.mark.no_tf
 
@@ -32,8 +33,9 @@ def test_2_4_replace_from_the_input_length_and_embeddings() -> None:
 
 
 def test_3_0_append_from_the_species_count() -> None:
-  assert describe_custom_tflite_layout(_layout(11_563, 96_000, 1280)) == (
-    CustomTFLiteInfo("3.0", "append", 11_563, True, True, 96_000)
+  n_species = AcousticModelV3_0.get_n_classes() + 3
+  assert describe_custom_tflite_layout(_layout(n_species, 96_000, 1280)) == (
+    CustomTFLiteInfo("3.0", "append", n_species, True, True, 96_000)
   )
 
 

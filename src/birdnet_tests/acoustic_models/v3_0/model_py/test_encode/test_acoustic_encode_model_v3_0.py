@@ -92,8 +92,8 @@ def test_v3_0_encode_pb_and_onnx_are_close() -> None:
 
 
 def test_v3_0_encode_tf_and_onnx_are_close() -> None:
-  # The TFLite backend reads embeddings by hardcoded tensor index
-  # (encoding_out_idx); a stale index returns the wrong tensor silently.
+  # The TFLite backend reads embeddings by tensor index; a wrong one returns
+  # another tensor silently.
   ensure_onnxruntime_or_skip()
   tf_result = _encode(load_v3_0("tf"))
   onnx_result = onnx_fp32_encoding()
@@ -108,7 +108,7 @@ def test_v3_0_encode_tf_and_onnx_are_close() -> None:
 
 
 def test_v3_0_encode_tf_fp16_and_onnx_are_close() -> None:
-  # The fp16 TFLite export has its own encoding_out_idx, unexercised elsewhere.
+  # The fp16 TFLite export has its own tensor indices, unexercised elsewhere.
   ensure_onnxruntime_or_skip()
   tf_result = _encode(load_v3_0("tf", "fp16"))
   onnx_result = onnx_fp32_encoding()

@@ -1,9 +1,12 @@
+from __future__ import annotations
+
+from birdnet.acoustic.models import custom_tflite
 from birdnet.acoustic.models.custom_tflite import CustomTFLiteBackend
 from birdnet.acoustic.models.v3_0.model import (
   AcousticModelV3_0,
   _AcousticSingleFileDownloaderV3_0,
 )
-from birdnet.core.backends import PinnedTFBackend, VersionedAcousticBackendProtocol
+from birdnet.core.backends import TFBackend, VersionedAcousticBackendProtocol
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSIONS,
   MODEL_BACKEND_TF,
@@ -36,14 +39,35 @@ class AcousticTFDownloaderV3_0(_AcousticSingleFileDownloaderV3_0):
   _models = models
 
 
-class _AcousticTFBackendV3_0(PinnedTFBackend, VersionedAcousticBackendProtocol):
-  @classmethod
-  def in_idx(cls) -> int:
-    return 0
-
+class _AcousticTFBackendV3_0(TFBackend, VersionedAcousticBackendProtocol):
   @classmethod
   def supports_encoding(cls) -> bool:
     return True
+
+  def _resolve_tensor_indices(
+    self, interp: custom_tflite.Interpreter
+  ) -> tuple[int, int, int | None]:
+    # Read from the signature ("predictions", "embeddings"): the tensor indices
+    # differ between exports of the model, and a stale one names another tensor.
+    layout = custom_tflite.resolve_custom_tflite_layout(interp)
+    n_classes = AcousticModelV3_0.get_n_classes()
+    embeddings_dim = AcousticModelV3_0.get_embeddings_dim()
+    if (
+      layout.n_species != n_classes
+      or not layout.embeddings_is_output
+      or layout.embeddings_dim != embeddings_dim
+    ):
+      embeddings = (
+        f"an embeddings output of width {layout.embeddings_dim}"
+        if layout.embeddings_is_output
+        else "no embeddings output"
+      )
+      raise ValueError(
+        f"Model '{self._model_path.absolute()}' is not the official acoustic 3.0 "
+        f"TFLite export: expected {n_classes} classes and an embeddings output of "
+        f"width {embeddings_dim}, found {layout.n_species} classes and {embeddings}."
+      )
+    return layout.input_idx, layout.prediction_idx, layout.embeddings_idx
 
   @classmethod
   def probe_input_size_samples(cls) -> int:
@@ -61,27 +85,11 @@ class _AcousticTFBackendV3_0(PinnedTFBackend, VersionedAcousticBackendProtocol):
 
 class AcousticTFBackendFP32V3_0(_AcousticTFBackendV3_0):
   @classmethod
-  def prediction_out_idx(cls) -> int:
-    return 1164
-
-  @classmethod
-  def encoding_out_idx(cls) -> int | None:
-    return 1090
-
-  @classmethod
   def precision(cls) -> MODEL_PRECISIONS:
     return MODEL_PRECISION_FP32
 
 
 class AcousticTFBackendFP16V3_0(_AcousticTFBackendV3_0):
-  @classmethod
-  def prediction_out_idx(cls) -> int:
-    return 1546
-
-  @classmethod
-  def encoding_out_idx(cls) -> int | None:
-    return 1472
-
   @classmethod
   def precision(cls) -> MODEL_PRECISIONS:
     return MODEL_PRECISION_FP16
