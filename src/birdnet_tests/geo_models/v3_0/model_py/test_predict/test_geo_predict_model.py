@@ -5,6 +5,7 @@ from birdnet.geo.models.base import GeoModelBase
 from birdnet.model_loader import load
 from birdnet_tests.helper import (
   ensure_gpu_or_skip,
+  ensure_onnxruntime_gpu_or_skip,
   ensure_onnxruntime_or_skip,
   ensure_tf_2_19_or_2_18,
   ensure_torch_or_skip,
@@ -49,6 +50,8 @@ def test_predict_shape_and_dtype(
 ) -> None:
   if device == "GPU":
     ensure_gpu_or_skip()
+    if backend == "onnx":
+      ensure_onnxruntime_gpu_or_skip()
   model = _load(backend)
 
   result = model.predict(
