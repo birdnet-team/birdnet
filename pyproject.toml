@@ -214,7 +214,7 @@ markers = [
   "gpu: tests requiring a GPU to run and to be run sequentially",
   "no_tf: tests for the TensorFlow-free surface, run when TF is absent (e.g. Python 3.14+)",
   "tf: litert-lane tests that need TensorFlow after all; without TF a test runs only if marked no_tf or litert (and not tf), everything else is skipped (see conftest.py)",
-  "fork: tests that force the fork start method; run in a dedicated serial (-n 1) lane in a fresh process so a fork-after-TensorFlow deadlock cannot wedge the parallel general-phase workers (the library itself defaults to spawn, see birdnet.core.start_method)",
+  "fork: tests that force the fork start method; run in a dedicated serial (-n 0) lane in a fresh process so a fork-after-TensorFlow deadlock cannot wedge the parallel general-phase workers (the library itself defaults to spawn, see birdnet.core.start_method)",
 ]
 
 [tool.ruff]

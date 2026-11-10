@@ -116,8 +116,13 @@ def test_every_marker_combination_runs_in_exactly_one_lane() -> None:
   assert not problems, "\n" + "\n".join(problems)
 
 
-def test_every_collected_test_has_a_lane_with_tensorflow() -> None:
+def test_every_collected_test_has_a_lane_with_tensorflow(
+  request: pytest.FixtureRequest,
+) -> None:
   # -m hides a test that no lane selects, so this asks what was collected.
+  assert request.node.nodeid in conftest.collected_markers, (
+    "conftest.py recorded no markers for this test"
+  )
   problems = sorted(
     f"{nodeid} is {_name(markers & frozenset(_MARKERS))}"
     for nodeid, markers in conftest.collected_markers.items()
