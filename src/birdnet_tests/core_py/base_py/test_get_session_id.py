@@ -33,8 +33,7 @@ def test_ids_differ_while_the_clock_stands_still(
 def test_two_sessions_built_in_the_same_clock_tick_run_side_by_side(
   tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-  # Their shared memory is named after the id, so equal ids gave both
-  # sessions the same names.
+  # Their shared memory is named after the id: equal ids are equal names.
   _stop_the_clock(monkeypatch)
   audio = write_marked_audio(tmp_path / "audio.wav", 2)
   first = fake_predict_session(tmp_path, n_workers=1)

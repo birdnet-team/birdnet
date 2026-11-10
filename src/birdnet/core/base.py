@@ -113,7 +113,7 @@ class SessionBase(ABC):
 
 
 # The wall clock alone repeats: on Windows before Python 3.13 it advances in
-# steps of up to 15.6 ms, so two ids one thread took within a step were equal.
+# steps of up to 15.6 ms, and two ids one thread takes within a step would be equal.
 _SESSION_COUNTER = itertools.count()
 
 
