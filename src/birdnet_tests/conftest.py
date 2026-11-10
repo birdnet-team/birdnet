@@ -256,9 +256,9 @@ def allow_downloads(monkeypatch: pytest.MonkeyPatch) -> None:
 def deterministic_tf_ops(monkeypatch: pytest.MonkeyPatch) -> None:
   """For tests that compare two GPU sessions, whose workers are two processes.
 
-  cuDNN and XLA pick their convolution algorithms by timing them, once per
-  process, so two GPU workers differ by round-off: measured up to 5e-6 on V2.4
-  scores, 3e-4 on Perch embeddings and 4e-3 on Perch logits (RTX 3080 Ti,
-  TensorFlow 2.21). TF_DETERMINISTIC_OPS pins the choice.
+  cuDNN (V2.4 pb) and XLA (Perch v2, on TensorFlow 2.21) autotune once per
+  process, so two GPU workers can differ by round-off: measured 5e-6 on V2.4
+  scores, 3e-4 on Perch embeddings and 4e-3 on Perch logits (RTX 3080 Ti).
+  TF_DETERMINISTIC_OPS pins the choice; the spawned workers inherit it.
   """
   monkeypatch.setenv("TF_DETERMINISTIC_OPS", "1")

@@ -44,6 +44,21 @@ _SMOKE_CASES = [
 ]
 
 
+def _known_pb_gpu_failure(backend: str, device: str, error: Exception) -> str | None:
+  """The error line if this is #167, else None.
+
+  TensorFlow's oneDNN rewrite fuses this model's layer norm into _MklLayerNorm,
+  which has no GPU kernel (TensorFlow 2.20 and 2.21). Matched by class name:
+  this module is collected without TensorFlow too.
+  """
+  if (backend, device) != ("pb", "GPU") or type(error).__name__ != "NotFoundError":
+    return None
+  return next(
+    (line.strip() for line in str(error).splitlines() if "_MklLayerNorm" in line),
+    None,
+  )
+
+
 @pytest.mark.parametrize(("backend", "device", "half_precision"), _SMOKE_CASES)
 def test_predict_shape_and_dtype(
   backend: str, device: str, half_precision: bool
@@ -54,9 +69,15 @@ def test_predict_shape_and_dtype(
       ensure_onnxruntime_gpu_or_skip()
   model = _load(backend)
 
-  result = model.predict(
-    20, 50, week=1, min_confidence=0.03, half_precision=half_precision, device=device
-  )
+  try:
+    result = model.predict(
+      20, 50, week=1, min_confidence=0.03, half_precision=half_precision, device=device
+    )
+  except Exception as e:
+    known = _known_pb_gpu_failure(backend, device, e)
+    if known is not None:
+      pytest.xfail(f"geo 3.0 pb on GPU, #167: {known}")
+    raise
 
   assert result.species_probs.shape == (14082,)
   assert result.species_probs.dtype == (np.float16 if half_precision else np.float32)

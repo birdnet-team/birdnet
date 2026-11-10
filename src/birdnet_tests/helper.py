@@ -23,6 +23,7 @@ from birdnet.acoustic.inference.core.prediction.prediction_result import (
 from birdnet.acoustic.inference.session import AcousticSessionBase
 from birdnet.core.backends import (
   _get_major_minor_version,
+  _get_onnx_session_providers,
   check_is_intel_macos,
   litert_installed,
   onnxruntime_installed,
@@ -340,8 +341,6 @@ def ensure_onnxruntime_or_skip() -> None:
 def ensure_onnxruntime_gpu_or_skip() -> None:
   """Skip where the onnx backend's own provider lookup finds no GPU provider."""
   ensure_onnxruntime_or_skip()
-  from birdnet.core.backends import _get_onnx_session_providers
-
   try:
     _get_onnx_session_providers("GPU")
   except ValueError as e:
