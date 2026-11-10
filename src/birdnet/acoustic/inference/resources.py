@@ -42,7 +42,7 @@ from birdnet.core.backends import (
   TorchBackend,
   cpu_threads_per_worker,
 )
-from birdnet.core.base import get_session_id_hash
+from birdnet.core.base import get_session_id_hash, get_session_tag
 from birdnet.globals import MODEL_TYPE_ACOUSTIC, PKG_NAME, WRITABLE_FLAG
 from birdnet.utils.dtypes import (
   UIntCType,
@@ -149,22 +149,22 @@ class RingBufferResources:
     # The session id keeps parallel sessions' shared-memory names apart.
 
     ctx = mp.get_context(start_method)
-    sid_hash = get_session_id_hash(session_id)
+    tag = get_session_tag(session_id)
 
     rf_file_indices = RingField(
-      f"bn_file_idx_{sid_hash}",
+      f"bn_file_idx_{tag}",
       dtype=get_uint_dtype(max(0, max_n_files - 1)),
       shape=(n_slots, batch_size),
     )
 
     rf_segment_indices = RingField(
-      f"bn_seg_idx_{sid_hash}",
+      f"bn_seg_idx_{tag}",
       dtype=segments_dtype,
       shape=(n_slots, batch_size),
     )
 
     rf_audio_samples = RingField(
-      f"bn_samples_{sid_hash}",
+      f"bn_samples_{tag}",
       dtype=np.dtype(np.float32),
       shape=(
         n_slots,
@@ -174,22 +174,16 @@ class RingBufferResources:
     )
 
     rf_batch_sizes = RingField(
-      f"bn_bs_{sid_hash}",
+      f"bn_bs_{tag}",
       dtype=get_uint_dtype(batch_size),
       shape=(n_slots,),
     )
 
     rf_flags = RingField(
-      f"bn_flags_{sid_hash}",
+      f"bn_flags_{tag}",
       dtype=np.dtype(np.uint8),
       shape=(n_slots,),
     )
-
-    rf_file_indices.cleanup(sid_hash)
-    rf_segment_indices.cleanup(sid_hash)
-    rf_audio_samples.cleanup(sid_hash)
-    rf_batch_sizes.cleanup(sid_hash)
-    rf_flags.cleanup(sid_hash)
 
     return cls(
       rf_file_indices=rf_file_indices,
@@ -778,7 +772,8 @@ class LoggingResources:
       print(f"Writing logs to: {session_log_file.absolute()}")
     else:
       session_log_file = (
-        Path(tempfile.gettempdir()) / f"{PKG_NAME}_session_{session_id_hash}.log"
+        Path(tempfile.gettempdir())
+        / f"{PKG_NAME}_session_{get_session_tag(session_id)}.log"
       )
 
     global_log_file = (
