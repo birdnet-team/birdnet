@@ -250,3 +250,15 @@ def pytest_runtest_teardown(item: pytest.Item) -> None:
 def allow_downloads(monkeypatch: pytest.MonkeyPatch) -> None:
   """For tests that drive the real transport against a fake or local server."""
   monkeypatch.delenv(ENV_VAR_OFFLINE, raising=False)
+
+
+@pytest.fixture
+def deterministic_tf_ops(monkeypatch: pytest.MonkeyPatch) -> None:
+  """For tests that compare two GPU sessions, whose workers are two processes.
+
+  cuDNN (V2.4 pb) and XLA (Perch v2, on TensorFlow 2.21) autotune once per
+  process, so two GPU workers can differ by round-off: measured 5e-6 on V2.4
+  scores, 3e-4 on Perch embeddings and 4e-3 on Perch logits (RTX 3080 Ti).
+  TF_DETERMINISTIC_OPS pins the choice; the spawned workers inherit it.
+  """
+  monkeypatch.setenv("TF_DETERMINISTIC_OPS", "1")

@@ -43,6 +43,7 @@ def test_gpu() -> None:
 
 
 @pytest.mark.gpu
+@pytest.mark.usefixtures("deterministic_tf_ops")
 def test_twice_two_sessions_gpu() -> None:
   ensure_not_intel_macos_or_skip()
   ensure_gpu_or_skip()

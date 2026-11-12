@@ -278,6 +278,7 @@ def test_tflite_fp32_twice_two_sessions_parallel_processes_spawn() -> None:
 
 
 @pytest.mark.gpu
+@pytest.mark.usefixtures("deterministic_tf_ops")
 def test_pb_gpu_fp32_twice_two_sessions() -> None:
   ensure_gpu_or_skip()
 
