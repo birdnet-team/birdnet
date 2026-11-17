@@ -155,8 +155,6 @@ class GeoDownloaderBaseV3_0(V3LabelDownloaderBase):
   ) -> dict[str, dict[str, str]]:
     # The labels join to the taxonomy on the species code, which is the stable
     # key - scientific names change between taxonomy versions while codes do not.
-    # (The acoustic model has to join on sci_name; see the module docstring of
-    # birdnet/utils/taxonomy_v3.py for why the two differ.)
     # Upstream does occasionally reuse one code for two species though (in
     # v0.2-Jun2026: y01249 and grsbop1), and then the row that happens to come
     # last would hand this species the other one's localized names. Prefer the row

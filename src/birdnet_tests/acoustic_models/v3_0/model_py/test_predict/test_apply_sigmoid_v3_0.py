@@ -27,9 +27,9 @@ from birdnet_tests.test_files import TEST_FILE_SHORT
 # [0.5, 0.73]. An absolute anchor catches that class - backends that are wrong
 # identically still agree with each other, but not with this.
 _EXPECTED_TOP_SPECIES = "Poecile atricapillus_Black-capped Chickadee"
-_EXPECTED_TOP_CONFIDENCE = 0.918
+_EXPECTED_TOP_CONFIDENCE = 0.889
 _CONFIDENCE_ABS_TOL = 0.01
-# fp16 deviates up to ~0.003 from fp32 here; leave headroom for kernel spread.
+# fp16 deviates up to ~0.002 from fp32 here; leave headroom for kernel spread.
 _CONFIDENCE_ABS_TOL_FP16 = 0.02
 
 

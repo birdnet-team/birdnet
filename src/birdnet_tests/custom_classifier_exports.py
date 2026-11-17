@@ -42,11 +42,7 @@ from birdnet.acoustic.models.v3_0.pb import AcousticPBDownloaderV3_0
 from birdnet.core.backends import tf_installed
 from birdnet.utils.filesystem import directory_lock
 from birdnet.utils.label_manifest import LabelInput, ensure_artifact
-from birdnet.utils.local_data import (
-  get_birdnet_app_data_folder,
-  get_lang_dir,
-  get_model_path,
-)
+from birdnet.utils.local_data import get_birdnet_app_data_folder
 from birdnet.utils.species_lists import get_species_from_file
 
 LABELS = ["Sci a_Common a", "Sci b_Common b", "Sci c_Common c"]
@@ -156,10 +152,8 @@ _PB_DOWNLOADERS = {"2.4": AcousticPBDownloaderV2_4, "3.0": AcousticPBDownloaderV
 def _official_pb(version: str) -> tuple[Path, Path]:
   """(SavedModel directory, English labels file) of the base; downloads if absent."""
   _PB_DOWNLOADERS[version].get_model_path_and_labels("en_us")
-  return (
-    get_model_path("acoustic", version, "pb", "fp32"),  # type: ignore[arg-type]
-    get_lang_dir("acoustic", version, "pb") / "en_us.txt",  # type: ignore[arg-type]
-  )
+  model_dir, lang_dir = _PB_DOWNLOADERS[version]._get_paths()
+  return model_dir, lang_dir / "en_us.txt"
 
 
 def _official_pb_on_disk_or_skip(version: str) -> Path:
@@ -169,7 +163,7 @@ def _official_pb_on_disk_or_skip(version: str) -> Path:
       "the classifier exports are built with TensorFlow from the official "
       f"{version} SavedModel, and neither is here"
     )
-  return get_model_path("acoustic", version, "pb", "fp32")  # type: ignore[arg-type]
+  return _PB_DOWNLOADERS[version]._get_paths()[0]
 
 
 def _sha256(paths: Iterable[Path]) -> str:

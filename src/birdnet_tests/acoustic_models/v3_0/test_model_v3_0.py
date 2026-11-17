@@ -8,7 +8,7 @@ import pytest
 import birdnet.acoustic.models.v3_0.model as model_module
 from birdnet.acoustic.models.v3_0.model import AcousticDownloaderBaseV3_0
 from birdnet.globals import ENV_VAR_APP_DATA, VALID_MODEL_LANGUAGES_V3_0
-from birdnet.utils.label_manifest import LabelInput, sha256_file
+from birdnet.utils.label_manifest import sha256_bytes
 
 pytestmark = pytest.mark.no_tf
 
@@ -24,64 +24,56 @@ class ProbeDownloader(AcousticDownloaderBaseV3_0):
     return cls.lang_dir
 
 
-def _point_at(
-  monkeypatch: MonkeyPatch, app_data: Path, labels_raw: Path, taxonomy: Path
-) -> None:
-  """Give the generator a private app data directory holding these inputs.
+def _point_at(monkeypatch: MonkeyPatch, app_data: Path, labels: bytes) -> None:
+  """Give the generator a private app data directory holding this label file.
 
-  `labels_raw` is moved to where the module looks for it, a path named after
-  the digest pinned here.
+  The file is written where the module looks for it, a path named after the
+  digest pinned here.
   """
   monkeypatch.setenv(ENV_VAR_APP_DATA, str(app_data))
-  monkeypatch.setattr(model_module, "_LABELS_DL_SIZE", labels_raw.stat().st_size)
-  monkeypatch.setattr(model_module, "_LABELS_DL_SHA256", sha256_file(labels_raw))
+  monkeypatch.setattr(model_module, "_LABELS_DL_SIZE", len(labels))
+  monkeypatch.setattr(model_module, "_LABELS_DL_SHA256", sha256_bytes(labels))
   installed = model_module._labels_raw_path()
-  installed.parent.mkdir(parents=True)
-  labels_raw.replace(installed)
-  # Recomputed per call, the way the pinned constants track the current release:
-  # rewriting the file is then exactly a new taxonomy release.
-  monkeypatch.setattr(
-    model_module,
-    "get_taxonomy_v3_input",
-    lambda: LabelInput(
-      path=taxonomy,
-      url="https://example.test/taxonomy.csv",
-      size=taxonomy.stat().st_size,
-      sha256=sha256_file(taxonomy),
-    ),
-  )
-  monkeypatch.setattr(model_module, "ensure_taxonomy_v3_available", lambda: taxonomy)
+  installed.parent.mkdir(parents=True, exist_ok=True)
+  installed.write_bytes(labels)
+  ProbeDownloader.lang_dir = app_data / "labels"
 
 
-def test_generate_lang_files_from_taxonomy(
+def _generated(tmp_path: Path, monkeypatch: MonkeyPatch, labels: bytes) -> Path:
+  _point_at(monkeypatch, tmp_path, labels)
+  ProbeDownloader._generate_lang_files()
+  return ProbeDownloader.lang_dir
+
+
+def _english_labels(tmp_path: Path, monkeypatch: MonkeyPatch, labels: bytes) -> str:
+  lang_dir = _generated(tmp_path, monkeypatch, labels)
+  return (lang_dir / "en_us.txt").read_text(encoding="utf-8")
+
+
+def test_generate_lang_files_from_the_label_file(
   tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
-  labels_raw = tmp_path / "labels_raw.csv"
-  labels_raw.write_text(
-    "sci_name;com_name\nAaa aaa;English One\nBbb bbb;English Two\n",
-    encoding="utf-8",
+  lang_dir = _generated(
+    tmp_path,
+    monkeypatch,
+    "ix,birdnet_id,scientific_name,common_name,common_name_de,common_name_zh-CN\n"
+    "0,BN1,Aaa aaa,English One,Deutsch Eins,中文一\n"
+    "1,BN2,Bbb bbb,English Two,,\n".encode(),
   )
-  taxonomy = tmp_path / "taxonomy.csv"
-  taxonomy.write_text(
-    "sci_name,com_name,common_name_de,common_name_zh-CN\n"
-    "Aaa aaa,English One,Deutsch Eins,中文一\n",
-    encoding="utf-8",
-  )
-
-  _point_at(monkeypatch, tmp_path, labels_raw, taxonomy)
-  ProbeDownloader.lang_dir = tmp_path / "labels"
-
-  ProbeDownloader._generate_lang_files()
 
   assert list(ProbeDownloader.AVAILABLE_LANGUAGES) == VALID_MODEL_LANGUAGES_V3_0
-  assert (ProbeDownloader.lang_dir / "en_us.txt").read_text(encoding="utf-8") == (
+  assert (lang_dir / "en_us.txt").read_text(encoding="utf-8") == (
     "Aaa aaa_English One\nBbb bbb_English Two"
   )
-  assert (ProbeDownloader.lang_dir / "de.txt").read_text(encoding="utf-8") == (
+  assert (lang_dir / "de.txt").read_text(encoding="utf-8") == (
     "Aaa aaa_Deutsch Eins\nBbb bbb_English Two"
   )
-  assert (ProbeDownloader.lang_dir / "zh.txt").read_text(encoding="utf-8") == (
+  assert (lang_dir / "zh.txt").read_text(encoding="utf-8") == (
     "Aaa aaa_中文一\nBbb bbb_English Two"
+  )
+  # A language the file has no column for is English throughout.
+  assert (lang_dir / "fr.txt").read_text(encoding="utf-8") == (
+    "Aaa aaa_English One\nBbb bbb_English Two"
   )
 
 
@@ -90,48 +82,27 @@ def test_a_class_without_a_common_name_keeps_its_position(
 ) -> None:
   # Labels pair with the model's outputs by position, so a class the label
   # file gives no common name must still take up its line.
-  labels_raw = tmp_path / "labels_raw.csv"
-  labels_raw.write_bytes(
-    b"sci_name;com_name\nAaa aaa;English One\nBbb bbb;\nCcc ccc;English Three\n",
+  lang_dir = _generated(
+    tmp_path,
+    monkeypatch,
+    b"scientific_name,common_name,common_name_de\n"
+    b"Aaa aaa,English One,\n"
+    b"Bbb bbb,,Deutsch Zwei\n"
+    b"Ccc ccc,English Three,\n",
   )
-  taxonomy = tmp_path / "taxonomy.csv"
-  taxonomy.write_text(
-    "sci_name,com_name,common_name_de\nBbb bbb,,Deutsch Zwei\n",
-    encoding="utf-8",
-  )
 
-  _point_at(monkeypatch, tmp_path, labels_raw, taxonomy)
-  ProbeDownloader.lang_dir = tmp_path / "labels"
-
-  ProbeDownloader._generate_lang_files()
-
-  assert (ProbeDownloader.lang_dir / "en_us.txt").read_text(encoding="utf-8") == (
+  assert (lang_dir / "en_us.txt").read_text(encoding="utf-8") == (
     "Aaa aaa_English One\nBbb bbb_Bbb bbb\nCcc ccc_English Three"
   )
-  assert (ProbeDownloader.lang_dir / "de.txt").read_text(encoding="utf-8") == (
+  assert (lang_dir / "de.txt").read_text(encoding="utf-8") == (
     "Aaa aaa_English One\nBbb bbb_Deutsch Zwei\nCcc ccc_English Three"
   )
-
-
-def _english_labels(tmp_path: Path, monkeypatch: MonkeyPatch, labels: bytes) -> str:
-  """The generated English label file for `labels`, with an empty taxonomy."""
-  labels_raw = tmp_path / "labels_raw.csv"
-  labels_raw.write_bytes(labels)
-  taxonomy = tmp_path / "taxonomy.csv"
-  taxonomy.write_text("sci_name,com_name,common_name_de\n", encoding="utf-8")
-
-  _point_at(monkeypatch, tmp_path, labels_raw, taxonomy)
-  ProbeDownloader.lang_dir = tmp_path / "labels"
-
-  ProbeDownloader._generate_lang_files()
-
-  return (ProbeDownloader.lang_dir / "en_us.txt").read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize(
   ("row", "label"),
   [
-    (b";Sound_(event)", "Sound (event)_Sound (event)"),
+    (b",Sound_(event)", "Sound (event)_Sound (event)"),
     (b"Bbb bbb", "Bbb bbb_Bbb bbb"),
   ],
   ids=["no scientific name", "fewer fields than the header"],
@@ -140,7 +111,9 @@ def test_a_class_with_one_name_only_keeps_its_position(
   tmp_path: Path, monkeypatch: MonkeyPatch, row: bytes, label: str
 ) -> None:
   labels = (
-    b"sci_name;com_name\nAaa aaa;English One\n" + row + b"\nCcc ccc;English Three\n"
+    b"scientific_name,common_name\nAaa aaa,English One\n"
+    + row
+    + b"\nCcc ccc,English Three\n"
   )
 
   assert _english_labels(tmp_path, monkeypatch, labels) == (
@@ -151,17 +124,36 @@ def test_a_class_with_one_name_only_keeps_its_position(
 def test_a_row_without_any_name_is_no_class(
   tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
-  labels = b"sci_name;com_name\nAaa aaa;English One\n;\nBbb bbb;English Two\n"
+  lang_dir = _generated(
+    tmp_path,
+    monkeypatch,
+    b"scientific_name,common_name,common_name_de\n"
+    b"Aaa aaa,English One,Deutsch Eins\n"
+    b",,\n"
+    b"Bbb bbb,English Two,Deutsch Zwei\n",
+  )
 
-  assert _english_labels(tmp_path, monkeypatch, labels) == (
+  assert (lang_dir / "en_us.txt").read_text(encoding="utf-8") == (
     "Aaa aaa_English One\nBbb bbb_English Two"
   )
+  # The class after the skipped row still gets the names of its own row.
+  assert (lang_dir / "de.txt").read_text(encoding="utf-8") == (
+    "Aaa aaa_Deutsch Eins\nBbb bbb_Deutsch Zwei"
+  )
+
+
+def test_a_row_longer_than_the_header_keeps_its_names(
+  tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+  labels = b"scientific_name,common_name\nAaa aaa,English One,stray,cells\n"
+
+  assert _english_labels(tmp_path, monkeypatch, labels) == "Aaa aaa_English One"
 
 
 def test_a_byte_order_mark_does_not_hide_the_first_column(
   tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
-  labels = b"\xef\xbb\xbfsci_name;com_name\nAaa aaa;English One\n"
+  labels = b"\xef\xbb\xbfscientific_name,common_name\nAaa aaa,English One\n"
 
   assert _english_labels(tmp_path, monkeypatch, labels) == "Aaa aaa_English One"
 
@@ -169,25 +161,15 @@ def test_a_byte_order_mark_does_not_hide_the_first_column(
 def test_a_name_with_an_underscore_does_not_move_the_label_separator(
   tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
-  labels_raw = tmp_path / "labels_raw.csv"
-  labels_raw.write_bytes(
-    b"sci_name;com_name\n"
-    b"Zipper_(clothing);Zipper_(clothing)\n"
-    b"Aaa sp.nov.Bbb_Ccc;English One\n",
-  )
-  # The taxonomy is still joined on the name as the label file spells it.
-  taxonomy = tmp_path / "taxonomy.csv"
-  taxonomy.write_text(
-    "sci_name,com_name,common_name_de\nAaa sp.nov.Bbb_Ccc,English One,Deutsch Eins\n",
-    encoding="utf-8",
+  lang_dir = _generated(
+    tmp_path,
+    monkeypatch,
+    b"scientific_name,common_name,common_name_de\n"
+    b"Zipper_(clothing),Zipper_(clothing),\n"
+    b"Aaa sp.nov.Bbb_Ccc,English_One,Deutsch_Eins\n",
   )
 
-  _point_at(monkeypatch, tmp_path, labels_raw, taxonomy)
-  ProbeDownloader.lang_dir = tmp_path / "labels"
-
-  ProbeDownloader._generate_lang_files()
-
-  en_us = (ProbeDownloader.lang_dir / "en_us.txt").read_text(encoding="utf-8")
+  en_us = (lang_dir / "en_us.txt").read_text(encoding="utf-8")
   assert en_us == (
     "Zipper (clothing)_Zipper (clothing)\nAaa sp.nov.Bbb Ccc_English One"
   )
@@ -195,45 +177,56 @@ def test_a_name_with_an_underscore_does_not_move_the_label_separator(
     "Zipper (clothing)",
     "Aaa sp.nov.Bbb Ccc",
   ]
-  assert (ProbeDownloader.lang_dir / "de.txt").read_text(encoding="utf-8") == (
+  assert (lang_dir / "de.txt").read_text(encoding="utf-8") == (
     "Zipper (clothing)_Zipper (clothing)\nAaa sp.nov.Bbb Ccc_Deutsch Eins"
   )
 
 
-def test_ensure_labels_regenerates_when_only_the_taxonomy_changed(
+def test_a_label_file_in_another_layout_is_refused(
   tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
-  """The taxonomy is shared, so it can already be current when we are not.
+  # Read as it is, such a file would give no class at all.
+  _point_at(monkeypatch, tmp_path, b"idx;id;sci_name;com_name\n0;x;Aaa aaa;One\n")
 
-  Whichever v3.0 model downloads a new taxonomy first makes it "available" for
-  every other model and backend. Their label files still hold the names built
-  from the previous taxonomy, and neither the raw labels nor the file count
-  changes with a taxonomy-only bump - so nothing but the marker notices.
-  """
-  labels_raw = tmp_path / "labels_raw.csv"
-  labels_raw.write_bytes(
-    b"sci_name;com_name\nAaa aaa;English One\n",
-  )
-  taxonomy = tmp_path / "taxonomy.csv"
-  taxonomy.write_text(
-    "sci_name,com_name,common_name_de\nAaa aaa,English One,Alter Name\n",
-    encoding="utf-8",
-  )
+  with pytest.raises(ValueError, match="no column 'scientific_name'"):
+    ProbeDownloader._generate_lang_files()
 
-  # The taxonomy is present the whole time: another model fetched it already.
-  _point_at(monkeypatch, tmp_path, labels_raw, taxonomy)
-  ProbeDownloader.lang_dir = tmp_path / "labels"
+
+def test_a_label_file_without_english_names_is_refused(
+  tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+  # Read as it is, every class would carry its scientific name as its English one.
+  _point_at(monkeypatch, tmp_path, b"scientific_name,common_name_de\nAaa aaa,Eins\n")
+
+  with pytest.raises(ValueError, match="no column 'common_name'"):
+    ProbeDownloader._generate_lang_files()
+
+
+def test_ensure_labels_regenerates_for_another_label_file(
+  tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+  header = b"scientific_name,common_name,common_name_de\n"
+  _point_at(monkeypatch, tmp_path, header + b"Aaa aaa,English One,Alter Name\n")
 
   ProbeDownloader.ensure_labels_available()
   de_file = ProbeDownloader.lang_dir / "de.txt"
   assert de_file.read_text(encoding="utf-8") == "Aaa aaa_Alter Name"
 
-  # A new taxonomy release: same on-disk path, different content and identity.
-  taxonomy.write_text(
-    "sci_name,com_name,common_name_de\nAaa aaa,English One,Neuer Name\n",
-    encoding="utf-8",
-  )
+  # A new label release: other content, so another pin and another path.
+  _point_at(monkeypatch, tmp_path, header + b"Aaa aaa,English One,Neuer Name\n")
 
   ProbeDownloader.ensure_labels_available()
 
   assert de_file.read_text(encoding="utf-8") == "Aaa aaa_Neuer Name"
+
+
+def test_the_labels_need_no_taxonomy(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+  # Offline, as every test without load_model is: fetching the taxonomy raises.
+  _point_at(
+    monkeypatch, tmp_path, b"scientific_name,common_name\nAaa aaa,English One\n"
+  )
+
+  ProbeDownloader.ensure_labels_available()
+
+  assert ProbeDownloader._check_labels_available()
+  assert not (tmp_path / "taxonomy-v3").exists()

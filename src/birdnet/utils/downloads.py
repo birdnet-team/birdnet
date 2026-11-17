@@ -298,18 +298,31 @@ def saved_model_is_current(model_dir: Path, dl_url: str) -> bool:
   )
 
 
+def _raise_unless_checksum_matches(path: Path, url: str, sha256: str) -> None:
+  actual = sha256_file(path)
+  if actual != sha256:
+    raise RuntimeError(
+      f"The file downloaded from {url} does not match its expected "
+      f"checksum ({actual} instead of {sha256}). It was discarded; "
+      "retry, and if this persists the published file has changed."
+    )
+
+
 def download_zip_members(
   url: str,
   download_size: int,
   description: str,
   members: Sequence[tuple[str | None, Path]],
+  *,
+  sha256: str | None = None,
 ) -> None:
   """Download the zip at `url` and move each member onto its destination.
 
   `members` pairs an archive path (`None` for the extraction root) with the
   path that is to hold it; whatever is at that path is replaced. Source markers
   are the caller's business. `description` names the model, for the progress
-  bar and the log.
+  bar and the log. With `sha256`, a zip of another digest raises before anything
+  is unpacked or replaced.
   """
   # Scratch space beside the destinations: each move is then a rename, so a kill
   # mid-way leaves no half-copied member behind.
@@ -325,6 +338,8 @@ def download_zip_members(
       download_size=download_size,
       description=f"Downloading {description}",
     )
+    if sha256 is not None:
+      _raise_unless_checksum_matches(zip_path, url, sha256)
 
     logger.info(f"Extracting {description}...")
     extract_dir = Path(temp_dir) / "extracted"
@@ -399,13 +414,7 @@ def ensure_verified_file(
   temp_path = Path(temp_name)
   try:
     download_file_tqdm(url, temp_path, download_size=size, description=description)
-    actual = sha256_file(temp_path)
-    if actual != sha256:
-      raise RuntimeError(
-        f"The file downloaded from {url} does not match its expected "
-        f"checksum ({actual} instead of {sha256}). It was discarded; "
-        "retry, and if this persists the published file has changed."
-      )
+    _raise_unless_checksum_matches(temp_path, url, sha256)
     try:
       temp_path.replace(path)
     except OSError:

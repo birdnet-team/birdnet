@@ -25,8 +25,13 @@ from birdnet.utils.downloads import (
 from birdnet.utils.local_data import get_lang_dir, get_model_path, get_model_root_dir
 from birdnet.utils.species_lists import read_official_labels
 
-_PB_DL_URL = "https://zenodo.org/records/20703646/files/BirdNET+_V3.0-preview3.1_Global_11K_FP32_Protobuf.zip"
-_PB_DL_SIZE = 499609919
+_PB_DL_URL = (
+  "https://zenodo.org/records/24162518/files/BirdNET+_V3.0_Global_12K_FP32_Protobuf.zip"
+)
+_PB_DL_SIZE = 317589313
+_PB_DL_SHA256 = "b638e3149fc807af119a5b5ea50cc6cdd0465e3eafa7847f001bb7b2031522b3"
+# The folder inside the zip that holds the SavedModel.
+_PB_ZIP_FOLDER = "BirdNET+_V3.0_Global_12K_FP32_Protobuf"
 
 
 class AcousticPBDownloaderV3_0(AcousticDownloaderBaseV3_0):
@@ -36,7 +41,15 @@ class AcousticPBDownloaderV3_0(AcousticDownloaderBaseV3_0):
 
   @classmethod
   def _get_paths(cls) -> tuple[Path, Path]:
-    model_path = get_model_path("acoustic", "3.0", "pb", MODEL_PRECISION_FP32)
+    # Named after the zip's content, so an install of another version keeps its
+    # own directory instead of replacing this one's with another release.
+    model_path = get_model_path(
+      "acoustic",
+      "3.0",
+      "pb",
+      MODEL_PRECISION_FP32,
+      content_tag=_PB_DL_SHA256[:12],
+    )
     lang_dir = get_lang_dir("acoustic", "3.0", "pb")
     return model_path, lang_dir
 
@@ -63,7 +76,11 @@ class AcousticPBDownloaderV3_0(AcousticDownloaderBaseV3_0):
   def _download_model(cls) -> None:
     model_dir, lang_dir = cls._get_paths()
     download_zip_members(
-      _PB_DL_URL, _PB_DL_SIZE, "acoustic model v3.0 (pb)", [(None, model_dir)]
+      _PB_DL_URL,
+      _PB_DL_SIZE,
+      "acoustic model v3.0 (pb)",
+      [(_PB_ZIP_FOLDER, model_dir)],
+      sha256=_PB_DL_SHA256,
     )
     # Before the marker: once the model reads as current, another process may
     # generate labels, and a wipe after that would take them from under it.

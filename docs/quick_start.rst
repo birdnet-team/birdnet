@@ -125,7 +125,7 @@ Predict species with a custom species list
 Show model download progress
 ----------------------------
 
-Official models (plus their labels and, for V3.0, a shared taxonomy) are downloaded on first use inside ``birdnet.load(..)``. By default progress is only shown as a ``tqdm`` bar on stderr, which is invisible to a GUI application that redirects stderr to a log file. Register a process-wide callback to drive your own progress UI instead; while a callback is registered the tqdm bar is silenced. The callback receives a ``DownloadProgress`` snapshot:
+Official models (plus their labels and, for the V3.0 geo model, a taxonomy) are downloaded on first use inside ``birdnet.load(..)``. By default progress is only shown as a ``tqdm`` bar on stderr, which is invisible to a GUI application that redirects stderr to a log file. Register a process-wide callback to drive your own progress UI instead; while a callback is registered the tqdm bar is silenced. The callback receives a ``DownloadProgress`` snapshot:
 
 * ``"started"`` once per attempt (a second ``"started"`` with a higher ``attempt`` is a retry -- reset your bar),
 * ``"progress"`` while bytes arrive (throttled to ~10 per second),
@@ -167,7 +167,7 @@ To cancel a running download from the UI, raise an exception inside the callback
 Use a different model version or backend
 ----------------------------------------
 
-The ``version`` and ``backend`` arguments of ``birdnet.load`` select the model. Besides V2.4, the V3.0 (preview) acoustic model is available in the ``tf``, ``pb``, ``pt`` and ``onnx`` backends, and the V3.0 geo model in the ``tf``, ``pb``, ``pt`` and ``onnx`` backends. See :doc:`models` for the full support matrix.
+The ``version`` and ``backend`` arguments of ``birdnet.load`` select the model. Besides V2.4, the V3.0 acoustic model is available in the ``tf``, ``pb``, ``pt`` and ``onnx`` backends, and the V3.0 geo model in the ``tf``, ``pb``, ``pt`` and ``onnx`` backends. See :doc:`models` for the full support matrix.
 
 .. code-block:: python
 

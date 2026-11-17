@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from birdnet.utils import downloads
-from birdnet.utils.downloads import download_zip_members
+from birdnet.utils.downloads import download_zip_members, sha256_file
 
 pytestmark = pytest.mark.no_tf
 
@@ -144,6 +144,34 @@ def test_the_scratch_directory_is_removed_when_extraction_fails(
     _download([(None, destination)])
 
   assert list(destination.parent.iterdir()) == []
+
+
+def test_a_zip_of_the_declared_digest_is_unpacked(
+  tmp_path: Path, source_zip: Path, served: list[str]
+) -> None:
+  destination = tmp_path / "models" / "model-fp32"
+
+  download_zip_members(
+    _URL, 1234, "a model", [("model-dir", destination)], sha256=sha256_file(source_zip)
+  )
+
+  assert (destination / "saved_model.pb").read_bytes() == b"model"
+
+
+def test_a_zip_of_another_digest_replaces_nothing(
+  tmp_path: Path, served: list[str]
+) -> None:
+  destination = tmp_path / "models" / "model-fp32"
+  destination.mkdir(parents=True)
+  (destination / "kept.txt").write_text("from the cached release", encoding="utf-8")
+
+  with pytest.raises(RuntimeError, match="does not match its expected checksum"):
+    download_zip_members(
+      _URL, 1234, "a model", [("model-dir", destination)], sha256="0" * 64
+    )
+
+  assert [path.name for path in destination.parent.iterdir()] == ["model-fp32"]
+  assert [path.name for path in destination.iterdir()] == ["kept.txt"]
 
 
 def test_extraction_is_logged_not_printed(
