@@ -43,20 +43,19 @@ from birdnet.utils.local_data import (
   get_model_path,
 )
 from birdnet.utils.species_lists import read_official_labels
-from birdnet.utils.taxonomy_v3 import (
-  ensure_taxonomy_v3_available,
-  get_taxonomy_v3_input,
-)
 from birdnet.utils.v3_labels import V3LabelDownloaderBase
 
-_LABELS_DL_URL = "https://zenodo.org/records/20703646/files/BirdNET+_V3.0-preview3.1_Global_11K_Labels.csv"
-_LABELS_DL_SIZE = 809172
-_LABELS_DL_SHA256 = "8124b0ea2d187104c5e2cd95a0f937165647e20349c8fd34d4d5ef991821f8f0"
+_LABELS_DL_URL = (
+  "https://zenodo.org/records/24162518/files/BirdNET+_V3.0_Global_12K_Labels.csv"
+)
+_LABELS_DL_SIZE = 8007144
+_LABELS_DL_SHA256 = "88d976477fac81127ac8ac4c215c37749d0a6537944112ea606d321317cb7640"
 _DEFAULT_SEGMENT_SIZE_S = 3.0
 _DEFAULT_SEGMENT_SIZE_SAMPLES = 96_000
 
-# No Estonian ("et"): the v0.2-Jun2026 taxonomy has no common_name_et column,
-# so every Estonian name would silently be the English one.
+# Columns of the label file, for the languages the acoustic and the geo 3.0
+# model share. The file has more: ar, et, he, hu, it, ko and a second Chinese
+# column ("zh").
 _LANGUAGE_TO_COLUMN: dict[str, str] = {
   "bg": "common_name_bg",
   "ca": "common_name_ca",
@@ -64,7 +63,7 @@ _LANGUAGE_TO_COLUMN: dict[str, str] = {
   "cy": "common_name_cy",
   "da": "common_name_da",
   "de": "common_name_de",
-  "en_us": "com_name",
+  "en_us": "common_name",
   "es": "common_name_es",
   "es_ec": "common_name_es_EC",
   "es_es": "common_name_es_ES",
@@ -112,11 +111,13 @@ def _setup_lock_dir() -> Path:
 # model could never be read as an acoustic one.
 _GENERATOR_NAME = "acoustic_v3_0"
 # Bump whenever a change would produce different <lang>.txt bytes from the same
-# inputs - the join key here, or the fallback or line format in
+# inputs - the parsing here, or the fallback or line format in
 # birdnet/utils/v3_labels.py, which is shared and so changes both models. The
 # golden-digest test fails when the bytes generated from its fixture move;
 # nothing forces this bump when its digests are updated.
-_GENERATION_VERSION = 3
+_GENERATION_VERSION = 4
+
+_REQUIRED_LABEL_COLUMNS = ("scientific_name", "common_name")
 
 
 def _label_name(name: str) -> str:
@@ -124,6 +125,19 @@ def _label_name(name: str) -> str:
   # underscore, which a scientific name containing one would move. The common
   # name is treated alike, so a class named the same in both columns stays so.
   return name.replace("_", " ")
+
+
+def _label_rows(labels_raw: bytes) -> list[dict[str, str]]:
+  with io.StringIO(labels_raw.decode("utf-8-sig"), newline="") as f:
+    reader = csv.DictReader(f)
+    missing = [c for c in _REQUIRED_LABEL_COLUMNS if c not in (reader.fieldnames or [])]
+    if missing:
+      raise ValueError(
+        "The acoustic model v3.0 label file has no column "
+        f"{' or '.join(repr(c) for c in missing)}; its columns are "
+        f"{reader.fieldnames}."
+      )
+    return list(reader)
 
 
 class AcousticDownloaderBaseV3_0(V3LabelDownloaderBase):
@@ -140,13 +154,15 @@ class AcousticDownloaderBaseV3_0(V3LabelDownloaderBase):
       sha256=_LABELS_DL_SHA256,
     )
 
+  # The label file carries every language's names itself, so it is the only
+  # input: no taxonomy is downloaded or joined.
   @classmethod
-  def _taxonomy_input(cls) -> LabelInput:
-    return get_taxonomy_v3_input()
+  def _manifest_inputs(cls) -> dict[str, LabelInput]:
+    return {"labels": cls._labels_input()}
 
   @classmethod
   def _ensure_taxonomy(cls) -> None:
-    ensure_taxonomy_v3_available()
+    return None
 
   @classmethod
   def _languages(cls) -> dict[str, str]:
@@ -167,37 +183,34 @@ class AcousticDownloaderBaseV3_0(V3LabelDownloaderBase):
   @classmethod
   def _parse_labels(cls, labels_raw: bytes) -> list[tuple[str, str, str]]:
     species_order: list[tuple[str, str, str]] = []
-    # The released file starts with a byte order mark.
-    with io.StringIO(labels_raw.decode("utf-8-sig"), newline="") as f:
-      reader = csv.DictReader(f, delimiter=";")
-      for row in reader:
-        sci_name = (row.get("sci_name") or "").strip()
-        en_us_name = (row.get("com_name") or "").strip()
-        if not sci_name and not en_us_name:
-          continue
-        # A class with one name only keeps its line under that name: dropping
-        # it would shift every later class.
-        sci_name = sci_name or en_us_name
-        en_us_name = en_us_name or sci_name
-        species_order.append((sci_name, _label_name(sci_name), _label_name(en_us_name)))
+    # Keyed by the row's position: the names of a class are in its own row.
+    for position, row in enumerate(_label_rows(labels_raw)):
+      sci_name = (row.get("scientific_name") or "").strip()
+      en_us_name = (row.get("common_name") or "").strip()
+      if not sci_name and not en_us_name:
+        continue
+      # A class with one name only keeps its line under that name: dropping
+      # it would shift every later class.
+      sci_name = sci_name or en_us_name
+      en_us_name = en_us_name or sci_name
+      species_order.append(
+        (str(position), _label_name(sci_name), _label_name(en_us_name))
+      )
     return species_order
 
   @classmethod
-  def _index_taxonomy(
-    cls, taxonomy_raw: bytes, species: list[tuple[str, str, str]]
+  def _index_names(
+    cls, read_bytes: dict[str, bytes], species: list[tuple[str, str, str]]
   ) -> dict[str, dict[str, str]]:
-    # Joined on the scientific name because these labels carry no code the
-    # taxonomy shares - unlike the geo model, which joins on species_code. See
-    # the module docstring of birdnet/utils/taxonomy_v3.py; the two keys are
-    # deliberate and the trade-off is described there.
-    taxonomy: dict[str, dict[str, str]] = {}
-    with io.StringIO(taxonomy_raw.decode("utf-8"), newline="") as f:
-      reader = csv.DictReader(f)
-      for row in reader:
-        sci_name = row.get("sci_name", "").strip()
-        if sci_name:
-          taxonomy[sci_name] = dict(row)
-    return taxonomy
+    # A row shorter or longer than the header holds a None or a list.
+    return {
+      str(position): {
+        column: _label_name(name)
+        for column, name in row.items()
+        if isinstance(name, str)
+      }
+      for position, row in enumerate(_label_rows(read_bytes["labels"]))
+    }
 
 
 class _AcousticSingleFileDownloaderV3_0(AcousticDownloaderBaseV3_0):
@@ -312,12 +325,13 @@ class AcousticModelV3_0(AcousticModelBase):
   @classmethod
   @final
   def get_n_classes(cls) -> int:
-    """Return the 11,560 classes of the official 3.0 output.
+    """Return the 11,725 classes of the official 3.0 output.
 
-    Species of birds and other animals, plus classes above species level such
-    as Acrididae (grasshoppers), Bufo (toads) and Cetacea (whales and dolphins).
+    11,709 animal species (birds, insects, amphibians, mammals, fish, reptiles
+    and one spider), plus 16 sound classes that are no animal, such as engine,
+    siren and music.
     """
-    return 11_560
+    return 11_725
 
   def encode_session(
     self,

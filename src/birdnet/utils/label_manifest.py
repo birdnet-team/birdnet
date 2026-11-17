@@ -1,7 +1,7 @@
 """Records what a generated label directory was actually built from.
 
-The V3.0 label files are generated locally from two downloads: the model's own
-label file and the taxonomy shared by the acoustic and geo models. Deciding
+The V3.0 label files are generated locally from downloads: the model's own
+label file and, for the geo model, a taxonomy. Deciding
 whether they are current from the *constants the running version holds* is not
 enough - it says which release was meant to be read, never which one was. Two
 installed versions sharing one app data directory is enough to make those differ.

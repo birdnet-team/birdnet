@@ -37,14 +37,11 @@ Geo model (species range model) V2.4 - V2, Jan 2024
 * slightly increased long-tail distribution in the temporal resolution
 * see `this discussion post <https://github.com/birdnet-team/BirdNET-Analyzer/discussions/234>`__ for more details
 
-Acoustic model V3.0 (preview)
------------------------------
+Acoustic model V3.0
+-------------------
 
-.. note::
-
-   The V3.0 acoustic model is currently a `*preview* <https://zenodo.org/records/20703646>`__ release (``preview3.1``) and may change before the final release.
-
-* 11,560 classes: species of birds and other animals, plus classes above species level such as families and genera
+* `published on Zenodo <https://zenodo.org/records/24162518>`__ under the Apache License 2.0
+* 11,725 classes: 11,709 animal species (birds, insects, amphibians, mammals, fish, reptiles and one spider), plus 16 sound classes that are no animal, such as engine, siren and music
 * available in four backends, selectable via the ``backend`` argument of ``birdnet.load``:
 
     * ``tf`` - TFLite (CPU only), ``fp32`` and ``fp16``; requires ``pip install birdnet[tf]``
@@ -53,7 +50,7 @@ Acoustic model V3.0 (preview)
     * ``onnx`` - ONNX Runtime (CPU/GPU), ``fp32`` and ``fp16``; part of the base install
 
 * supports both ``predict(..)`` and ``encode(..)`` on all backends
-* multilingual common names in 30 languages
+* multilingual common names in 29 languages
 
 Technical details
 ^^^^^^^^^^^^^^^^^
@@ -169,7 +166,7 @@ custom classifier file.
 
   import birdnet
 
-  birdnet.AcousticModelV3_0.get_n_classes()  # 11560
+  birdnet.AcousticModelV3_0.get_n_classes()  # 11725
   birdnet.AcousticModelPerchV2.get_segment_size_s()  # 5.0
   birdnet.GeoModelV3_0.get_n_classes()  # 14082
 

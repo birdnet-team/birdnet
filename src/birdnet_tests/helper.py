@@ -1,3 +1,4 @@
+import io
 import multiprocessing as mp
 import os
 import sys
@@ -493,6 +494,16 @@ def label_members(
   return {f"{prefix}{lang}.txt": content for lang in languages}
 
 
+def zip_bytes(members: Mapping[str, bytes]) -> bytes:
+  """A zip of `members` whose bytes depend on nothing else, so its digest is known."""
+  buffer = io.BytesIO()
+  with zipfile.ZipFile(buffer, "w") as archive:
+    for member, content in members.items():
+      # A ZipInfo carries a fixed date; a bare name would take the clock's.
+      archive.writestr(zipfile.ZipInfo(member), content)
+  return buffer.getvalue()
+
+
 def fake_zip_downloads(
   monkeypatch: pytest.MonkeyPatch,
   archives: dict[str, dict[str, bytes]],
@@ -501,8 +512,9 @@ def fake_zip_downloads(
 ) -> list[str]:
   """Serve `archives` (URL to member path to content) instead of downloading.
 
-  Returns the list the requested URLs are appended to. With `held_lock`, every
-  download asserts that this lock directory is held while it runs.
+  Each is served as `zip_bytes` of its members. Returns the list the requested
+  URLs are appended to. With `held_lock`, every download asserts that this lock
+  directory is held while it runs.
   """
   calls: list[str] = []
 
@@ -516,9 +528,7 @@ def fake_zip_downloads(
     calls.append(url)
     if held_lock is not None:
       assert (held_lock / "owner").is_file(), f"downloading without {held_lock}"
-    with zipfile.ZipFile(file_path, "w") as archive:
-      for member, content in archives[url].items():
-        archive.writestr(member, content)
+    file_path.write_bytes(zip_bytes(archives[url]))
     return file_path.stat().st_size
 
   monkeypatch.setattr(downloads, "download_file_tqdm", fake)

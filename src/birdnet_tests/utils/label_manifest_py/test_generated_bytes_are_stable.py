@@ -35,12 +35,17 @@ _TAXONOMY = (
 _GEO_LABELS = (
   b"code1\tScivia one\tRobin\ncode2\tScivia two\tSparrow\ncode9\tScivia nine\tEagle\n"
 )
-# The last three rows are what the acoustic parser rewrites: an underscore in a
-# name, a class without a common name, one without a scientific name.
+# The acoustic label file carries its own names: one localized, one blank cell
+# falling back to English. The last three rows are what the parser rewrites: an
+# underscore in a name, a class without a common name, one without a scientific
+# name.
 _ACOUSTIC_LABELS = (
-  b"sci_name;com_name\r\nScivia one;Robin\r\nScivia two;Sparrow\r\n"
-  b"Scivia nine;Eagle\r\nSound_(event);Sound_(event)\r\nScivia ten;\r\n"
-  b";Noise\r\n"
+  b"ix,birdnet_id,scientific_name,common_name,common_name_de\n"
+  b"0,BN1,Scivia one,Robin,Rotkehlchen\n"
+  b"1,BN2,Scivia two,Sparrow,\n"
+  b"2,BN3,Sound_(event),Sound_(event),\n"
+  b"3,BN4,Scivia ten,,\n"
+  b"4,BN5,,Noise,\n"
 )
 
 
@@ -65,8 +70,6 @@ def _prepare(
   labels: bytes,
   languages: dict[str, str],
 ) -> Path:
-  taxonomy = tmp_path / "taxonomy.csv"
-  taxonomy.write_bytes(_TAXONOMY)
   lang_dir = tmp_path / "labels"
 
   monkeypatch.setenv(ENV_VAR_APP_DATA, str(tmp_path))
@@ -76,6 +79,14 @@ def _prepare(
   raw.parent.mkdir(parents=True)
   raw.write_bytes(labels)
   monkeypatch.setattr(module, "_LANGUAGE_TO_COLUMN", languages)
+  return lang_dir
+
+
+def _use_taxonomy(
+  monkeypatch: pytest.MonkeyPatch, module: ModuleType, tmp_path: Path
+) -> None:
+  taxonomy = tmp_path / "taxonomy.csv"
+  taxonomy.write_bytes(_TAXONOMY)
   monkeypatch.setattr(
     module,
     "get_taxonomy_v3_input",
@@ -86,7 +97,6 @@ def _prepare(
       sha256=sha256_bytes(_TAXONOMY),
     ),
   )
-  return lang_dir
 
 
 @pytest.mark.no_tf
@@ -95,6 +105,7 @@ def test_geo_generated_bytes_are_unchanged(
 ) -> None:
   languages = {"en_us": "com_name", "de": "common_name_de"}
   lang_dir = _prepare(monkeypatch, geo_model, tmp_path, _GEO_LABELS, languages)
+  _use_taxonomy(monkeypatch, geo_model, tmp_path)
 
   class _D(geo_model.GeoDownloaderBaseV3_0):
     @classmethod
@@ -116,7 +127,7 @@ def test_geo_generated_bytes_are_unchanged(
 def test_acoustic_generated_bytes_are_unchanged(
   tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-  languages = {"en_us": "com_name", "de": "common_name_de"}
+  languages = {"en_us": "common_name", "de": "common_name_de"}
   lang_dir = _prepare(
     monkeypatch, acoustic_model, tmp_path, _ACOUSTIC_LABELS, languages
   )
@@ -129,9 +140,9 @@ def test_acoustic_generated_bytes_are_unchanged(
   _D._generate_lang_files()
 
   assert _digest(lang_dir / "en_us.txt") == (
-    "19ac0f5ba4d7fde0535f0c21f22a71a6829526902c2b817837eceaeb2f042bb3"
+    "b40dc7812e31e1303aec5b03374baab43dd6fa87919a47ed0d53082f9ea0106d"
   )
   assert _digest(lang_dir / "de.txt") == (
-    "b1620889dc4cd17947ce3ec083b0fbe08a3291bd023bf63a33eaa06f92e195d2"
+    "3a711eb9e51c90ed7b370a1c7520cbe34469d206005a409ac48344d067f68714"
   )
-  _assert_recorded(lang_dir, "acoustic_v3_0", 3, languages)
+  _assert_recorded(lang_dir, "acoustic_v3_0", 4, languages)

@@ -18,7 +18,7 @@ The package is also available as an R package at: [birdnetR](https://github.com/
 
 ## Features
 
-* 🐦 Extract **classification scores and embeddings** from audio recordings — 6,522 classes (V2.4) or 11,560 classes (V3.0 preview)
+* 🐦 Extract **classification scores and embeddings** from audio recordings — 6,522 classes (V2.4) or 11,725 classes (V3.0)
 * 📍 Predict **species presence** for a given location and time — 6,522 classes (V2.4) or 14,082 species (V3.0)
 * 🧠 Utilize your **custom-trained acoustic models** from BirdNET-Analyzer
 * ⚙️ Support for both **CPU and GPU** execution (including multiple GPUs at the same time)
@@ -300,7 +300,7 @@ Ensure your environment is configured to utilize the appropriate model and avail
 ## License
 
 * **Source Code**: The source code for this project is licensed under the [MIT License](https://opensource.org/licenses/MIT).
-* **Models**: The models used in this project are licensed under the [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License (CC BY-NC-SA 4.0)](https://creativecommons.org/licenses/by-nc-sa/4.0/).
+* **Models**: The acoustic model V3.0 is licensed under the [Apache License 2.0](https://github.com/birdnet-team/model-converter/blob/main/MODEL_LICENSE.md) and comes with an [acceptable use policy](https://github.com/birdnet-team/model-converter/blob/main/ACCEPTABLE_USE.md). The other models used in this project are licensed under the [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License (CC BY-NC-SA 4.0)](https://creativecommons.org/licenses/by-nc-sa/4.0/).
 
 Please ensure you review and adhere to the specific license terms provided with each model. Note that educational and research purposes are considered non-commercial use cases.
 

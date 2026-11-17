@@ -3,7 +3,6 @@ from pathlib import Path
 
 import pytest
 
-import birdnet.acoustic.models.v3_0.model as acoustic_model
 import birdnet.geo.models.v3_0.model as geo_model
 import birdnet.utils.taxonomy_v3 as taxonomy_v3
 from birdnet.globals import ENV_VAR_APP_DATA
@@ -127,4 +126,3 @@ def test_every_mapped_language_column_exists_in_the_taxonomy(
     columns = set(next(csv.reader(f)))
 
   assert set(geo_model._LANGUAGE_TO_COLUMN.values()) <= columns
-  assert set(acoustic_model._LANGUAGE_TO_COLUMN.values()) <= columns

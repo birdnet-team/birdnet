@@ -1,10 +1,10 @@
 """The localized label generation shared by the acoustic and geo V3.0 models.
 
-Both build one ``<lang>.txt`` per language from the model's own label file and
-the shared taxonomy, and record the result in a manifest. A domain supplies its
-inputs, its setup lock, how it parses its label file and how it indexes the
-taxonomy. The two join on different keys, deliberately; see the module docstring
-of ``birdnet/utils/taxonomy_v3.py``.
+Both build one ``<lang>.txt`` per language and record the result in a manifest.
+A domain supplies its inputs, its setup lock, how it parses its label file and
+where each language's names come from: the geo model joins its label file to the
+shared taxonomy (see the module docstring of ``birdnet/utils/taxonomy_v3.py``),
+the acoustic model's label file carries the names itself.
 """
 
 from __future__ import annotations
@@ -71,6 +71,16 @@ class V3LabelDownloaderBase:
     raise NotImplementedError
 
   @classmethod
+  def _index_names(
+    cls, read_bytes: dict[str, bytes], species: list[tuple[str, str, str]]
+  ) -> dict[str, dict[str, str]]:
+    """Rows holding the language columns, by the join key of ``_parse_labels``.
+
+    `read_bytes` holds the bytes of every input in ``_manifest_inputs``.
+    """
+    return cls._index_taxonomy(read_bytes["taxonomy"], species)
+
+  @classmethod
   def _manifest_inputs(cls) -> dict[str, LabelInput]:
     return {"labels": cls._labels_input(), "taxonomy": cls._taxonomy_input()}
 
@@ -105,7 +115,7 @@ class V3LabelDownloaderBase:
 
       cls._generate_lang_files()
 
-      # Both inputs were just verified by digest, so this can only fail if
+      # The inputs were just verified by digest, so this can only fail if
       # generation itself is wrong. Raising beats silently regenerating on every
       # later load while serving names nobody checked.
       if not cls._check_labels_available():
@@ -128,11 +138,10 @@ class V3LabelDownloaderBase:
     inputs = cls._manifest_inputs()
     # Read via the same LabelInput the manifest records, so the digest can
     # never describe a file other than the one that was parsed.
-    taxonomy_raw = inputs["taxonomy"].path.read_bytes()
-    labels_raw = inputs["labels"].path.read_bytes()
+    read_bytes = {name: declared.path.read_bytes() for name, declared in inputs.items()}
 
-    species = cls._parse_labels(labels_raw)
-    taxonomy = cls._index_taxonomy(taxonomy_raw, species)
+    species = cls._parse_labels(read_bytes["labels"])
+    names = cls._index_names(read_bytes, species)
 
     # Shared by both models: changing the fallback or the line format means
     # bumping both models' _GENERATION_VERSION.
@@ -142,7 +151,7 @@ class V3LabelDownloaderBase:
       lang_file = lang_dir / f"{lang}.txt"
       lines: list[str] = []
       for key, sci_name, en_us_name in species:
-        localized_name = taxonomy.get(key, {}).get(col, "").strip() or en_us_name
+        localized_name = names.get(key, {}).get(col, "").strip() or en_us_name
         lines.append(f"{sci_name}_{localized_name}")
       write_text_atomic(lang_file, "\n".join(lines), encoding="utf-8")
       written.append(lang_file)
@@ -152,7 +161,7 @@ class V3LabelDownloaderBase:
       generator=cls._generator_name,
       generator_version=cls._generation_version,
       declared_inputs=inputs,
-      read_bytes={"labels": labels_raw, "taxonomy": taxonomy_raw},
+      read_bytes=read_bytes,
       languages=languages,
       lang_files=written,
       stats={"n_entries": len(species)},
