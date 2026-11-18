@@ -7,13 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-19
+
 ### Added
 
 - `BIRDNET_OFFLINE=1` makes `birdnet` refuse every download: a model, label file or taxonomy that is not cached raises a `ValueError` naming its URL instead of being fetched, without retrying, for machines without internet access and for test or CI runs that must fail fast on a missing model ([#156](https://github.com/birdnet-team/birdnet/pull/156)).
 
 ### Changed
 
-- **Breaking:** the acoustic 3.0 model is the final release and no longer `preview3.1`. It has 11,725 classes (11,709 species and 16 sound classes such as engine, siren and music) where the preview had 11,560, in another order and with updated names, so class indices, labels, scores and embeddings all differ: results, species lists and stored embeddings made with the preview do not carry over. The new files are downloaded on first use (0.35 GB per `fp32` backend, 0.17 GB for `fp16`) while the preview's files stay in the app data directory until deleted by hand, and the model is now licensed under Apache 2.0. Every file of the release is cached under a name carrying its checksum, the `pb` SavedModel now included, so installs of different birdnet versions can share one app data directory without replacing each other's model. Its label names in every language come from the model's own label file instead of the taxonomy shared with the geo model, so the two 3.0 models can name the same species differently (124 of the 10,874 species they share in English): match their labels by scientific name ([#162](https://github.com/birdnet-team/birdnet/pull/162), [#169](https://github.com/birdnet-team/birdnet/pull/169)).
+- **Breaking:** the acoustic 3.0 model is the final release and no longer `preview3.1`. It has 11,725 classes (11,709 species and 16 sound classes such as engine, siren and music) where the preview had 11,560, in another order and with updated names, so class indices, labels, scores and embeddings all differ: results, species lists and stored embeddings made with the preview do not carry over. The new files are downloaded on first use (0.35 GB per `fp32` backend, 0.17 GB for `fp16`) while the preview's files stay in the app data directory until deleted by hand, and the model is now licensed under Apache 2.0. Every file of the release is cached under a name carrying its checksum, the `pb` SavedModel now included, so installs of different birdnet versions can share one app data directory without replacing each other's model. Its label names in every language come from the model's own label file instead of the taxonomy shared with the geo model, so the two 3.0 models can name the same species differently: 124 of the 10,874 species they share by scientific name differ in their English name, and 42 more birds differ in their scientific name (the Eurasian Wren is `Nannus troglodytes` in the acoustic and `Troglodytes troglodytes` in the geo model). Match their labels by scientific name first and by English name for the rest ([#162](https://github.com/birdnet-team/birdnet/pull/162), [#169](https://github.com/birdnet-team/birdnet/pull/169), [#170](https://github.com/birdnet-team/birdnet/pull/170)).
 
 ### Bugfixes
 
@@ -455,7 +457,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release
 
-[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/birdnet-team/birdnet/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/birdnet-team/birdnet/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/birdnet-team/birdnet/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/birdnet-team/birdnet/compare/v1.2.0...v1.3.0
