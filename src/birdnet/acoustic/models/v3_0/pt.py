@@ -13,12 +13,12 @@ from birdnet.utils.downloads import ModelInfo
 models: dict[MODEL_PRECISIONS, ModelInfo] = {
   MODEL_PRECISION_FP32: ModelInfo(
     dl_url=(
-      "https://zenodo.org/records/24162518/files/BirdNET+_V3.0_Global_12K_FP32.pt"
+      "https://zenodo.org/records/24362980/files/BirdNET+_V3.0_Global_12K_FP32.pt"
     ),
     dl_file_name="BirdNET+_V3.0_Global_12K_FP32.pt",
-    dl_size=345116645,
-    file_size=345116645,
-    sha256="298c7f37974ba941ee05069569a3152dc282a5ba39ac11b95cdc581d9eb4ecac",
+    dl_size=345165801,
+    file_size=345165801,
+    sha256="c9bb4b9a9626d88b4f4ba2b2ee615b7339a310f21855d2ee246507c718c1e35e",
   )
 }
 

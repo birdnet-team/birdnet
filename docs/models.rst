@@ -40,7 +40,7 @@ Geo model (species range model) V2.4 - V2, Jan 2024
 Acoustic model V3.0
 -------------------
 
-* `published on Zenodo <https://zenodo.org/records/24162518>`__ under the Apache License 2.0
+* `published on Zenodo <https://zenodo.org/records/24362980>`__ under the Apache License 2.0
 * 11,725 classes: 11,709 animal species (birds, insects, amphibians, mammals, fish, reptiles and one spider), plus 16 sound classes that are no animal, such as engine, siren and music
 * available in four backends, selectable via the ``backend`` argument of ``birdnet.load``:
 

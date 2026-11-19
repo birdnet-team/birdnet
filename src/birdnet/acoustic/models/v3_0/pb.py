@@ -26,10 +26,10 @@ from birdnet.utils.local_data import get_lang_dir, get_model_path, get_model_roo
 from birdnet.utils.species_lists import read_official_labels
 
 _PB_DL_URL = (
-  "https://zenodo.org/records/24162518/files/BirdNET+_V3.0_Global_12K_FP32_Protobuf.zip"
+  "https://zenodo.org/records/24362980/files/BirdNET+_V3.0_Global_12K_FP32_Protobuf.zip"
 )
-_PB_DL_SIZE = 317589313
-_PB_DL_SHA256 = "b638e3149fc807af119a5b5ea50cc6cdd0465e3eafa7847f001bb7b2031522b3"
+_PB_DL_SIZE = 317414197
+_PB_DL_SHA256 = "4badc5dcc7804254eff6fd77de9bb35a58e9992e9e58c68aa510bbb848a18541"
 # The folder inside the zip that holds the SavedModel.
 _PB_ZIP_FOLDER = "BirdNET+_V3.0_Global_12K_FP32_Protobuf"
 
@@ -155,14 +155,13 @@ class AcousticPBBackendFP32V3_0(PBBackend, VersionedAcousticBackendProtocol):
 
   @classmethod
   def max_batch_size(cls) -> int | None:
-    # XLA-compiled export with a static batch of 1: a larger batch fails shape
-    # refinement inside the worker.
+    # XLA-compiled export that asserts an input of shape (1, 96000): a larger
+    # batch fails that assertion inside the worker.
     return 1
 
   @classmethod
   def fixed_input_samples(cls) -> int | None:
-    # The compilation fixes the input to 3.0 s as well; another length fails the
-    # same shape refinement.
+    # Another length than 3.0 s fails the same assertion.
     return AcousticModelV3_0.get_segment_size_samples()
 
 
