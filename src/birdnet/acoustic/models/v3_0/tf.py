@@ -18,18 +18,18 @@ from birdnet.utils.downloads import ModelInfo
 
 models: dict[MODEL_PRECISIONS, ModelInfo] = {
   MODEL_PRECISION_FP16: ModelInfo(
-    dl_url="https://zenodo.org/records/24162518/files/BirdNET+_V3.0_Global_12K_FP16.tflite",
+    dl_url="https://zenodo.org/records/24362980/files/BirdNET+_V3.0_Global_12K_FP16.tflite",
     dl_file_name="BirdNET+_V3.0_Global_12K_FP16.tflite",
-    dl_size=172328340,
-    file_size=172328340,
-    sha256="78f9eb96609b2feef2f204ba81b1e6393f676c1fcf1666d922c96a5c2a7ed758",
+    dl_size=172332864,
+    file_size=172332864,
+    sha256="5f6d77917dc461414469b3d6ef78df2ec3651c4268c384592eb47760d7354106",
   ),
   MODEL_PRECISION_FP32: ModelInfo(
-    dl_url="https://zenodo.org/records/24162518/files/BirdNET+_V3.0_Global_12K_FP32.tflite",
+    dl_url="https://zenodo.org/records/24362980/files/BirdNET+_V3.0_Global_12K_FP32.tflite",
     dl_file_name="BirdNET+_V3.0_Global_12K_FP32.tflite",
-    dl_size=344132212,
-    file_size=344132212,
-    sha256="8b658ae7d3c9d7e1864833480c06f8f059c73fce5bcb7067c03a4bff439f53ce",
+    dl_size=344136732,
+    file_size=344136732,
+    sha256="07cd8e54fe6cd9315025d6703c2c15e6976c22dc17e96ccf8d77776ae241a5e2",
   ),
 }
 

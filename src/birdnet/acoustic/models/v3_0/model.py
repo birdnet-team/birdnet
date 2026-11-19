@@ -46,7 +46,7 @@ from birdnet.utils.species_lists import read_official_labels
 from birdnet.utils.v3_labels import V3LabelDownloaderBase
 
 _LABELS_DL_URL = (
-  "https://zenodo.org/records/24162518/files/BirdNET+_V3.0_Global_12K_Labels.csv"
+  "https://zenodo.org/records/24362980/files/BirdNET+_V3.0_Global_12K_Labels.csv"
 )
 _LABELS_DL_SIZE = 8007144
 _LABELS_DL_SHA256 = "88d976477fac81127ac8ac4c215c37749d0a6537944112ea606d321317cb7640"
