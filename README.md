@@ -78,16 +78,17 @@ pip install birdnet[pt] --user
 ```py
 import birdnet
 
-# base install
-model_onnx = birdnet.load("acoustic", "3.0", "onnx")
-predictions_onnx = model_onnx.predict("example/soundscape.wav")
+if __name__ == "__main__":
+  # base install
+  model_onnx = birdnet.load("acoustic", "3.0", "onnx")
+  predictions_onnx = model_onnx.predict("example/soundscape.wav")
 
-model_litert = birdnet.load("acoustic", "2.4", "tf", library="litert")
-predictions_litert = model_litert.predict("example/soundscape.wav")
+  model_litert = birdnet.load("acoustic", "2.4", "tf", library="litert")
+  predictions_litert = model_litert.predict("example/soundscape.wav")
 
-# birdnet[tf]: the default TFLite interpreter
-model_tflite = birdnet.load("acoustic", "2.4", "tf")
-predictions_tflite = model_tflite.predict("example/soundscape.wav")
+  # birdnet[tf]: the default TFLite interpreter
+  model_tflite = birdnet.load("acoustic", "2.4", "tf")
+  predictions_tflite = model_tflite.predict("example/soundscape.wav")
 ```
 
 ### Platform support and Python versions
@@ -159,16 +160,17 @@ Classifiers trained with [BirdNET-Analyzer](https://github.com/birdnet-team/Bird
 ```python
 import birdnet
 
-# TFLite export; "auto" reads the base version from the file
-model = birdnet.load_custom("acoustic", "auto", "tf", "CustomClassifier.tflite", "CustomClassifier_Labels.txt")
-predictions = model.predict("example/soundscape.wav")
+if __name__ == "__main__":
+  # TFLite export; "auto" reads the base version from the file
+  model = birdnet.load_custom("acoustic", "auto", "tf", "CustomClassifier.tflite", "CustomClassifier_Labels.txt")
+  predictions = model.predict("example/soundscape.wav")
 
-# What a file is, without importing TensorFlow into this process
-info = birdnet.inspect_custom_tflite("CustomClassifier.tflite")
-info.version, info.mode, info.n_species  # e.g. ("3.0", "append", 11563)
+  # What a file is, without importing TensorFlow into this process
+  info = birdnet.inspect_custom_tflite("CustomClassifier.tflite")
+  info.version, info.mode, info.n_species  # e.g. ("3.0", "append", 11728)
 
-# Raven export (SavedModel with the "basic" signature)
-raven = birdnet.load_custom("acoustic", "3.0", "pb", "CustomClassifier", "CustomClassifier/labels/label_names.csv", is_raven=True)
+  # Raven export (SavedModel with the "basic" signature)
+  raven = birdnet.load_custom("acoustic", "3.0", "pb", "CustomClassifier", "CustomClassifier/labels/label_names.csv", is_raven=True)
 ```
 
 | **Export** | TFLite 2.4 | TFLite 3.0 | Raven 2.4 | Raven 3.0 |
@@ -202,16 +204,19 @@ The examples use the 2.4 models on the `tf` backend, which needs `pip install bi
 ```py
 import birdnet
 
-model = birdnet.load("acoustic", "2.4", "tf")
+if __name__ == "__main__":
+  model = birdnet.load("acoustic", "2.4", "tf")
 
-predictions = model.predict(
-  "example/soundscape.wav",
-  # predict only the species from the file
-  custom_species_list="example/species_list.txt",
-)
+  predictions = model.predict(
+    "example/soundscape.wav",
+    # predict only the species from the file
+    custom_species_list="example/species_list.txt",
+  )
 
-predictions.to_csv("example/predictions.csv")
+  predictions.to_csv("example/predictions.csv")
 ```
+
+Audio is analyzed in worker processes, and each of them imports your script again. In a script, the code that calls birdnet therefore has to be under `if __name__ == "__main__":`; code typed into an interactive interpreter needs no guard.
 
 The resulting predictions look like this (excerpt, scores may vary):
 

@@ -3,10 +3,35 @@ from unittest.mock import patch
 
 import pytest
 
-from birdnet.core.start_method import resolve_start_method
+from birdnet.core.start_method import raise_if_importing_main, resolve_start_method
 from birdnet.globals import ENV_VAR_START_METHOD
 
 pytestmark = pytest.mark.no_tf
+
+
+def test_a_process_importing_the_main_script_is_refused(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  # The flag multiprocessing sets on a new process around that import.
+  monkeypatch.setattr(mp.current_process(), "_inheriting", True, raising=False)
+
+  for start_method in ("spawn", "forkserver"):
+    with pytest.raises(RuntimeError, match=r'if __name__ == "__main__"'):
+      raise_if_importing_main(start_method)
+
+
+def test_a_process_that_will_fork_is_let_through(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  """A fork during that import works, and on Linux with Python 3.11 and 3.12 it
+  is what a spawned process resolves while it imports the main script."""
+  monkeypatch.setattr(mp.current_process(), "_inheriting", True, raising=False)
+
+  raise_if_importing_main("fork")
+
+
+def test_a_process_past_its_start_up_is_not_refused() -> None:
+  raise_if_importing_main("spawn")
 
 
 def test_env_var_wins_over_global(monkeypatch: pytest.MonkeyPatch) -> None:

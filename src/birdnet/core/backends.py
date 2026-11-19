@@ -24,7 +24,11 @@ from typing import (
 import numpy as np
 
 from birdnet.core.child_env import one_blas_thread_in_children
-from birdnet.core.start_method import resolve_start_method
+from birdnet.core.start_method import (
+  MAIN_GUARD_HINT,
+  raise_if_importing_main,
+  resolve_start_method,
+)
 from birdnet.globals import (
   LIBRARY_LITERT,
   LIBRARY_TFLITE,
@@ -253,11 +257,18 @@ class TFBackend(Backend, ABC):
     self._interp = load_tf_model(
       self._model_path,
       self._inference_library,
-      allocate_tensors=True,
+      allocate_tensors=False,
     )
     self._input_idx, self._prediction_idx, self._embeddings_idx = (
       self._resolve_tensor_indices(self._interp)
     )
+    # Allocated here, so a file the interpreter cannot run fails at load, where
+    # the validity check of load_custom sees it. A file that leaves its input
+    # length open stores a placeholder for it, which LiteRT 2.2.0 and later
+    # refuse to allocate: that one is allocated with its first batch, after the
+    # resize (_set_tensor).
+    if not _input_length_is_open(self._interp, self._input_idx):
+      self._interp.allocate_tensors()
 
   def unload(self) -> None:
     self._interp = None
@@ -895,11 +906,12 @@ def run_in_subprocess(
   its type, because unpickling it would import its module (TensorFlow, for a
   TensorFlow error) into this process.
   """
+  start_method = resolve_start_method()
+  raise_if_importing_main(start_method)
   # Pickled before anything is started: on Windows the process exists before
   # its target is pickled, and one whose start fails is left alive, waiting on
   # a pipe handle number the next start may reuse.
   call = pickle.dumps((fn, args))
-  start_method = resolve_start_method()
   ctx: Any = multiprocessing.get_context(start_method)
   receiver, sender = ctx.Pipe(duplex=False)
   process = ctx.Process(target=_send_outcome, args=(sender, call), daemon=True)
@@ -915,9 +927,12 @@ def run_in_subprocess(
       outcome, payload = receiver.recv()
     except EOFError as err:
       process.join(5)
-      raise RuntimeError(
-        f"The subprocess exited with code {process.exitcode} before reporting."
-      ) from err
+      message = f"The subprocess exited with code {process.exitcode} before reporting."
+      # What an uncaught Python error leaves, typically from the import of a
+      # main script that calls birdnet unguarded.
+      if process.exitcode == 1 and start_method != "fork":
+        message += f" If this is a script: {MAIN_GUARD_HINT}."
+      raise RuntimeError(message) from err
   finally:
     if process.is_alive():
       process.kill()
@@ -1044,6 +1059,17 @@ def load_pb_model(model_path: Path, logical_device_name: str) -> Any:
     f"Model loaded from {model_path.absolute()} in {end - start:.2f} seconds."
   )
   return model
+
+
+def _input_length_is_open(
+  interp: LiteRTInterpreter | TFInterpreter, input_idx: int
+) -> bool:
+  """Whether the file leaves a dimension of that input open, the batch aside."""
+  for detail in interp.get_input_details():
+    if int(detail["index"]) == input_idx:
+      signature = detail.get("shape_signature", detail["shape"])
+      return any(int(dim) < 0 for dim in signature[1:])
+  return False
 
 
 @overload

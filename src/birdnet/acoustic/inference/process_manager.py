@@ -52,6 +52,7 @@ from birdnet.acoustic.inference.resources import PipelineResources
 from birdnet.acoustic.inference.strategy import InferenceStrategyBase
 from birdnet.core.base import get_session_id_hash
 from birdnet.core.child_env import one_blas_thread_in_children
+from birdnet.core.start_method import MAIN_GUARD_HINT
 
 # One budget for the whole teardown: every wait in it draws what is left, so a
 # child that cannot exit costs the caller at most this much. A healthy teardown
@@ -597,6 +598,18 @@ class ProcessManager:
           f"this is the first run, the process failed during start-up "
           f"instead; the log holds the reason."
         )
+      elif process.exitcode == 1:
+        # What an uncaught Python error leaves, and on Windows an outside kill.
+        # A child reports its own failures, so an error came before it could:
+        # typically while it imported a main script that calls birdnet unguarded.
+        message = (
+          f"Pipeline process '{process.name}' exited unexpectedly with exit "
+          f"code 1 before it finished its work. Most likely it raised an error "
+          f"before it could report one (its traceback, if any, went to stderr); "
+          f"a process ended from the outside can leave this code too."
+        )
+        if self._cfg.start_method != "fork":
+          message += f" If this is a script: {MAIN_GUARD_HINT}."
       else:
         message = (
           f"Pipeline process '{process.name}' exited unexpectedly with exit "

@@ -1,3 +1,4 @@
+import multiprocessing as mp
 import os
 import sys
 import time
@@ -5,6 +6,7 @@ import time
 import psutil
 import pytest
 
+from birdnet.core import backends
 from birdnet.core.backends import run_in_subprocess
 from birdnet.core.child_env import OPENBLAS_THREADS_VAR
 from birdnet_tests.fake_acoustic_backend import raise_foreign_load_error
@@ -72,3 +74,47 @@ def test_a_function_that_cannot_be_pickled_starts_nothing() -> None:
 
   assert _workers() - before == set()
   assert run_in_subprocess(os.getpid, (), timeout_s=60) != os.getpid()
+
+
+def test_a_child_that_exits_with_code_1_points_a_script_at_its_main_guard() -> None:
+  """What a child leaves that ran an unguarded main script while importing it."""
+  with pytest.raises(
+    RuntimeError,
+    match=r'exited with code 1 before reporting.*if __name__ == "__main__"',
+  ):
+    run_in_subprocess(os._exit, (1,), timeout_s=60)
+
+
+def test_a_child_that_exits_with_another_code_gets_no_such_hint() -> None:
+  with pytest.raises(RuntimeError, match=r"exited with code 3 before") as raised:
+    run_in_subprocess(os._exit, (3,), timeout_s=60)
+
+  assert "__main__" not in str(raised.value)
+
+
+def test_under_fork_exit_code_1_gets_no_such_hint(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  """A forked child does not import the main script. The method is only
+  resolved as fork here; the child is spawned, so nothing forks in this lane."""
+  spawn = mp.get_context("spawn")
+  monkeypatch.setattr(backends, "resolve_start_method", lambda: "fork")
+  monkeypatch.setattr(backends.multiprocessing, "get_context", lambda _: spawn)
+
+  with pytest.raises(RuntimeError, match=r"exited with code 1 before") as raised:
+    run_in_subprocess(os._exit, (1,), timeout_s=60)
+
+  assert "__main__" not in str(raised.value)
+
+
+def test_nothing_is_started_in_a_process_importing_the_main_script(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  before = _workers()
+  # The flag multiprocessing sets on a new process around that import.
+  monkeypatch.setattr(mp.current_process(), "_inheriting", True, raising=False)
+
+  with pytest.raises(RuntimeError, match=r'if __name__ == "__main__"'):
+    run_in_subprocess(os.getpid, (), timeout_s=60)
+
+  assert _workers() - before == set()

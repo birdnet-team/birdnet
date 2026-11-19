@@ -1,4 +1,4 @@
-"""A TFLite interpreter stand-in exposing only what the layout resolver reads."""
+"""A TFLite interpreter stand-in exposing only what the inspection of a file uses."""
 
 from __future__ import annotations
 
@@ -28,6 +28,8 @@ class StubInterpreter:
   others: list[Tensor] = field(default_factory=list)
   # signature name -> {"inputs": [...], "outputs": [output name -> tensor]}
   signatures: dict[str, dict] = field(default_factory=dict)
+  # The resizes and allocations asked of it, in order.
+  calls: list[tuple] = field(default_factory=list)
 
   def get_input_details(self) -> list[dict]:
     return [t.details() for t in self.inputs]
@@ -46,6 +48,14 @@ class StubInterpreter:
 
   def get_signature_runner(self, name: str) -> _StubRunner:
     return _StubRunner(self.signatures[name]["outputs"])
+
+  def resize_tensor_input(
+    self, index: int, shape: tuple[int, ...], strict: bool = False
+  ) -> None:
+    self.calls.append(("resize", index, tuple(shape)))
+
+  def allocate_tensors(self) -> None:
+    self.calls.append(("allocate",))
 
 
 @dataclass

@@ -65,6 +65,7 @@ from birdnet.acoustic.inference.resources import (
 from birdnet.acoustic.inference.strategy import InferenceStrategyBase
 from birdnet.core.backends import VersionedAcousticBackendProtocol
 from birdnet.core.base import SessionBase
+from birdnet.core.start_method import raise_if_importing_main
 from birdnet.globals import ACOUSTIC_MODEL_VERSIONS
 from birdnet.utils.segments import duration_as_samples
 
@@ -236,6 +237,7 @@ class AcousticSessionBase(
 
   def __enter__(self) -> Self:
     assert not self._is_initialized
+    raise_if_importing_main(self._conf.start_method)
     self._resource_manager = ResourceManager(self._conf)
     res = self._resource_manager.create_resources(
       self._session_id, self._strategy.get_benchmark_dir_name()

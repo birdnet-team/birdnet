@@ -314,9 +314,17 @@ def inspect_custom_tflite_file(
   The tensors are allocated as well, so a file the interpreter cannot run is
   rejected here rather than by the first prediction.
   """
-  interp = load_tf_model(model_path, library, allocate_tensors=True)
+  interp = load_tf_model(model_path, library, allocate_tensors=False)
   layout = resolve_custom_tflite_layout(interp, legacy_prediction_indices)
-  return describe_custom_tflite_layout(layout)
+  info = describe_custom_tflite_layout(layout)
+  if layout.input_samples is None:
+    # A file that leaves the length open stores a placeholder for it, which
+    # LiteRT 2.2.0 and later refuse to allocate: one segment of its base model.
+    interp.resize_tensor_input(
+      layout.input_idx, (1, _base_model(info.version).segment_samples), strict=True
+    )
+  interp.allocate_tensors()
+  return info
 
 
 class CustomTFLiteBackend(TFBackend, ABC):
