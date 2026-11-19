@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-11-19
+
 ### Changed
 
 - The acoustic 3.0 model files are those of its release 3.0.1, which replaces the first release with the same weights, classes and labels: every file was exported again, and the `onnx` and `pb` files no longer return NaN for a segment of digital silence. On the example recording scores move by about 0.0001 at most, and by up to 0.02 for the `fp16` `onnx` file, now mixed precision; the new files are downloaded on first use while those of the first release stay in the app data directory until deleted by hand ([#171](https://github.com/birdnet-team/birdnet/pull/171)).
@@ -467,7 +469,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release
 
-[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/birdnet-team/birdnet/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/birdnet-team/birdnet/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/birdnet-team/birdnet/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/birdnet-team/birdnet/compare/v1.3.0...v1.3.1
