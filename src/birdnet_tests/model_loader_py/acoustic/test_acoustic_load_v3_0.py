@@ -16,6 +16,7 @@ from birdnet.acoustic.models.v3_0.tf import (
 )
 from birdnet.model_loader import load
 from birdnet_tests.helper import (
+  ensure_litert_or_skip,
   ensure_onnxruntime_or_skip,
   ensure_torch_or_skip,
   fake_wheels,
@@ -43,8 +44,26 @@ def test_v3_0_tf_fp32() -> None:
 
 
 @pytest.mark.load_model
+@pytest.mark.litert
+def test_v3_0_litert_fp32() -> None:
+  ensure_litert_or_skip()
+
+  model = load("acoustic", "3.0", "tf", precision="fp32", library="litert")
+  assert isinstance(model, AcousticModelV3_0)
+
+
+@pytest.mark.load_model
 def test_v3_0_tf_fp16() -> None:
   model = load("acoustic", "3.0", "tf", precision="fp16", library="tflite")
+  assert isinstance(model, AcousticModelV3_0)
+
+
+@pytest.mark.load_model
+@pytest.mark.litert
+def test_v3_0_litert_fp16() -> None:
+  ensure_litert_or_skip()
+
+  model = load("acoustic", "3.0", "tf", precision="fp16", library="litert")
   assert isinstance(model, AcousticModelV3_0)
 
 

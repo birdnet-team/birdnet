@@ -41,8 +41,13 @@ class _FakeProcess:
 class _StubManager:
   """Only what `raise_if_child_died` touches: pairs, logger, cancel event."""
 
-  def __init__(self, pairs: list[tuple[_FakeProcess, threading.Event]]) -> None:
+  def __init__(
+    self,
+    pairs: list[tuple[_FakeProcess, threading.Event]],
+    start_method: str = "spawn",
+  ) -> None:
     self._pairs = pairs
+    self._cfg = SimpleNamespace(start_method=start_method)
     self._logger = logging.getLogger(f"{__name__}.stub")
     self.cancel_event = threading.Event()
     self._child_death_error: ChildProcessError | None = None
@@ -125,8 +130,40 @@ def test_child_killed_without_signalling_is_reported() -> None:
     ]
   )
 
-  with pytest.raises(ChildProcessError, match=r"Worker-1.*-9"):
+  with pytest.raises(ChildProcessError, match=r"Worker-1.*-9") as raised:
     manager.raise_if_child_died()
+
+  assert "'n_workers'" in str(raised.value)
+  assert "__main__" not in str(raised.value)
+
+
+def test_exit_code_1_points_a_script_at_its_main_guard() -> None:
+  """What a child leaves that ran an unguarded main script while importing it."""
+  manager = _StubManager(
+    [(_FakeProcess("Producer-0", alive=False, exitcode=1), _signal(is_set=False))]
+  )
+
+  with pytest.raises(
+    ChildProcessError,
+    match=r'Producer-0.*exit code 1.*if __name__ == "__main__"',
+  ) as raised:
+    manager.raise_if_child_died()
+
+  # Not a memory problem: the advice to lower the worker count would mislead.
+  assert "'n_workers'" not in str(raised.value)
+
+
+def test_exit_code_1_under_fork_does_not_mention_the_main_guard() -> None:
+  """A forked child does not import the main script."""
+  manager = _StubManager(
+    [(_FakeProcess("Producer-0", alive=False, exitcode=1), _signal(is_set=False))],
+    start_method="fork",
+  )
+
+  with pytest.raises(ChildProcessError, match=r"Producer-0.*exit code 1") as raised:
+    manager.raise_if_child_died()
+
+  assert "__main__" not in str(raised.value)
 
 
 def test_child_that_exited_zero_without_signalling_is_reported() -> None:

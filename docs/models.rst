@@ -69,9 +69,10 @@ Technical details
 
   import birdnet
 
-  # e.g. load the ONNX backend with FP16 precision
-  model = birdnet.load("acoustic", "3.0", "onnx", precision="fp16")
-  predictions = model.predict("example/soundscape.wav")
+  if __name__ == "__main__":
+    # e.g. load the ONNX backend with FP16 precision
+    model = birdnet.load("acoustic", "3.0", "onnx", precision="fp16")
+    predictions = model.predict("example/soundscape.wav")
 
 Custom classifiers
 ------------------
@@ -85,22 +86,23 @@ SavedModel and as a detached head.
 
   import birdnet
 
-  # TFLite export; "auto" reads the base version from the file
-  model = birdnet.load_custom(
-    "acoustic", "auto", "tf", "CustomClassifier.tflite", "CustomClassifier_Labels.txt"
-  )
-  predictions = model.predict("example/soundscape.wav")
-  embeddings = model.encode("example/soundscape.wav")
+  if __name__ == "__main__":
+    # TFLite export; "auto" reads the base version from the file
+    model = birdnet.load_custom(
+      "acoustic", "auto", "tf", "CustomClassifier.tflite", "CustomClassifier_Labels.txt"
+    )
+    predictions = model.predict("example/soundscape.wav")
+    embeddings = model.encode("example/soundscape.wav")
 
-  # Raven export: SavedModel with the "basic" signature, sigmoid in the model, no embeddings
-  raven = birdnet.load_custom(
-    "acoustic",
-    "3.0",
-    "pb",
-    "CustomClassifier",
-    "CustomClassifier/labels/label_names.csv",
-    is_raven=True,
-  )
+    # Raven export: SavedModel with the "basic" signature, sigmoid in the model, no embeddings
+    raven = birdnet.load_custom(
+      "acoustic",
+      "3.0",
+      "pb",
+      "CustomClassifier",
+      "CustomClassifier/labels/label_names.csv",
+      is_raven=True,
+    )
 
 * ``birdnet.inspect_custom_tflite(path)`` describes a TFLite export without
   importing TensorFlow into the calling process: the base version (``"2.4"`` or

@@ -30,7 +30,8 @@ def test_every_mapped_language_column_exists_in_the_label_file() -> None:
   """A language mapped to a column the label file does not have fails silently.
 
   `_generate_lang_files` falls back to the English name per class, so such a
-  language yields a complete, plausible file of entirely English names.
+  language yields a complete, plausible file of entirely English names. A
+  fallback column the file does not have is skipped as silently.
   """
   AcousticOnnxDownloaderV3_0.ensure_labels_available()
 
@@ -39,6 +40,7 @@ def test_every_mapped_language_column_exists_in_the_label_file() -> None:
     columns = set(next(csv.reader(f)))
 
   assert set(acoustic_model._LANGUAGE_TO_COLUMN.values()) <= columns
+  assert set(acoustic_model._FALLBACK_COLUMN.values()) <= columns
 
 
 @pytest.mark.load_model

@@ -36,16 +36,17 @@ _GEO_LABELS = (
   b"code1\tScivia one\tRobin\ncode2\tScivia two\tSparrow\ncode9\tScivia nine\tEagle\n"
 )
 # The acoustic label file carries its own names: one localized, one blank cell
-# falling back to English. The last three rows are what the parser rewrites: an
-# underscore in a name, a class without a common name, one without a scientific
-# name.
+# falling back to English, and for the regional pt_PT one blank cell falling back
+# to pt. The last three rows are what the parser rewrites: an underscore in a
+# name, a class without a common name, one without a scientific name.
 _ACOUSTIC_LABELS = (
-  b"ix,birdnet_id,scientific_name,common_name,common_name_de\n"
-  b"0,BN1,Scivia one,Robin,Rotkehlchen\n"
-  b"1,BN2,Scivia two,Sparrow,\n"
-  b"2,BN3,Sound_(event),Sound_(event),\n"
-  b"3,BN4,Scivia ten,,\n"
-  b"4,BN5,,Noise,\n"
+  b"ix,birdnet_id,scientific_name,common_name,common_name_de,"
+  b"common_name_pt,common_name_pt_PT\n"
+  b"0,BN1,Scivia one,Robin,Rotkehlchen,Pisco,Pisco-de-peito-ruivo\n"
+  b"1,BN2,Scivia two,Sparrow,,Pardal,\n"
+  b"2,BN3,Sound_(event),Sound_(event),,,\n"
+  b"3,BN4,Scivia ten,,,,\n"
+  b"4,BN5,,Noise,,,\n"
 )
 
 
@@ -127,7 +128,11 @@ def test_geo_generated_bytes_are_unchanged(
 def test_acoustic_generated_bytes_are_unchanged(
   tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-  languages = {"en_us": "common_name", "de": "common_name_de"}
+  languages = {
+    "en_us": "common_name",
+    "de": "common_name_de",
+    "pt_pt": "common_name_pt_PT",
+  }
   lang_dir = _prepare(
     monkeypatch, acoustic_model, tmp_path, _ACOUSTIC_LABELS, languages
   )
@@ -145,4 +150,7 @@ def test_acoustic_generated_bytes_are_unchanged(
   assert _digest(lang_dir / "de.txt") == (
     "3a711eb9e51c90ed7b370a1c7520cbe34469d206005a409ac48344d067f68714"
   )
-  _assert_recorded(lang_dir, "acoustic_v3_0", 4, languages)
+  assert _digest(lang_dir / "pt_pt.txt") == (
+    "a28a012fcc77ea7108fd14a8c005183d2e5a927f5ececcba85fe75291ffa3f22"
+  )
+  _assert_recorded(lang_dir, "acoustic_v3_0", 5, languages)

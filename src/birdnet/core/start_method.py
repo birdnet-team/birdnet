@@ -48,3 +48,35 @@ def resolve_start_method() -> str:
     return globally_fixed
 
   return "spawn"
+
+
+# Shared by the error a process raises while it imports the main script and by
+# the parent's report of a process that died doing so.
+MAIN_GUARD_HINT = (
+  'the code that calls birdnet has to be under `if __name__ == "__main__":`, '
+  "because every process birdnet starts imports the main script again"
+)
+
+
+def raise_if_importing_main(start_method: str) -> None:
+  """Fail in a process that is still importing the main script.
+
+  Under ``spawn`` and ``forkserver`` a new process imports the main script
+  before it runs its target. Code there that calls birdnet outside of
+  ``if __name__ == "__main__":`` runs again in that process, and multiprocessing
+  refuses to start a process from it with either method. Raising before
+  anything is set up names the cause and leaves nothing to tear down.
+
+  `start_method` is the one the caller is about to use. ``fork`` is let through,
+  because a fork during that import works: on Linux with Python 3.11 and 3.12 a
+  spawned process sees ``fork`` as the fixed method while it imports.
+  """
+  if start_method == "fork":
+    return
+  # The flag multiprocessing sets around that import, and checks itself before
+  # it refuses to start a process.
+  if getattr(mp.current_process(), "_inheriting", False):
+    raise RuntimeError(
+      "birdnet was called while a process it started was importing the main "
+      f"script: {MAIN_GUARD_HINT}."
+    )

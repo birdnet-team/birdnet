@@ -28,11 +28,17 @@ Predict species from audio file
   
   import birdnet
 
-  model = birdnet.load("acoustic", "2.4", "tf")
+  if __name__ == "__main__":
+      model = birdnet.load("acoustic", "2.4", "tf")
 
-  predictions = model.predict("example/soundscape.wav")
+      predictions = model.predict("example/soundscape.wav")
 
-  predictions.to_csv("example/predictions.csv")
+      predictions.to_csv("example/predictions.csv")
+
+``predict`` runs in worker processes, and each of them imports the script again.
+In a script, the code that calls birdnet therefore has to be under
+``if __name__ == "__main__":``, as in the examples here; code typed into an
+interactive interpreter needs no guard. See :doc:`general` for the details.
 
 Predict species from multiple audio files in a directory
 --------------------------------------------------------
@@ -41,11 +47,12 @@ Predict species from multiple audio files in a directory
   
   import birdnet
 
-  model = birdnet.load("acoustic", "2.4", "tf")
+  if __name__ == "__main__":
+      model = birdnet.load("acoustic", "2.4", "tf")
 
-  predictions = model.predict("example/soundscapes/")
+      predictions = model.predict("example/soundscapes/")
 
-  predictions.to_csv("example/predictions.csv")
+      predictions.to_csv("example/predictions.csv")
 
 Limit prediction worker processes
 ---------------------------------
@@ -113,14 +120,15 @@ Predict species with a custom species list
   
   import birdnet
 
-  model = birdnet.load("acoustic", "2.4", "tf")
+  if __name__ == "__main__":
+      model = birdnet.load("acoustic", "2.4", "tf")
 
-  predictions = model.predict(
-      "example/soundscape.wav",
-      custom_species_list="example/species_list.txt",
-  )
+      predictions = model.predict(
+          "example/soundscape.wav",
+          custom_species_list="example/species_list.txt",
+      )
 
-  predictions.to_csv("example/predictions.csv")
+      predictions.to_csv("example/predictions.csv")
 
 Show model download progress
 ----------------------------
@@ -173,9 +181,10 @@ The ``version`` and ``backend`` arguments of ``birdnet.load`` select the model. 
 
   import birdnet
 
-  # V3.0 acoustic model via the ONNX backend (part of the base install)
-  model = birdnet.load("acoustic", "3.0", "onnx")
+  if __name__ == "__main__":
+      # V3.0 acoustic model via the ONNX backend (part of the base install)
+      model = birdnet.load("acoustic", "3.0", "onnx")
 
-  predictions = model.predict("example/soundscape.wav")
+      predictions = model.predict("example/soundscape.wav")
 
-  predictions.to_csv("example/predictions.csv")
+      predictions.to_csv("example/predictions.csv")

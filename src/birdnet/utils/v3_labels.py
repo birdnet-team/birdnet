@@ -47,6 +47,11 @@ class V3LabelDownloaderBase:
     raise NotImplementedError
 
   @classmethod
+  def _fallback_columns(cls) -> dict[str, str]:
+    """Per language, the column read where its own is empty, before English."""
+    return {}
+
+  @classmethod
   def _labels_lock_dir(cls) -> Path:
     raise NotImplementedError
 
@@ -146,13 +151,18 @@ class V3LabelDownloaderBase:
     # Shared by both models: changing the fallback or the line format means
     # bumping both models' _GENERATION_VERSION.
     languages = cls._languages()
+    fallback_columns = cls._fallback_columns()
     written: list[Path] = []
     for lang, col in languages.items():
       lang_file = lang_dir / f"{lang}.txt"
+      fallback_col = fallback_columns.get(lang)
       lines: list[str] = []
       for key, sci_name, en_us_name in species:
-        localized_name = names.get(key, {}).get(col, "").strip() or en_us_name
-        lines.append(f"{sci_name}_{localized_name}")
+        row = names.get(key, {})
+        localized_name = row.get(col, "").strip()
+        if not localized_name and fallback_col is not None:
+          localized_name = row.get(fallback_col, "").strip()
+        lines.append(f"{sci_name}_{localized_name or en_us_name}")
       write_text_atomic(lang_file, "\n".join(lines), encoding="utf-8")
       written.append(lang_file)
 

@@ -54,8 +54,7 @@ _DEFAULT_SEGMENT_SIZE_S = 3.0
 _DEFAULT_SEGMENT_SIZE_SAMPLES = 96_000
 
 # Columns of the label file, for the languages the acoustic and the geo 3.0
-# model share. The file has more: ar, et, he, hu, it, ko and a second Chinese
-# column ("zh").
+# model share. The file has more: ar, et, he, hu, it and ko.
 _LANGUAGE_TO_COLUMN: dict[str, str] = {
   "bg": "common_name_bg",
   "ca": "common_name_ca",
@@ -88,6 +87,17 @@ _LANGUAGE_TO_COLUMN: dict[str, str] = {
   "zh": "common_name_zh-CN",
 }
 
+# The label file leaves a regional column empty where only the base language
+# names the class (6,401 of the 11,725 classes for pt_PT), so the base column is
+# read there before the English name.
+_FALLBACK_COLUMN: dict[str, str] = {
+  "es_ec": "common_name_es",
+  "es_es": "common_name_es",
+  "es_mx": "common_name_es",
+  "pt_pt": "common_name_pt",
+  "zh": "common_name_zh",
+}
+
 
 def _acoustic_v3_0_base_dir() -> Path:
   return get_birdnet_app_data_folder() / "acoustic-models" / "v3.0"
@@ -111,11 +121,11 @@ def _setup_lock_dir() -> Path:
 # model could never be read as an acoustic one.
 _GENERATOR_NAME = "acoustic_v3_0"
 # Bump whenever a change would produce different <lang>.txt bytes from the same
-# inputs - the parsing here, or the fallback or line format in
-# birdnet/utils/v3_labels.py, which is shared and so changes both models. The
-# golden-digest test fails when the bytes generated from its fixture move;
-# nothing forces this bump when its digests are updated.
-_GENERATION_VERSION = 4
+# inputs - the parsing or the fallback columns here, or the fallback or line
+# format in birdnet/utils/v3_labels.py, which is shared and so changes both
+# models. The golden-digest test fails when the bytes generated from its fixture
+# move; nothing forces this bump when its digests are updated.
+_GENERATION_VERSION = 5
 
 _REQUIRED_LABEL_COLUMNS = ("scientific_name", "common_name")
 
@@ -167,6 +177,10 @@ class AcousticDownloaderBaseV3_0(V3LabelDownloaderBase):
   @classmethod
   def _languages(cls) -> dict[str, str]:
     return _LANGUAGE_TO_COLUMN
+
+  @classmethod
+  def _fallback_columns(cls) -> dict[str, str]:
+    return _FALLBACK_COLUMN
 
   @classmethod
   def _labels_lock_dir(cls) -> Path:
