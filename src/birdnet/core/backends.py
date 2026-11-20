@@ -1360,6 +1360,22 @@ def load_onnx_model(
 
   logger = get_logger_for_package(__name__)
   actual_provider = session.get_providers()[0] if session.get_providers() else "unknown"
+  # ONNX Runtime does not raise when it cannot create the GPU provider: it
+  # builds the session on the CPU.
+  if "GPU" in device and actual_provider != providers[0]:
+    gpu_libraries = (
+      " (CUDA and cuDNN in the versions that build needs)"
+      if providers[0] == "CUDAExecutionProvider"
+      else ""
+    )
+    raise ValueError(
+      f"ONNX Runtime {ort.__version__} was asked for '{providers[0]}' (device "
+      f"'{device}') but could not create it and built the session on "
+      f"'{actual_provider}' instead. Check that the installed ONNX Runtime GPU build "
+      f"can load its GPU libraries{gpu_libraries} and that the device index "
+      f"{provider_options[0]['device_id']} exists, or pass device='CPU' to run on "
+      "the CPU."
+    )
   logger.debug(
     f"Model loaded from {model_path.absolute()} using 'onnxruntime' "
     f"with provider '{actual_provider}' in {end - start:.2f} seconds."
