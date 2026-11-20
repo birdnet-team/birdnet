@@ -46,7 +46,8 @@ dependencies = [
   # Default runtime: runs the 3.0 models (onnx backend) without TensorFlow. No
   # macOS x86_64 wheels for Python 3.14 (and none newer than 1.23.2), none for 3.15.
   # No sdist, so the marker must stay bounded or pip falls back to an old birdnet.
-  "onnxruntime >= 1.16.0 ; (sys_platform != 'darwin' or platform_machine != 'x86_64' or python_version < '3.14') and python_version < '3.15'",
+  # 1.18 is the first release that reads the models' ONNX IR version 10.
+  "onnxruntime >= 1.18.0 ; (sys_platform != 'darwin' or platform_machine != 'x86_64' or python_version < '3.14') and python_version < '3.15'",
   # Only platforms with ai-edge-litert wheels: it has no sdist, so an unguarded
   # marker makes birdnet itself uninstallable there.
   "ai-edge-litert >= 2.0.2 ; python_version <= '3.13' and (sys_platform == 'linux' or (sys_platform == 'darwin' and platform_machine == 'arm64') or (sys_platform == 'win32' and platform_machine == 'AMD64'))", # 2026/05/12
@@ -71,7 +72,7 @@ and-cuda = [
 pt = ["torch >= 2.0.0"]
 # onnxruntime is a base dependency; the extra stays so `birdnet[onnx]` keeps working.
 onnx = [
-  "onnxruntime >= 1.16.0 ; (sys_platform != 'darwin' or platform_machine != 'x86_64' or python_version < '3.14') and python_version < '3.15'",
+  "onnxruntime >= 1.18.0 ; (sys_platform != 'darwin' or platform_machine != 'x86_64' or python_version < '3.14') and python_version < '3.15'",
 ]
 repro = [
   # Reproducible results only with Python 3.12 and on CPU and not on macOS Intel
