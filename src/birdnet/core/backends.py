@@ -4,6 +4,7 @@ import logging
 import multiprocessing
 import os
 import pickle
+import re
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Collection
@@ -605,6 +606,13 @@ class OnnxBackend(Backend, ABC):
     return self._infer(batch, out_idx)
 
 
+# Some of Grappler's oneDNN fusions, layer normalization among them, ignore the
+# device a node is placed on, and the fused op has a CPU kernel only.
+_ONEDNN_OP_WITHOUT_GPU_KERNEL = re.compile(
+  r"No registered '(_Mkl\w+)' OpKernel for '?GPU'? devices"
+)
+
+
 class PBBackend(Backend, ABC):
   def __init__(
     self,
@@ -709,31 +717,50 @@ class PBBackend(Backend, ABC):
       tensor = convert_to_tensor(batch, dtype=float32)
     return tensor
 
-  @final
-  def predict(self, batch: Tensor) -> Tensor:
-    from tensorflow import device, float32
+  def _run_signature(self, signature: Callable, batch: Tensor) -> dict[str, Tensor]:
+    from tensorflow import device
+    from tensorflow.errors import NotFoundError
 
     assert self._logical_device_name is not None
+
+    try:
+      with device(self._logical_device_name):
+        result: dict[str, Tensor] = signature(**{self.input_key(): batch})
+    except NotFoundError as e:
+      onednn_op = _ONEDNN_OP_WITHOUT_GPU_KERNEL.search(str(e))
+      if onednn_op is None:
+        raise
+      raise RuntimeError(
+        f"SavedModel '{self._model_path.absolute()}' cannot run on a GPU while "
+        "TensorFlow's oneDNN optimizations are on: they rewrite part of it into "
+        f"'{onednn_op.group(1)}', an operation without a GPU kernel. Run it with "
+        "device='CPU', or set the environment variable TF_ENABLE_ONEDNN_OPTS=0 "
+        "before TensorFlow is imported, which turns these optimizations off for "
+        "the whole process."
+      ) from e
+    return result
+
+  @final
+  def predict(self, batch: Tensor) -> Tensor:
+    from tensorflow import float32
+
     assert self._predict_fn is not None
 
-    with device(self._logical_device_name):
-      prediction_result = self._predict_fn(**{self.input_key(): batch})
+    prediction_result = self._run_signature(self._predict_fn, batch)
     predictions: Tensor = prediction_result[self.prediction_key()]
     assert predictions.dtype == float32
     return predictions
 
   @final
   def encode(self, batch: Tensor) -> Tensor:
-    from tensorflow import device, float32
+    from tensorflow import float32
 
     assert self.supports_encoding()
     encoding_key = self.encoding_key()
     assert encoding_key is not None
     assert self._encoding_fn is not None
-    assert self._logical_device_name is not None
 
-    with device(self._logical_device_name):
-      encoding_result = self._encoding_fn(**{self.input_key(): batch})
+    encoding_result = self._run_signature(self._encoding_fn, batch)
     embeddings: Tensor = encoding_result[encoding_key]
     assert embeddings.dtype == float32
     return embeddings

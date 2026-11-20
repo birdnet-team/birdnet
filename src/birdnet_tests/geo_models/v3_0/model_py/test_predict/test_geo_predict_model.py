@@ -1,3 +1,7 @@
+import os
+import subprocess
+import sys
+
 import numpy as np
 import pytest
 
@@ -38,25 +42,9 @@ _SMOKE_CASES = [
   pytest.param("onnx", "CPU", True, marks=pytest.mark.no_tf, id="onnx-fp32-half"),
   pytest.param("pt", "CPU", True, marks=pytest.mark.no_tf, id="pt-half"),
   pytest.param("tf", "GPU", False, marks=pytest.mark.gpu, id="tf-gpu"),
-  pytest.param("pb", "GPU", False, marks=pytest.mark.gpu, id="pb-gpu"),
   pytest.param("pt", "GPU", False, marks=pytest.mark.gpu, id="pt-gpu"),
   pytest.param("onnx", "GPU", False, marks=pytest.mark.gpu, id="onnx-gpu"),
 ]
-
-
-def _known_pb_gpu_failure(backend: str, device: str, error: Exception) -> str | None:
-  """The error line if this is #167, else None.
-
-  TensorFlow's oneDNN rewrite fuses this model's layer norm into _MklLayerNorm,
-  which has no GPU kernel (TensorFlow 2.20 and 2.21). Matched by class name:
-  this module is collected without TensorFlow too.
-  """
-  if (backend, device) != ("pb", "GPU") or type(error).__name__ != "NotFoundError":
-    return None
-  return next(
-    (line.strip() for line in str(error).splitlines() if "_MklLayerNorm" in line),
-    None,
-  )
 
 
 @pytest.mark.parametrize(("backend", "device", "half_precision"), _SMOKE_CASES)
@@ -69,18 +57,81 @@ def test_predict_shape_and_dtype(
       ensure_onnxruntime_gpu_or_skip()
   model = _load(backend)
 
-  try:
-    result = model.predict(
-      20, 50, week=1, min_confidence=0.03, half_precision=half_precision, device=device
-    )
-  except Exception as e:
-    known = _known_pb_gpu_failure(backend, device, e)
-    if known is not None:
-      pytest.xfail(f"geo 3.0 pb on GPU, #167: {known}")
-    raise
+  result = model.predict(
+    20, 50, week=1, min_confidence=0.03, half_precision=half_precision, device=device
+  )
 
   assert result.species_probs.shape == (14082,)
   assert result.species_probs.dtype == (np.float16 if half_precision else np.float32)
+
+
+# --- pb with oneDNN on and off (#167) ---
+
+_PREDICT_PB = """
+import sys
+
+from birdnet.model_loader import load
+
+device = sys.argv[1]
+model = load("geo", "3.0", "pb", precision="fp32")
+result = model.predict(20, 50, week=1, min_confidence=0.03, device=device)
+print(result.species_probs.shape, result.species_probs.dtype)
+if device == "GPU":
+  import tensorflow as tf
+
+  print("gpu-peak-bytes", tf.config.experimental.get_memory_info("GPU:0")["peak"])
+"""
+
+
+def _predict_pb(device: str, onednn_opts: str) -> subprocess.CompletedProcess[str]:
+  """In a fresh interpreter: TensorFlow reads the variable once per process."""
+  return subprocess.run(
+    [sys.executable, "-c", _PREDICT_PB, device],
+    env={**os.environ, "TF_ENABLE_ONEDNN_OPTS": onednn_opts},
+    capture_output=True,
+    text=True,
+    timeout=300,
+  )
+
+
+def test_pb_on_cpu_runs_with_onednn_on() -> None:
+  # Forced on, so the run does not depend on the runner's CPU; a TensorFlow
+  # built without oneDNN ignores the variable.
+  out = _predict_pb("CPU", "1")
+
+  assert out.returncode == 0, out.stderr
+  assert "(14082,) float32" in out.stdout.splitlines(), out.stdout
+
+
+@pytest.mark.gpu
+def test_pb_on_gpu_names_the_way_out_while_onednn_is_on() -> None:
+  ensure_gpu_or_skip()
+
+  out = _predict_pb("GPU", "1")
+
+  assert out.returncode != 0, (
+    "geo 3.0 pb ran on a GPU with TF_ENABLE_ONEDNN_OPTS=1: either this TensorFlow "
+    "was built without oneDNN, or #167 is gone from it and the caveat in the "
+    "README and in docs/models.rst can go"
+  )
+  errors = [line for line in out.stderr.splitlines() if line.startswith("RuntimeError")]
+  assert len(errors) == 1, out.stderr
+  assert "into '_MklLayerNorm', an operation" in errors[0]
+  assert "TF_ENABLE_ONEDNN_OPTS=0 before TensorFlow is imported" in errors[0]
+
+
+@pytest.mark.gpu
+def test_pb_on_gpu_runs_with_onednn_off() -> None:
+  ensure_gpu_or_skip()
+
+  out = _predict_pb("GPU", "0")
+
+  assert out.returncode == 0, out.stderr
+  lines = out.stdout.splitlines()
+  assert "(14082,) float32" in lines, out.stdout
+  # 18.4 MB with the model on the GPU, 1.5 kB for the input alone.
+  peak = next(int(line.split()[1]) for line in lines if line.startswith("gpu-peak"))
+  assert peak > 1_000_000
 
 
 @pytest.mark.no_tf

@@ -135,7 +135,7 @@ Geo model (species range model) V3.0
 * available in four backends via the ``backend`` argument of ``birdnet.load``:
 
     * ``tf`` - TFLite (CPU only), ``int8``, ``fp16`` and ``fp32``; requires ``pip install birdnet[tf]``
-    * ``pb`` - ProtoBuf (CPU/GPU), ``fp32``; requires ``pip install birdnet[tf]``
+    * ``pb`` - ProtoBuf (CPU/GPU, for the GPU see below), ``fp32``; requires ``pip install birdnet[tf]``
     * ``pt`` - PyTorch/TorchScript (CPU/GPU), ``fp32``; requires ``pip install birdnet[pt]``
     * ``onnx`` - ONNX Runtime (CPU/GPU), ``fp16`` and ``fp32``; part of the base install
 
@@ -144,6 +144,10 @@ requires TensorFlow 2.18 or 2.19 and is not available via ``ai_edge_litert``
 (``library="litert"``); the interpreters of TensorFlow 2.20 and 2.21 no longer
 run select TensorFlow ops.
 On other TensorFlow versions use ``pb``, ``onnx`` or ``pt``.
+
+The ``pb`` backend runs on a GPU only while TensorFlow's oneDNN optimizations are
+off: set ``TF_ENABLE_ONEDNN_OPTS=0`` before TensorFlow is imported
+(`#167 <https://github.com/birdnet-team/birdnet/issues/167>`__).
 
 .. code-block:: python
 

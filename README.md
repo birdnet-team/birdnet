@@ -145,9 +145,10 @@ The V3.0 acoustic and geo models are both available in four backends (TFLite/Lit
 | `encode(..)` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **INT8** | ❌ | ❌ | ❌ | ❌ | CPU | ❌ | ❌ | ❌ |
 | **FP16** | CPU | ❌ | ❌ | CPU/GPU | CPU | ❌ | ❌ | CPU/GPU |
-| **FP32** | CPU | CPU/GPU | CPU/GPU | CPU/GPU | CPU | CPU/GPU | CPU/GPU | CPU/GPU |
+| **FP32** | CPU | CPU/GPU | CPU/GPU | CPU/GPU | CPU | CPU/GPU* | CPU/GPU | CPU/GPU |
 
-✅ = Supported ❌ = Not supported
+✅ = Supported ❌ = Not supported\
+**The geo ProtoBuf model runs on a GPU only while TensorFlow's oneDNN optimizations are off: set `TF_ENABLE_ONEDNN_OPTS=0` before TensorFlow is imported ([#167](https://github.com/birdnet-team/birdnet/issues/167)).*
 
 Load a V3.0 model by passing the version and backend, e.g. `birdnet.load("acoustic", "3.0", "onnx")` or `birdnet.load("geo", "3.0", "tf")`.
 
