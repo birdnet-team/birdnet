@@ -348,6 +348,16 @@ def ensure_onnxruntime_gpu_or_skip() -> None:
     pytest.skip(str(e))
 
 
+def ensure_no_onnxruntime_gpu_provider_or_skip() -> None:
+  """Skip where the onnx backend's own provider lookup finds a GPU provider."""
+  ensure_onnxruntime_or_skip()
+  try:
+    providers, _ = _get_onnx_session_providers("GPU")
+  except ValueError:
+    return
+  pytest.skip(f"ONNX Runtime lists the GPU provider '{providers[0]}'")
+
+
 def _tf_version_or_skip() -> str:
   if not tf_installed():
     pytest.skip("TensorFlow is not installed (pip install birdnet[tf])")

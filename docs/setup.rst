@@ -53,6 +53,12 @@ base ``onnxruntime`` (CPU build) with ``onnxruntime-gpu`` after installing — o
 of the two may be installed: ``pip uninstall onnxruntime && pip install onnxruntime-gpu``
 (``pip check`` then reports the missing ``onnxruntime``, and every later
 ``pip install``/upgrade of ``birdnet`` puts the CPU build back, so redo the swap).
+The GPU build has to match the installed CUDA: from 1.27 on, the ``onnxruntime-gpu``
+wheels on PyPI are built for CUDA 13, so on a CUDA 12 system install an earlier release
+(``pip install "onnxruntime-gpu<1.27"``), see ONNX Runtime's
+`CUDA requirements <https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements>`_.
+Where the GPU build cannot load its GPU libraries, ``device="GPU"`` raises an error
+instead of running on the CPU.
 
 TensorFlow backends
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

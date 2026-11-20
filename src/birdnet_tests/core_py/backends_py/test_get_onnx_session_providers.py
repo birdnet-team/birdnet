@@ -8,6 +8,7 @@ import pytest
 
 from birdnet.core.backends import _get_onnx_session_providers
 from birdnet_tests.helper import (
+  ensure_no_onnxruntime_gpu_provider_or_skip,
   ensure_onnxruntime_gpu_or_skip,
   ensure_onnxruntime_or_skip,
 )
@@ -100,3 +101,27 @@ def test_the_skip_helper_returns_where_a_gpu_provider_is_listed(
     ensure_onnxruntime_gpu_or_skip()
   except pytest.skip.Exception as e:
     pytest.fail(f"skipped although a GPU provider is listed: {e}")
+
+
+@pytest.mark.parametrize("available", [_CUDA, _DML])
+def test_the_no_gpu_provider_helper_skips_where_one_is_listed(
+  monkeypatch: pytest.MonkeyPatch, available: list[str]
+) -> None:
+  ensure_onnxruntime_or_skip()
+  _fake_available(monkeypatch, available)
+
+  with pytest.raises(pytest.skip.Exception, match=available[0]):
+    ensure_no_onnxruntime_gpu_provider_or_skip()
+
+
+def test_the_no_gpu_provider_helper_returns_where_none_is_listed(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  ensure_onnxruntime_or_skip()
+  _fake_available(monkeypatch, _NO_GPU)
+
+  # Caught here: a skip that escaped would report this test as skipped, not failed.
+  try:
+    ensure_no_onnxruntime_gpu_provider_or_skip()
+  except pytest.skip.Exception as e:
+    pytest.fail(f"skipped although no GPU provider is listed: {e}")

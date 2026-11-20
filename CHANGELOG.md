@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Bugfixes
 
 - The geo 3.0 `pb` model failed on a GPU with TensorFlow's `NotFoundError: No registered '_MklLayerNorm' OpKernel for 'GPU' devices` wherever TensorFlow's oneDNN optimizations are on, under Linux its default on CPUs with VNNI, AVX-512 BF16 or AMX: they rewrite the model's layer normalization into an operation that runs on the CPU only. The model still cannot run there, but the error is now a `RuntimeError` that names the two ways out, `device="CPU"` or `TF_ENABLE_ONEDNN_OPTS=0` set before TensorFlow is imported, and the README and the documentation say so ([#167](https://github.com/birdnet-team/birdnet/issues/167), [#174](https://github.com/birdnet-team/birdnet/pull/174)).
+- The `onnx` backend ran `device="GPU"` on the CPU without an error wherever ONNX Runtime lists a GPU provider but cannot create it, such as an `onnxruntime-gpu` build that does not find the CUDA and cuDNN versions it was built for, or a GPU index that does not exist: ONNX Runtime then builds the session on the CPU. Such a request now raises a `ValueError` (inside the session's `RuntimeError` for the acoustic models) that names the ONNX Runtime version, both providers, what to check, and `device='CPU'` as the way out, and the README and the documentation say which CUDA version an `onnxruntime-gpu` release needs ([#175](https://github.com/birdnet-team/birdnet/pull/175)).
 
 ## [1.5.1] - 2026-11-19
 
