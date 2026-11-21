@@ -12,6 +12,7 @@ from birdnet_tests.helper import (
   ensure_onnxruntime_gpu_or_skip,
   ensure_onnxruntime_or_skip,
   ensure_tf_2_19_or_2_18,
+  ensure_torch_gpu_or_skip,
   ensure_torch_or_skip,
   ensure_v3_0_torch_backend_or_skip,
 )
@@ -55,6 +56,8 @@ def test_predict_shape_and_dtype(
     ensure_gpu_or_skip()
     if backend == "onnx":
       ensure_onnxruntime_gpu_or_skip()
+    elif backend == "pt":
+      ensure_torch_gpu_or_skip()
   model = _load(backend)
 
   result = model.predict(

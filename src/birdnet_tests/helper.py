@@ -28,6 +28,7 @@ from birdnet.core.backends import (
   check_is_intel_macos,
   litert_installed,
   onnxruntime_installed,
+  set_torch_device,
   tf_installed,
   torch_installed,
 )
@@ -321,6 +322,15 @@ def ensure_litert_or_skip() -> None:
 def ensure_torch_or_skip() -> None:
   if not torch_installed():
     pytest.skip("PyTorch runtime is not available")
+
+
+def ensure_torch_gpu_or_skip() -> None:
+  """Skip where the pt backend's own device lookup finds no CUDA GPU."""
+  ensure_torch_or_skip()
+  try:
+    set_torch_device("GPU")
+  except ValueError as e:
+    pytest.skip(str(e))
 
 
 def validity_check_available() -> bool:
