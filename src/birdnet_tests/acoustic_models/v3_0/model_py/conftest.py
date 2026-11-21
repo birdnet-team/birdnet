@@ -19,8 +19,11 @@ from birdnet.acoustic.inference.core.prediction.prediction_result import (
 from birdnet.acoustic.models.v3_0.model import AcousticModelV3_0
 from birdnet.model_loader import load
 from birdnet_tests.helper import (
+  ensure_gpu_or_skip,
+  ensure_onnxruntime_gpu_or_skip,
   ensure_onnxruntime_or_skip,
   ensure_tf_2_18_or_skip,
+  ensure_torch_gpu_or_skip,
   ensure_torch_or_skip,
   ensure_v3_0_torch_backend_or_skip,
 )
@@ -42,6 +45,18 @@ def load_v3_0(backend: V3_0Backend, precision: str = "fp32") -> AcousticModelV3_
   if backend == "tf":
     return load("acoustic", "3.0", "tf", precision=precision, library="tflite")
   return load("acoustic", "3.0", "pb", precision=precision)
+
+
+def load_v3_0_for_gpu(
+  backend: V3_0Backend, precision: str = "fp32"
+) -> AcousticModelV3_0:
+  """Skip unless `backend` can run on a GPU here, then load it."""
+  ensure_gpu_or_skip()
+  if backend == "onnx":
+    ensure_onnxruntime_gpu_or_skip()
+  elif backend == "pt":
+    ensure_torch_gpu_or_skip()
+  return load_v3_0(backend, precision)
 
 
 @functools.cache

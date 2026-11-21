@@ -262,3 +262,18 @@ def deterministic_tf_ops(monkeypatch: pytest.MonkeyPatch) -> None:
   TF_DETERMINISTIC_OPS pins the choice; the spawned workers inherit it.
   """
   monkeypatch.setenv("TF_DETERMINISTIC_OPS", "1")
+
+
+@pytest.fixture
+def tensor_float_32_off(monkeypatch: pytest.MonkeyPatch) -> None:
+  """For tests that hold a GPU result against a CPU one.
+
+  On NVIDIA GPUs since Ampere, TensorFlow, ONNX Runtime and PyTorch compute
+  fp32 convolutions in TensorFloat-32 by default, with inputs rounded to a
+  10-bit mantissa. Measured on the V3.0 model (RTX 3080 Ti): up to 4e-3 on
+  scores and 1e-2 on embeddings off the CPU result. NVIDIA_TF32_OVERRIDE=0
+  switches it off in cuDNN and cuBLAS; the spawned workers inherit it. The pb
+  model keeps a rest in a matrix product that XLA compiles itself: 3e-5 on
+  scores, against 5e-6 for everything else.
+  """
+  monkeypatch.setenv("NVIDIA_TF32_OVERRIDE", "0")
