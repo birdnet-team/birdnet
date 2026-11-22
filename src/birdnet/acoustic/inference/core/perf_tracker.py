@@ -10,7 +10,7 @@ from collections import Counter, deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from multiprocessing import Queue, shared_memory
-from multiprocessing.synchronize import Event, Semaphore
+from multiprocessing.synchronize import Semaphore
 from queue import Empty
 
 import numpy as np
@@ -23,6 +23,7 @@ from birdnet.acoustic.inference.core.sync import (
   ChildToParentQueue,
   CountedSemaphore,
   FailureSlot,
+  SharedFlag,
   abandon_queue_feeders,
   readable,
 )
@@ -212,8 +213,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
     self._logger.debug(f"PT_{os.getpid()}: {message}", *args)
 
   def _check_cancel_event(self) -> bool:
-    # The parent first: is_set() takes the event's lock, which a parent killed
-    # inside an operation on the event never released.
     if self._parent_is_gone():
       return True
     if self._cancel_event.is_set():
@@ -276,10 +275,6 @@ class PerformanceTracker(bn_logging.LogableProcessBase):
 
       self.run_main()
 
-      # A parent that died inside finish_signal.wait() never confirms the
-      # wake, and set() would then block for good (see ChildSideEvent).
-      if self._parent_is_gone():
-        return
       self._log("Set finish signal.")
       self._finish_signal.set()
 
@@ -805,8 +800,8 @@ class ProgressDispatcher:
     session_id: str,
     callback_queue: ChildToParentQueue,
     callback_fn: Callable[[AcousticProgressStats], None],
-    cancel_event: Event,
-    end_event: Event,
+    cancel_event: SharedFlag,
+    end_event: SharedFlag,
     start_signal: threading.Event,
     finish_signal: threading.Event,
     last_update_signal: threading.Event,

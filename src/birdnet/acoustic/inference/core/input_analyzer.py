@@ -1,5 +1,4 @@
 import ctypes
-import multiprocessing.synchronize
 import os
 import queue
 import threading
@@ -16,6 +15,7 @@ from birdnet.acoustic.inference.core.producer import (
   get_sf_info,
 )
 from birdnet.acoustic.inference.core.shm import RingField
+from birdnet.acoustic.inference.core.sync import SharedFlag
 from birdnet.utils.dtypes import UIntCType, max_value_for_uint_dtype
 from birdnet.utils.segments import get_n_segments_speed
 
@@ -32,8 +32,8 @@ class InputAnalyzer:
     input_queue: queue.Queue,
     analyzing_result: queue.Queue,
     tot_n_segments: ctypes.c_uint64,
-    cancel_event: multiprocessing.synchronize.Event,
-    end_event: multiprocessing.synchronize.Event,
+    cancel_event: SharedFlag,
+    end_event: SharedFlag,
     start_signal: threading.Event,
     finish_signal: threading.Event,
     report_error: Callable[[BaseException], None] | None = None,

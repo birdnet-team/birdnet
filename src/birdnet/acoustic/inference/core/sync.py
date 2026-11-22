@@ -92,21 +92,97 @@ def readable(q: ChildToParentQueue) -> ReadableQueue:
 
 
 class ChildSideEvent(Protocol):
-  """An event as a child process may use it: polled and set, never waited on.
+  """A signal as a child process may use it: polled and set, never waited on.
 
-  ``Event.set()`` blocks until every waiter confirms it woke, forever when a
-  waiter was killed inside ``wait()``. A signal a child waits on is therefore
-  a semaphore, and the events handed to a child are typed without ``wait`` so
-  a new child-side wait is a type error; the start signals, which a child does
-  wait on, are semaphores for the same reason. A ``threading.Event``
-  satisfies this protocol too (the stubs give the cross-process one no member
-  of its own), so the type cannot catch one handed to a child; pickling does,
-  under spawn and forkserver.
+  What a child waits on, the parent must be able to release without blocking,
+  whoever died inside the wait: the start signals are semaphores for that.
+  The other signals a child is handed, ``SharedFlag`` and ``FinishSignal``,
+  are typed as this so that a new child-side wait is a type error. A
+  ``threading.Event`` or a ``multiprocessing`` one satisfies this protocol
+  too, so the type cannot catch either handed to a child: pickling catches
+  the first under spawn and forkserver, and
+  ``test_nothing_a_session_shares_is_built_on_a_condition`` the second.
   """
 
   def is_set(self) -> bool: ...
 
   def set(self) -> None: ...
+
+
+class SharedFlag:
+  """A cross-process flag with nothing to hold: one byte of shared memory.
+
+  ``multiprocessing.Event`` runs ``is_set()``, ``set()`` and ``clear()``
+  inside a ``Condition`` over an ownerless lock, so a process killed inside
+  any of them leaves the lock held and every other process's next call blocks
+  for good, without a timeout to give up on. A flag that is only polled and
+  set needs none of that: setting is one store of a constant, which no
+  concurrent setter can undo, and a process killed around it leaves the byte
+  written or not.
+
+  A flag orders nothing else: a process that sees it set may not yet see what
+  its setter wrote before it. Only a reader that takes a semaphore the setter
+  released after its store is ordered: a ``FinishSignal.wait()`` that blocks,
+  and a worker woken by the ring permit the last producer releases after
+  setting the all-finished flag. A child writes its failure slot and then sets
+  the cancel flag, so on a weakly ordered CPU the parent may see the cancel
+  before the slot's text; that costs the error its detail, not the run.
+  """
+
+  def __init__(self, ctx: BaseContext) -> None:
+    self._value = ctx.RawValue(ctypes.c_bool, False)
+
+  def is_set(self) -> bool:
+    return self._value.value
+
+  def set(self) -> None:
+    self._value.value = True
+
+  def clear(self) -> None:
+    self._value.value = False
+
+
+class FinishSignal:
+  """A child's end of a run: set by the child, polled and waited on by the parent.
+
+  A ``SharedFlag`` plus a semaphore. ``set()`` stores the flag, then releases,
+  and a release never blocks, so a child whose parent died inside ``wait()``
+  still gets past it; ``Event.set()`` waits for every registered waiter to
+  confirm it woke, forever for a dead one. The flag is the answer and the
+  semaphore only the wake: ``wait()`` returns at once while the flag is set,
+  however often it is called, and a permit without the flag wakes it without
+  making it true. A child killed between the store and the release costs one
+  wait its timeout. One waiter at a time: each ``set()`` releases one permit,
+  so a second waiter blocked alongside sees the set only at its timeout.
+  """
+
+  def __init__(self, ctx: BaseContext) -> None:
+    self._flag = SharedFlag(ctx)
+    self._wake = ctx.Semaphore(0)
+
+  def is_set(self) -> bool:
+    return self._flag.is_set()
+
+  def set(self) -> None:
+    self._flag.set()
+    self._wake.release()
+
+  def wait(self, timeout: float) -> bool:
+    """Whether the signal is set, after waiting at most ``timeout`` seconds for it."""
+    if self._flag.is_set():
+      return True
+    self._wake.acquire(timeout=timeout)
+    return self._flag.is_set()
+
+  def clear(self) -> None:
+    """For ``reset()``, between runs.
+
+    Drained before the flag is cleared, so a ``set()`` overlapping it leaves at
+    worst a wake without the flag.
+    """
+    while self._wake.acquire(block=False):
+      pass
+    self._flag.clear()
 
 
 class Deadline:
@@ -256,8 +332,6 @@ def acquire_or_give_up_when_cancelled(
   if lock.acquire(block=False):
     return True
   while not lock.acquire(timeout=poll_interval_s):
-    # The parent first: is_set() takes the event's lock, which a parent killed
-    # inside an operation on the event never released.
     if not parent_is_alive() or cancel_event.is_set():
       return False
   return True

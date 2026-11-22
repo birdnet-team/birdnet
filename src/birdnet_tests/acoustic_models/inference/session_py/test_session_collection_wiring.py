@@ -58,7 +58,13 @@ def test_collection_goes_through_the_bounded_read(
   )
 
 
-def test_a_warm_call_pays_no_fixed_reader_toll(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+  "show_stats",
+  [pytest.param(None, id="no-tracker"), pytest.param("progress", id="tracker")],
+)
+def test_a_warm_call_pays_no_fixed_reader_toll(
+  tmp_path: Path, show_stats: str | None
+) -> None:
   """The collection machinery must not put a fixed barrier into warm calls.
 
   Teardown bookkeeping can put a fixed per-call cost into every call (a poll
@@ -66,10 +72,12 @@ def test_a_warm_call_pays_no_fixed_reader_toll(tmp_path: Path) -> None:
   would notice. The stub backend does ~2 ms of work, so the *fastest*
   of several warm calls is almost pure pipeline overhead — and a fixed toll of
   a tenth of a second moves it, while scheduler noise cannot (noise only ever
-  makes a call slower).
+  makes a call slower). With the performance tracker the parent's wait on its
+  finish signal blocks on every run, so a wait that polls instead of waking
+  shows here; without it every finish signal is already set when asked.
   """
   audio = _clip()
-  with fake_predict_session(tmp_path, n_workers=1) as session:
+  with fake_predict_session(tmp_path, n_workers=1, show_stats=show_stats) as session:
     session.run_arrays(audio)  # warm-up
 
     durations = []

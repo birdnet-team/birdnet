@@ -30,6 +30,8 @@ from birdnet.acoustic.inference.core.sync import (
   ChildToParentQueue,
   CountedSemaphore,
   FailureSlot,
+  FinishSignal,
+  SharedFlag,
   clear_failure,
   create_failure_slot,
   readable,
@@ -243,12 +245,12 @@ class RingBufferResources:
 class ProducerResources:
   n_producers: int
   n_finished_pointer: Synchronized[int]
-  all_finished: multiprocessing.synchronize.Event
+  all_finished: SharedFlag
   ring_access_lock: multiprocessing.synchronize.Lock
   input_queue: Queue
   unprocessed_inputs_queue: ChildToParentQueue
   start_signals: list[multiprocessing.synchronize.Semaphore]
-  finish_signals: list[multiprocessing.synchronize.Event]
+  finish_signals: list[FinishSignal]
   failure_slots: list[FailureSlot]
 
   _unprocessed_inputs: set[int] | None = None
@@ -284,9 +286,9 @@ class ProducerResources:
       n_finished_pointer=n_finished_pointer,
       input_queue=ctx.Queue(),
       ring_access_lock=ctx.Lock(),
-      all_finished=ctx.Event(),
+      all_finished=SharedFlag(ctx),
       start_signals=[ctx.Semaphore(0) for _ in range(n_producers)],
-      finish_signals=[ctx.Event() for _ in range(n_producers)],
+      finish_signals=[FinishSignal(ctx) for _ in range(n_producers)],
       failure_slots=[create_failure_slot(ctx) for _ in range(n_producers)],
       unprocessed_inputs_queue=ctx.Queue(),
     )
@@ -319,7 +321,7 @@ class WorkerResources:
   devices: list[str]
   backend_loader: BackendLoader
   start_signals: list[multiprocessing.synchronize.Semaphore]
-  finish_signals: list[multiprocessing.synchronize.Event]
+  finish_signals: list[FinishSignal]
   failure_slots: list[FailureSlot]
 
   @classmethod
@@ -354,7 +356,7 @@ class WorkerResources:
       devices=devices,
       backend_loader=backend_loader,
       start_signals=[ctx.Semaphore(0) for _ in range(n_workers)],
-      finish_signals=[ctx.Event() for _ in range(n_workers)],
+      finish_signals=[FinishSignal(ctx) for _ in range(n_workers)],
       failure_slots=[create_failure_slot(ctx) for _ in range(n_workers)],
     )
 
@@ -453,10 +455,10 @@ class ProcessingResources:
   # blocks until every waiter confirms it woke, forever if that waiter was
   # killed inside its wait. One token per run with a tracker.
   processing_finished_sem: multiprocessing.synchronize.Semaphore
-  cancel_event: multiprocessing.synchronize.Event
+  cancel_event: SharedFlag
 
   # end listening for new files
-  end_event: multiprocessing.synchronize.Event
+  end_event: SharedFlag
 
   current_run_nr: int
 
@@ -476,10 +478,10 @@ class ProcessingResources:
   def create(cls, conf: InferenceConfig) -> ProcessingResources:
     ctx = mp.get_context(conf.start_method)
     return ProcessingResources(
-      cancel_event=ctx.Event(),
+      cancel_event=SharedFlag(ctx),
       processing_finished_event=threading.Event(),
       processing_finished_sem=ctx.Semaphore(0),
-      end_event=ctx.Event(),
+      end_event=SharedFlag(ctx),
       current_run_nr=1,
     )
 
@@ -512,7 +514,7 @@ class StatisticsResources:
   sem_active_workers: CountedSemaphore | None
   perf_res_queue: ChildToParentQueue | None
   perf_res_start_signal: multiprocessing.synchronize.Semaphore | None
-  perf_res_finish_signal: multiprocessing.synchronize.Event | None
+  perf_res_finish_signal: FinishSignal | None
   perf_failure_slot: FailureSlot | None
 
   use_callback: bool
@@ -577,7 +579,7 @@ class StatisticsResources:
     if track_performance:
       perf_res_queue = ctx.Queue()
       perf_res_start_signal = ctx.Semaphore(0)
-      perf_res_finish_signal = ctx.Event()
+      perf_res_finish_signal = FinishSignal(ctx)
       perf_failure_slot = create_failure_slot(ctx)
       wkr_stats_queue = ctx.Queue()
       prd_stats_queue = ctx.Queue()

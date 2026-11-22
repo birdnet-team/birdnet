@@ -92,32 +92,24 @@ def test_a_wake_after_the_parent_died_returns_without_running() -> None:
   assert not worker._finish_signal.is_set()
 
 
-def test_a_wake_after_the_parent_died_does_not_ask_the_cancel_event() -> None:
-  """A parent killed inside an operation on the event left its lock held."""
-  worker = _idle_worker(lambda: None)
-  worker._parent_is_gone = lambda: True
-  worker._cancel_event = SimpleNamespace(
-    is_set=lambda: pytest.fail("asked the cancel event after the parent died")
-  )
-  worker._start_signal.release()
-
-  WorkerBase.run_main_loop(worker)
-
-
-def test_a_run_that_outlived_its_parent_leaves_the_finish_signal_alone() -> None:
-  """Setting an event the dead parent waited on never returns, see ChildSideEvent."""
+def test_a_run_that_outlived_its_parent_signals_and_returns() -> None:
+  """Its set() returns whoever died waiting on it, see FinishSignal."""
   worker = _idle_worker(lambda: None)
   gone = False
+  runs: list[int] = []
 
   def run_main() -> None:
     nonlocal gone
+    runs.append(1)
     gone = True
 
   worker.run_main = run_main
   worker._parent_is_gone = lambda: gone
+  # The second permit is the next wake, so the loop does not wait out a poll.
+  worker._start_signal.release()
   worker._start_signal.release()
 
   WorkerBase.run_main_loop(worker)
 
-  assert gone
-  assert not worker._finish_signal.is_set()
+  assert runs == [1]
+  assert worker._finish_signal.is_set()
