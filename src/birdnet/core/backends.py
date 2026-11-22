@@ -1147,6 +1147,19 @@ def load_tf_model(
     raise AssertionError()
 
 
+def _interpreter_model_argument(model_path: Path) -> dict[str, Any]:
+  """The keyword argument that hands `model_path` to a TFLite interpreter.
+
+  On Windows the interpreters of TensorFlow and LiteRT fail to open a path that
+  is not ASCII ("Could not open"), so such a file is read here and passed as
+  bytes.
+  """
+  path = str(model_path.absolute())
+  if os.name == "nt" and not path.isascii():
+    return {"model_content": model_path.read_bytes()}
+  return {"model_path": path}
+
+
 def load_lib_tf_model(
   model_path: Path,
   allocate_tensors: bool = False,
@@ -1185,7 +1198,7 @@ def load_lib_tf_model(
     )
     try:
       interp = tflite.Interpreter(
-        str(model_path.absolute()),
+        **_interpreter_model_argument(model_path),
         num_threads=1,
         experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,
         experimental_preserve_all_tensors=preserve_all_tensors,
@@ -1230,7 +1243,7 @@ def load_lib_litert_model(
   start = time.perf_counter()
   try:
     interp = tflite.Interpreter(
-      str(model_path.absolute()),
+      **_interpreter_model_argument(model_path),
       num_threads=1,
       experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,
       experimental_preserve_all_tensors=preserve_all_tensors,
