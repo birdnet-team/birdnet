@@ -63,6 +63,11 @@ _PRODUCER_SLOTS = 1.5
 # The estimates below are 3-5 % under the largest measured worker, and a worker
 # with more intra-op threads (fewer workers share the cores) needs more.
 _PLANNING_FRACTION = 0.9
+# One onnx worker runs the rows of a batch on a thread each, on one copy of the
+# model, and its threads idle while the last rows of a batch finish. For the 3.0
+# model on 12 cores it ran 73 to 75 seg/s at batch sizes 48 to 128 and 63 to 68
+# at 12 to 24, in 0.9 GiB, where a worker per core ran 71 in 5.8 GiB.
+_ROWS_PER_CORE_FOR_ONE_ONNX_WORKER = 4
 
 
 @dataclass(frozen=True)
@@ -279,6 +284,17 @@ def default_n_workers(
     # An empty list is left for the device validation to name.
     return max(1, len(device))
   n_cores = physical_cores()
+  if (
+    issubclass(backend_type, OnnxBackend)
+    and "GPU" not in device
+    and n_cores > 1
+    and batch_size >= _ROWS_PER_CORE_FOR_ONE_ONNX_WORKER * n_cores
+  ):
+    _LOGGER.info(
+      f"n_workers defaulted to 1: with a batch of {batch_size} one onnx worker "
+      f"runs a row on each of the {n_cores} cores, on a single copy of the model."
+    )
+    return 1
   available, source = available_memory()
   model = model_bytes(model_path)
   worker = estimate_worker_bytes(backend_type, backend_kwargs, model, batch_size)

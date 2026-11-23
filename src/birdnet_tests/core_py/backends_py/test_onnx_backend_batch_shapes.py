@@ -3,8 +3,9 @@
 On a GPU every change of the input shape is expensive, so a batch shorter than
 the largest one so far is filled up to it with copies of its last segment, and
 the padding rows are dropped. On one CPU thread a batch gains nothing and costs
-cache, so its rows run one by one; with several threads it runs as it is.
-Pinned on a session stand-in.
+cache, so its rows run one by one. With several threads the rows of a batch
+that has one for every thread run in parallel, on a session reopened with one
+thread per call; a smaller batch runs as it is. Pinned on a session stand-in.
 """
 
 from pathlib import Path
@@ -13,6 +14,7 @@ import numpy as np
 import pytest
 
 from birdnet.acoustic.models.v3_0.onnx import AcousticOnnxBackendFP32V3_0
+from birdnet.core import backends
 
 pytestmark = pytest.mark.no_tf
 
@@ -130,8 +132,43 @@ def test_unload_forgets_the_largest_batch() -> None:
   assert session.shapes == [(4, 3), (2, 3)]
 
 
-def test_several_cpu_threads_run_a_batch_as_it_is() -> None:
-  backend, session = _backend("CPU", cpu_threads=3)
+def test_a_row_for_every_thread_runs_the_rows_in_parallel_on_one_thread_each(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  backend, first_session = _backend("CPU", cpu_threads=3)
+  reopened = _Session()
+  threads_asked_for: list[int | None] = []
+
+  def fake_load_onnx_model(
+    model_path: Path, device: str, cpu_threads: int | None = None
+  ) -> _Session:
+    threads_asked_for.append(cpu_threads)
+    return reopened
+
+  monkeypatch.setattr(backends, "load_onnx_model", fake_load_onnx_model)
+
+  result = backend.predict(_FULL)
+  short = backend.predict(_SHORT)
+
+  assert threads_asked_for == [1]
+  assert first_session.shapes == []
+  assert reopened.shapes == [(1, 3)] * 6
+  np.testing.assert_array_equal(result, _FULL[:, :2] * 2)
+  np.testing.assert_array_equal(short, _SHORT[:, :2] * 2)
+  pool = backend._row_pool
+  assert pool is not None
+  backend.unload()
+  with pytest.raises(RuntimeError, match="after shutdown"):
+    pool.submit(len, [])
+
+
+def test_fewer_rows_than_threads_run_as_one_batch(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  backend, session = _backend("CPU", cpu_threads=8)
+  monkeypatch.setattr(
+    backends, "load_onnx_model", lambda *_args: pytest.fail("session reopened")
+  )
 
   result = backend.predict(_FULL)
 
