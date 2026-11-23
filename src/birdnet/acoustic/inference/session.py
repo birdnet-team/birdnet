@@ -184,6 +184,8 @@ class AcousticSessionBase(
       )
 
     max_n_files = ProcessingConfig.validate_max_n_files(max_n_files)
+    device = ProcessingConfig.validate_device_names(device)
+    ProcessingConfig.validate_device_for_backend(device, model_backend_type)
 
     # Last, after every other check: it reads the host and logs its decision.
     if n_workers is None:
@@ -195,9 +197,11 @@ class AcousticSessionBase(
         batch_size=batch_size,
         prefetch_ratio=prefetch_ratio,
         segment_samples=duration_as_samples(model_segment_size_s, model_sample_rate),
+        device=device,
       )
     else:
       n_workers = ProcessingConfig.validate_n_workers(n_workers)
+    device = ProcessingConfig.validate_device(device, n_workers)
 
     return InferenceConfig(
       model_conf=ModelConfig(

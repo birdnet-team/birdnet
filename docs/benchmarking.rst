@@ -23,6 +23,8 @@ Example usage
 - Predict top 5 species for each segment using CPU und TFLite backend (single file): ``birdnet-benchmark soundscape.wav``
 - Predict all audio files in a directory: ``birdnet-benchmark path/to/audio/files/``
 - Use Protobuf backend: ``birdnet-benchmark soundscape.wav -b "pb"``
+- Use the acoustic 3.0 model on the ONNX backend: ``birdnet-benchmark soundscape.wav --model-version 3.0 -b "onnx"``
+- Use the Perch v2 model: ``birdnet-benchmark soundscape.wav -b "pb" --use-perch``
 - Output predictions for top 10 species: ``birdnet-benchmark soundscape.wav --top-k 10 --confidence -100``
 - Run on GPU: ``birdnet-benchmark soundscape.wav --backend "pb" --worker 1 --device "GPU" --batch-size 1000``
 

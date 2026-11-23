@@ -267,8 +267,15 @@ def default_n_workers(
   batch_size: int,
   prefetch_ratio: int,
   segment_samples: int,
+  device: str | list[str] = "CPU",
 ) -> int:
   """The worker count for ``n_workers=None``, logged with its reasons at INFO."""
+  if isinstance(device, list):
+    _LOGGER.info(
+      f"n_workers defaulted to {len(device)}: one for each entry of the device list."
+    )
+    # An empty list is left for the device validation to name.
+    return max(1, len(device))
   n_cores = physical_cores()
   available, source = available_memory()
   model = model_bytes(model_path)

@@ -514,6 +514,7 @@ class OnnxBackend(Backend, ABC):
     self._output_names: list[str] | None = None
     self._n_species: int | None = None
     self._cpu_threads = cast(int | None, kwargs.get(CPU_THREADS_ARG))
+    self._largest_batch = 0
 
   @classmethod
   def name(cls) -> str:
@@ -550,6 +551,7 @@ class OnnxBackend(Backend, ABC):
     self._input_name = None
     self._output_names = None
     self._n_species = None
+    self._largest_batch = 0
 
   @property
   def n_species(self) -> int:
@@ -570,13 +572,35 @@ class OnnxBackend(Backend, ABC):
     assert self._input_name is not None
     assert self._output_names is not None
 
+    n_rows = batch.shape[0]
+    if "GPU" in self._device_name:
+      batch = self._pad_to_largest_batch(batch)
     [result] = self._session.run(
       [self._output_names[out_idx]],
       {self._input_name: batch},
     )
     assert isinstance(result, np.ndarray)
     assert result.dtype == np.float32
-    return result
+    return result[:n_rows]
+
+  def _pad_to_largest_batch(self, batch: np.ndarray) -> np.ndarray:
+    """A batch smaller than the largest one so far, filled up to its size.
+
+    The CUDA provider sets its convolutions up again on every change of the
+    input shape, also back to a shape it has seen: 1.25 s for the acoustic 3.0
+    model on an RTX 3080 Ti with onnxruntime-gpu 1.26. A run ends with one
+    short batch per producer, so its rows are run at the usual shape and the
+    padding rows are dropped. The padding repeats the last row: real audio,
+    where silence can be a model's special case.
+    """
+    n_rows = batch.shape[0]
+    if n_rows >= self._largest_batch:
+      self._largest_batch = n_rows
+      return batch
+    padded = np.empty((self._largest_batch, *batch.shape[1:]), dtype=batch.dtype)
+    padded[:n_rows] = batch
+    padded[n_rows:] = batch[-1]
+    return padded
 
   def copy_from_device(self, inference_result: np.ndarray) -> np.ndarray:
     assert isinstance(inference_result, np.ndarray)
@@ -1044,15 +1068,9 @@ def set_gpu_device_tf(device: str, memory_growth: bool) -> str:
   # only once in the main process
   import tensorflow as tf
 
-  if memory_growth:
-    physical_devices = tf.config.list_physical_devices("GPU")
-    assert len(physical_devices) == 1
-    physical_device = physical_devices[0]
-    tf.config.experimental.set_memory_growth(physical_device, True)
-
-  logical_devices = tf.config.list_logical_devices("GPU")
-
-  if len(logical_devices) == 0:
+  physical_devices = tf.config.list_physical_devices("GPU")
+  # Also the outcome of a TensorFlow that cannot load its CUDA libraries.
+  if len(physical_devices) == 0:
     raise ValueError(
       "No GPU found! "
       "Please check your TensorFlow installation and ensure that a GPU is "
@@ -1060,6 +1078,12 @@ def set_gpu_device_tf(device: str, memory_growth: bool) -> str:
       "(pip install birdnet[and-cuda])."
     )
 
+  if memory_growth:
+    assert len(physical_devices) == 1
+    physical_device = physical_devices[0]
+    tf.config.experimental.set_memory_growth(physical_device, True)
+
+  logical_devices = tf.config.list_logical_devices("GPU")
   assert len(logical_devices) == 1
   dev = logical_devices[0]
   return dev.name

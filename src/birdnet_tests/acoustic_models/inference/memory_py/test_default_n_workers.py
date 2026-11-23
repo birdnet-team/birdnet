@@ -96,3 +96,39 @@ def test_a_cgroup_limit_below_the_hosts_view_decides(
     session = fake_predict_session(tmp_path, n_workers=None)
   assert session._conf.processing_conf.workers == 3
   assert any("(cgroup limit)" in r.getMessage() for r in caplog.records)
+
+
+def test_a_gpu_gets_the_default_of_the_cpu(
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+  """A worker per core, fitted to the host's memory: the device's is not known."""
+  _simulate(monkeypatch, 1024)
+  session = fake_predict_session(tmp_path, n_workers=None, device="GPU:1")
+  assert session._conf.processing_conf.workers == 3
+
+
+def test_a_device_list_gets_one_worker_for_each_entry(
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+  _simulate(monkeypatch, 10**6)
+  session = fake_predict_session(
+    tmp_path, n_workers=None, device=["GPU:0", "GPU:1", "CPU"]
+  )
+  assert session._conf.processing_conf.workers == 3
+
+
+def test_an_empty_device_list_is_rejected_not_given_a_worker(
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+  _simulate(monkeypatch, 10**6)
+  with pytest.raises(ValueError, match=r"length of device list \(0\) must match"):
+    fake_predict_session(tmp_path, n_workers=None, device=[])
+
+
+def test_a_misspelt_device_is_rejected_before_the_default_is_decided(
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+  _simulate(monkeypatch, 1024)
+  with caplog.at_level(logging.INFO, logger="birdnet"), pytest.raises(ValueError):
+    fake_predict_session(tmp_path, n_workers=None, device="gpu")
+  assert not any("n_workers defaulted" in r.getMessage() for r in caplog.records)

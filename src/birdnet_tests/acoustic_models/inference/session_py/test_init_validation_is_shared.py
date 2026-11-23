@@ -49,6 +49,10 @@ def _on_file(result: object) -> None:
       # The fake sessions default to show_stats=None.
       ("progress_callback", _progress, ValueError, r"Progress callback can only"),
       ("max_n_files", 0, ValueError, r"max_n_files must be >= 1"),
+      ("device", "gpu", ValueError, r"device must contain 'CPU' or 'GPU'"),
+      ("device", 42, TypeError, r"device must be a string or a list of strings"),
+      # The fake sessions default to two workers.
+      ("device", ["CPU"], ValueError, r"length of device list \(1\) must match"),
       ("on_file_complete", 42, TypeError, r"on_file_complete must be callable"),
     ]
   ],
