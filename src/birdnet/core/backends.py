@@ -224,6 +224,7 @@ class TFBackend(Backend, ABC):
     assert device_name == "CPU"
     super().__init__(model_path, device_name, half_precision)
     self._interp: LiteRTInterpreter | TFInterpreter | None = None
+    self._default_delegates = False
     self._cached_shape: tuple[int, ...] | None = None
     self._input_idx: int | None = None
     self._prediction_idx: int | None = None
@@ -255,24 +256,68 @@ class TFBackend(Backend, ABC):
   def load(self) -> None:
     assert self._interp is None
 
+    self._default_delegates = self.uses_default_delegates()
     self._interp = load_tf_model(
       self._model_path,
       self._inference_library,
       allocate_tensors=False,
+      default_delegates=self._default_delegates,
     )
     self._input_idx, self._prediction_idx, self._embeddings_idx = (
       self._resolve_tensor_indices(self._interp)
     )
+    if self._default_delegates and not _is_graph_output(
+      self._interp, self._prediction_idx
+    ):
+      self._reopen(default_delegates=False)
+      return
     # Allocated here, so a file the interpreter cannot run fails at load, where
     # the validity check of load_custom sees it. A file that leaves its input
     # length open stores a placeholder for it, which LiteRT 2.2.0 and later
     # refuse to allocate: that one is allocated with its first batch, after the
     # resize (_set_tensor).
     if not _input_length_is_open(self._interp, self._input_idx):
+      self._allocate()
+
+  @classmethod
+  def uses_default_delegates(cls) -> bool:
+    """Whether the interpreter may apply its default delegate, XNNPACK.
+
+    XNNPACK runs the acoustic models 1.2 to 3.4 times as fast as the builtin
+    kernels (2.4 and 3.0 fp32, TensorFlow 2.20 and 2.21, LiteRT 2.0.2 and 2.4,
+    x86-64), with scores that differ by float noise, and holds its own packed
+    copy of the weights. It keeps no tensor inside the part of the graph it
+    takes over, so only graph outputs can be read from it: a backend that
+    reads any other tensor is reopened without it.
+    """
+    return False
+
+  def _reopen(
+    self, *, default_delegates: bool, preserve_all_tensors: bool = False
+  ) -> None:
+    """Replace the interpreter by one opened with other options."""
+    assert self._input_idx is not None
+    self._interp = load_tf_model(
+      self._model_path,
+      self._inference_library,
+      allocate_tensors=False,
+      preserve_all_tensors=preserve_all_tensors,
+      default_delegates=default_delegates,
+    )
+    self._default_delegates = default_delegates
+    self._cached_shape = None
+    if not _input_length_is_open(self._interp, self._input_idx):
+      self._allocate()
+
+  def _allocate(self) -> None:
+    assert self._interp is not None
+    # The delegate is created here and announces itself on the native stderr.
+    with suppress_native_stderr():
       self._interp.allocate_tensors()
 
   def unload(self) -> None:
     self._interp = None
+    self._default_delegates = False
     self._cached_shape = None
     self._input_idx = None
     self._prediction_idx = None
@@ -303,11 +348,21 @@ class TFBackend(Backend, ABC):
     shape = batch.shape
     if self._cached_shape != shape:
       self._interp.resize_tensor_input(self._input_idx, shape, strict=True)
-      self._interp.allocate_tensors()
+      self._allocate()
       self._cached_shape = shape
     self._interp.set_tensor(self._input_idx, batch)
 
+  @classmethod
+  def runs_rows_one_by_one(cls) -> bool:
+    """Whether a batch is run one row at a time (see `_single_rows`)."""
+    return False
+
   def _infer(self, batch: np.ndarray, out_idx: int) -> np.ndarray:
+    if batch.shape[0] == 1 or not self.runs_rows_one_by_one():
+      return self._invoke(batch, out_idx)
+    return np.concatenate([self._invoke(row, out_idx) for row in _single_rows(batch)])
+
+  def _invoke(self, batch: np.ndarray, out_idx: int) -> np.ndarray:
     assert self._interp is not None
 
     self._set_tensor(batch)
@@ -317,7 +372,14 @@ class TFBackend(Backend, ABC):
     return res
 
   def _prepare_encoding(self) -> None:
-    """Hook run before the first `encode` call of a loaded backend."""
+    """Hook run before every `encode` call of a loaded backend."""
+    assert self._interp is not None
+    if (
+      self._default_delegates
+      and self._embeddings_idx is not None
+      and not _is_graph_output(self._interp, self._embeddings_idx)
+    ):
+      self._reopen(default_delegates=False)
 
   def copy_from_device(self, inference_result: np.ndarray) -> np.ndarray:
     assert isinstance(inference_result, np.ndarray)
@@ -568,20 +630,26 @@ class OnnxBackend(Backend, ABC):
     return self._n_species
 
   def _infer(self, batch: np.ndarray, out_idx: int) -> np.ndarray:
-    assert self._session is not None
-    assert self._input_name is not None
     assert self._output_names is not None
 
     n_rows = batch.shape[0]
+    output_name = self._output_names[out_idx]
     if "GPU" in self._device_name:
-      batch = self._pad_to_largest_batch(batch)
-    [result] = self._session.run(
-      [self._output_names[out_idx]],
-      {self._input_name: batch},
-    )
+      result = self._run(output_name, self._pad_to_largest_batch(batch))[:n_rows]
+    elif n_rows > 1 and self._cpu_threads == 1:
+      rows = [self._run(output_name, row) for row in _single_rows(batch)]
+      result = np.concatenate(rows)
+    else:
+      result = self._run(output_name, batch)
     assert isinstance(result, np.ndarray)
     assert result.dtype == np.float32
-    return result[:n_rows]
+    return result
+
+  def _run(self, output_name: str, batch: np.ndarray) -> np.ndarray:
+    assert self._session is not None
+    assert self._input_name is not None
+    [result] = self._session.run([output_name], {self._input_name: batch})
+    return cast(np.ndarray, result)
 
   def _pad_to_largest_batch(self, batch: np.ndarray) -> np.ndarray:
     """A batch smaller than the largest one so far, filled up to its size.
@@ -1112,6 +1180,24 @@ def load_pb_model(model_path: Path, logical_device_name: str) -> Any:
   return model
 
 
+def _single_rows(batch: np.ndarray) -> list[np.ndarray]:
+  """The batch as batches of one row each.
+
+  On one CPU thread a model gains nothing from a batch, and with a worker on
+  every core it loses: the larger activations no longer fit the caches the
+  workers share. With 12 workers on 12 cores the 3.0 ONNX model ran 71.7
+  segments per second at batch size 1, 54.2 at 4 and 45.8 at 16, the 2.4 TFLite
+  model 236, 198 and 168.
+  """
+  return [batch[i : i + 1] for i in range(batch.shape[0])]
+
+
+def _is_graph_output(
+  interp: LiteRTInterpreter | TFInterpreter, tensor_idx: int
+) -> bool:
+  return any(int(d["index"]) == tensor_idx for d in interp.get_output_details())
+
+
 def _input_length_is_open(
   interp: LiteRTInterpreter | TFInterpreter, input_idx: int
 ) -> bool:
@@ -1129,6 +1215,7 @@ def load_tf_model(
   library: Literal["tflite"],
   allocate_tensors: bool = False,
   preserve_all_tensors: bool = False,
+  default_delegates: bool = False,
 ) -> TFInterpreter: ...
 @overload
 def load_tf_model(
@@ -1136,6 +1223,7 @@ def load_tf_model(
   library: Literal["litert"],
   allocate_tensors: bool = False,
   preserve_all_tensors: bool = False,
+  default_delegates: bool = False,
 ) -> LiteRTInterpreter: ...
 @overload
 def load_tf_model(
@@ -1143,6 +1231,7 @@ def load_tf_model(
   library: LIBRARY_TYPES,
   allocate_tensors: bool = False,
   preserve_all_tensors: bool = False,
+  default_delegates: bool = False,
 ) -> TFInterpreter | LiteRTInterpreter: ...
 
 
@@ -1151,24 +1240,37 @@ def load_tf_model(
   library: LIBRARY_TYPES,
   allocate_tensors: bool = False,
   preserve_all_tensors: bool = False,
+  default_delegates: bool = False,
 ):
   # preserve_all_tensors keeps intermediate tensors readable after invoke().
   # The interpreter otherwise reuses their memory, so reading one (a custom
   # 2.4 classifier's embeddings) returns whatever was computed there last.
+  # default_delegates lets the interpreter apply XNNPACK with the first
+  # allocation; tensors that are not graph outputs are then unreadable.
+  assert not (preserve_all_tensors and default_delegates)
   if library == LIBRARY_TFLITE:
     return load_lib_tf_model(
       model_path,
       allocate_tensors=allocate_tensors,
       preserve_all_tensors=preserve_all_tensors,
+      default_delegates=default_delegates,
     )
   elif library == LIBRARY_LITERT:
     return load_lib_litert_model(
       model_path,
       allocate_tensors=allocate_tensors,
       preserve_all_tensors=preserve_all_tensors,
+      default_delegates=default_delegates,
     )
   else:
     raise AssertionError()
+
+
+def _op_resolver_type(tflite: Any, default_delegates: bool) -> Any:  # noqa: ANN401
+  resolver = tflite.OpResolverType
+  if default_delegates:
+    return resolver.AUTO
+  return resolver.BUILTIN_WITHOUT_DEFAULT_DELEGATES
 
 
 def _interpreter_model_argument(model_path: Path) -> dict[str, Any]:
@@ -1188,6 +1290,7 @@ def load_lib_tf_model(
   model_path: Path,
   allocate_tensors: bool = False,
   preserve_all_tensors: bool = False,
+  default_delegates: bool = False,
 ) -> TFInterpreter:
   assert model_path.is_file()
   assert tf_installed()
@@ -1224,9 +1327,8 @@ def load_lib_tf_model(
       interp = tflite.Interpreter(
         **_interpreter_model_argument(model_path),
         num_threads=1,
-        experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,
+        experimental_op_resolver_type=_op_resolver_type(tflite, default_delegates),
         experimental_preserve_all_tensors=preserve_all_tensors,
-        # tensor#187 is a dynamic-sized tensor
       )
     except ValueError as e:
       raise ValueError(
@@ -1242,7 +1344,8 @@ def load_lib_tf_model(
   )
 
   if allocate_tensors:
-    interp.allocate_tensors()
+    with suppress_native_stderr():
+      interp.allocate_tensors()
 
   import absl.logging as absl_logging
 
@@ -1258,6 +1361,7 @@ def load_lib_litert_model(
   model_path: Path,
   allocate_tensors: bool = False,
   preserve_all_tensors: bool = False,
+  default_delegates: bool = False,
 ) -> LiteRTInterpreter:
   assert model_path.is_file()
   assert litert_installed()
@@ -1269,9 +1373,8 @@ def load_lib_litert_model(
     interp = tflite.Interpreter(
       **_interpreter_model_argument(model_path),
       num_threads=1,
-      experimental_op_resolver_type=tflite.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,
+      experimental_op_resolver_type=_op_resolver_type(tflite, default_delegates),
       experimental_preserve_all_tensors=preserve_all_tensors,
-      # tensor#187 is a dynamic-sized tensor
     )
   except ValueError as e:
     raise ValueError(
@@ -1287,7 +1390,8 @@ def load_lib_litert_model(
   )
 
   if allocate_tensors:
-    interp.allocate_tensors()
+    with suppress_native_stderr():
+      interp.allocate_tensors()
 
   return interp
 

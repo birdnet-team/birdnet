@@ -80,14 +80,16 @@ class WorkerCost:
 
 
 # Max RssAnon of one worker, Linux x86_64, spawn, Python 3.13, TensorFlow 2.21,
-# onnxruntime 1.24, fp32 models, 12 cores shared by the workers: tflite 236 MiB
-# (49 MiB model), pb 2.4 ~700 MiB (56 MiB model) and pb 3.0 ~1800 MiB (520 MiB
-# model), onnx 3.0 730 MiB (516 MiB model); batch 8 added 12-18 MiB per
-# segment. Not measured: litert, pt, fp16 and int8 files (which the runtimes
-# may widen to fp32), the 3.0 tflite file, Perch V2 and GPU devices. "other"
-# is any backend outside this module's classes, such as the test stub.
+# LiteRT 2.4, fp32 models, 12 workers on 12 cores at batch size 1. With XNNPACK,
+# which keeps its own packed copy of the weights: tflite 304 MiB for 2.4 (49 MiB
+# model) and 579 MiB for 3.0 (328 MiB model), litert 99 and 374 MiB; onnx 3.0
+# 544 MiB (329 MiB model, onnxruntime 1.32). With onnxruntime 1.24: pb 2.4
+# ~700 MiB (56 MiB model) and pb 3.0 ~1800 MiB (520 MiB model); batch 8 added
+# 12-18 MiB per segment. Not measured: pt, fp16 and int8 files (which the
+# runtimes may widen to fp32), Perch V2 and GPU devices. "other" is any backend
+# outside this module's classes, such as the test stub.
 _WORKER_COSTS: dict[str, WorkerCost] = {
-  "tflite": WorkerCost(180 * _MIB, 1.2, 15 * _MIB),
+  "tflite": WorkerCost(235 * _MIB, 1.2, 15 * _MIB),
   "litert": WorkerCost(60 * _MIB, 1.2, 15 * _MIB),
   "pb": WorkerCost(550 * _MIB, 2.4, 18 * _MIB),
   "onnx": WorkerCost(150 * _MIB, 1.1, 12 * _MIB),

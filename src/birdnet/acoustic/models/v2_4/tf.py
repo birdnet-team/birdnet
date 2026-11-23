@@ -145,11 +145,26 @@ class _AcousticTFBackendV2_4(PinnedTFBackend, VersionedAcousticBackendProtocol):
     return 0
 
   @classmethod
+  def uses_default_delegates(cls) -> bool:
+    return True
+
+  @classmethod
+  def runs_rows_one_by_one(cls) -> bool:
+    return True
+
+  @classmethod
   def supports_encoding(cls) -> bool:
     return True
 
 
 class AcousticTFBackendInt8V2_4(_AcousticTFBackendV2_4):
+  @classmethod
+  def uses_default_delegates(cls) -> bool:
+    # XNNPACK runs the quantized layers with other kernels: logits differ from
+    # the builtin ones by more than one, 1.2 to 1.8 on the inputs measured
+    # (LiteRT 2.4, x86-64).
+    return False
+
   @classmethod
   def prediction_out_idx(cls) -> int:
     return 643

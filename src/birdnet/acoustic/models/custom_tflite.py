@@ -350,6 +350,14 @@ class CustomTFLiteBackend(TFBackend, ABC):
     return "fp32"
 
   @classmethod
+  def uses_default_delegates(cls) -> bool:
+    return True
+
+  @classmethod
+  def runs_rows_one_by_one(cls) -> bool:
+    return True
+
+  @classmethod
   def supports_encoding(cls) -> bool:
     return True
 
@@ -395,11 +403,5 @@ class CustomTFLiteBackend(TFBackend, ABC):
       return
     # Reloaded on the first encode only: preservation costs ~110 MB per
     # interpreter, which a prediction session need not pay.
-    self._interp = load_tf_model(
-      self._model_path,
-      self._inference_library,
-      allocate_tensors=True,
-      preserve_all_tensors=True,
-    )
-    self._cached_shape = None
+    self._reopen(default_delegates=False, preserve_all_tensors=True)
     self._preserving_tensors = True
