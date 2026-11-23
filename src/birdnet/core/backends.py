@@ -1366,7 +1366,9 @@ def load_lib_litert_model(
   assert model_path.is_file()
   assert litert_installed()
 
-  from ai_edge_litert import interpreter as tflite
+  # LiteRT 2.0 writes TensorFlow's native startup banner as it is imported.
+  with suppress_native_stderr():
+    from ai_edge_litert import interpreter as tflite
 
   start = time.perf_counter()
   try:

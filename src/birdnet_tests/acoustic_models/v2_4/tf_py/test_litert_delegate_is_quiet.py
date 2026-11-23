@@ -1,8 +1,10 @@
 """Loading a model on LiteRT's default delegate writes nothing to stderr.
 
 The interpreter announces the delegate from native code as it allocates
-(``INFO: Created TensorFlow Lite XNNPACK delegate for CPU.``), once in every
-worker. A fresh interpreter per run: the line is written once per process.
+(``INFO: Created TensorFlow Lite XNNPACK delegate for CPU.``), and LiteRT 2.0
+prints TensorFlow's oneDNN notice as it is imported, on a CPU that has those
+optimizations on. Both once in every worker. A fresh interpreter per run: the
+lines are written once per process.
 """
 
 import os
