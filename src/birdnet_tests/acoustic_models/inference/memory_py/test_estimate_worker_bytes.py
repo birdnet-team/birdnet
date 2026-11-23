@@ -65,6 +65,24 @@ def test_litert_costs_less_runtime_than_tensorflow() -> None:
   )
 
 
+@pytest.mark.parametrize(
+  ("key", "model_mib", "measured_mib"),
+  [
+    # Max RssAnon of one of 12 workers at batch size 1 (see _WORKER_COSTS).
+    ("tflite", 49, 304),
+    ("tflite", 328, 579),
+    ("litert", 49, 99),
+    ("litert", 328, 374),
+    ("onnx", 329, 544),
+  ],
+)
+def test_the_estimate_is_at_most_five_percent_under_a_measured_worker(
+  key: str, model_mib: int, measured_mib: int
+) -> None:
+  estimate = memory._WORKER_COSTS[key].estimate(model_mib * _MIB, batch_size=1)
+  assert estimate >= 0.95 * measured_mib * _MIB
+
+
 def test_estimate_is_runtime_plus_model_plus_batch() -> None:
   cost = WorkerCost(100 * _MIB, 1.5, 10 * _MIB)
   assert cost.estimate(model_bytes=200 * _MIB, batch_size=4) == 440 * _MIB

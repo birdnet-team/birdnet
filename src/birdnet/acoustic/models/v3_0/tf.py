@@ -39,9 +39,28 @@ class AcousticTFDownloaderV3_0(_AcousticSingleFileDownloaderV3_0):
   _models = models
 
 
+def _is_full_precision(precision: MODEL_PRECISIONS) -> bool:
+  """Whether XNNPACK may run a 3.0 file of that precision.
+
+  The official fp16 file carries `reduced_precision_support = fp16accfp32`, the
+  metadata that lets XNNPACK compute in half precision on CPUs that have it
+  (ARMv8.2 FP16, AVX512-FP16). Not measured there, so fp16 files keep the
+  builtin kernels.
+  """
+  return precision != MODEL_PRECISION_FP16
+
+
 class _AcousticTFBackendV3_0(TFBackend, VersionedAcousticBackendProtocol):
   @classmethod
   def supports_encoding(cls) -> bool:
+    return True
+
+  @classmethod
+  def uses_default_delegates(cls) -> bool:
+    return _is_full_precision(cls.precision())
+
+  @classmethod
+  def runs_rows_one_by_one(cls) -> bool:
     return True
 
   def _resolve_tensor_indices(
@@ -103,6 +122,10 @@ class AcousticTFBackendCustomV3_0(
   @classmethod
   def model_version(cls) -> ACOUSTIC_MODEL_VERSIONS:
     return "3.0"
+
+  @classmethod
+  def uses_default_delegates(cls) -> bool:
+    return _is_full_precision(cls.precision())
 
 
 class AcousticTFBackendCustomFP16V3_0(AcousticTFBackendCustomV3_0):
