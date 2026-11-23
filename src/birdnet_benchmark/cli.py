@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from datetime import timedelta
 from functools import partial
 from pathlib import Path
-from typing import cast
 
 import numpy as np
 import psutil
@@ -26,12 +25,11 @@ from birdnet.core.backends import litert_installed, tf_installed
 from birdnet.globals import (
   ACOUSTIC_MODEL_VERSION_V2_4,
   LIBRARY_TFLITE,
-  LIBRARY_TYPES,
   MODEL_BACKEND_PB,
   MODEL_BACKEND_TF,
   MODEL_PRECISION_FP32,
-  MODEL_PRECISIONS,
   MODEL_TYPE_ACOUSTIC,
+  VALID_ACOUSTIC_MODEL_VERSIONS,
   VALID_LIBRARY_TYPES,
   VALID_MODEL_BACKENDS,
   VALID_MODEL_PRECISIONS,
@@ -49,8 +47,6 @@ from birdnet_benchmark.argparse_helper import (
   parse_positive_integer,
 )
 
-APPLY_SIGMOID = True
-SIGMOID_SENSITIVITY = 1.0
 CUSTOM_SPECIES = None
 
 
@@ -83,6 +79,19 @@ def run_benchmark_from_args(args: list[str]) -> None:
     metavar="FILE_OR_FOLDER",
     help="input files/folders",
     action=ConvertToSetAction,
+  )
+
+  parser.add_argument(
+    "-m",
+    "--model-version",
+    type=str,
+    choices=VALID_ACOUSTIC_MODEL_VERSIONS,
+    metavar="VERSION",
+    help=(
+      "acoustic model version: 2.4 runs on the tf and pb backends, 3.0 also on "
+      f"onnx and pt (default: {ACOUSTIC_MODEL_VERSION_V2_4})"
+    ),
+    default=ACOUSTIC_MODEL_VERSION_V2_4,
   )
 
   parser.add_argument(
@@ -147,7 +156,7 @@ def run_benchmark_from_args(args: list[str]) -> None:
     "--batch-size",
     type=parse_positive_integer,
     metavar="BATCH-SIZE",
-    help="number of top species to return for each audio segment (default: 1)",
+    help="number of audio segments per inference call (default: 1)",
     default=1,
   )
 
@@ -167,7 +176,7 @@ def run_benchmark_from_args(args: list[str]) -> None:
     nargs="+",
     metavar="DEVICE",
     help=(
-      "device(s) to use for processing (only available for the Protobuf backend), e.g.,"
+      "device(s) to use for processing (GPUs need the pb, onnx or pt backend), e.g.,"
       " 'CPU', 'GPU', 'GPU:0', 'GPU:1', ...,  (default: 'CPU'); either string or list"
       " of strings, latter is useful for multi-GPU setups, the first GPU will be used "
       "for the first producer, the second for the second producer, etc."
@@ -230,7 +239,7 @@ def run_benchmark_from_args(args: list[str]) -> None:
   parser.add_argument(
     "--use-perch",
     action="store_true",
-    help="use the Perch v2 model for benchmarking instead of the Acoustic v2.4 model "
+    help="use the Perch v2 model for benchmarking instead of a BirdNET model "
     "[only available with the Protobuf backend]",
     default=False,
   )
@@ -243,12 +252,15 @@ def run_benchmark_from_args(args: list[str]) -> None:
 class BenchmarkResultContainer:
   ns: Namespace
   model: AcousticModelBase
+  apply_sigmoid: bool
   output: AcousticPredictionResultBase | None = None
   stats: AcousticProgressStats | None = None
 
 
 def run_benchmark_from_ns(ns: Namespace) -> None:
   model: AcousticModelBase
+  apply_sigmoid = True
+  sigmoid_sensitivity: float | None = 1.0
   if ns.use_perch:
     if ns.backend != MODEL_BACKEND_PB:
       raise ValueError(
@@ -259,52 +271,48 @@ def run_benchmark_from_ns(ns: Namespace) -> None:
 
     first_device = ns.devices[0] if len(ns.devices) > 0 else "CPU"
     model = load_perch_v2(device=first_device)
+    # Perch's own defaults: its logits are not made for a sigmoid.
+    apply_sigmoid = False
+    sigmoid_sensitivity = None
   else:
+    load_kwargs: dict[str, str] = {}
     if ns.backend == MODEL_BACKEND_TF:
-      model = birdnet.model_loader.load(
-        MODEL_TYPE_ACOUSTIC,
-        ACOUSTIC_MODEL_VERSION_V2_4,
-        MODEL_BACKEND_TF,
-        precision=cast(MODEL_PRECISIONS, ns.precision),
-        library=cast(LIBRARY_TYPES, ns.tf_library),
-      )
-    elif ns.backend == MODEL_BACKEND_PB:
-      model = birdnet.model_loader.load(
-        MODEL_TYPE_ACOUSTIC,
-        ACOUSTIC_MODEL_VERSION_V2_4,
-        MODEL_BACKEND_PB,
-        precision=MODEL_PRECISION_FP32,
-      )
-    else:
-      raise AssertionError()
-
-    result_container = BenchmarkResultContainer(ns, model)
-
-    show_stats_fn = partial(show_progress_stats, result_container=result_container)
-    result_container.output = model.predict(
-      ns.inputs,
-      top_k=ns.top_k,
-      n_producers=ns.producers,
-      n_workers=ns.workers,
-      batch_size=ns.batch_size,
-      overlap_duration_s=ns.overlap,
-      speed=ns.speed,
-      default_confidence_threshold=ns.confidence,
-      custom_confidence_thresholds=None,
-      apply_sigmoid=APPLY_SIGMOID,
-      sigmoid_sensitivity=SIGMOID_SENSITIVITY,
-      custom_species_list=CUSTOM_SPECIES,
-      half_precision=ns.half_precision,
-      max_audio_duration_min=None,
-      show_stats=ns.show_stats,
-      device=ns.devices if len(ns.devices) > 1 else ns.devices[0],
-      prefetch_ratio=ns.prefetch_ratio,
-      progress_callback=show_stats_fn,
-      bandpass_fmin=model.get_sig_fmin(),
-      bandpass_fmax=model.get_sig_fmax(),
+      load_kwargs["library"] = ns.tf_library
+    model = birdnet.model_loader.load(
+      MODEL_TYPE_ACOUSTIC,
+      ns.model_version,
+      ns.backend,
+      precision=ns.precision,
+      **load_kwargs,
     )
 
-    save_statistics(result_container)
+  result_container = BenchmarkResultContainer(ns, model, apply_sigmoid)
+
+  show_stats_fn = partial(show_progress_stats, result_container=result_container)
+  result_container.output = model.predict(
+    ns.inputs,
+    top_k=ns.top_k,
+    n_producers=ns.producers,
+    n_workers=ns.workers,
+    batch_size=ns.batch_size,
+    overlap_duration_s=ns.overlap,
+    speed=ns.speed,
+    default_confidence_threshold=ns.confidence,
+    custom_confidence_thresholds=None,
+    apply_sigmoid=apply_sigmoid,
+    sigmoid_sensitivity=sigmoid_sensitivity,
+    custom_species_list=CUSTOM_SPECIES,
+    half_precision=ns.half_precision,
+    max_audio_duration_min=None,
+    show_stats=ns.show_stats,
+    device=ns.devices if len(ns.devices) > 1 else ns.devices[0],
+    prefetch_ratio=ns.prefetch_ratio,
+    progress_callback=show_stats_fn,
+    bandpass_fmin=model.get_sig_fmin(),
+    bandpass_fmax=model.get_sig_fmax(),
+  )
+
+  save_statistics(result_container)
 
 
 def show_progress_stats(
@@ -395,8 +403,8 @@ def save_statistics(result_container: BenchmarkResultContainer) -> None:
   params["prefetch_ratio"] = ns.prefetch_ratio
   params["top_k"] = ns.top_k
   params["confidence_threshold"] = ns.confidence
-  params["apply_sigmoid"] = APPLY_SIGMOID
-  params["sigmoid_sensitivity"] = SIGMOID_SENSITIVITY
+  params["apply_sigmoid"] = result_container.apply_sigmoid
+  params["sigmoid_sensitivity"] = 1.0 if result_container.apply_sigmoid else None
   params["custom_species"] = CUSTOM_SPECIES
   result_json["params"] = params
 

@@ -411,6 +411,7 @@ def fake_predict_session(
   max_audio_duration_min: float | None = None,
   max_n_files: int = 1024,
   model_sample_rate: int = 48_000,
+  device: str | list[str] = "CPU",
   **kwargs: object,
 ) -> AcousticPredictionSession:
   return AcousticPredictionSession(
@@ -443,7 +444,7 @@ def fake_predict_session(
     max_audio_duration_min=max_audio_duration_min,
     show_stats=show_stats,
     progress_callback=progress_callback,
-    device="CPU",
+    device=device,
     max_n_files=max_n_files,
     **kwargs,  # type: ignore[arg-type]
   )
@@ -468,6 +469,7 @@ def fake_encode_session(
   max_audio_duration_min: float | None = None,
   max_n_files: int = 1024,
   model_sample_rate: int = 48_000,
+  device: str | list[str] = "CPU",
   **kwargs: object,
 ) -> AcousticEncodingSession:
   return AcousticEncodingSession(
@@ -494,7 +496,7 @@ def fake_encode_session(
     max_audio_duration_min=max_audio_duration_min,
     show_stats=show_stats,
     progress_callback=progress_callback,
-    device="CPU",
+    device=device,
     max_n_files=max_n_files,
     **kwargs,  # type: ignore[arg-type]
   )

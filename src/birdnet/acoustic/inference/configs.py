@@ -15,6 +15,7 @@ from ordered_set import OrderedSet
 from birdnet.acoustic.inference.core.perf_tracker import AcousticProgressStats
 from birdnet.acoustic.inference.core.tensor import AcousticTensorBase
 from birdnet.core.backends import (
+  TFBackend,
   VersionedAcousticBackendProtocol,
   VersionedBackendProtocol,
 )
@@ -153,25 +154,48 @@ class ProcessingConfig:
     return value
 
   @classmethod
-  def validate_device(
+  def validate_device_names(
     cls,
     device: Any | list[Any],  # noqa: ANN401
-    workers: int,
   ) -> str | list[str]:
     if isinstance(device, str):
       if "GPU" not in device and "CPU" not in device:
         raise ValueError("device must contain 'CPU' or 'GPU'")
     elif isinstance(device, list):
-      if len(device) != workers:
-        raise ValueError(
-          f"length of device list ({len(device)}) must match number of "
-          f"workers ({workers})"
-        )
       for d in device:
-        cls.validate_device(d, workers)
+        if not isinstance(d, str):
+          raise TypeError("device must be a string or a list of strings")
+        cls.validate_device_names(d)
     else:
       raise TypeError("device must be a string or a list of strings")
     return device
+
+  @classmethod
+  def validate_device(
+    cls,
+    device: Any | list[Any],  # noqa: ANN401
+    workers: int,
+  ) -> str | list[str]:
+    if isinstance(device, list) and len(device) != workers:
+      raise ValueError(
+        f"length of device list ({len(device)}) must match number of "
+        f"workers ({workers})"
+      )
+    return cls.validate_device_names(device)
+
+  @classmethod
+  def validate_device_for_backend(
+    cls, device: str | list[str], backend_type: type[VersionedBackendProtocol]
+  ) -> None:
+    if not issubclass(backend_type, TFBackend):
+      return
+    for name in device if isinstance(device, list) else [device]:
+      if name != "CPU":
+        raise ValueError(
+          f"device '{name}' is not available for the '{backend_type.name()}' "
+          "backend: its TFLite interpreter runs on the CPU only, so device must "
+          "be 'CPU'"
+        )
 
   @classmethod
   def validate_half_precision(cls, half_precision: Any) -> bool:  # noqa: ANN401

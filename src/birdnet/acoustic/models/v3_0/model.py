@@ -782,9 +782,11 @@ class AcousticModelV3_0(AcousticModelBase):
         as there are physical CPU cores, or fewer when the memory available to
         this process (a cgroup limit included) would not hold that many: each
         worker holds its own copy of the model, so peak memory grows with the
-        count. The decision and its estimate are logged at INFO. Pass a fixed
-        integer to meet a scheduler or container process limit, or to override
-        the estimate. In the cases the pipeline guards against, a
+        count. With a list of devices ``None`` starts one worker for each entry.
+        The decision and its estimate are logged at INFO. Pass a fixed integer
+        to meet a scheduler or container process limit, to override the
+        estimate, or for a GPU, whose memory the estimate does not know: every
+        worker loads the model into it. In the cases the pipeline guards against, a
         worker killed by the operating system to reclaim memory, including while
         it is processing a batch, is reported as an error naming the dead worker
         rather than hanging the call (see issue #73). Lowering ``n_workers`` or
