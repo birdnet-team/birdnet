@@ -10,6 +10,7 @@ per-call barrier from the machinery's own bookkeeping.
 
 from __future__ import annotations
 
+import sys
 import time
 from pathlib import Path
 
@@ -22,6 +23,12 @@ from birdnet_tests.fake_acoustic_backend import fake_predict_session
 pytestmark = pytest.mark.no_tf
 
 _SAMPLE_RATE = 48_000
+_TOLL_BOUND_S = 0.100
+# macOS has no sem_timedwait, so CPython polls for a timed semaphore wait in
+# steps of up to 20 ms, and the tracker puts several such waits on every run's
+# path: the fastest warm call with it measured 103 ms on macos-15 (Python 3.15).
+# A 200 ms sleep-poll in the wait for the tracker costs at least this per call.
+_TOLL_BOUND_MACOS_TRACKER_S = 0.200
 
 
 def _clip(seconds: float = 3.0) -> tuple[np.ndarray, int]:
@@ -87,7 +94,10 @@ def test_a_warm_call_pays_no_fixed_reader_toll(
       durations.append(time.perf_counter() - start)
 
   fastest = min(durations)
-  assert fastest < 0.100, (
+  bound = _TOLL_BOUND_S
+  if show_stats is not None and sys.platform == "darwin":
+    bound = _TOLL_BOUND_MACOS_TRACKER_S
+  assert fastest < bound, (
     f"fastest warm run_arrays took {fastest * 1000:.1f} ms on a stub backend "
     f"whose inference is ~2 ms; a fixed per-call toll is back. "
     f"Samples: {[round(d * 1000, 1) for d in durations]}"
