@@ -4,11 +4,11 @@ import os
 import queue
 import threading
 from collections.abc import Callable
-from multiprocessing.synchronize import Event
 
 import numpy as np
 
 import birdnet.acoustic.inference.core.logs as bn_logging
+from birdnet.acoustic.inference.core.sync import SharedFlag
 
 # (file_path, tensor_slice_arrays, is_invalid, duration_s)
 # ``tensor_slice_arrays`` is a strategy-specific tuple of copied per-file arrays
@@ -34,8 +34,8 @@ class FileCompletionDispatcher:
     dispatch_queue: queue.Queue,
     callback_fn: Callable[[object], None],
     build_result_fn: BuildResultFn,
-    cancel_event: Event,
-    end_event: Event,
+    cancel_event: SharedFlag,
+    end_event: SharedFlag,
     start_signal: threading.Event,
     finish_signal: threading.Event,
     report_error: Callable[[BaseException], None] | None = None,

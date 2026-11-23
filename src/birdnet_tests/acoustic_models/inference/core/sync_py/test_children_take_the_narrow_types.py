@@ -2,6 +2,7 @@
 
 The protocols only bite where they are used: a child constructor annotated
 with a raw ``Queue`` or ``Event`` again would let a raw read or wait through.
+The resources hold the signals as the lock-free types, not as events.
 """
 
 from __future__ import annotations
@@ -20,10 +21,16 @@ from birdnet.acoustic.inference.core.prediction.prediction_worker import (
   PredictionWorker,
 )
 from birdnet.acoustic.inference.core.producer import Producer
-from birdnet.acoustic.inference.core.sync import ChildSideEvent, ChildToParentQueue
+from birdnet.acoustic.inference.core.sync import (
+  ChildSideEvent,
+  ChildToParentQueue,
+  FinishSignal,
+  SharedFlag,
+)
 from birdnet.acoustic.inference.core.worker import WorkerBase
 from birdnet.acoustic.inference.resources import (
   FileCompletionResources,
+  ProcessingResources,
   ProducerResources,
   StatisticsResources,
   WorkerResources,
@@ -79,10 +86,17 @@ def test_performance_tracker_and_dispatcher() -> None:
 def test_resources() -> None:
   workers = _hints(WorkerResources, of_init=False)
   assert workers["results_queue"] is ChildToParentQueue
+  assert workers["finish_signals"] == list[FinishSignal]
   producers = _hints(ProducerResources, of_init=False)
   assert producers["unprocessed_inputs_queue"] is ChildToParentQueue
+  assert producers["all_finished"] is SharedFlag
+  assert producers["finish_signals"] == list[FinishSignal]
+  processing = _hints(ProcessingResources, of_init=False)
+  assert processing["cancel_event"] is SharedFlag
+  assert processing["end_event"] is SharedFlag
   stats = _hints(StatisticsResources, of_init=False)
   assert stats["perf_res_queue"] == ChildToParentQueue | None
   assert stats["callback_queue"] == ChildToParentQueue | None
+  assert stats["perf_res_finish_signal"] == FinishSignal | None
   completion = _hints(FileCompletionResources, of_init=False)
   assert completion["marker_queue"] == ChildToParentQueue | None

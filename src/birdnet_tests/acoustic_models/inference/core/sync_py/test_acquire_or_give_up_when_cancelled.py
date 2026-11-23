@@ -67,27 +67,6 @@ def test_a_never_released_lock_is_abandoned_once_the_run_is_cancelled() -> None:
   lock.release()
 
 
-def test_a_waiter_whose_parent_is_gone_does_not_ask_the_cancel_event(
-  monkeypatch: pytest.MonkeyPatch,
-) -> None:
-  """A parent killed inside an operation on the event left its lock held."""
-
-  class Wedged:
-    def is_set(self) -> bool:
-      pytest.fail("asked the cancel event after the parent died")
-
-    def set(self) -> None:
-      pass
-
-  lock = mp.get_context("spawn").Lock()
-  lock.acquire()
-  monkeypatch.setattr(sync, "parent_is_alive", lambda: False)
-
-  got_lock = acquire_or_give_up_when_cancelled(lock, Wedged(), poll_interval_s=0.05)
-
-  assert got_lock is False
-
-
 def test_a_never_released_lock_is_abandoned_once_the_parent_is_gone(
   monkeypatch: pytest.MonkeyPatch,
 ) -> None:

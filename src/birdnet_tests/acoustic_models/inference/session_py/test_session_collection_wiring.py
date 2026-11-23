@@ -10,6 +10,7 @@ per-call barrier from the machinery's own bookkeeping.
 
 from __future__ import annotations
 
+import sys
 import time
 from pathlib import Path
 
@@ -22,6 +23,12 @@ from birdnet_tests.fake_acoustic_backend import fake_predict_session
 pytestmark = pytest.mark.no_tf
 
 _SAMPLE_RATE = 48_000
+_TOLL_BOUND_S = 0.100
+# macOS has no sem_timedwait, so CPython polls for a timed semaphore wait in
+# steps of up to 20 ms, and the tracker puts several such waits on every run's
+# path: the fastest warm call with it measured 103 ms on macos-15 (Python 3.15).
+# A 200 ms sleep-poll in the wait for the tracker costs at least this per call.
+_TOLL_BOUND_MACOS_TRACKER_S = 0.200
 
 
 def _clip(seconds: float = 3.0) -> tuple[np.ndarray, int]:
@@ -58,7 +65,13 @@ def test_collection_goes_through_the_bounded_read(
   )
 
 
-def test_a_warm_call_pays_no_fixed_reader_toll(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+  "show_stats",
+  [pytest.param(None, id="no-tracker"), pytest.param("progress", id="tracker")],
+)
+def test_a_warm_call_pays_no_fixed_reader_toll(
+  tmp_path: Path, show_stats: str | None
+) -> None:
   """The collection machinery must not put a fixed barrier into warm calls.
 
   Teardown bookkeeping can put a fixed per-call cost into every call (a poll
@@ -66,10 +79,12 @@ def test_a_warm_call_pays_no_fixed_reader_toll(tmp_path: Path) -> None:
   would notice. The stub backend does ~2 ms of work, so the *fastest*
   of several warm calls is almost pure pipeline overhead — and a fixed toll of
   a tenth of a second moves it, while scheduler noise cannot (noise only ever
-  makes a call slower).
+  makes a call slower). With the performance tracker the parent's wait on its
+  finish signal blocks on every run, so a wait that polls instead of waking
+  shows here; without it every finish signal is already set when asked.
   """
   audio = _clip()
-  with fake_predict_session(tmp_path, n_workers=1) as session:
+  with fake_predict_session(tmp_path, n_workers=1, show_stats=show_stats) as session:
     session.run_arrays(audio)  # warm-up
 
     durations = []
@@ -79,7 +94,10 @@ def test_a_warm_call_pays_no_fixed_reader_toll(tmp_path: Path) -> None:
       durations.append(time.perf_counter() - start)
 
   fastest = min(durations)
-  assert fastest < 0.100, (
+  bound = _TOLL_BOUND_S
+  if show_stats is not None and sys.platform == "darwin":
+    bound = _TOLL_BOUND_MACOS_TRACKER_S
+  assert fastest < bound, (
     f"fastest warm run_arrays took {fastest * 1000:.1f} ms on a stub backend "
     f"whose inference is ~2 ms; a fixed per-call toll is back. "
     f"Samples: {[round(d * 1000, 1) for d in durations]}"

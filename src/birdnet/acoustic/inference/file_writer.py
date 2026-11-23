@@ -1,10 +1,11 @@
 import logging
-import multiprocessing.synchronize
 import queue
 import threading
 from logging.handlers import MemoryHandler
 from multiprocessing import Queue
 from pathlib import Path
+
+from birdnet.acoustic.inference.core.sync import SharedFlag
 
 
 class QueueFileWriter:
@@ -14,7 +15,7 @@ class QueueFileWriter:
     log_queue: Queue,
     logging_level: int,
     log_file: Path,
-    cancel_event: multiprocessing.synchronize.Event,
+    cancel_event: SharedFlag,
     stop_event: threading.Event,
   ) -> None:
     self._session_id = session_id

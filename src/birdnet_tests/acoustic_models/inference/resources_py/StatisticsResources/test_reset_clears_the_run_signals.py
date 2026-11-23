@@ -7,6 +7,7 @@ tracker is still working. Pinned per signal here: end to end, an instant
 progress callback masks a stale signal by timing.
 """
 
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -53,6 +54,10 @@ def test_reset_clears_every_signal_of_the_last_run() -> None:
   resources.reset()
 
   assert not resources.perf_res_finish_signal.is_set(), "tracker finish signal"
+  # Its wake too: a permit left over would cut the next run's first wait short.
+  begin = time.monotonic()
+  assert not resources.perf_res_finish_signal.wait(timeout=0.3)
+  assert time.monotonic() - begin >= 0.2, "tracker finish wake"
   assert not resources.perf_res_start_signal.acquire(block=False), (
     "tracker start permits"
   )

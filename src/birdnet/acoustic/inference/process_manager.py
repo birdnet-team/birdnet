@@ -10,7 +10,6 @@ from collections.abc import Iterator
 from contextlib import suppress
 from logging import Logger
 from multiprocessing.process import BaseProcess
-from multiprocessing.synchronize import Event as EventType
 from pathlib import Path
 from queue import Empty
 from typing import Literal
@@ -42,6 +41,7 @@ from birdnet.acoustic.inference.core.sync import (
   ChildToParentQueue,
   Deadline,
   FailureSlot,
+  FinishSignal,
   ThreadedQueueReader,
   read_failure,
   readable,
@@ -505,7 +505,7 @@ class ProcessManager:
 
   def _iter_children_with_finish_signals(
     self,
-  ) -> Iterator[tuple[BaseProcess, EventType]]:
+  ) -> Iterator[tuple[BaseProcess, FinishSignal]]:
     """Every child process paired with the signal it sets when it is done."""
     res = self._res
     # strict=True on purpose: the lists are created 1:1 from the same counts, so
@@ -624,7 +624,9 @@ class ProcessManager:
       self._res.processing_resources.cancel_event.set()
       raise error
 
-  def _wait_for_finish_signal(self, finish_signal: EventType | threading.Event) -> None:
+  def _wait_for_finish_signal(
+    self, finish_signal: FinishSignal | threading.Event
+  ) -> None:
     """Wait for one finish signal, giving up if the run cannot finish.
 
     Two ways it cannot: a child process died, or the run was cancelled.
@@ -652,9 +654,7 @@ class ProcessManager:
         # Already logged, stored and marked cancelled by the check itself.
         return
 
-  def wait_for_completion_dispatcher(
-    self, finish_signal: EventType | threading.Event
-  ) -> None:
+  def wait_for_completion_dispatcher(self, finish_signal: threading.Event) -> None:
     """Wait for the per-file completion dispatcher, cancel- and liveness-aware.
 
     Same guard as the finish-signal waits: this dispatcher is a thread, so a

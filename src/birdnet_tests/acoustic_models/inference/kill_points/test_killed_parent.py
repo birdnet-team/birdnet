@@ -63,7 +63,6 @@ _KillWhen = Literal[
   "waiting-on-producer",
   "waiting-on-worker",
   "waiting-on-tracker",
-  "holding-cancel-lock",
   "after-forking",
 ]
 # Killed with a run under way; the others between runs.
@@ -136,26 +135,21 @@ def _parent_main(tmp_dir: str, kill_when: _KillWhen) -> None:
         # sentinels past this process's death.
         holder = mp.get_context("fork").Process(target=time.sleep, args=(3600,))
         holder.start()
-      elif kill_when == "holding-cancel-lock":
-        # A parent killed inside is_set()/set() on the cancel event leaves its
-        # lock held; a child that asked the event before the parent would
-        # block for good.
-        res.processing_resources.cancel_event._cond.acquire()
       describe(None)
       time.sleep(3600)
     threading.Thread(target=session.run, args=(files,), daemon=True).start()
     if kill_when == "mid-run":
       time.sleep(3600)
     # The main thread parked inside a child's finish_signal.wait(): the kill
-    # then lands on a registered waiter, and that child's own set() would never
-    # return without the guard after its run (see ChildSideEvent).
+    # then lands on a waiter, which the child's set() must not wait for (see
+    # FinishSignal).
     finish_signal = {
       "waiting-on-producer": res.producer_resources.finish_signals[0],
       "waiting-on-worker": res.worker_resources.finish_signals[0],
       "waiting-on-tracker": res.stats_resources.perf_res_finish_signal,
     }[kill_when]
     assert finish_signal is not None
-    finish_signal.wait()
+    finish_signal.wait(timeout=3600)
     time.sleep(3600)
 
 
@@ -283,15 +277,8 @@ def test_busy_children_exit_when_the_parent_is_killed(tmp_path: Path) -> None:
 def test_a_child_whose_parent_died_waiting_on_its_finish_signal_exits(
   tmp_path: Path, waiter: str
 ) -> None:
-  """A dead waiter makes ``Event.set()`` block for good; the child must skip it."""
+  """A dead waiter makes ``Event.set()`` block for good; a finish signal must not."""
   _kill_parent_and_expect_children_to_follow(tmp_path, f"waiting-on-{waiter}")
-
-
-def test_children_exit_when_the_parent_died_holding_the_cancel_lock(
-  tmp_path: Path,
-) -> None:
-  """The parent is asked before the cancel event, whose lock a dead parent may hold."""
-  _kill_parent_and_expect_children_to_follow(tmp_path, "holding-cancel-lock")
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="fork is POSIX-only")

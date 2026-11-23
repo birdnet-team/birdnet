@@ -163,8 +163,6 @@ class WorkerBase(bn_logging.LogableProcessBase):
     self._logger.debug(f"W_{self._pid}: {msg}", *args)
 
   def _check_cancel_event(self) -> bool:
-    # The parent first: is_set() takes the event's lock, which a parent killed
-    # inside an operation on the event never released.
     if self._parent_is_gone():
       return True
     if self._cancel_event.is_set():
@@ -238,10 +236,6 @@ class WorkerBase(bn_logging.LogableProcessBase):
 
       self.run_main()
 
-      # A parent that died inside finish_signal.wait() never confirms the
-      # wake, and set() would then block for good (see ChildSideEvent).
-      if self._parent_is_gone():
-        return
       self._log("Set finish signal.")
       self._finish_signal.set()
 

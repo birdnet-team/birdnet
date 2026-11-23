@@ -3,7 +3,6 @@ from __future__ import annotations
 import queue
 import time
 from collections.abc import Callable
-from multiprocessing.synchronize import Event
 from pathlib import Path
 from queue import Empty
 
@@ -12,6 +11,7 @@ import numpy as np
 from birdnet.acoustic.inference.core.logs import get_logger_from_session
 from birdnet.acoustic.inference.core.sync import (
   PROMISED_MESSAGE_DEADLINE_S,
+  SharedFlag,
   ThreadedQueueReader,
 )
 from birdnet.acoustic.inference.core.tensor import AcousticTensorBase
@@ -32,7 +32,7 @@ class Consumer:
     n_workers: int,
     results: ThreadedQueueReader,
     tensor: AcousticTensorBase,
-    cancel_event: Event,
+    cancel_event: SharedFlag,
     *,
     n_inputs: int = 0,
     inputs: list[Path] | None = None,
