@@ -69,8 +69,49 @@ def test_a_set_from_another_process_ends_the_wait() -> None:
   assert child.exitcode == 0
 
 
+def test_one_set_wakes_every_waiter() -> None:
+  """Two threads of the parent waiting at once, as a test beside the run does."""
+  ctx = _context()
+  signal = FinishSignal(ctx)
+  woken_after: list[float] = []
+
+  def wait() -> None:
+    begin = time.monotonic()
+    assert signal.wait(timeout=_WAIT_TIMEOUT_S)
+    woken_after.append(time.monotonic() - begin)
+
+  waiters = [threading.Thread(target=wait, daemon=True) for _ in range(2)]
+  for waiter in waiters:
+    waiter.start()
+  started = ctx.Semaphore(0)
+  child = ctx.Process(target=_set_after, args=(signal, started, 0.5))
+  child.start()
+  try:
+    assert started.acquire(timeout=_START_S)
+    for waiter in waiters:
+      waiter.join(timeout=_WAIT_TIMEOUT_S + _WAKE_BOUND_S)
+  finally:
+    child.join(timeout=_START_S)
+
+  assert len(woken_after) == 2, woken_after
+  assert max(woken_after) < _WAKE_BOUND_S, (
+    f"a waiter woke only after {max(woken_after):.1f} s: one set woke one waiter"
+  )
+
+
+def test_a_flag_without_its_wake_answers_at_once() -> None:
+  """A child killed between the store and the release leaves no permit."""
+  signal = FinishSignal(_context())
+  signal._flag.set()
+  begin = time.monotonic()
+
+  assert signal.wait(timeout=_WAIT_TIMEOUT_S)
+
+  assert time.monotonic() - begin < _WAKE_BOUND_S, "a set flag was waited on"
+
+
 def test_a_set_signal_answers_every_later_wait_at_once() -> None:
-  """The parent asks again after the run; the wake was spent by the first wait."""
+  """The parent asks again after the run, as often as it likes."""
   signal = FinishSignal(_context())
   signal.set()
   assert signal.wait(timeout=_WAIT_TIMEOUT_S)

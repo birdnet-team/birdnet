@@ -152,8 +152,9 @@ class FinishSignal:
   semaphore only the wake: ``wait()`` returns at once while the flag is set,
   however often it is called, and a permit without the flag wakes it without
   making it true. A child killed between the store and the release costs one
-  wait its timeout. One waiter at a time: each ``set()`` releases one permit,
-  so a second waiter blocked alongside sees the set only at its timeout.
+  wait its timeout. A waiter that takes the permit while the flag is set
+  releases it again, so one ``set()`` wakes every waiter, as an ``Event``
+  does.
   """
 
   def __init__(self, ctx: BaseContext) -> None:
@@ -171,7 +172,9 @@ class FinishSignal:
     """Whether the signal is set, after waiting at most ``timeout`` seconds for it."""
     if self._flag.is_set():
       return True
-    self._wake.acquire(timeout=timeout)
+    if self._wake.acquire(timeout=timeout) and self._flag.is_set():
+      # Passed on, so that every other waiter wakes too.
+      self._wake.release()
     return self._flag.is_set()
 
   def clear(self) -> None:
