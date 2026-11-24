@@ -69,28 +69,37 @@ GPU, so it needs TensorFlow and onnxruntime-gpu in one venv without PyTorch; its
      platform's: a factor of 2.1 to 3.1 for 3.0 and 7 to 32 % for 2.4 on Linux
      x86-64, 3.0 to 3.3 and 69 to 91 % on Windows x86-64, about 5 % and nothing
      on an Apple M1. The memory is the same on all three: 50 to 60 MiB more per
-     worker for 2.4 and about 300 for 3.0. The digest of a `tf` leg sits 3e-4
-     to 4e-4 below the `onnx` leg's, with and without the delegate.
+     worker for 2.4 and about 300 for 3.0, which is why #185 leaves the delegate
+     off on Apple silicon. The digest of a `tf` leg sits 3e-4 to 4e-4 below the
+     `onnx` leg's, with and without the delegate.
    - **Worker scaling** (`cpu-workers`): where throughput stops growing. Here
      the 3.0 ONNX model stops at 4 to 6 workers of 12 cores, because memory
      bandwidth is used up; a machine with more memory channels per core (Apple
      silicon, servers) should scale further, and hybrid CPUs get little from
      their efficiency cores.
-   - **One `onnx` worker with a large batch** (`3.0-onnx-cpu-wauto-b64-p1`)
+   - **One `onnx` worker with a large batch** (`3.0-onnx-cpu-w1-b64-p1`)
      against a worker per core (`3.0-onnx-cpu-w<cores>-b1-p1`), on the branch
-     of #182, which starts that worker by itself from four rows per core on:
-     3 % faster on magpie, level on the M1, 3 to 4 % slower on the Windows
-     laptop, in a sixth to an eighth of the memory. One pair of legs does not
-     resolve 3 %: run both several times in alternating order.
+     of #182, where that worker runs a row of the batch on every thread: 3 %
+     faster on magpie, level on the M1, 3 to 4 % slower on the Windows laptop,
+     in a sixth to an eighth of the memory. That is a way to save memory, not a
+     default. The first version of #182 chose it by itself from four rows per
+     core on, which is why the `wauto-b64` legs in the sections below ran one
+     worker; on the branch as it is now they run a worker per core. One pair of
+     legs does not resolve 3 %: run both several times in alternating order.
    - **startup s**: process start is cheap on Linux. On Windows (spawn, virus
      scanner) and macOS it decides how long a single short file takes.
    - **uss MiB** per worker against the estimates in
      `src/birdnet/acoustic/inference/memory.py`; they were measured on Linux.
-     Two are off elsewhere: on Windows a TFLite worker in TensorFlow's
-     interpreter holds 900 MiB for 3.0 where 629 are planned, and on the M1 a
-     row of a batch costs 4.5 MiB where 12 to 15 are planned. macOS does not
-     hand out the unique set of a child process: the column shows the resident
-     sum there.
+     The two laptops found two that were off, which #184 corrects. On Windows
+     a TFLite worker in TensorFlow's interpreter holds the model file once
+     more: 900 MiB for 3.0 where 629 were planned. And every row of a batch was
+     planned at 12 to 15 MiB, which a batch run row by row does not hold: the
+     largest of 12 workers on magpie grows by 11 MiB from batch size 1 to 64
+     (2.4 tflite and litert) and not at all for 3.0 onnx. The 4.5 MiB per row
+     in the M1's footprints match the audio ring, shared memory that a
+     footprint or a resident set counts in every worker that touches it (see
+     the M1's memory section). macOS does not hand out the unique set of a
+     child process: the column shows the resident sum there.
    - **A laptop runs its first legs fast.** Both laptops ran the first leg
      after a pause 10 to 15 % above the same leg later in a suite, and the
      fastest of three passes keeps that. Start a suite with `--warmup-legs 2`
@@ -315,10 +324,14 @@ pass `n_workers`.
 
 #180 (the GPU and device fixes, `birdnet-benchmark`, this harness) and #181
 (XNNPACK and batches on a CPU) are on `main`. #182 (parallel rows in one `onnx`
-worker and its default) is an open draft: the two table rows above about an
-`onnx` worker with several threads, and the rows of the batch table for one
-worker and for workers left to the library, describe its branch. Verified on
-Linux x86-64; the sections of the other machines hold what they measured.
+worker) is open: the two table rows above about an `onnx` worker with several
+threads, and the rows of the batch table for one worker, describe its branch.
+Its first version also started one worker by itself for a large batch; the
+rows for workers left to the library at batch size 64 were measured with that
+and no longer describe the branch. #184 (the memory plan of the default worker
+count) and #185 (no XNNPACK on Apple silicon) are open and come from the two
+laptops' sections. Verified on Linux x86-64; the sections of the other
+machines hold what they measured.
 XNNPACK was checked on TensorFlow
 2.20 and 2.21 and on LiteRT 2.0.2 and 2.4; TensorFlow 2.12 and 2.16 do not apply
 it to these files and run as before.
@@ -328,9 +341,9 @@ it to these files and run as before.
 - **One process, many inference threads, for `onnx` on a CPU by default.** One
   ONNX Runtime session called from 12 threads runs 79 to 81 seg/s in 0.7 GiB;
   12 worker processes run 72 to 76 in 5.9 GiB and load the model 12 times. The
-  tree gets most of it when asked: `batch_size=64` (which starts one worker on
-  the branch of #182) runs 73 to 74 seg/s in 0.9 GiB, and loses a little at every batch boundary, where the
-  threads wait for the slowest row. Making it the default, and closing that
+  tree gets most of it when asked: `n_workers=1` with `batch_size=64` on the
+  branch of #182 runs 73 to 74 seg/s in 0.9 GiB, and loses a little at every
+  batch boundary, where the threads wait for the slowest row. Making it the default, and closing that
   gap, means a worker that takes several ring slots at a time, which touches
   the pipeline's crash handling and was left alone. An application can choose
   it today for the 3.0 model.
@@ -556,7 +569,7 @@ interpreter: 16 % over for 2.4 and 43 % over for 3.0, where 12 workers hold
 606 MiB (1.5.1), where a LiteRT worker holds 60. That is about the 328 MiB of
 the model file more than magpie's numbers give for Linux (579 less the 300 of
 XNNPACK), as if this interpreter kept a private copy of the file on Windows. Not
-looked into. These are unique sets, not the commit charge.
+looked into; #184 plans with it. These are unique sets, not the commit charge.
 
 ### What the recipe needs on this platform
 
@@ -643,7 +656,7 @@ two columns compare; the next table holds the count fixed.
   moves more between two runs of one side than between the sides.
 - **It costs the same memory as on magpie**: +274 MiB per worker for 3.0, +50
   for 2.4. So the delegate is applied; the builtin kernels are just not slow
-  on this CPU.
+  on this CPU. #185 leaves it off on Apple silicon for that.
 - Scores: the 3.0 score sum over 430 detections moves by 3e-5 (TensorFlow) and
   1e-5 (LiteRT) against the builtin kernels, the 2.4 sum by 2e-5; detections
   and species are the same on every backend and both versions. The 3.0 TFLite
@@ -749,6 +762,14 @@ noted, against `WorkerCost.estimate`:
 - A row of the batch costs 4.5 MiB (tflite 2.4) where the estimate adds 15, and
   the one `onnx` worker at batch 64 peaks where a worker at batch 1 does. On a
   machine with memory to spare that is invisible; here it sets the worker count.
+  Read afterwards from the samples of the batch-16 run: each worker grew by
+  60 to 72 MiB over the first 15 s, and the audio ring of that run is 70 MiB
+  (8 slots of 16 segments at 0.55 MiB). Every worker maps the ring, so that
+  growth is what a footprint shows if it counts shared memory in each process
+  that touches it. On magpie the resident set of a worker grows the same way
+  and its anonymous memory does not (306 MiB at batch sizes 1 and 16). So the
+  4.5 MiB are most likely the ring, once, and not the workers' own; not
+  checked on a Mac. #184 plans such a batch at 2 MiB per further row.
 - The parent holds 38 to 41 MiB, a producer 48 to 96 MiB at batch size 1 and
   124 to 157 MiB at 16 and 64.
 - Four `onnx` workers held 1.6 GiB through one run and 0.8 GiB through another
