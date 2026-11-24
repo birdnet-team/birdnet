@@ -69,9 +69,9 @@ _PRODUCER_SLOTS = 1.5
 # with more intra-op threads (fewer workers share the cores) needs more.
 _PLANNING_FRACTION = 0.9
 # What every further row adds to a worker that runs its batch one row at a time:
-# the row's output, since the activations are those of one row. Unique set per
-# worker and row at batch sizes 16 and 64, 12 workers: 0.1 to 0.7 MiB on Linux
-# (2.4 tflite, 3.0 onnx), 0.3 MiB and less on Windows 11.
+# the row's output, since the activations are those of one row. Max RssAnon of
+# a worker at batch size 64 against 1, 12 workers, Linux: 11 MiB more for 2.4
+# (tflite 317 against 306, litert 112 against 100), none for 3.0 onnx (545).
 _ROW_OUTPUT_BYTES = 2 * _MIB
 # TensorFlow's interpreter holds the model file in private memory on Windows.
 # Unique set per worker there (Windows 11, TensorFlow 2.21, 12 workers): 900 MiB
