@@ -65,23 +65,36 @@ GPU, so it needs TensorFlow and onnxruntime-gpu in one venv without PyTorch; its
    below; seconds are not comparable between machines.
 4. Look at these in particular, they are where platforms differ:
    - **XNNPACK**: `3.0-tf-*` and `2.4-tf-*` legs against the release before the
-     delegate. Linux x86-64 gained a factor of 2.1 to 3.1 for 3.0 and 7 to 32 %
-     for 2.4. On ARM the delegate uses other kernels (NEON); expect a gain, and
-     check the digest column agrees with the `onnx` leg to the fourth decimal.
-     It costs memory: compare the *mem MiB* column of those legs too.
+     delegate, with the same fixed worker count on both sides. The gain is the
+     platform's: a factor of 2.1 to 3.1 for 3.0 and 7 to 32 % for 2.4 on Linux
+     x86-64, 3.0 to 3.3 and 69 to 91 % on Windows x86-64, about 5 % and nothing
+     on an Apple M1. The memory is the same on all three: 50 to 60 MiB more per
+     worker for 2.4 and about 300 for 3.0. The digest of a `tf` leg sits 3e-4
+     to 4e-4 below the `onnx` leg's, with and without the delegate.
    - **Worker scaling** (`cpu-workers`): where throughput stops growing. Here
      the 3.0 ONNX model stops at 4 to 6 workers of 12 cores, because memory
      bandwidth is used up; a machine with more memory channels per core (Apple
      silicon, servers) should scale further, and hybrid CPUs get little from
      their efficiency cores.
    - **One `onnx` worker with a large batch** (`3.0-onnx-cpu-wauto-b64-p1`)
-     against a worker per core (`3.0-onnx-cpu-w<cores>-b1-p1`): here the single
-     process is 3 % faster in a sixth of the memory. The library now picks it
-     by itself from four rows per core on, so it has to hold on every platform.
+     against a worker per core (`3.0-onnx-cpu-w<cores>-b1-p1`), on the branch
+     of #182, which starts that worker by itself from four rows per core on:
+     3 % faster on magpie, level on the M1, 3 to 4 % slower on the Windows
+     laptop, in a sixth to an eighth of the memory. One pair of legs does not
+     resolve 3 %: run both several times in alternating order.
    - **startup s**: process start is cheap on Linux. On Windows (spawn, virus
      scanner) and macOS it decides how long a single short file takes.
    - **uss MiB** per worker against the estimates in
      `src/birdnet/acoustic/inference/memory.py`; they were measured on Linux.
+     Two are off elsewhere: on Windows a TFLite worker in TensorFlow's
+     interpreter holds 900 MiB for 3.0 where 629 are planned, and on the M1 a
+     row of a batch costs 4.5 MiB where 12 to 15 are planned. macOS does not
+     hand out the unique set of a child process: the column shows the resident
+     sum there.
+   - **A laptop runs its first legs fast.** Both laptops ran the first leg
+     after a pause 10 to 15 % above the same leg later in a suite, and the
+     fastest of three passes keeps that. Start a suite with `--warmup-legs 2`
+     and compare two settings in alternating order.
    - **Producers**: one producer decodes FLAC and MP3 at 300 to 400 segments
      per second here and WAV at 1000 to 4400. A leg whose *cpu %* or *gpu %* is
      low while workers wait is producer-bound: compare its `p2` and `p4` legs.
@@ -300,10 +313,13 @@ pass `n_workers`.
 | `birdnet-benchmark`: `--model-version 3.0`, the `onnx` and `pt` backends, and `--use-perch` runs | Perch was loaded and never run; anything but 2.4 `tf`/`pb` was an `AssertionError` |
 | tflite worker memory estimate 180 → 235 MiB plus the model | measured 304 MiB (2.4) and 579 MiB (3.0) per worker with XNNPACK |
 
-The changes are proposed in three pull requests: #180 (the GPU and device
-fixes, `birdnet-benchmark`, this harness), #181 (XNNPACK and batches on a CPU)
-and #182 (parallel rows in one `onnx` worker and its default). Measured and
-verified on Linux x86-64 only. XNNPACK was checked on TensorFlow
+#180 (the GPU and device fixes, `birdnet-benchmark`, this harness) and #181
+(XNNPACK and batches on a CPU) are on `main`. #182 (parallel rows in one `onnx`
+worker and its default) is an open draft: the two table rows above about an
+`onnx` worker with several threads, and the rows of the batch table for one
+worker and for workers left to the library, describe its branch. Verified on
+Linux x86-64; the sections of the other machines hold what they measured.
+XNNPACK was checked on TensorFlow
 2.20 and 2.21 and on LiteRT 2.0.2 and 2.4; TensorFlow 2.12 and 2.16 do not apply
 it to these files and run as before.
 
@@ -312,8 +328,8 @@ it to these files and run as before.
 - **One process, many inference threads, for `onnx` on a CPU by default.** One
   ONNX Runtime session called from 12 threads runs 79 to 81 seg/s in 0.7 GiB;
   12 worker processes run 72 to 76 in 5.9 GiB and load the model 12 times. The
-  tree gets most of it when asked: `batch_size=64` (which now defaults to one
-  worker) runs 73 to 74 seg/s in 0.9 GiB, and loses a little at every batch boundary, where the
+  tree gets most of it when asked: `batch_size=64` (which starts one worker on
+  the branch of #182) runs 73 to 74 seg/s in 0.9 GiB, and loses a little at every batch boundary, where the
   threads wait for the slowest row. Making it the default, and closing that
   gap, means a worker that takes several ring slots at a time, which touches
   the pipeline's crash handling and was left alone. An application can choose
@@ -348,3 +364,426 @@ it to these files and run as before.
   files in the temp directory and nothing removes them; 6400 had gathered in
   `/tmp` on this machine. Small files, but an application that opens a session
   per analysis adds two per run.
+
+## win-laptop: Windows 11 laptop, Core Ultra 7 155U (2 P + 8 E + 2 low-power E cores, 14 threads), 31.5 GiB, no NVIDIA GPU
+
+Measured 2026-11-24, Python 3.13.7, onnxruntime 1.32.0, TensorFlow 2.21.0, LiteRT
+2.4.0, numpy 2.5.5, scipy 1.18.1, libsndfile 1.2.2: the runtime versions of the
+magpie run. No PyTorch (installed with the `tf` extra only), so the `pt` leg
+failed on both sides and has no row. On mains, power mode "best performance",
+the virus scanner's real-time protection on. `tree` is `onnx-parallel-rows` at
+148f940: main with #180 and #181, plus #182. `1.5.1` is the release from PyPI
+with the same pins. Corpus and method as for magpie: the fastest of three passes
+of about 12 s in a warm session. At 34 seg/s such a pass is two files, 400
+segments.
+
+Three things about this machine stand behind every number below:
+
+- **The first legs after a pause are fast.** The same leg (3.0 `onnx`, 12
+  workers) ran 38.4 to 39.5 seg/s as the first leg after the machine had rested,
+  for one minute or for twenty, 37.1 as the second and 34.3 from the third on.
+  That outlasts a leg, so the fastest of three passes does not remove it, and no
+  flag shows it. Every number here is from a leg that ran third or later in an
+  unbroken row of legs. Seven legs were measured again,
+  for that reason or because they were flagged (`noisy`: three, `busy-machine`:
+  one); no flag is left.
+- **The same setting spreads by 1.6 % either way.** 3.0 `onnx` with 12 workers
+  ran between 33.3 and 34.4 seg/s in eleven warm legs over three hours. A
+  difference under 3 % between two single legs is not resolved here; where it
+  mattered, the legs were run several times in alternating order.
+- **13 of 31.5 GiB were free**, other applications held the rest.
+  `n_workers=None` is sized from free memory, so 3.0 `pb` ran with 9 workers and
+  Perch with 8 instead of 12, on both sides of the comparison. Every other
+  default leg got its 12.
+
+### CPU, defaults (one worker per physical core, one thread each, batch size 1)
+
+| model, backend | 1.5.1 seg/s | tree seg/s | tree xRT | change | startup s | memory GiB |
+|---|---|---|---|---|---|---|
+| 3.0 onnx | 34.2 | 34.3 | 103 | same | 4.2 | 4.8 |
+| 3.0 tf (TensorFlow Lite) | 8.3 | 27.7 | 83 | +234 % | 10.7 | 7.2 → 10.6 |
+| 3.0 tf, `library="litert"` | 8.1 | 24.6 | 74 | +204 % | 3.6 | 0.8 → 4.5 |
+| 3.0 pb (9 workers) | 4.5 | 4.5 | 14 | unchanged code | 21.7 | 10.6 |
+| 2.4 tf (TensorFlow Lite) | 73.9 | 140.8 | 422 | +91 % | 10.1 | 3.4 → 4.1 |
+| 2.4 tf, `library="litert"` | 73.2 | 123.8 | 372 | +69 % | 2.3 | 0.6 → 1.3 |
+| 2.4 pb | 11.3 | 11.3 | 34 | same | 23.3 | 7.9 |
+| Perch v2 pb (5 s segments, 8 workers) | 3.3 | 3.2 | 16 | unchanged code | 15.6 | 9.5 |
+
+Memory is the unique set of all processes of the run together; where XNNPACK
+changed it, 1.5.1 → tree.
+
+Reading it:
+
+- **1.5.1 and the tree are level where the code is the same.** 3.0 `onnx` in
+  alternating order: 34.4 and 34.3 (1.5.1) against 34.1 and 34.2 (tree). Perch:
+  a pass of 73.1 s against 74.0 s; `compare` printed -3.0 % there, because it
+  divided seg/s rounded to one decimal.
+- **XNNPACK gains more here than on Linux.** 3.0: 3.3 times with TensorFlow's
+  interpreter, 3.0 times with LiteRT (Linux: 2.1 and 3.1). 2.4: +91 % and +69 %
+  (Linux: +7 % and +32 %), in alternating order 73.1 and 73.5 against 140.7 and
+  139.7. The builtin kernels are the slow part on this platform: measured against
+  3.0 `onnx` on the same machine, 2.4 TFLite without the delegate runs at 2.2
+  times its rate here and 3.0 times on Linux, with it at 4.1 and 3.3 times.
+- **Embeddings of 2.4 are still on the builtin kernels** and run 73.5 seg/s, half
+  of what predictions reach (140.8). On Linux that gap was 8 %.
+- **The interpreters swap places.** With XNNPACK TensorFlow's is the faster one
+  here (27.7 against 24.6 for 3.0, 140.8 against 123.8 for 2.4), LiteRT's on
+  Linux. LiteRT still holds less than half the memory and its workers are up 7 to
+  8 s sooner.
+- **XNNPACK costs the same memory as on Linux**: +60 MiB per worker for 2.4, +295
+  (TensorFlow) and +320 MiB (LiteRT) for 3.0.
+- `onnx` stays the backend for 3.0 on a CPU: 34.3 against 27.7 (`tf`) and 4.5
+  (`pb`, 9 workers).
+- **Digests agree.** 3.0 `onnx` is identical on both sides (430 detections, score
+  sum 226.73011). XNNPACK moves the sum of the `tf` legs by 4e-5 (TensorFlow) and
+  2e-5 (LiteRT) for 3.0 and by under 4e-6 for 2.4. The `tf` and `pb` sums are
+  4e-4 below `onnx` with and without the delegate: that is the export.
+- **Startup** (one call minus one pass) is 2.6 to 3.8 times the Linux figure for
+  every leg but 3.0 `pb`: 4.2 s against 1.6 for 12 `onnx` workers, 10 to 11 s
+  against 3.0 with the TensorFlow import, 23 s against 8.4 for 2.4 `pb`. Not
+  broken down into process start, imports and the virus scanner. Opening a
+  session with 12 `onnx` workers takes 2.4 s, with one 0.2 s.
+
+### CPU, worker count (tree)
+
+| workers | 3.0 onnx seg/s | threads per worker | memory GiB | 2.4 tf seg/s | memory GiB |
+|---|---|---|---|---|---|
+| 1 | 20.7 | 12 | 0.5 | 35.6 | 0.4 |
+| 2 | 27.2 | 6 | 0.9 | 54.0 | 0.7 |
+| 4 | 30.6 | 3 | 1.7 | 78.5 | 1.4 |
+| 6 | 32.7 | 2 | 2.4 | 96.2 | 2.1 |
+| 8 | 29.4 | 1 | 3.2 | 121.9 | 2.7 |
+| 12 | 33.5 | 1 | 4.8 | 140.6 | 4.1 |
+| 14 | 33.9 | 1 | 5.6 | 139.4 | 4.7 |
+
+- The 3.0 ONNX model is level from 6 workers with 2 threads each (32.7 seg/s,
+  2.4 GiB) to 14 (33.9): the default of 12 holds twice the memory for 2 % more,
+  as on magpie. 8 workers are below 6 because they leave four cores idle (one
+  thread each, CPU at 62 %).
+- 2.4 TFLite scales to 12 workers and gains nothing from the two hyper-threads.
+  One worker alone runs 35.6 seg/s, twelve run 11.7 each: ten of the twelve
+  cores are efficiency cores.
+
+### CPU, batch size and producers (tree)
+
+| leg | seg/s | memory GiB |
+|---|---|---|
+| 3.0 onnx, 12 workers, batch 1 | 34.3 | 4.8 |
+| 3.0 onnx, 12 workers, batch 4 | 34.1 | 4.8 |
+| 3.0 onnx, 12 workers, batch 16 | 31.3 | 4.8 |
+| 3.0 onnx, 12 workers, batch 64 | 24.8 | 4.8 |
+| 3.0 onnx, 1 worker (12 threads), batch 1 | 20.7 | 0.5 |
+| 3.0 onnx, 1 worker (12 threads), batch 16 | 29.6 | 0.6 |
+| 3.0 onnx, 1 worker (12 threads), batch 64 | 32.5 | 0.7 |
+| 3.0 onnx, workers left to the library (1), batch 64 | 32.5 | 0.7 |
+| 3.0 onnx, 2 workers (6 threads), batch 8 | 30.1 | 1.0 |
+| 2.4 tf, 12 workers, batch 1 | 140.8 | 4.1 |
+| 2.4 tf, 12 workers, batch 4 | 135.2 | 4.4 |
+| 2.4 tf, 12 workers, batch 16 | 134.9 | 4.1 |
+| 3.0 onnx, 12 workers, 2 producers | 34.1 | 4.9 |
+| 3.0 onnx, 12 workers, 4 producers | 34.0 | 5.0 |
+| 2.4 tf, 12 workers, 2 producers | 139.1 | 4.1 |
+| 2.4 tf, 12 workers, 4 producers | 129.9 | 4.1 |
+
+- A batch of 4 costs 3.0 ONNX nothing; 2.4 TFLite is 4 % lower at 4 and 16. The
+  12-worker ONNX legs at 16 (CPU at 73 %) and 64 (46 %) are low because of the
+  pass: 400 segments are 25 batches of 16, or 7 of 64, for 12 workers. Not
+  measured with a longer pass.
+- Producers do not limit: every leg has the CPU at 85 % (12 of 14 threads). Four
+  producers cost 2.4 TFLite 8 %, since they take cores from 12 workers on 12
+  cores.
+
+### One `onnx` worker with a large batch against a worker per core (#182)
+
+| | 1 worker, batch 64 (`wauto-b64`) | 12 workers, batch 1 (`w12-b1`) |
+|---|---|---|
+| suite, 12 s passes | 32.5 seg/s | 33.5 seg/s |
+| three more of each, alternating | 31.5, 32.8, 32.3 | 33.3, 34.0, 33.8 |
+| 48 s passes, two of each, alternating | 33.1, 33.3 | 34.2, 34.4 |
+| memory, unique set of all processes | 0.7 GiB | 4.8 GiB |
+| startup s | 2.3 | 4.1 |
+| CPU % | 80 | 85 |
+
+Here the single worker is 3 to 4 % slower, where magpie had it 3 % faster: -4 %
+in 12 s passes (32.3 against 33.7 on average), -3 % in 48 s passes, and in no
+pairing ahead. It runs in a seventh of the memory and a call starts 2 s sooner.
+`n_workers=None` picked the one worker at batch 64 as intended. Two of these
+legs were flagged `busy-machine` (33.3 at 12 workers, 33.3 at one worker with
+48 s passes); both sit inside the others. Batch 48, where the rule starts on 12
+cores, was not measured.
+
+### CPU, inputs (3.0 onnx unless noted, tree)
+
+| input | seg/s | xRT |
+|---|---|---|
+| 48 kHz WAV | 34.3 | 103 |
+| 32 kHz WAV (the model's rate) | 35.0 | 105 |
+| 44.1 kHz WAV | 34.3 | 103 |
+| 48 kHz FLAC | 34.3 | 103 |
+| 48 kHz MP3 | 34.3 | 103 |
+| 9600 files of 15 s | 34.4 | 103 |
+| overlap 1.5 s | 34.2 | 51 |
+| statistics and progress callback on | 33.4 | 100 |
+| embeddings instead of predictions | 34.1 | 102 |
+| 2.4 tf, 48 kHz WAV (the model's rate) | 140.8 | 422 |
+| 2.4 tf, 32 kHz WAV | 131.8 | 395 |
+| 2.4 tf, embeddings (builtin kernels) | 73.5 | 221 |
+
+As on Linux the input does not matter at this rate: everything is within 3 % for
+3.0, and resampling costs 2.4 TFLite 6 %.
+
+### Memory per worker against `memory.py`
+
+Unique set per worker in MiB: the slope over 4 to 14 workers where the worker
+suite gives one, otherwise the total of the default leg less 70 MiB for the
+parent and the producer, divided by its workers. The magpie column is the
+largest worker's anonymous resident set, from the comment in `memory.py`.
+
+| backend, model | estimate | here | magpie |
+|---|---|---|---|
+| onnx, 3.0 | 512 | 400 | 544 |
+| tflite with XNNPACK, 2.4 | 294 | 340 | 304 |
+| tflite with XNNPACK, 3.0 | 629 | 900 | 579 |
+| litert with XNNPACK, 2.4 | 119 | 100 | 99 |
+| litert with XNNPACK, 3.0 | 454 | 380 | 374 |
+| pb, 2.4 | 684 | 670 | ~700 |
+| pb, 3.0 (333 MiB model, 9 workers) | 1349 | 1190 | |
+| pb, Perch v2 (8 workers) | 1490 | 1210 | |
+
+The estimates hold or are on the safe side, except for TFLite in TensorFlow's
+interpreter: 16 % over for 2.4 and 43 % over for 3.0, where 12 workers hold
+10.6 GiB and the plan counts 7.4. Without XNNPACK that worker already holds
+606 MiB (1.5.1), where a LiteRT worker holds 60. That is about the 328 MiB of
+the model file more than magpie's numbers give for Linux (579 less the 300 of
+XNNPACK), as if this interpreter kept a private copy of the file on Windows. Not
+looked into. These are unique sets, not the commit charge.
+
+### What the recipe needs on this platform
+
+- It runs as written in Git Bash (`venvs/<name>/Scripts/python.exe`), with the
+  default model cache and `BIRDNET_OFFLINE=1`, so that a missing model fails its
+  leg instead of downloading. 1.5.1 and the tree read the same model files.
+- Windows Search indexes every new venv for seven to nine minutes at 7 % of the
+  machine, half of the `busy-machine` threshold. Build the venvs and the corpora
+  first and start when the CPU is quiet.
+- Run two throwaway legs before a suite and after every pause (see above), and
+  compare two settings in alternating order.
+- Close what holds memory, or pass `--workers`: the default worker count of the
+  `pb` and Perch legs follows the free memory.
+
+### Not measured here
+
+- `pt` (PyTorch not installed), and `pb` and Perch at 12 workers.
+- A GPU: `nvidia-smi` finds none, and DirectML needs the `onnxruntime-directml`
+  package.
+- The 12-worker ONNX legs at batch 16 and 64 with a longer pass, and the single
+  worker at batch 48.
+- The library's test lanes (step 5 of the checklist) were not run on this
+  machine.
+
+## m1-air: macOS 15.1, MacBook Air M1 (4 P + 4 E cores), 8 GiB, no fan
+
+Measured 2026-11-24 with magpie's runtimes (Python 3.13.14, onnxruntime 1.32.0,
+TensorFlow 2.21.0, LiteRT 2.4.0, numpy 2.5.5, scipy 1.18.1, libsndfile 1.2.2),
+corpus and method. `tree` is 148f940: main with #180 and #181, plus #182.
+`1.5.1` is the release from PyPI with the same pins. No PyTorch in the venvs, so
+the `3.0-pt` leg failed on both sides, and no GPU legs. The 3.0 model is slow
+enough here that a pass is the smallest the harness takes (two files): 17 to
+32 s for its onnx and tflite legs, 90 to 120 s for 3.0 pb and Perch.
+
+Three things decide how to read this machine's numbers:
+
+- **It heats up.** The first leg after a pause, 40 s are enough, runs 10 to
+  15 % faster than the same leg inside a suite, and its passes slow down one
+  after the other (16.7, 17.7, 18.2 s). seg/s is the fastest pass, so a cool
+  first pass sets it. Two legs compare only when they ran next to each other,
+  in both orders.
+- **Free memory sets the default worker count, not the cores.** An editor, a
+  browser and Docker stayed open: 2.9 to 4.5 GiB were available, 4.5 to 5.6 GiB
+  of swap in use, the idle CPU at 6 to 11 %. `n_workers=None` started 5 or 6
+  workers for 3.0 onnx, 5 for 3.0 tf, 5 or 7 for 3.0 litert, 1 or 3 for 3.0 pb,
+  8 for 2.4 tf, by what was free when the leg began. A `wauto` leg measures that
+  fit as much as the code.
+- **The *mem MiB* column held the parent process alone in this run** (20 to
+  40 MiB); the harness prints the resident sum there now.
+  macOS gives the unique set of another process only with its task port, and
+  psutil gets `AccessDenied`. Memory below is the summed resident set from the
+  result files, which counts a model file once per worker that maps it, and the
+  physical footprint (`proc_pid_rusage`: private pages, compressed and swapped
+  ones included, what Activity Monitor shows), sampled from outside in runs of
+  their own.
+
+### CPU, defaults (workers left to the library, batch size 1)
+
+| model, backend | 1.5.1 seg/s (workers) | tree seg/s (workers) | tree xRT | startup s | resident GiB |
+|---|---|---|---|---|---|
+| 3.0 onnx | 18.5 (5) | 19.9 (5) | 60 | 2.2 | 2.6 |
+| 3.0 tf (TensorFlow Lite) | 15.7 (5) | 17.0 (5) | 51 | 3.9 | 4.5 |
+| 3.0 tf, `library="litert"` | 15.9 (5) | 20.3 (7) | 61 | 1.7 | 5.0 |
+| 3.0 pb | 3.3 (1) | 3.9 (3) | 12 | 15.1 | 3.0 |
+| 2.4 tf (TensorFlow Lite) | 97.7 (8) | 101.4 (8) | 304 | 5.4 | 4.1 |
+| 2.4 tf, `library="litert"` | 98.7 (8) | 99.8 (8) | 299 | 0.6 | 1.7 |
+| 2.4 pb | 61.7 (3) | 66.7 (4) | 200 | 11.1 | 2.8 |
+| Perch v2 pb (5 s segments) | 2.4 (1) | 2.7 (2) | 13 | 7.5 | 2.1 |
+
+Where the two sides started different numbers of workers, that is what the
+two columns compare; the next table holds the count fixed.
+
+### XNNPACK, four workers on both sides
+
+| leg, batch size 1 | 1.5.1 seg/s | tree seg/s | footprint per worker, 1.5.1 → tree |
+|---|---|---|---|
+| 3.0 tf (TensorFlow Lite) | 14.8 to 17.3 (4 runs) | 15.4 to 16.7 (5 runs) | 310 → 584 MiB |
+| 3.0 tf, `library="litert"` | 15.0, 15.3 | 15.9, 16.0 | 117 → 391 MiB |
+| 2.4 tf (TensorFlow Lite) | 78.5, 81.0 | 80.4, 81.4, 82.6 | 255 → 303 MiB |
+| 2.4 tf, `library="litert"` | 80.7, 83.3 | 80.2, 83.0, 85.3 | 57 → 109 MiB |
+
+- **XNNPACK gains next to nothing on this CPU**: within 2 % for 2.4, about 5 %
+  for 3.0, where x86-64 gained a factor of 2.1 to 3.1. The 3.0 TensorFlow leg
+  moves more between two runs of one side than between the sides.
+- **It costs the same memory as on magpie**: +274 MiB per worker for 3.0, +50
+  for 2.4. So the delegate is applied; the builtin kernels are just not slow
+  on this CPU.
+- Scores: the 3.0 score sum over 430 detections moves by 3e-5 (TensorFlow) and
+  1e-5 (LiteRT) against the builtin kernels, the 2.4 sum by 2e-5; detections
+  and species are the same on every backend and both versions. The 3.0 TFLite
+  file differs from the ONNX file by 3.4e-4 in that sum without the delegate
+  and by 3.7e-4 with it.
+- LiteRT and TensorFlow's interpreter are equally fast here. LiteRT holds
+  190 MiB less per worker and its workers are up sooner (0.6 against 5.4 s for
+  eight 2.4 workers).
+
+### One `onnx` worker with a large batch against a worker per core (#182)
+
+`3.0-onnx-cpu-wauto-b64-p1` (the library starts one worker) and
+`3.0-onnx-cpu-w8-b1-p1`, four rounds, the order swapped each round:
+
+| round | ran first | one worker, batch 64 seg/s | eight workers, batch 1 seg/s |
+|---|---|---|---|
+| 1 | one worker, after a pause | 24.0 | 21.2 |
+| 2 | eight workers | 21.1 | 21.5 |
+| 3 | one worker | 21.4 | 20.8 |
+| 4 | eight workers | 20.9 | 21.2 |
+
+| | one worker, batch 64 | eight workers, batch 1 |
+|---|---|---|
+| seg/s, rounds 2 to 4 | 21.1 | 21.2 |
+| one whole call of 400 segments | 19.8 to 20.3 s | 22.2 to 22.4 s |
+| footprint of the run | 0.35 to 0.41 GiB | 3.3 GiB (three runs within 6 MiB) |
+| resident set of the run | 1.1 to 1.2 GiB | 3.6 to 3.8 GiB |
+| swap while it ran | unchanged or falling | grew by 0.1 to 0.9 GiB |
+
+- **It holds here: the same throughput in an eighth of the footprint**, and a
+  call is back 2 s sooner because one model loads instead of eight. Not the 3 %
+  gain of magpie, and no loss. The 10 % lead in the suite (22.8 against 20.7)
+  was the order of the legs.
+- One worker is level from batch 16 on (21.1, 20.9 at 64, measured one after the
+  other), so starting it from 32 rows on (four per core, the efficiency cores
+  counted) is on the safe side here.
+- Without a batch size the default is 5 or 6 workers at 17.5 to 19.9 seg/s in
+  2.4 to 2.9 GiB resident; `batch_size=64` gives 21 in 1.2 GiB.
+
+### CPU, worker count (tree)
+
+| workers | 3.0 onnx seg/s | resident GiB | 2.4 tf seg/s | resident GiB |
+|---|---|---|---|---|
+| 1 | 12.6 | 0.8 | 32.9 | 0.6 |
+| 2 | 16.4 | 1.5 | 57.3 | 1.2 |
+| 4 | 19.1 | 2.4 | 81.4 | 2.2 |
+| 8 | 20.7 | 3.6 | 104.4 (114.8 as the first leg after a pause) | 4.4 |
+
+- Four workers more than there are performance cores add 8 % for 3.0 onnx and
+  28 % for 2.4 tf.
+- Nothing stops scaling before the eight cores are used, but 3.0 onnx gains
+  only 26 % from the second to the eighth worker.
+
+### CPU, batch size, producers and inputs (tree)
+
+| leg | workers | seg/s |
+|---|---|---|
+| 3.0 onnx, workers left to the library, batch 4 | 5 | 21.9 |
+| 3.0 onnx, workers left to the library, batch 16 | 4 | 22.4 |
+| 3.0 onnx, workers left to the library, batch 64 | 1 | 22.8 |
+| 3.0 onnx, 1 worker, batch 1 | 1 | 12.6 |
+| 3.0 onnx, 1 worker, batch 16 | 1 | 21.1 |
+| 3.0 onnx, 1 worker, batch 64 | 1 | 20.9 |
+| 3.0 onnx, 2 workers, batch 8 | 2 | 20.9 |
+| 3.0 onnx, 8 workers, batch 64 | 8 | 18.8 |
+| 2.4 tf, workers left to the library, batch 4 | 8 | 104.6 |
+| 2.4 tf, workers left to the library, batch 16 | 5 | 82.9 |
+| 3.0 onnx, 2 producers / 4 producers | 6 | 19.0 / 19.0 |
+| 2.4 tf, 2 producers / 4 producers | 8 | 102.2 / 100.4 |
+| 3.0 onnx, 32 kHz WAV / 44.1 kHz WAV | 6 / 5 | 18.8 / 17.5 |
+| 3.0 onnx, 48 kHz FLAC / MP3 | 6 / 5 | 19.0 / 17.4 |
+| 3.0 onnx, 9600 files of 15 s | 5 | 17.5 |
+| 3.0 onnx, overlap 1.5 s (26 xRT) | 5 | 17.5 |
+| 3.0 onnx, statistics and progress callback on | 6 | 17.5 |
+| 3.0 onnx, embeddings | 5 | 17.7 |
+| 2.4 tf, 32 kHz WAV | 8 | 97.7 |
+| 2.4 tf, embeddings (builtin kernels) | 8 | 99.3 |
+
+- Producers and inputs change nothing that the worker count (5 or 6) and the
+  order of the legs do not explain; the first three rows ran first and cool.
+- **The default lost three workers and 20 % at batch 16 for 2.4 tf.** The
+  estimate adds 15 MiB per row of the batch, and the rows run one by one now:
+  see the next table.
+
+### Memory per worker against `memory.py`
+
+Peak footprint of a worker (the kernel's lifetime maximum), four workers unless
+noted, against `WorkerCost.estimate`:
+
+| worker | measured MiB | estimate MiB |
+|---|---|---|
+| tflite 2.4 | 300 to 308 | 309 |
+| tflite 3.0 | 580 to 584 | 644 |
+| litert 2.4 | 107 to 112 | 134 |
+| litert 3.0 | 389 to 392 | 469 |
+| onnx 3.0, 4 or 8 workers | 368 to 438 | 524 |
+| tflite 2.4, batch 16 | 372 to 374 | 534 |
+| onnx 3.0, batch 16 | 375 to 468 | 704 |
+| onnx 3.0, one worker, batch 64 | 387 to 392 | 1280 |
+
+- At batch size 1 the estimates are 0 to 20 % above the largest worker
+  measured: safe here.
+- A row of the batch costs 4.5 MiB (tflite 2.4) where the estimate adds 15, and
+  the one `onnx` worker at batch 64 peaks where a worker at batch 1 does. On a
+  machine with memory to spare that is invisible; here it sets the worker count.
+- The parent holds 38 to 41 MiB, a producer 48 to 96 MiB at batch size 1 and
+  124 to 157 MiB at 16 and 64.
+- Four `onnx` workers held 1.6 GiB through one run and 0.8 GiB through another
+  with the same peaks: half of a worker's footprint after loading is given back
+  in some runs and kept in others. Eight held 3.3 GiB in all three runs.
+
+### What the recipe needed here
+
+- A Python that is not signed as a debugger. psutil's unique set of a child
+  needs the task port: with a uv-managed interpreter the call is refused at once
+  and the suite runs. An interpreter with the debugger entitlement, as the
+  python.org installers carry, made macOS ask for an administrator password at
+  that call on this machine before, and the caller blocks on the dialog. Not
+  tried again for this run.
+- The editable install and the two venvs outside the checkout, the model cache
+  left where it was with `BIRDNET_OFFLINE=1`: no model was downloaded.
+- A suite started from an interactive session trips `busy-machine` on its first
+  leg (the session's own drawing: 18 to 22 % for a few seconds); a minute's
+  pause before the first leg avoids it. Three legs were flagged in all and
+  measured again without a flag.
+
+### Not done here
+
+- **The harness's memory column on macOS.** `proc_pid_rusage` reads the
+  footprint of a child without the task port; the sampler used here lives
+  outside the repository.
+- **The worker count of a `wauto` leg** is not in the result file. It is
+  `processes_peak` minus the parent, the resource tracker and the producers,
+  and on a machine short of memory it is half of what the leg means.
+- **`pt`**, the custom classifier legs and 1.5.1 beyond `cpu-backends` and the
+  four-worker TFLite legs: the batch and worker tables have no "before" here.
+- **XNNPACK for the 3.0 `fp16` TFLite files** on this CPU, which has
+  half-precision arithmetic: the library excludes them, so it needs a patched
+  tree.
+- **The library's test lanes** were not run on this machine; the same commit is
+  green on the `macos-15` runners.
+- **An idle machine in the strict sense**, a cool start for every leg, and why
+  the `onnx` workers keep or return half their footprint.
