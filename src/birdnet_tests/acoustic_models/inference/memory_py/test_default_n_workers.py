@@ -78,6 +78,27 @@ def test_the_default_is_the_core_count_when_memory_is_plentiful(
   assert session._conf.processing_conf.workers == 32
 
 
+def test_an_onnx_batch_however_large_keeps_a_worker_per_core(
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+  """One worker with a large batch saves memory, and was 4 % slower on a laptop."""
+  from birdnet.acoustic.models.v3_0.onnx import AcousticOnnxBackendFP32V3_0
+
+  _simulate(monkeypatch, 10**6)
+
+  n_workers = memory.default_n_workers(
+    backend_type=AcousticOnnxBackendFP32V3_0,
+    backend_kwargs={},
+    model_path=tmp_path / "model.onnx",
+    n_producers=1,
+    batch_size=4 * 32,
+    prefetch_ratio=1,
+    segment_samples=96_000,
+  )
+
+  assert n_workers == 32
+
+
 def test_the_default_is_decided_after_the_other_arguments_are_checked(
   tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -132,24 +153,3 @@ def test_a_misspelt_device_is_rejected_before_the_default_is_decided(
   with caplog.at_level(logging.INFO, logger="birdnet"), pytest.raises(ValueError):
     fake_predict_session(tmp_path, n_workers=None, device="gpu")
   assert not any("n_workers defaulted" in r.getMessage() for r in caplog.records)
-
-
-def test_an_onnx_batch_however_large_keeps_a_worker_per_core(
-  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-  """One worker with a large batch saves memory, and was 4 % slower on a laptop."""
-  from birdnet.acoustic.models.v3_0.onnx import AcousticOnnxBackendFP32V3_0
-
-  _simulate(monkeypatch, 10**6)
-
-  n_workers = memory.default_n_workers(
-    backend_type=AcousticOnnxBackendFP32V3_0,
-    backend_kwargs={},
-    model_path=tmp_path / "model.onnx",
-    n_producers=1,
-    batch_size=4 * 32,
-    prefetch_ratio=1,
-    segment_samples=96_000,
-  )
-
-  assert n_workers == 32
