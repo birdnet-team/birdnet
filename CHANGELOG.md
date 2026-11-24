@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-11-24
+
 ### Changed
 
 - The `tf` backend runs the acoustic `fp32` models, the 2.4 `fp16` model and custom classifiers on the interpreter's XNNPACK delegate wherever a session reads graph outputs only, which is every prediction and the 3.0 embeddings: with 12 workers on 12 cores the 3.0 model analyses 2.1 (TensorFlow) to 3.1 (LiteRT) times as much audio per second, a custom classifier trained on 3.0 1.8 to 3.7 times as much, the 2.4 model 7 % to 32 % more. Scores move by float noise (up to 0.00006 on a 2.4 logit, 0.00002 on a 3.0 score) and each worker holds XNNPACK's copy of the weights, about 60 MiB more for 2.4 and 300 MiB more for 3.0; 2.4 embeddings, the 2.4 `int8` model and the 3.0 `fp16` files keep the builtin kernels ([#181](https://github.com/birdnet-team/birdnet/pull/181)).
@@ -487,7 +489,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release
 
-[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/birdnet-team/birdnet/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/birdnet-team/birdnet/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/birdnet-team/birdnet/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/birdnet-team/birdnet/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/birdnet-team/birdnet/compare/v1.3.1...v1.4.0

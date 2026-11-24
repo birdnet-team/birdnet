@@ -91,7 +91,7 @@ GPU, so it needs TensorFlow and onnxruntime-gpu in one venv without PyTorch; its
 5. Run the library's test lanes for the code the measurements touched
    (`AGENTS.md`); a faster number from a broken result is not a result.
 
-## magpie: Linux, i7-12700F (8 P + 4 E cores, 20 threads), 31 GiB, RTX 3080 Ti
+## Linux desktop: i7-12700F (8 P + 4 E cores, 20 threads), 31 GiB, RTX 3080 Ti
 
 Measured 2026-11-23, Python 3.13, onnxruntime 1.32.0 (GPU legs: onnxruntime-gpu
 1.26.0), TensorFlow 2.21.0, LiteRT 2.4.0, PyTorch 2.15.0 (GPU: 2.11.0+cu128),
