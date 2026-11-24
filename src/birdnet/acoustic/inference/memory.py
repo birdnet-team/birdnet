@@ -37,8 +37,9 @@ from birdnet.core.backends import (
   TorchBackend,
   VersionedBackendProtocol,
   cpu_threads_per_worker,
+  default_delegates_pay_off,
 )
-from birdnet.globals import LIBRARY_LITERT
+from birdnet.globals import LIBRARY_LITERT, MODEL_PRECISION_FP32
 from birdnet.utils.logging_utils import get_logger_for_package
 
 _LOGGER = get_logger_for_package(__name__)
@@ -76,6 +77,10 @@ _ROW_OUTPUT_BYTES = 2 * _MIB
 # Unique set per worker there (Windows 11, TensorFlow 2.21, 12 workers): 900 MiB
 # for 3.0 and 340 MiB for 2.4, where LiteRT 2.4 holds 380 and 100 MiB.
 _TFLITE_FILE_COPIES_ON_WINDOWS = 1.0
+# XNNPACK's packed copy of the weights, which the costs below include. Without
+# it a worker held 257 MiB for 2.4 and 310 MiB for 3.0 (tflite), 58 and 117 MiB
+# (litert): footprint, MacBook Air M1, four workers, fp32 files.
+_XNNPACK_WEIGHT_COPIES = 1.0
 
 
 @dataclass(frozen=True)
@@ -250,6 +255,20 @@ def runs_rows_one_by_one(
   return False
 
 
+def goes_without_xnnpack(backend_type: type[VersionedBackendProtocol]) -> bool:
+  """Whether a backend that asks for XNNPACK runs without it on this machine.
+
+  Only for fp32 files: what the builtin kernels hold for the others is not
+  measured.
+  """
+  return (
+    issubclass(backend_type, TFBackend)
+    and backend_type.uses_default_delegates()
+    and backend_type.precision() == MODEL_PRECISION_FP32
+    and not default_delegates_pay_off()
+  )
+
+
 def estimate_worker_bytes(
   backend_type: type[VersionedBackendProtocol],
   backend_kwargs: dict[str, Any],
@@ -262,6 +281,8 @@ def estimate_worker_bytes(
   estimate = _WORKER_COSTS[key].estimate(model_bytes, batch_size, row_by_row)
   if key == "tflite" and sys.platform == "win32":
     estimate += int(_TFLITE_FILE_COPIES_ON_WINDOWS * model_bytes)
+  if goes_without_xnnpack(backend_type):
+    estimate -= int(_XNNPACK_WEIGHT_COPIES * model_bytes)
   return estimate
 
 

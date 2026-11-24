@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import platform
 import sys
 from pathlib import Path
 
@@ -118,6 +119,72 @@ def test_only_tensorflows_interpreter_on_windows_holds_the_file_twice(
   assert estimate("win32", "tflite") - estimate("linux", "tflite") == 328 * _MIB
   assert estimate("win32", "litert") == estimate("linux", "litert")
   assert estimate("darwin", "tflite") == estimate("linux", "tflite")
+
+
+def _fp32_backend(version: str) -> type:
+  if version == "2.4":
+    from birdnet.acoustic.models.v2_4.tf import AcousticTFBackendFP32V2_4
+
+    return AcousticTFBackendFP32V2_4
+  from birdnet.acoustic.models.v3_0.tf import AcousticTFBackendFP32V3_0
+
+  return AcousticTFBackendFP32V3_0
+
+
+@pytest.mark.parametrize(
+  ("version", "library", "model_mib", "measured_mib"),
+  [
+    # Largest footprint of four workers without XNNPACK, MacBook Air M1.
+    ("2.4", "tflite", 49, 257),
+    ("3.0", "tflite", 328, 310),
+    ("2.4", "litert", 49, 58),
+    ("3.0", "litert", 328, 117),
+  ],
+)
+def test_on_apple_silicon_a_worker_is_planned_without_xnnpacks_weights(
+  monkeypatch: pytest.MonkeyPatch,
+  version: str,
+  library: str,
+  model_mib: int,
+  measured_mib: int,
+) -> None:
+  backend, kwargs = _fp32_backend(version), {TF_BACKEND_LIB_ARG: library}
+
+  def estimate(system: str, machine: str) -> int:
+    monkeypatch.setattr(sys, "platform", system.lower())
+    monkeypatch.setattr(platform, "system", lambda: system)
+    monkeypatch.setattr(platform, "machine", lambda: machine)
+    return estimate_worker_bytes(backend, kwargs, model_mib * _MIB, batch_size=1)
+
+  on_m1 = estimate("Darwin", "arm64")
+
+  assert 0.95 * measured_mib * _MIB <= on_m1 <= 1.5 * measured_mib * _MIB
+  assert estimate("Linux", "x86_64") - on_m1 == model_mib * _MIB
+  assert estimate("Darwin", "x86_64") - on_m1 == model_mib * _MIB
+
+
+def test_on_apple_silicon_the_plan_of_other_precisions_is_left_alone(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  from birdnet.acoustic.models.v2_4.tf import (
+    AcousticTFBackendFP16V2_4,
+    AcousticTFBackendInt8V2_4,
+  )
+  from birdnet.acoustic.models.v3_0.tf import AcousticTFBackendFP16V3_0
+
+  kwargs = {TF_BACKEND_LIB_ARG: "tflite"}
+  monkeypatch.setattr(sys, "platform", "darwin")
+  monkeypatch.setattr(platform, "system", lambda: "Darwin")
+  monkeypatch.setattr(platform, "machine", lambda: "arm64")
+
+  for backend in (
+    AcousticTFBackendFP16V2_4,
+    AcousticTFBackendInt8V2_4,
+    AcousticTFBackendFP16V3_0,
+  ):
+    assert estimate_worker_bytes(
+      backend, kwargs, 100 * _MIB, 1
+    ) == memory._WORKER_COSTS["tflite"].estimate(100 * _MIB, 1)
 
 
 def test_estimate_is_runtime_plus_model_plus_batch() -> None:
