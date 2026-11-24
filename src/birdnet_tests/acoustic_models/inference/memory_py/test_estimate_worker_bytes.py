@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -83,9 +84,56 @@ def test_the_estimate_is_at_most_five_percent_under_a_measured_worker(
   assert estimate >= 0.95 * measured_mib * _MIB
 
 
+@pytest.mark.parametrize(
+  ("library", "model_mib", "measured_mib"),
+  [
+    # Unique set per worker, 12 workers at batch size 1, Windows 11.
+    ("tflite", 49, 340),
+    ("tflite", 328, 900),
+    ("litert", 49, 100),
+    ("litert", 328, 380),
+  ],
+)
+def test_on_windows_the_estimate_covers_a_measured_worker_too(
+  monkeypatch: pytest.MonkeyPatch, library: str, model_mib: int, measured_mib: int
+) -> None:
+  monkeypatch.setattr(sys, "platform", "win32")
+
+  estimate = estimate_worker_bytes(
+    _TF, {TF_BACKEND_LIB_ARG: library}, model_mib * _MIB, batch_size=1
+  )
+
+  assert 0.95 * measured_mib * _MIB <= estimate <= 1.4 * measured_mib * _MIB
+
+
+def test_only_tensorflows_interpreter_on_windows_holds_the_file_twice(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  def estimate(platform: str, library: str) -> int:
+    monkeypatch.setattr(sys, "platform", platform)
+    return estimate_worker_bytes(
+      _TF, {TF_BACKEND_LIB_ARG: library}, 328 * _MIB, batch_size=1
+    )
+
+  assert estimate("win32", "tflite") - estimate("linux", "tflite") == 328 * _MIB
+  assert estimate("win32", "litert") == estimate("linux", "litert")
+  assert estimate("darwin", "tflite") == estimate("linux", "tflite")
+
+
 def test_estimate_is_runtime_plus_model_plus_batch() -> None:
   cost = WorkerCost(100 * _MIB, 1.5, 10 * _MIB)
   assert cost.estimate(model_bytes=200 * _MIB, batch_size=4) == 440 * _MIB
+
+
+def test_a_batch_run_row_by_row_adds_the_outputs_of_its_other_rows() -> None:
+  cost = WorkerCost(100 * _MIB, 1.5, 10 * _MIB)
+
+  one = cost.estimate(model_bytes=200 * _MIB, batch_size=1, row_by_row=True)
+  four = cost.estimate(model_bytes=200 * _MIB, batch_size=4, row_by_row=True)
+
+  assert one == 410 * _MIB
+  assert cost.estimate(model_bytes=200 * _MIB, batch_size=1) == one
+  assert four == 410 * _MIB + 3 * memory._ROW_OUTPUT_BYTES
 
 
 def test_model_bytes_of_a_file_and_of_a_directory(tmp_path: Path) -> None:

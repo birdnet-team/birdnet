@@ -9,7 +9,9 @@ default, says nothing about what fits. The estimate a session plans with is
          + n_workers * (worker + (1 + prefetch_ratio) * slot)
   slot = batch_size * segment_samples * 4 bytes          (the audio ring)
   producer = producer_base + 1.5 * slot                  (the batch it builds)
-  worker = runtime + model_factor * model_bytes + batch_size * per_segment
+  worker = runtime + model_factor * model_bytes + rows
+  rows = batch_size * per_segment                        (a batch run as one)
+       = per_segment + (batch_size - 1) * row_output     (run a row at a time)
 
 with ``runtime``, ``model_factor`` and ``per_segment`` per backend from
 ``_WORKER_COSTS``. ``n_workers=None`` becomes the largest count whose peak fits
@@ -20,6 +22,7 @@ explicit ``n_workers`` is taken as given.
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -33,6 +36,7 @@ from birdnet.core.backends import (
   TFBackend,
   TorchBackend,
   VersionedBackendProtocol,
+  cpu_threads_per_worker,
 )
 from birdnet.globals import LIBRARY_LITERT
 from birdnet.utils.logging_utils import get_logger_for_package
@@ -63,6 +67,15 @@ _PRODUCER_SLOTS = 1.5
 # The estimates below are 3-5 % under the largest measured worker, and a worker
 # with more intra-op threads (fewer workers share the cores) needs more.
 _PLANNING_FRACTION = 0.9
+# What every further row adds to a worker that runs its batch one row at a time:
+# the row's output, since the activations are those of one row. Unique set per
+# worker and row at batch sizes 16 and 64, 12 workers: 0.1 to 0.7 MiB on Linux
+# (2.4 tflite, 3.0 onnx), 0.3 MiB and less on Windows 11.
+_ROW_OUTPUT_BYTES = 2 * _MIB
+# TensorFlow's interpreter holds the model file in private memory on Windows.
+# Unique set per worker there (Windows 11, TensorFlow 2.21, 12 workers): 900 MiB
+# for 3.0 and 340 MiB for 2.4, where LiteRT 2.4 holds 380 and 100 MiB.
+_TFLITE_FILE_COPIES_ON_WINDOWS = 1.0
 
 
 @dataclass(frozen=True)
@@ -71,12 +84,15 @@ class WorkerCost:
   model_factor: float
   per_segment_bytes: int
 
-  def estimate(self, model_bytes: int, batch_size: int) -> int:
-    return int(
-      self.runtime_bytes
-      + self.model_factor * model_bytes
-      + batch_size * self.per_segment_bytes
+  def estimate(
+    self, model_bytes: int, batch_size: int, row_by_row: bool = False
+  ) -> int:
+    rows = (
+      self.per_segment_bytes + (batch_size - 1) * _ROW_OUTPUT_BYTES
+      if row_by_row
+      else batch_size * self.per_segment_bytes
     )
+    return int(self.runtime_bytes + self.model_factor * model_bytes + rows)
 
 
 # Max RssAnon of one worker, Linux x86_64, spawn, Python 3.13, TensorFlow 2.21,
@@ -221,15 +237,32 @@ def cost_key(
   return "other"
 
 
+def runs_rows_one_by_one(
+  backend_type: type[VersionedBackendProtocol], device: str, n_workers: int
+) -> bool:
+  """Whether each of ``n_workers`` workers runs a batch one row at a time."""
+  if "GPU" in device:
+    return False
+  if issubclass(backend_type, TFBackend):
+    return backend_type.runs_rows_one_by_one()
+  if issubclass(backend_type, OnnxBackend):
+    return cpu_threads_per_worker(n_workers) == 1
+  return False
+
+
 def estimate_worker_bytes(
   backend_type: type[VersionedBackendProtocol],
   backend_kwargs: dict[str, Any],
   model_bytes: int,
   batch_size: int,
+  row_by_row: bool = False,
 ) -> int:
   """Peak private memory of one worker: runtime import, model, one batch."""
-  cost = _WORKER_COSTS[cost_key(backend_type, backend_kwargs)]
-  return cost.estimate(model_bytes, batch_size)
+  key = cost_key(backend_type, backend_kwargs)
+  estimate = _WORKER_COSTS[key].estimate(model_bytes, batch_size, row_by_row)
+  if key == "tflite" and sys.platform == "win32":
+    estimate += int(_TFLITE_FILE_COPIES_ON_WINDOWS * model_bytes)
+  return estimate
 
 
 def per_worker_bytes(worker_bytes: int, slot_bytes: int, prefetch_ratio: int) -> int:
@@ -281,16 +314,28 @@ def default_n_workers(
   n_cores = physical_cores()
   available, source = available_memory()
   model = model_bytes(model_path)
-  worker = estimate_worker_bytes(backend_type, backend_kwargs, model, batch_size)
   slot = batch_size * segment_samples * 4
-  n_workers = fit_n_workers(
-    n_cores=n_cores,
-    available_bytes=available,
-    n_producers=n_producers,
-    worker_bytes=worker,
-    slot_bytes=slot,
-    prefetch_ratio=prefetch_ratio,
-  )
+
+  def fit(row_by_row: bool) -> tuple[int, int]:
+    worker = estimate_worker_bytes(
+      backend_type, backend_kwargs, model, batch_size, row_by_row=row_by_row
+    )
+    fitting = fit_n_workers(
+      n_cores=n_cores,
+      available_bytes=available,
+      n_producers=n_producers,
+      worker_bytes=worker,
+      slot_bytes=slot,
+      prefetch_ratio=prefetch_ratio,
+    )
+    return worker, fitting
+
+  row_by_row = runs_rows_one_by_one(backend_type, device, n_cores)
+  worker, n_workers = fit(row_by_row)
+  if row_by_row and not runs_rows_one_by_one(backend_type, device, n_workers):
+    # So few onnx workers fit that each gets several threads and runs its
+    # batch as one.
+    worker, n_workers = fit(False)
   per_worker = per_worker_bytes(worker, slot, prefetch_ratio)
   decision = (
     "one per physical core"
