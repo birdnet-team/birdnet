@@ -782,13 +782,15 @@ class AcousticModelV3_0(AcousticModelBase):
         as there are physical CPU cores, or fewer when the memory available to
         this process (a cgroup limit included) would not hold that many: each
         worker holds its own copy of the model, so peak memory grows with the
-        count. With a list of devices ``None`` starts one worker for each entry,
-        and for the ``onnx`` backend on a CPU a single worker once ``batch_size``
-        reaches four times the core count, since that worker runs a row on every
-        core. The decision and its estimate are logged at INFO. Pass a fixed
-        integer to meet a scheduler or container process limit, to override the
+        count. With a list of devices ``None`` starts one worker for each entry.
+        The decision and its estimate are logged at INFO. Pass a fixed integer
+        to meet a scheduler or container process limit, to override the
         estimate, or for a GPU, whose memory the estimate does not know: every
-        worker loads the model into it. In the cases the pipeline guards against, a
+        worker loads the model into it. To save memory with the ``onnx`` backend
+        on a CPU, pass ``n_workers=1`` and a ``batch_size`` of four times the
+        core count or more: that worker runs a row of the batch on every core,
+        on one copy of the model, and came within 4 % of a worker per core on
+        the three machines measured. In the cases the pipeline guards against, a
         worker killed by the operating system to reclaim memory, including while
         it is processing a batch, is reported as an error naming the dead worker
         rather than hanging the call (see issue #73). Lowering ``n_workers`` or
