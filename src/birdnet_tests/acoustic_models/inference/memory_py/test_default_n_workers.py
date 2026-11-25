@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import logging
+import sys
 from pathlib import Path
 
+import psutil
 import pytest
 
 import birdnet.acoustic.inference.memory as memory
@@ -132,3 +134,75 @@ def test_a_misspelt_device_is_rejected_before_the_default_is_decided(
   with caplog.at_level(logging.INFO, logger="birdnet"), pytest.raises(ValueError):
     fake_predict_session(tmp_path, n_workers=None, device="gpu")
   assert not any("n_workers defaulted" in r.getMessage() for r in caplog.records)
+
+
+def _host(
+  monkeypatch: pytest.MonkeyPatch, n_cores: int, available_mib: int, model_mib: int
+) -> None:
+  monkeypatch.setattr(sys, "platform", "linux")
+  monkeypatch.setattr(psutil, "cpu_count", lambda logical=True: n_cores)
+  monkeypatch.setattr(memory, "host_memory_available", lambda: available_mib * _MIB)
+  monkeypatch.setattr(memory, "cgroup_memory_available", lambda: None)
+  monkeypatch.setattr(memory, "model_bytes", lambda _path: model_mib * _MIB)
+
+
+def test_a_tflite_batch_no_longer_costs_workers_on_a_small_machine(
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+  """A MacBook Air M1 with 3772 MiB free started 5 of 8 workers at batch 16.
+
+  They held 372 to 374 MiB each, where 534 MiB were planned.
+  """
+  from birdnet.acoustic.models.v2_4.tf import AcousticTFBackendFP32V2_4
+  from birdnet.core.backends import TF_BACKEND_LIB_ARG
+
+  _host(monkeypatch, n_cores=8, available_mib=3772, model_mib=49)
+
+  n_workers = memory.default_n_workers(
+    backend_type=AcousticTFBackendFP32V2_4,
+    backend_kwargs={TF_BACKEND_LIB_ARG: "tflite"},
+    model_path=tmp_path / "model.tflite",
+    n_producers=1,
+    batch_size=16,
+    prefetch_ratio=1,
+    segment_samples=144_000,
+  )
+
+  assert n_workers == 8
+
+
+@pytest.mark.parametrize(
+  ("available_mib", "device", "expected"),
+  [
+    # A thread per worker: a batch of 64 runs row by row in each.
+    (16384, "CPU", 12),
+    (8192, "CPU", 10),
+    # Four fit by that estimate; with three threads each they run a batch as
+    # one, and two of those fit.
+    (4096, "CPU", 2),
+    (8192, "GPU", 5),
+  ],
+)
+def test_onnx_workers_are_planned_by_how_they_run_a_batch(
+  tmp_path: Path,
+  monkeypatch: pytest.MonkeyPatch,
+  available_mib: int,
+  device: str,
+  expected: int,
+) -> None:
+  from birdnet.acoustic.models.v3_0.onnx import AcousticOnnxBackendFP32V3_0
+
+  _host(monkeypatch, n_cores=12, available_mib=available_mib, model_mib=329)
+
+  n_workers = memory.default_n_workers(
+    backend_type=AcousticOnnxBackendFP32V3_0,
+    backend_kwargs={},
+    model_path=tmp_path / "model.onnx",
+    n_producers=1,
+    batch_size=64,
+    prefetch_ratio=1,
+    segment_samples=96_000,
+    device=device,
+  )
+
+  assert n_workers == expected

@@ -3,12 +3,13 @@
 The delegate keeps no tensor inside the part of the graph it takes over, so a
 backend may only use it while every tensor it reads is a graph output. The 2.4
 models read their embeddings from inside the graph, the 3.0 models from an
-output. Pinned on interpreter stand-ins; the real interpreters are covered by
-the model tests.
+output. On Apple silicon no backend uses it. Pinned on interpreter stand-ins;
+the real interpreters are covered by the model tests.
 """
 
 from __future__ import annotations
 
+import platform
 from pathlib import Path
 
 import numpy as np
@@ -90,6 +91,12 @@ def _backend_type(
       return True
 
   return _Backend
+
+
+@pytest.fixture(autouse=True)
+def _on_a_machine_where_the_delegate_pays_off(monkeypatch: pytest.MonkeyPatch) -> None:
+  monkeypatch.setattr(platform, "system", lambda: "Linux")
+  monkeypatch.setattr(platform, "machine", lambda: "x86_64")
 
 
 @pytest.fixture
@@ -175,6 +182,33 @@ def test_a_backend_that_does_not_ask_for_the_delegate_never_gets_it(
   backend.encode(_BATCH)
 
   assert [interp.default_delegates for interp in opened] == [False]
+
+
+@pytest.mark.parametrize(
+  ("system", "machine", "pays_off"),
+  [
+    ("Linux", "x86_64", True),
+    ("Linux", "aarch64", True),
+    ("Windows", "AMD64", True),
+    ("Darwin", "x86_64", True),
+    ("Darwin", "arm64", False),
+  ],
+)
+def test_on_apple_silicon_a_backend_that_asks_for_the_delegate_runs_without_it(
+  monkeypatch: pytest.MonkeyPatch,
+  opened: list[_Interpreter],
+  system: str,
+  machine: str,
+  pays_off: bool,
+) -> None:
+  monkeypatch.setattr(platform, "system", lambda: system)
+  monkeypatch.setattr(platform, "machine", lambda: machine)
+  backend = _load(_backend_type(_OUTPUT_IDX, _INNER_IDX))
+
+  backend.predict(_BATCH)
+
+  assert backends.default_delegates_pay_off() is pays_off
+  assert [interp.default_delegates for interp in opened] == [pays_off]
 
 
 def test_the_batch_is_resized_again_after_the_delegate_is_dropped(

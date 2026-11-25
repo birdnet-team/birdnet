@@ -256,7 +256,9 @@ class TFBackend(Backend, ABC):
   def load(self) -> None:
     assert self._interp is None
 
-    self._default_delegates = self.uses_default_delegates()
+    self._default_delegates = (
+      self.uses_default_delegates() and default_delegates_pay_off()
+    )
     self._interp = load_tf_model(
       self._model_path,
       self._inference_library,
@@ -1264,6 +1266,19 @@ def load_tf_model(
     )
   else:
     raise AssertionError()
+
+
+def default_delegates_pay_off() -> bool:
+  """Whether XNNPACK earns its packed copy of the weights on this machine.
+
+  Not on Apple silicon. On a MacBook Air M1 (macOS 15.1, TensorFlow 2.21,
+  LiteRT 2.4, four workers) it ran the 3.0 fp32 model 5 % faster and the 2.4
+  model no faster than the builtin kernels, and each worker held 274 and 50 MiB
+  more, on a machine where memory decides how many workers start.
+  """
+  import platform
+
+  return not (platform.system() == "Darwin" and platform.machine() == "arm64")
 
 
 def _op_resolver_type(tflite: Any, default_delegates: bool) -> Any:  # noqa: ANN401

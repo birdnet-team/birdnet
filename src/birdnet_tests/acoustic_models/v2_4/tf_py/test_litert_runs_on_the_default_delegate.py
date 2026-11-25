@@ -3,7 +3,8 @@
 Seen from outside by what the delegate takes away: a tensor inside the graph
 cannot be read after a prediction. Every LiteRT release birdnet supports
 delegates this file; a session that needs such a tensor, the embeddings, gets
-an interpreter without the delegate.
+an interpreter without the delegate. Not on Apple silicon, where the backend
+keeps the builtin kernels.
 """
 
 import numpy as np
@@ -12,9 +13,15 @@ import pytest
 import birdnet
 from birdnet.acoustic.models.v2_4.model import AcousticModelV2_4
 from birdnet.acoustic.models.v2_4.tf import AcousticTFBackendFP32V2_4
+from birdnet.core.backends import default_delegates_pay_off
 from birdnet_tests.helper import ensure_litert_or_skip
 
-pytestmark = pytest.mark.litert
+pytestmark = [
+  pytest.mark.litert,
+  pytest.mark.skipif(
+    not default_delegates_pay_off(), reason="builtin kernels on this machine"
+  ),
+]
 
 
 def test_a_prediction_is_delegated_and_embeddings_still_come_out() -> None:
