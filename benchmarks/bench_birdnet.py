@@ -31,6 +31,7 @@ import shutil
 import statistics
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from datetime import datetime, timezone
@@ -290,10 +291,17 @@ def _corpus_files(corpus: Path) -> list[str]:
 
 def _corpus_id(corpus: Path) -> str:
   manifest = corpus / "corpus.json"
-  if manifest.is_file():
-    digest = hashlib.sha256(manifest.read_bytes()).hexdigest()[:8]
-    return f"{corpus.name}#{digest}"
-  return corpus.name
+  if not manifest.is_file():
+    return corpus.name
+  # Hashed as parsed: the line endings of the file and 10 written as 10.0 are
+  # the same corpus.
+  values = json.loads(manifest.read_text(encoding="utf-8"))
+  canonical = {
+    key: int(value) if isinstance(value, float) and value.is_integer() else value
+    for key, value in values.items()
+  }
+  digest = hashlib.sha256(json.dumps(canonical, indent=2).encode()).hexdigest()[:8]
+  return f"{corpus.name}#{digest}"
 
 
 # -------------------------------------------------------------------------- legs
@@ -459,6 +467,7 @@ class _Monitor:
     self._cpu: list[float] = []
     self._rss_peak = 0
     self._uss_peak = 0
+    self._uss_denied = False
     self._n_procs_peak = 0
     self._gpu_util: list[float] = []
     self._gpu_mem_peak = 0.0
@@ -505,7 +514,11 @@ class _Monitor:
           rss += proc.memory_info().rss
           n_procs += 1
           if with_uss:
-            uss += proc.memory_full_info().uss
+            try:
+              uss += proc.memory_full_info().uss
+            except psutil.AccessDenied:
+              # macOS gives another process's unique set only with its task port.
+              self._uss_denied = True
       self._rss_peak = max(self._rss_peak, rss)
       self._uss_peak = max(self._uss_peak, uss)
       self._n_procs_peak = max(self._n_procs_peak, n_procs)
@@ -526,7 +539,9 @@ class _Monitor:
     out: dict[str, Any] = {
       "cpu_mean_pct": round(statistics.fmean(self._cpu), 1) if self._cpu else None,
       "rss_tree_peak_MiB": round(self._rss_peak / 2**20),
-      "uss_tree_peak_MiB": round(self._uss_peak / 2**20),
+      "uss_tree_peak_MiB": (
+        None if self._uss_denied else round(self._uss_peak / 2**20)
+      ),
       "processes_peak": self._n_procs_peak,
     }
     if self._gpu_util:
@@ -869,6 +884,44 @@ def _kill_tree(pid: int) -> None:
     psutil.wait_procs(procs, timeout=10)
 
 
+def _leg_command(
+  leg: Leg, corpus: Path, label: str, out: Path, args: argparse.Namespace
+) -> list[str]:
+  return [
+    sys.executable, str(Path(__file__).resolve()), "run",
+    "--corpus", str(corpus),
+    "--label", label,
+    "--out", str(out),
+    "--repeats", str(args.repeats),
+    "--oneshot", str(args.oneshot),
+    "--pass-seconds", str(args.pass_seconds),
+    *leg.cli(),
+  ]  # fmt: skip
+
+
+def _run_leg(command: list[str], timeout: float) -> tuple[str, str, str | None]:
+  """Run one leg to its end; returns its output and what went wrong, if anything.
+
+  A leg is its own process: runtimes cannot be unloaded, a crash or a hang must
+  not take the suite with it, and a hung leg is killed with its tree.
+  """
+  proc = subprocess.Popen(
+    command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+  )
+  try:
+    stdout, stderr = proc.communicate(timeout=timeout)
+    error = None if proc.returncode == 0 else f"exit code {proc.returncode}"
+  except subprocess.TimeoutExpired:
+    _kill_tree(proc.pid)
+    try:
+      stdout, stderr = proc.communicate(timeout=30)
+    except subprocess.TimeoutExpired:
+      # A process that left the tree still holds the pipes.
+      stdout, stderr = "", ""
+    error = f"no result within {timeout:g} s (killed)"
+  return stdout, stderr, error
+
+
 def cmd_suite(args: argparse.Namespace) -> None:
   import psutil
 
@@ -906,6 +959,23 @@ def cmd_suite(args: argparse.Namespace) -> None:
       corpora[tag] = None
 
   print(f"{len(legs)} legs, label '{args.label}', results in {out}")
+  pending = [
+    (leg, corpus)
+    for leg in legs
+    if (corpus := corpora[leg.corpus]) is not None
+    and (
+      args.force
+      or not _result_path(out, args.label, machine["host"], leg.name, corpus).is_file()
+    )
+  ]
+  if args.warmup_legs and pending:
+    leg, corpus = pending[0]
+    with tempfile.TemporaryDirectory() as scratch:
+      command = _leg_command(leg, corpus, "warmup", Path(scratch), args)
+      for index in range(1, args.warmup_legs + 1):
+        _, _, error = _run_leg(command, args.leg_timeout)
+        outcome = "done, result dropped" if error is None else f"FAILED, {error}"
+        print(f"warm-up {index}/{args.warmup_legs} {leg.name}: {outcome}", flush=True)
   for index, leg in enumerate(legs, 1):
     corpus = corpora[leg.corpus]
     if corpus is None:
@@ -915,33 +985,9 @@ def cmd_suite(args: argparse.Namespace) -> None:
     if path.is_file() and not args.force:
       print(f"{prefix}: already measured, skipped")
       continue
-    command = [
-      sys.executable, str(Path(__file__).resolve()), "run",
-      "--corpus", str(corpus),
-      "--label", args.label,
-      "--out", str(out),
-      "--repeats", str(args.repeats),
-      "--oneshot", str(args.oneshot),
-      "--pass-seconds", str(args.pass_seconds),
-      *leg.cli(),
-    ]  # fmt: skip
+    command = _leg_command(leg, corpus, args.label, out, args)
     start = time.perf_counter()
-    # A leg is its own process: runtimes cannot be unloaded, a crash or a hang
-    # must not take the suite with it, and a hung leg is killed with its tree.
-    proc = subprocess.Popen(
-      command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-    )
-    try:
-      stdout, stderr = proc.communicate(timeout=args.leg_timeout)
-      error = None if proc.returncode == 0 else f"exit code {proc.returncode}"
-    except subprocess.TimeoutExpired:
-      _kill_tree(proc.pid)
-      try:
-        stdout, stderr = proc.communicate(timeout=30)
-      except subprocess.TimeoutExpired:
-        # A process that left the tree still holds the pipes.
-        stdout, stderr = "", ""
-      error = f"no result within {args.leg_timeout:g} s (killed)"
+    stdout, stderr, error = _run_leg(command, args.leg_timeout)
     elapsed = time.perf_counter() - start
     if error is None:
       # The leg's own line is the last one: the library prints above it.
@@ -1005,13 +1051,14 @@ def _delta(record: dict[str, Any], base: dict[str, Any]) -> str:
   session record only the whole calls compare, per segment.
   """
   if record.get("mode") == base.get("mode"):
-    ratio = record["segments_per_second"] / base["segments_per_second"]
-    return f"{(ratio - 1) * 100:+.1f}%"
-  ours, theirs = _call_seconds(record), _call_seconds(base)
+    ours, theirs, note = record["seconds_min"], base["seconds_min"], ""
+  else:
+    ours, theirs, note = _call_seconds(record), _call_seconds(base), " (calls)"
   if not ours or not theirs:
     return ""
+  # From the pass times: the stored seg/s is rounded to one decimal.
   ratio = (record["n_segments"] / ours) / (base["n_segments"] / theirs)
-  return f"{(ratio - 1) * 100:+.1f}% (calls)"
+  return f"{(ratio - 1) * 100:+.1f}%{note}"
 
 
 def _memory(monitor: dict[str, Any]) -> str:
@@ -1176,6 +1223,12 @@ def main() -> None:
   s.add_argument("--files", type=int, default=240)
   s.add_argument("--minutes", type=float, default=10)
   s.add_argument("--leg-timeout", type=float, default=1800)
+  s.add_argument(
+    "--warmup-legs",
+    type=int,
+    default=0,
+    help="run the first leg this often before the suite and drop the results",
+  )
   s.add_argument(
     "--gpu",
     default="auto",

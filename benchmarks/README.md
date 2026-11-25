@@ -77,9 +77,10 @@ It also records, per leg:
   below 100 % is waiting for the CPU side (producers, post-processing).
 - **mem MiB**: peak unique memory of the process tree: what the run occupies
   on top of the pages its processes share, such as a model file they all map.
-  Where the platform does not report it, the column shows the resident sum
-  with `rss` behind it, which counts shared pages once per process and is
-  several times larger for TensorFlow. The JSON has both.
+  Where the platform does not report it for every process (macOS refuses it
+  for children), the column shows the resident sum with `rss` behind it, which
+  counts shared pages once per process and is several times larger for
+  TensorFlow. The JSON has both.
 - **digest**: detection count and score sum of the first file. A changed digest
   at equal settings means the change computes something else. An equal one is
   a plausibility check, not a proof: it is a sum over one file, and the corpus
@@ -128,6 +129,11 @@ for a GPU it does not know (DirectML).
   passes, which forgives a short disturbance but not a second benchmark, a test
   suite or a build. The table flags `noisy` (passes more than 10 % apart) and
   `busy-machine` (CPU already in use before the leg): measure those again.
+- **A laptop runs its first legs fast.** After a pause the first leg ran 10 to
+  15 % above the same leg later in the suite on both laptops measured, and the
+  fastest of three passes keeps that. `--warmup-legs 2` runs the first leg twice
+  before the suite and drops the results; compare two settings in alternating
+  order, not one after the other.
 - **Never edit what is being measured.** A suite takes an hour, and every leg
   imports birdnet afresh. Measure an installed version, or a copy of the source
   tree selected with `PYTHONPATH` (a path there wins over an editable install),
