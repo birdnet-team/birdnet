@@ -14,7 +14,10 @@ def test_is_supported_audio_file(tmp_path: Path) -> None:
   txt.touch()
   upper = tmp_path / "c.FLAC"
   upper.touch()
+  aif = tmp_path / "d.aif"
+  aif.touch()
 
   assert is_supported_audio_file(wav)
   assert is_supported_audio_file(upper)
+  assert is_supported_audio_file(aif)
   assert not is_supported_audio_file(txt)

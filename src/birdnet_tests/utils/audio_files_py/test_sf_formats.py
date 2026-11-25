@@ -11,6 +11,7 @@ def test_all_formats_from_sf_are_in_global_var() -> None:
   possible = {f".{suffix}" for suffix in sf.available_formats()} | {
     ".OPUS",
     ".AIFC",
+    ".AIF",
   }
 
   assert possible == SF_FORMATS
