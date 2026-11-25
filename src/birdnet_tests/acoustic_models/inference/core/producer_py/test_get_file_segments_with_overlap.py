@@ -1,4 +1,6 @@
+import shutil
 from math import ceil
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -51,6 +53,26 @@ def test_aifc_can_be_read() -> None:
 
 def test_aiff_can_be_read() -> None:
   assert format_can_be_read("soundscape.aiff")
+
+
+def test_aiff_under_the_suffix_aif_can_be_read(tmp_path: Path) -> None:
+  inp = tmp_path / "soundscape.aif"
+  shutil.copyfile(AUDIO_FORMATS_DIR / "soundscape.aiff", inp)
+  inp_sf = soundfile.info(inp)
+
+  res = list(
+    get_file_segments_with_overlap(
+      inp,
+      inp_sf.frames,
+      inp_sf.samplerate,
+      segment_duration_s=3,
+      overlap_duration_s=0,
+      target_sample_rate=48000,
+      speed=1,
+    )
+  )
+
+  assert len(res) == 40
 
 
 def test_au_can_be_read() -> None:

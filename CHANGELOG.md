@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Bugfixes
+
+- An AIFF recording with the suffix `.aif` was refused with `is not a supported audio format` and left out when a folder was given, although libsndfile reads it like `.aiff`: the suffix was missing from the list of formats.
+
 ## [1.6.0] - 2026-11-24
 
 ### Changed

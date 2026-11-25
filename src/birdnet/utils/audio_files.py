@@ -6,6 +6,7 @@ from collections.abc import Generator
 from pathlib import Path
 
 SF_FORMATS = {
+  ".AIF",
   ".AIFC",
   ".AIFF",
   ".AU",
