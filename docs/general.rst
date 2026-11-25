@@ -29,7 +29,7 @@ A *Producer* loads only as much audio as the buffer can hold, keeping RAM usage 
 
 * **Buffer Size** – By default, the buffer is set to twice the *Worker* count, ensuring that every *Worker* always has a pre-loaded batch to process and thus avoids idle time.
 * **Model Backends** – Each worker loads its own instance of the inference model. On the CPU, both **TFLite** and **Protocol Buffers** (Protobuf) models can be used; Protobuf models can optionally run on the GPU.
-* **Best Practice for CPU Inference** – For CPU-only execution on Linux, the number of *Worker* processes should not exceed the number of physical cores, as oversubscription typically leads to reduced performance. The batch size does not change the throughput there: the TFLite backends, and the ONNX backend with one thread per *Worker*, run a batch one segment at a time.
+* **Best Practice for CPU Inference** – For CPU-only execution on Linux, the number of *Worker* processes should not exceed the number of physical cores, as oversubscription typically leads to reduced performance. The batch size does not change the throughput there: the TFLite backends, and the ONNX backend with one thread per *Worker*, run a batch one segment at a time. To save memory, a single ONNX *Worker* (``n_workers=1``) given a batch with at least as many segments as cores runs them in parallel on one copy of the model: from four segments per core on it came within 4 % of a *Worker* per core on the three machines measured (3 % above on a 12-core Linux desktop, level on a MacBook Air M1, 3 to 4 % below on a 12-core Windows laptop), in a sixth to an eighth of the memory. It is not the default.
 
 Multiprocessing start method
 ----------------------------

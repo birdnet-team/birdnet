@@ -1,5 +1,6 @@
 import math
 
+import psutil
 import pytest
 
 from birdnet.acoustic.inference.core.prediction.prediction_result import (
@@ -23,6 +24,9 @@ _PT_ONNX_PREDICTION_MAX_ABS_DIFF = 1e-4
 _PT_ONNX_PREDICTION_MEAN_ABS_DIFF = 1e-5
 _PB_ONNX_PREDICTION_MAX_ABS_DIFF = 1e-4
 _PB_ONNX_PREDICTION_MEAN_ABS_DIFF = 1e-5
+# One row per call against the reference's one row on every thread: the same
+# kernels, summed in another order.
+_ROW_PARALLEL_MAX_ABS_DIFF = 1e-5
 
 
 def _predict(
@@ -109,4 +113,29 @@ def test_v3_0_predict_pt_and_onnx_are_close_with_custom_segment_size(
     onnx_result,
     max_abs_diff=_PT_ONNX_PREDICTION_MAX_ABS_DIFF,
     mean_abs_diff=_PT_ONNX_PREDICTION_MEAN_ABS_DIFF,
+  )
+
+
+@pytest.mark.no_tf
+def test_v3_0_onnx_rows_of_a_batch_in_parallel_keep_their_scores_and_order() -> None:
+  """A worker with two or three threads gets all three segments as one batch.
+
+  That is a row for every thread, so the worker runs the rows in parallel
+  (on a single core: one by one). Every segment of the file scores differently,
+  so rows handed back in another order would show.
+  """
+  ensure_onnxruntime_or_skip()
+  n_cores = psutil.cpu_count(logical=False) or 1
+  model = load_v3_0("onnx")
+
+  with model.predict_session(
+    n_workers=math.ceil(n_cores / 3),
+    batch_size=3,
+    top_k=None,
+    default_confidence_threshold=-float("inf"),
+  ) as session:
+    res = session.run(TEST_FILE_SHORT)
+
+  assert_prediction_result_is_close(
+    res, onnx_fp32_prediction(), max_abs_diff=_ROW_PARALLEL_MAX_ABS_DIFF
   )
