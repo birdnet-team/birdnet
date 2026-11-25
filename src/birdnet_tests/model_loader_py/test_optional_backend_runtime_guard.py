@@ -37,6 +37,22 @@ def test_onnx_message_recommends_installing_onnxruntime_where_it_has_wheels(
   assert "onnxruntime is not installed ('pip install onnxruntime'" in message
 
 
+@pytest.mark.parametrize("onnxruntime_installed", [True, False])
+def test_onnx_message_names_a_half_removed_install(
+  monkeypatch: pytest.MonkeyPatch, onnxruntime_installed: bool
+) -> None:
+  # Without a folder left, nothing named onnxruntime can be imported.
+  monkeypatch.setattr(ml, "onnxruntime_installed", lambda: onnxruntime_installed)
+  monkeypatch.setattr(
+    ml, "onnxruntime_install_problem", lambda: "the folder 'x' holds only part"
+  )
+
+  assert _load_error("onnx") == (
+    "Parameter 'backend': Backend 'onnx' is not available: "
+    "the folder 'x' holds only part"
+  )
+
+
 def test_onnx_message_explains_missing_wheels(
   monkeypatch: pytest.MonkeyPatch, _no_onnxruntime: None, _no_torch: None
 ) -> None:

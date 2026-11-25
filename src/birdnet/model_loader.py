@@ -73,6 +73,7 @@ from birdnet.core.backends import (
   VersionedGeoBackendProtocol,
   check_is_intel_macos,
   litert_installed,
+  onnxruntime_install_problem,
   onnxruntime_installed,
   tf_installed,
   torch_installed,
@@ -460,6 +461,10 @@ def _validate_optional_backend_runtime(backend: MODEL_BACKENDS) -> None:
       )
     raise ValueError(
       f"Parameter 'backend': Backend '{MODEL_BACKEND_PT}' is not available. {advice}"
+    )
+  elif backend == MODEL_BACKEND_ONNX and (problem := onnxruntime_install_problem()):
+    raise ValueError(
+      f"Parameter 'backend': Backend '{MODEL_BACKEND_ONNX}' is not available: {problem}"
     )
   elif backend == MODEL_BACKEND_ONNX and not onnxruntime_installed():
     if _has_wheels("onnxruntime"):

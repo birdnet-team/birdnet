@@ -6,6 +6,7 @@ has no GPU, so nothing else reaches its GPU branches there.
 
 import pytest
 
+from birdnet.core import backends
 from birdnet.core.backends import _get_onnx_session_providers
 from birdnet_tests.helper import (
   ensure_no_onnxruntime_gpu_provider_or_skip,
@@ -43,6 +44,74 @@ def test_gpu_without_a_gpu_provider_raises(monkeypatch: pytest.MonkeyPatch) -> N
 
   with pytest.raises(ValueError, match=_NO_GPU_MESSAGE):
     _get_onnx_session_providers("GPU")
+
+
+def test_gpu_with_both_builds_installed_names_them_and_the_repair(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  ensure_onnxruntime_or_skip()
+  import onnxruntime
+
+  _fake_available(monkeypatch, _NO_GPU)
+  monkeypatch.setattr(onnxruntime, "__version__", "1.32.0")
+  monkeypatch.setattr(
+    backends,
+    "_onnxruntime_builds",
+    lambda: [("onnxruntime", "1.32.0"), ("onnxruntime-gpu", "1.26.0")],
+  )
+
+  with pytest.raises(ValueError) as exc_info:
+    _get_onnx_session_providers("GPU")
+
+  assert str(exc_info.value) == (
+    f"{_NO_GPU_MESSAGE}: onnxruntime 1.32.0 and onnxruntime-gpu 1.26.0 are both "
+    "installed and share the folder 'onnxruntime', where the build installed last, "
+    "ONNX Runtime 1.32.0, replaced the files of the other and lists no GPU "
+    "provider. Reinstall the GPU build alone: 'pip uninstall -y onnxruntime "
+    "onnxruntime-gpu && pip install onnxruntime-gpu==1.26.0'."
+  )
+
+
+@pytest.mark.parametrize(
+  "builds",
+  [
+    [("onnxruntime", "1.32.0")],
+    [("onnxruntime", "1.32.0"), ("onnxruntime-openvino", "1.24.0")],
+  ],
+)
+def test_gpu_without_a_gpu_build_installed_asks_for_a_gpu_build(
+  monkeypatch: pytest.MonkeyPatch, builds: list[tuple[str, str]]
+) -> None:
+  ensure_onnxruntime_or_skip()
+  _fake_available(monkeypatch, _NO_GPU)
+  monkeypatch.setattr(backends, "_onnxruntime_builds", lambda: builds)
+
+  with pytest.raises(ValueError) as exc_info:
+    _get_onnx_session_providers("GPU")
+
+  assert str(exc_info.value) == (
+    f"{_NO_GPU_MESSAGE}. Install an ONNX Runtime build with GPU support."
+  )
+
+
+def test_gpu_with_the_directml_build_installed_next_to_the_cpu_build_names_both(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  ensure_onnxruntime_or_skip()
+  _fake_available(monkeypatch, _NO_GPU)
+  monkeypatch.setattr(
+    backends,
+    "_onnxruntime_builds",
+    lambda: [("onnxruntime", "1.32.0"), ("onnxruntime-directml", "1.24.0")],
+  )
+
+  with pytest.raises(ValueError) as exc_info:
+    _get_onnx_session_providers("GPU")
+
+  assert str(exc_info.value).endswith(
+    "'pip uninstall -y onnxruntime onnxruntime-directml onnxruntime-gpu && "
+    "pip install onnxruntime-directml==1.24.0'."
+  )
 
 
 @pytest.mark.parametrize(("device", "device_id"), [("GPU", "0"), ("GPU:1", "1")])
