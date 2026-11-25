@@ -50,9 +50,12 @@ TensorFlow is optional; the extras select the runtimes:
 Without the ``tf`` extra, loading a TensorFlow-based backend raises a ``ValueError``
 that names the alternatives. For GPU inference with the ``onnx`` backend, replace the
 base ``onnxruntime`` (CPU build) with ``onnxruntime-gpu`` after installing — only one
-of the two may be installed: ``pip uninstall onnxruntime && pip install onnxruntime-gpu``
+of the two may be installed:
+``pip uninstall -y onnxruntime onnxruntime-gpu && pip install onnxruntime-gpu``
 (``pip check`` then reports the missing ``onnxruntime``, and every later
 ``pip install``/upgrade of ``birdnet`` puts the CPU build back, so redo the swap).
+Uninstall both even where ``onnxruntime-gpu`` is already installed: the two builds share
+one folder, so removing only the CPU build deletes files of the GPU build too.
 The GPU build has to match the installed CUDA: from 1.27 on, the ``onnxruntime-gpu``
 wheels on PyPI are built for CUDA 13, so on a CUDA 12 system install an earlier release
 (``pip install "onnxruntime-gpu<1.27"``), see ONNX Runtime's

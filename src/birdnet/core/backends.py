@@ -1468,6 +1468,18 @@ def _get_onnx_session_providers(device: str) -> tuple[list[str], list[dict[str, 
       {},
     ]
 
+  builds = _onnxruntime_builds()
+  gpu_builds = [build for build in builds if build[0] in _ONNXRUNTIME_GPU_BUILDS]
+  if len(builds) > 1 and gpu_builds:
+    advice = _onnxruntime_reinstall_advice(builds, gpu_builds)
+    raise ValueError(
+      f"No ONNX Runtime GPU execution provider found: {_and_list(builds)} are "
+      f"{'both' if len(builds) == 2 else 'all'} installed and share the folder "
+      f"'onnxruntime', where the build installed last, ONNX Runtime "
+      f"{ort.__version__}, replaced the files of the "
+      f"{'other' if len(builds) == 2 else 'others'} and lists no GPU provider. "
+      f"Reinstall the GPU build alone: {advice}."
+    )
   raise ValueError(
     "No ONNX Runtime GPU execution provider found. Install an ONNX Runtime "
     "build with GPU support."
@@ -1553,6 +1565,93 @@ def onnxruntime_installed() -> bool:
   import importlib.util
 
   return importlib.util.find_spec("onnxruntime") is not None
+
+
+def onnxruntime_install_problem() -> str | None:
+  """Why the installed ONNX Runtime cannot be used, or None.
+
+  The ONNX Runtime builds (onnxruntime, onnxruntime-gpu, ..) all install into
+  the folder 'onnxruntime', and uninstalling one of two installed builds
+  deletes the files both shipped. Python imports what is left as an empty
+  namespace package; where the removed build's files covered all of the
+  other's, no folder is left while the other is still recorded as installed.
+  """
+  import importlib.machinery
+  import importlib.util
+
+  spec = importlib.util.find_spec("onnxruntime")
+  if spec is None:
+    builds = _onnxruntime_builds()
+    if not builds:
+      return None
+    verb = "is" if len(builds) == 1 else "are"
+    state = (
+      f"{_and_list(builds)} {verb} recorded as installed, but the folder "
+      "'onnxruntime' is missing"
+    )
+  # A namespace package: no loader before the import, NamespaceLoader after.
+  elif spec.submodule_search_locations is not None and (
+    spec.loader is None or isinstance(spec.loader, importlib.machinery.NamespaceLoader)
+  ):
+    folders = " and ".join(f"'{path}'" for path in spec.submodule_search_locations)
+    builds = _onnxruntime_builds()
+    if builds:
+      verb = "is" if len(builds) == 1 else "are"
+      recorded = f"although {_and_list(builds)} {verb} recorded as installed"
+    else:
+      recorded = "and no ONNX Runtime build is recorded as installed"
+    state = f"the folder {folders} holds only part of ONNX Runtime, {recorded}"
+  else:
+    return None
+  wanted = [build for build in builds if build[0] != "onnxruntime"] or builds
+  return (
+    f"{state}. Uninstalling one of two builds that share the folder, such as "
+    "onnxruntime next to onnxruntime-gpu, deletes files of both. Reinstall the "
+    f"build you want alone: {_onnxruntime_reinstall_advice(builds, wanted)}."
+  )
+
+
+# The builds that carry a provider _get_onnx_session_providers picks.
+_ONNXRUNTIME_GPU_BUILDS = frozenset({"onnxruntime-gpu", "onnxruntime-directml"})
+
+
+def _onnxruntime_builds() -> list[tuple[str, str]]:
+  """Name and version of each installed distribution that ships 'onnxruntime'."""
+  import importlib.metadata
+
+  # Only error messages use this: unreadable metadata must not replace them.
+  try:
+    owners = importlib.metadata.packages_distributions().get("onnxruntime", [])
+    builds = {
+      _canonical_name(name): importlib.metadata.version(name) for name in owners if name
+    }
+  except Exception:
+    return []
+  return sorted(builds.items())
+
+
+def _canonical_name(name: str) -> str:
+  import re
+
+  return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _and_list(builds: list[tuple[str, str]]) -> str:
+  names = [f"{name} {version}" for name, version in builds]
+  return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
+
+
+def _onnxruntime_reinstall_advice(
+  builds: list[tuple[str, str]], keep: list[tuple[str, str]]
+) -> str:
+  """The command that removes every build and installs the one in `keep`."""
+  # Removing every build first is what restores the shared files.
+  names = sorted({name for name, _ in builds} | {"onnxruntime", "onnxruntime-gpu"})
+  uninstall = f"pip uninstall -y {' '.join(names)}"
+  if len(keep) > 1:
+    return f"'{uninstall}', then install one of {' or '.join(n for n, _ in keep)}"
+  target = f"{keep[0][0]}=={keep[0][1]}" if keep else "onnxruntime"
+  return f"'{uninstall} && pip install {target}'"
 
 
 def litert_installed() -> bool:
