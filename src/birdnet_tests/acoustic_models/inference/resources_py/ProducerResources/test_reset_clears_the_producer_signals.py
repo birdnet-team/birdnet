@@ -4,6 +4,7 @@ A worker whose wait for a filled slot times out ends its run once the
 all-finished flag is set, so a flag left over from the last run lets the next
 run's workers stop while the producers are still at work. A finish signal left
 set, or its wake, ends the parent's wait for a producer that has not finished.
+A row count left over fails the next run's check that every row came back.
 """
 
 import time
@@ -30,6 +31,8 @@ def test_reset_clears_every_producer_signal_of_the_last_run() -> None:
     start_signal.release()
   for slot in resources.failure_slots:
     write_failure(slot, RuntimeError("left over"))
+  for rows in resources.rows_written:
+    rows.value = 7
 
   resources.reset()
 
@@ -44,3 +47,5 @@ def test_reset_clears_every_producer_signal_of_the_last_run() -> None:
     assert not start_signal.acquire(block=False), f"producer {i} start permits"
   for i, slot in enumerate(resources.failure_slots):
     assert read_failure(slot) is None, f"producer {i} failure slot"
+  for i, rows in enumerate(resources.rows_written):
+    assert rows.value == 0, f"producer {i} row count"

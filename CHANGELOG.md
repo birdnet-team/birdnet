@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - An AIFF recording with the suffix `.aif` was refused with `is not a supported audio format` and left out when a folder was given, although libsndfile reads it like `.aiff`: the suffix was missing from the list of formats.
 - The README's swap to `onnxruntime-gpu` broke an install that already had it: both builds share one folder, so `pip uninstall onnxruntime` deleted files of the GPU build too. The docs now remove both first, and the `onnx` backend prints the repair command for such an install ([#188](https://github.com/birdnet-team/birdnet/issues/188), [#189](https://github.com/birdnet-team/birdnet/pull/189)).
+- A run could, rarely, return a result with segments missing and no error: a worker whose one-second wait for audio ran out just as the last producer published its final batch and finished left without reading that batch, and unless another worker was still waiting at that moment, nobody read it. The worker now reads that batch before it leaves, and a run whose results still come back short fails with an error that gives the number of segments sent and the number of results received ([#190](https://github.com/birdnet-team/birdnet/pull/190)).
 
 ## [1.6.0] - 2026-11-24
 

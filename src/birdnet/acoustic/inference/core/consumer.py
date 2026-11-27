@@ -63,6 +63,7 @@ class Consumer:
     # Hands an exception caught here to the session, which chains it to the
     # "Analysis was cancelled" it raises.
     self._report_error = report_error
+    self.rows_received = 0
 
     # Per-file completion tracking (``on_file_complete``). Fully inert unless a
     # marker reader is provided, so the default hot path is byte-for-byte
@@ -161,6 +162,8 @@ class Consumer:
 
       block = received_block
       n_received_predictions += 1
+      # block[0] has one input index per segment the worker read from the ring.
+      self.rows_received += len(block[0])
       self._log(
         "Received block with %s values from worker. Total received: %s",
         len(block),

@@ -71,10 +71,11 @@ def test_run_raises_instead_of_hanging(
   ]
   run_consumer = manager.run_consumer
 
-  def run_consumer_then_kill_tracker(*args: object, **kwargs: object) -> None:
-    run_consumer(*args, **kwargs)  # type: ignore[arg-type]
+  def run_consumer_then_kill_tracker(*args: object, **kwargs: object) -> int:
+    rows_received = run_consumer(*args, **kwargs)  # type: ignore[arg-type]
     tracker.kill()
     tracker.join()
+    return rows_received
 
   monkeypatch.setattr(manager, "run_consumer", run_consumer_then_kill_tracker)
 

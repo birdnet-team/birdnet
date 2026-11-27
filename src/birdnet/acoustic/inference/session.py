@@ -335,7 +335,7 @@ class AcousticSessionBase(
       len(inputs),
     )
 
-    self._process_manager.run_consumer(
+    rows_received = self._process_manager.run_consumer(
       result_tensor,
       cast(list[Path], inputs) if inputs_are_files else None,
       completion_active=completion_active,
@@ -386,6 +386,8 @@ class AcousticSessionBase(
         "unprocessed-input reports",
       )
     )
+    self._process_manager.check_all_rows_arrived(rows_received)
+    self._raise_if_cancelled()
     stats_res = self._resources.stats_resources
     if stats_res.track_performance:
       assert stats_res.perf_res_queue is not None

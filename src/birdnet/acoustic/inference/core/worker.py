@@ -251,14 +251,8 @@ class WorkerBase(bn_logging.LogableProcessBase):
 
     while True:
       perf_c = time.perf_counter()
-      while not self._sem_filled.acquire(timeout=1.0):
-        if self._check_cancel_event():
-          return
-
-        if self._all_producers_finished.is_set():
-          self._log("Producer is done. Exiting worker.")
-          self._out_q.put(None)
-          return
+      if not self._take_filled_slot():
+        return
       dur1_wait_for_filled_slot = time.perf_counter() - perf_c
 
       self._log(
@@ -403,3 +397,26 @@ class WorkerBase(bn_logging.LogableProcessBase):
 
       if self._sem_active_workers is not None:
         self._sem_active_workers.acquire(block=False)
+
+  def _take_filled_slot(self) -> bool:
+    """Take a ring permit; ``False`` once this run is over for this worker.
+
+    The last producer publishes its final batch, permit included, before it
+    sets all-finished, so a wait that timed out just before both can find the
+    flag set and that permit still there: one take without blocking reads it.
+    A permit that turns out to be the hand-off is passed on by the empty scan.
+    The flag orders nothing (see ``SharedFlag``), so on a weakly ordered CPU
+    the take could still miss that permit; the run then fails in
+    ``ProcessManager.check_all_rows_arrived`` instead of losing the batch.
+    """
+    while not self._sem_filled.acquire(timeout=1.0):
+      if self._check_cancel_event():
+        return False
+
+      if self._all_producers_finished.is_set():
+        if self._sem_filled.acquire(block=False):
+          return True
+        self._log("Producer is done. Exiting worker.")
+        self._out_q.put(None)
+        return False
+    return True
