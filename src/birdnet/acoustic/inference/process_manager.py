@@ -80,7 +80,11 @@ _DRAIN_STOP_TIMEOUT_S = 1.0
 
 
 class PipelineThreadError(RuntimeError):
-  """The manager's own diagnosis of a pipeline thread of this process."""
+  """The manager's own diagnosis of a failure in this process, passed on as written.
+
+  A pipeline thread that ended unreported, or a run that got back another number
+  of results than it sent segments.
+  """
 
 
 def _drain_queue(q: ChildToParentQueue, stop: threading.Event) -> None:
@@ -386,6 +390,7 @@ class ProcessManager:
           finish_signal=self._res.producer_resources.finish_signals[i],
           unprocessed_inputs_queue=self._res.producer_resources.unprocessed_inputs_queue,
           start_method=self._cfg.start_method,
+          rows_written=self._res.producer_resources.rows_written[i],
           completion_queue=self._res.file_completion_resources.marker_queue,
           failure_slot=self._res.producer_resources.failure_slots[i],
         ),
@@ -811,7 +816,8 @@ class ProcessManager:
     inputs: list[Path] | None = None,
     *,
     completion_active: bool = False,
-  ) -> None:
+  ) -> int:
+    """Collect the run's results into ``result_tensor``; returns the rows received."""
     fc = self._res.file_completion_resources
     results_queue = self._res.worker_resources.results_queue
     marker_queue = fc.marker_queue if completion_active else None
@@ -852,6 +858,32 @@ class ProcessManager:
       if marker_reader is not None:
         assert marker_queue is not None
         self._stop_reader(marker_reader, marker_queue)
+    return consumer.rows_received
+
+  def check_all_rows_arrived(self, rows_received: int) -> None:
+    """Fail the run unless every row the producers wrote came back as a result.
+
+    Only after the producers' unprocessed-input reports were read: each
+    producer sends its report after its last row, so reading the report orders
+    the count, which a finish flag seen set does not (see ``SharedFlag``).
+    """
+    rows_written = sum(rows.value for rows in self._res.producer_resources.rows_written)
+    if rows_received == rows_written:
+      return
+    if rows_received < rows_written:
+      message = (
+        f"Results are missing: {rows_written} segments went to the workers, but "
+        f"results for only {rows_received} came back. The run fails rather than "
+        f"return an incomplete result."
+      )
+    else:
+      message = (
+        f"{rows_written} segments went to the workers, but results for "
+        f"{rows_received} came back. The run fails rather than return them."
+      )
+    self._logger.error(message)
+    self.record_run_error(PipelineThreadError(message))
+    self._res.processing_resources.cancel_event.set()
 
   def _stop_reader(self, reader: ThreadedQueueReader, q: ChildToParentQueue) -> None:
     """Ask a queue reader to stop, without waiting for it.

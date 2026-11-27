@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ctypes
 import multiprocessing.synchronize
 import os
 import time
@@ -83,6 +84,7 @@ class Producer(bn_logging.LogableProcessBase):
     fmax: int | None,
     unprocessed_inputs_queue: ChildToParentQueue,
     start_method: str,
+    rows_written: ctypes.c_uint64,
     completion_queue: ChildToParentQueue | None = None,
     failure_slot: FailureSlot | None = None,
   ) -> None:
@@ -90,6 +92,7 @@ class Producer(bn_logging.LogableProcessBase):
       session_id, __name__, logging_queue, logging_level, start_method, failure_slot
     )
     self._completion_queue = completion_queue
+    self._rows_written = rows_written
     # Duration (s) of the file currently being segmented; reported alongside the
     # per-file completion marker so a single-file result can clamp end times.
     self._current_input_duration_s: float = 0.0
@@ -488,6 +491,7 @@ class Producer(bn_logging.LogableProcessBase):
 
       self._ring_flags[claimed_slot] = READABLE_FLAG
       self._sem_filled_slots.release()
+      self._rows_written.value += len(b_file_indices)
 
       self._log(
         "Producer released FILL. Free slots remaining: %s; Filled slots: %s",

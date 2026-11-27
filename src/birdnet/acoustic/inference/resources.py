@@ -252,6 +252,9 @@ class ProducerResources:
   start_signals: list[multiprocessing.synchronize.Semaphore]
   finish_signals: list[FinishSignal]
   failure_slots: list[FailureSlot]
+  # Rows each producer published into the ring this run, written by that
+  # producer alone. No lock, so a producer killed mid-write wedges nothing.
+  rows_written: list[ctypes.c_uint64]
 
   _unprocessed_inputs: set[int] | None = None
 
@@ -270,6 +273,8 @@ class ProducerResources:
       finish_signal.clear()
     for slot in self.failure_slots:
       clear_failure(slot)
+    for rows in self.rows_written:
+      rows.value = 0
 
   @classmethod
   def create(cls, conf: InferenceConfig) -> ProducerResources:
@@ -290,6 +295,7 @@ class ProducerResources:
       start_signals=[ctx.Semaphore(0) for _ in range(n_producers)],
       finish_signals=[FinishSignal(ctx) for _ in range(n_producers)],
       failure_slots=[create_failure_slot(ctx) for _ in range(n_producers)],
+      rows_written=[ctx.RawValue(ctypes.c_uint64, 0) for _ in range(n_producers)],
       unprocessed_inputs_queue=ctx.Queue(),
     )
 
